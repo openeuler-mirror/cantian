@@ -395,6 +395,33 @@ class CheckInstallConfig(CheckBase):
                 return False
         return True
 
+    @staticmethod
+    def check_storage_cantian_vlan_ip_scale(install_config_params):
+        """
+        检查storage_vlan_ip 与 cantian_vlan_ip对个数是否符合要求
+        exp:
+            storage_vlan_ip: item1|item2|item3
+            cantian_vlan_ip: item3|item4|item5
+            item :127.0.0.1;127.0.0.2
+            scale: len(storage_vlan_ip.split("|")) == len(cantian_vlan_ip.split("|"))
+                   sum = len(item1.split(";") * len(item3.split(";")) + ...
+                   sum <= 32
+        :param install_config_params:
+        :return:
+        """
+        cantian_vlan_ips = install_config_params.get("cantian_vlan_ip").split("|")
+        storage_vlan_ips = install_config_params.get("storage_vlan_ip").split("|")
+        if len(cantian_vlan_ips) != len(storage_vlan_ips):
+            LOG.error("cantian_vlan_ip and storage_vlan_ip should have same length.")
+            return False
+        scale = 0
+        for i in range(len(cantian_vlan_ips)):
+            scale += len(cantian_vlan_ips[i].split(";")) * len(storage_vlan_ips[i].split(";"))
+        if scale > 32:
+            LOG.error("cantian_vlan_ip and storage_vlan_ip scale should be less than 32.")
+            return False
+        return True
+
     def read_install_config(self):
         try:
             with open(self.config_path, 'r', encoding='utf8') as file_path:
@@ -421,14 +448,14 @@ class CheckInstallConfig(CheckBase):
                 return False
 
         if key in ip_check_element:
-            ip_list = re.split(r"[;,]", value)
+            ip_list = re.split(r"[;,|]", value)
             for single_ip in ip_list:
                 if not self.check_ipv4(single_ip) and not self.check_ipv6(single_ip):
                     return False
 
         # 适配域名部署方式检查当前域名是否能ping通
         if key in ping_check_element:
-            ip_list = re.split(r"[;,]", value)
+            ip_list = re.split(r"[;,|]", value)
             for node_ip in ip_list:
                 cmd = "%s %s -i 1 -c 3 | grep ttl | wc -l"
                 ping_cmd = cmd % ("ping", node_ip)
@@ -604,6 +631,9 @@ class CheckInstallConfig(CheckBase):
 
         if not self.check_install_config_params(install_config_params.keys()):
             return False
+        if not self.check_storage_cantian_vlan_ip_scale(install_config_params):
+            return False
+
         for key, value in install_config_params.items():
             if key in self.config_key:
                 checked_result = self.check_install_config_param(key, value)
