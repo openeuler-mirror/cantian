@@ -13,6 +13,7 @@ from storage_operate.dr_deploy_operate.dr_deploy import DRDeploy
 from logic.common_func import get_status
 from logic.common_func import exec_popen
 from om_log import DR_DEPLOY_LOG as LOG
+from get_config_info import get_env_info
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 FULL_SYNC_PROGRESS = os.path.join(CURRENT_PATH, "../../../config/full_sync_progress.json")
@@ -21,7 +22,7 @@ LOCK_INSTANCE = "lock instance for backup;"
 UNLOCK_INSTANCE = "unlock instance;"
 FLUSH_TABLE = "flush table with read lock;"
 UNLOCK_TABLE = "unlock tables;"
-FULL_CHECK_POINT_CMD = 'echo -e %s | su -s /bin/bash - cantian -c \'source ~/.bashrc && ' \
+FULL_CHECK_POINT_CMD = 'echo -e %s | su -s /bin/bash - %s -c \'source ~/.bashrc && ' \
                        'ctsql sys@127.0.0.1:1611 -q -c "alter system checkpoint global;"\''
 
 
@@ -40,6 +41,7 @@ class FullSyncRepPair(DRDeploy):
         self.dm_ip = self.dr_deploy_info.get("dm_ip")
         self.dm_user = self.dr_deploy_info.get("dm_user")
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
+        self.run_user = get_env_info("cantian_user")
 
     @staticmethod
     def check_cluster_status():

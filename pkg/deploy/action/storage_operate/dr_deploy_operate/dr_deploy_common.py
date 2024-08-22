@@ -7,6 +7,7 @@ from utils.config.rest_constant import Constant, RepFileSystemNameRule
 from logic.common_func import exec_popen
 from logic.common_func import retry
 from om_log import LOGGER as LOG
+from get_config_info import get_env_info
 
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,7 @@ class RemoteStorageOPT(object):
         self.storage_opt = storage_operate
         self.rest_client = self.storage_opt.rest_client
         self.remote_device_id = remote_device_id
+        self.run_user = get_env_info("cantian_user")
 
     def query_remote_storage_vstore_info(self, vstore_id: str) -> list:
         LOG.info("Start to query remote storage vstore info, vstoreId[%s]", vstore_id)
@@ -118,9 +120,10 @@ class KmcResolve(object):
         :param plain_text: 加解密内容
         :return:
         """
+        run_user = get_env_info("cantian_user")
         resolve_file_path = os.path.join(CURRENT_PATH, "../../cantian_common/crypte_adapter.py")
-        cmd = "su -s /bin/bash - cantian -c \"export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} " \
-              "&& echo -e %s | python3 -B %s %s\"" % (plain_text, resolve_file_path, mode)
+        cmd = "su -s /bin/bash - %s -c \"export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} " \
+              "&& echo -e %s | python3 -B %s %s\"" % (run_user, plain_text, resolve_file_path, mode)
         return_code, output, stderr = exec_popen(cmd)
         if return_code == 1:
             raise Exception("resolve password failed.")
