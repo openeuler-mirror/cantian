@@ -222,6 +222,12 @@ status_t cms_disk_lock_init_dbs(cms_disk_lock_t* lock, const char* dev, const ch
         return ret;
     }
     
+    ret = cms_init_file_dbs(lock->dbs_fd, file);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("init file by dbstor failed, file %s", file);
+        return ret;
+    }
+    
     lock->flock->magic = CMS_STAT_LOCK_MAGIC;
     lock->flock->node_id = inst_id;
     lock->flock->lock_time = time(NULL);
