@@ -1546,7 +1546,6 @@ static status_t dc_open_table_entry_internal(knl_session_t *session, dc_user_t *
     }
 
     entity->entry = entry;
-    dc_set_knl_dictionary(session, user, entry, dc);
     dc_set_table_accessor(&entity->table);
     return CT_SUCCESS;
 }
@@ -1588,6 +1587,8 @@ static status_t dc_open_table_entry(knl_session_t *session, dc_user_t *user, dc_
         // loading conflict with dc invalidation from ddl redo in partial recovery
         CT_LOG_RUN_ERR("loading conflict, entity is null");
         ret = CT_ERROR;
+    } else {
+        dc_set_knl_dictionary(session, user, entry, dc);
     }
     return ret;
 }
