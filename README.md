@@ -1,6 +1,6 @@
 # README<a name="ZH-CN_TOPIC_0000001963217182"></a>
 
-![](figures/zh-cn_image_0000001999699041.png)
+![](documents/24.06/figures/zh-cn_image_0000001999699041.png)
 
 Cantian引擎，是一个存储引擎，采用了存算分的离架构，通过分布式缓存技术、事务MVCC机制、多主集群高可用等关键技术，可以让使能普通的单机数据库，让其变得具有类似Oracle RAC的多读多写能力。
 
@@ -116,7 +116,7 @@ Cantian引擎主要由五个主要部分组成：
 
 要完成Cantian引擎的部署，您需要先编译源码生成Cantian引擎软件包。在完成组网规划、网络配置等操作后，安装Cantian引擎和对接MySQL。同时，在完成部署后进行健康巡检。
 
-![](figures/240117144514553.png)
+![](documents/24.06/figures/240117144514553.png)
 
 <a name="table125761327131511"></a>
 <table><thead align="left"><tr id="row65767273154"><th class="cellrowborder" valign="top" width="29.25%" id="mcps1.1.3.1.1"><p id="p1820118256205"><a name="p1820118256205"></a><a name="p1820118256205"></a>步骤</p>
