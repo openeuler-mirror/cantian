@@ -204,7 +204,7 @@ typedef struct st_arch_proc_context {
     int64 redo_log_filesize;
     char tmp_file_name[CT_FILE_NAME_BUFFER_SIZE];
     int32 tmp_file_handle;
-    bool32 arch_execute;
+    volatile bool32 arch_execute;
     uint64 total_used_time;
     uint64 total_arch_size;
     volatile bool8 write_failed;
