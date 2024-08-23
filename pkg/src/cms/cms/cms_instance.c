@@ -274,6 +274,7 @@ static status_t cms_create_threads(void)
         CMS_LOG_ERR("cms create send entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create send entry thread success");
 
     for (uint32 i = 0; i < g_cms_param->worker_thread_count; i++) {
         if (cm_create_thread(cms_worker_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
@@ -282,62 +283,73 @@ static status_t cms_create_threads(void)
             return CT_ERROR;
         }
     }
+    CMS_LOG_INF("cms create worker entry thread success");
 
     if (cm_create_thread(cms_worker_entry, CT_DFLT_THREAD_STACK_SIZE, CMS_HB_WORKER_FLAG,
         &g_cms_inst->hb_worker_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create hb worker entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create hb worker entry thread success");
 
     if (cms_create_uds_threads() != CT_SUCCESS) {
         CMS_LOG_ERR("cms create uds threads failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create uds threads success");
 
     if (cm_create_thread(cmd_handle_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
         &g_cms_inst->cmd_handle_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create cmd worker entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create cmd worker entry thread success");
 
     if (cm_create_thread(cms_hb_timer_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
         &g_cms_inst->hb_timer_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create hb timer entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create hb timer entry thread success");
 
     if (cm_create_thread(cms_res_check_timer_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
         &g_cms_inst->res_check_timer_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create res check timer entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create res check timer entry thread success");
 
     if (cm_create_thread(cms_gcc_loader_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
         &g_cms_inst->gcc_loader_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create gcc loader entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create gcc loader entry thread success");
 
     if (cm_create_thread(cms_gcc_backup_entry, CT_DFLT_THREAD_STACK_SIZE, NULL,
         &g_cms_inst->gcc_backup_thread) != CT_SUCCESS) {
         CMS_LOG_ERR("cms create gcc backup entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create gcc backup entry thread success");
 
     if (cms_create_aync_write_thread() != CT_SUCCESS) {
         CMS_LOG_ERR("cms create stat aync write entry thread failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create stat aync write entry thread success");
 
     if (cms_create_voting_threads() != CT_SUCCESS) {
         CMS_LOG_ERR("cms create voting threads failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create voting threads success");
 
     if (cms_create_check_disk_threads() != CT_SUCCESS) {
         CMS_LOG_ERR("cms create check disk threads failed");
         return CT_ERROR;
     }
+    CMS_LOG_INF("cms create check disk threads success");
 
     return CT_SUCCESS;
 }
