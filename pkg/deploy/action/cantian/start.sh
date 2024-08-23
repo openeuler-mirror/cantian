@@ -19,7 +19,7 @@ function check_cantian_exporter_daemon_status()
         cantiand_pid=$(ps -ef | grep -v grep | grep cantiand | grep -w '\-D /mnt/dbdata/local/cantian/tmp/data' | awk '{print $2}')
         is_single=$(cat "${CURRENT_PATH}"/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
         if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
-            cantiand_pid=$(ps -ef | grep mysqld | grep -v grep | awk '{print $2}')
+            cantiand_pid=$(ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | awk '{print $2}')
         fi
     done
     # ce_pid不存在

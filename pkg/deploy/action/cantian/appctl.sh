@@ -234,7 +234,7 @@ function check_cantian_status() {
     cantian_count=`ps -fu ${user} | grep "\-D ${cantian_local}/tmp/data" | grep -vE '(grep|defunct)' | wc -l`
     is_single=$(cat "${CURRENT_PATH}"/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
     if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
-        cantian_count=$(ps -ef | grep mysqld | grep -v grep | wc -l)
+        cantian_count=$(ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | wc -l)
     fi
     if [ ${cantian_count} -eq 1 ];then
         echo "cantian process is running, upgrade is normal at the moment"

@@ -1,7 +1,7 @@
 CURRENT_PATH=$(dirname $(readlink -f $0))
 source ${CURRENT_PATH}/../log4sh.sh
-if [ $# -ne 5 ];then
-    logAndEchoError "Usage: Please input 5 params: cluster_name, cluster_id, node_id, deploy_user, storage_metadata_fs."
+if [[ $# -ne 5 ]] && [[ $# -ne 4 ]];then
+    logAndEchoError "Usage: Please input 4 or 5 params: cluster_name cluster_id node_id deploy_user [storage_metadata_fs]"
     exit 1
 fi
 cluster_name=$1

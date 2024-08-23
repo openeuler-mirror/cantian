@@ -1275,7 +1275,7 @@ class CmsCtl(object):
         server_status_cmd = "source ~/.bashrc && cms stat -server %s | grep -v \"NODE_ID\" | awk '{print $2}'" \
                             % self.node_id
         voting_status_cmd = "source ~/.bashrc && cms node -connected | awk '{print $1, $NF}' | grep -v \"VOTING\""
-        timeout = 30
+        timeout = 300
         while timeout:
             timeout -= 1
             try:
@@ -1294,7 +1294,7 @@ class CmsCtl(object):
             if FORCE_UNINSTALL != "force":
                 raise Exception(err_msg)
         time.sleep(15)
-        timeout = 30
+        timeout = 300
         while timeout:
             timeout -= 1
             try:

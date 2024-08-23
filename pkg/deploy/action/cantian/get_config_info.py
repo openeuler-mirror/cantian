@@ -107,7 +107,7 @@ def get_value(param):
     if param in kernel_params_list:
         return info_cantian_config.get(param, "")
 
-    return info.get(param)
+    return info.get(param, "")
 
 
 if __name__ == "__main__":

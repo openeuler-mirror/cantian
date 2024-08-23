@@ -5,7 +5,7 @@ import json
 
 INSTALL_SCPRIT_DIR = os.path.dirname(os.path.abspath(__file__))
 PKG_DIR = os.path.abspath(os.path.join(INSTALL_SCPRIT_DIR, "../.."))
-
+CMS_CONF = "/opt/cantian/cms/cfg/cms.json"
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 ENV_FILE = os.path.join(PKG_DIR, "action", "env.sh")
 info = {}
@@ -28,8 +28,12 @@ def get_value(param):
         for line in env_config:
             if line.startswith("cantian_group"):
                 return line.split("=")[1].strip("\n").strip('"')
+    if param == "install_step":
+        with open(CMS_CONF, "r", encoding="utf-8") as file:
+            cms_conf = json.loads(file.read())
+        return cms_conf.get("install_step")
 
-    return info.get(param)
+    return info.get(param, "")
 
 
 if __name__ == "__main__":

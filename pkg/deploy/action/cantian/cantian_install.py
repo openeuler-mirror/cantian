@@ -521,7 +521,9 @@ def cantian_check_share_logic_ip_isvalid(nodeip):
         if ret_code or stdout != '3':
             return False
         return True
-
+    
+    if DEPLOY_MODE == "dbstore_unify":
+        return True
     LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
         err_msg = "checked the node IP address or domain name failed: %s" % nodeip
@@ -2528,7 +2530,7 @@ class Installer:
                    "|awk '{print $2}'" % (self.data))
             if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
                                                CANTIAND_WITH_MYSQL_IN_CLUSTER]:
-                cmd = "ps -ef | grep -v grep | grep mysqld | awk '{print $2}'"
+                cmd = "ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | awk '{print $2}'"
 
             ret_code, stdout, stderr = _exec_popen(cmd)
             if ret_code:
