@@ -583,7 +583,8 @@ function mount_fs() {
     fi
     chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} ];then
-        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
+        rm_info=$(rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id} 2>&1)
+        logAndEchoError "Failed to delete, rm error info: ${rm_info}"
     fi
     mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
     chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}

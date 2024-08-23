@@ -2530,7 +2530,7 @@ class Installer:
                    "|awk '{print $2}'" % (self.data))
             if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
                                                CANTIAND_WITH_MYSQL_IN_CLUSTER]:
-                cmd = "ps -ef | grep -v grep | grep mysqld | awk '{print $2}'"
+                cmd = "ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | awk '{print $2}'"
 
             ret_code, stdout, stderr = _exec_popen(cmd)
             if ret_code:
