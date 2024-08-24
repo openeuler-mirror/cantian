@@ -63,7 +63,6 @@ class Constant:
     FULL_SYNC_MAX_TIME = 1500
 
 
-SUPPORT_VERSION = ["6.1.8RC1", "6.1.8"]
 CANTIAN_DOMAIN_PREFIX = "CantianDomain_%s%s"
 SPEED = {
     "low": 1,

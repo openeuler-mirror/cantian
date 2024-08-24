@@ -10,7 +10,7 @@ from pre_install import PreInstall
 from logic.storage_operate import StorageInf
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import RemoteStorageOPT
-from utils.config.rest_constant import SUPPORT_VERSION, SystemRunningStatus, \
+from utils.config.rest_constant import SystemRunningStatus, \
     HealthStatus, RemoteDeviceStatus, FilesystemRunningStatus, PoolStatus, PoolHealth, CANTIAN_DOMAIN_PREFIX, \
     RepFileSystemNameRule
 from om_log import LOGGER as LOG
@@ -110,15 +110,15 @@ class DRDeployPreCheck(object):
         PRODUCTMODE：产品型号。
         pointRelease: 当前版本版本号
         productModeString: 产品型号字符串
-        :return: bool
+        :return: list
         """
         LOG.info("Check storage system info start.")
         err_msg = []
         system_info = self.deploy_operate.query_storage_system_info()
         health_status = system_info.get("HEALTHSTATUS")
         running_status = system_info.get("RUNNINGSTATUS")
-        point_release = system_info.get("pointRelease")
         product_mode_string = system_info.get("productModeString")
+
         if self.remote_device_id:
             remote_opt = RemoteStorageOPT(self.storage_opt, self.remote_device_id)
             remote_system_info = remote_opt.query_remote_storage_system_info()
@@ -126,15 +126,15 @@ class DRDeployPreCheck(object):
             if remote_mode_string != product_mode_string:
                 err_msg.append("System mode is non-consistent, local mode[%s], remote mode[%s]" %
                                (product_mode_string, remote_mode_string))
+
         if health_status != HealthStatus.Normal:
             err_msg.append("System health status is not normal: health status[%s]." %
                            get_status(health_status, HealthStatus))
+
         if running_status != SystemRunningStatus.Normal:
             err_msg.append("System running status is not normal: running status[%s]." %
                            get_status(running_status, SystemRunningStatus))
-        if point_release not in SUPPORT_VERSION:
-            err_msg.append("System product release version not supported: current version[%s], support version%s"
-                           % (point_release, SUPPORT_VERSION))
+
         LOG.info("Check storage system info success.")
         return err_msg
 

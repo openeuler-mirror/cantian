@@ -2,6 +2,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
+cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
 
 function stop_systemd_timer() {
     local timer_name=$1
@@ -34,20 +35,22 @@ fi
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 
-# step1 停systemd
-logAndEchoInfo "Begin to stop cantian.timer. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-systemctl daemon-reload >> ${OM_DEPLOY_LOG_FILE} 2>&1
+if [ "$cantian_in_container" -eq 0 ]; then
+  # step1 停systemd
+  logAndEchoInfo "Begin to stop cantian.timer. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+  systemctl daemon-reload >> ${OM_DEPLOY_LOG_FILE} 2>&1
 
-sys_service_batch=(cantian.timer cantian_logs_handler.timer)
-for service in "${sys_service_batch[@]}"
-do
-    stop_systemd_timer ${service}
-    if [ $? -ne 0 ];then
-        exit 1
-    fi
-done
+  sys_service_batch=(cantian.timer cantian_logs_handler.timer)
+  for service in "${sys_service_batch[@]}"
+  do
+      stop_systemd_timer ${service}
+      if [ $? -ne 0 ];then
+          exit 1
+      fi
+  done
 
-sleep 10
+  sleep 10
+fi
 
 logAndEchoInfo "begin to stop cantian_service.sh. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 startPid=`ps -ef | grep -v grep | grep "sh /opt/cantian/common/script/cantian_service.sh start" | awk '{print $2}'`
