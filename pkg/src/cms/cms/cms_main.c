@@ -344,6 +344,9 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     if (cmd_def->cmd_pro_func == cms_gcc_create || cmd_def->cmd_pro_func == cms_gcc_delete ||
         cmd_def->cmd_pro_func == cms_create_mark_file || cmd_def->cmd_pro_func == cms_check_mark_file) {
         ret = cmd_def->cmd_pro_func(argc, argv);
+        if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS && g_cms_inst->is_dbstor_cli_init == CT_TRUE) {
+            (void)dbs_global_handle()->dbs_client_flush_log();
+        }
         printf("cms cmd gcc create or delete ret(%d).\n", ret);
         CMS_LOG_INF("%s, ret is %d", cmd_def->desc, ret);
         return ret;
