@@ -105,9 +105,18 @@ typedef struct st_cms_hb_aync_start_t {
 #define CMS_RLOCK_RES_START_LOCK_START                  CMS_RES_START_LOCK_POS
 #define CMS_RLOCK_RES_START_LOCK_LEN                    CMS_BLOCK_SIZE
 #define CMS_RLOCK_RES_DATA_LOCK_START(res_id, slot_id)  CMS_RES_DATA_GCC_OFFSET(res_id, slot_id)
-#define CMS_RLOCK_RES_DATA_LOCK_LEN                     sizeof(cms_res_data_t)
+#define CMS_RLOCK_RES_DATA_LOCK_LEN                     (sizeof(cms_res_data_t))
 #define CMS_RLOCK_RES_STAT_LOCK_START(node_id, res_id)  CMS_RES_STAT_POS(node_id, res_id)
 #define CMS_RLOCK_RES_STAT_LOCK_LEN                     (sizeof(cms_res_stat_t))
+
+#define GCC_FILE_MASTER_LOCK_NAME                       "_master_lock"
+#define GCC_FILE_MASTER_LOCK_SIZE                       (CMS_BLOCK_SIZE + CMS_BLOCK_SIZE)
+#define GCC_FILE_DETECT_DISK_NAME                       "_detect_disk"
+#define GCC_FILE_DETECT_DISK_SIZE                       (sizeof(cms_gcc_t))
+#define GCC_FILE_VOTE_FILE_NAME                         "_vote_file"
+#define GCC_FILE_VOTE_FILE_SIZE                         (sizeof(cms_cluster_vote_data_t))
+#define GCC_FILE_VOTE_INFO_LOCK_NAME                    "_vote_info_lock"
+#define GCC_FILE_VOTE_INFO_LOCK_SIZE                    CMS_RLOCK_VOTE_INFO_LOCK_LEN
 
 #define CMS_RETRY_IF_ERR(func)          \
     while (func) {                      \
@@ -309,6 +318,7 @@ status_t cms_update_disk_hb(void);
 status_t cms_is_all_restart(bool32 *all_restart);
 status_t cms_init_vote_info(void);
 bool32 cms_try_be_new_master(void);
+status_t cms_init_file_dbs(object_id_t *handle, const char *filename);
 status_t cms_vote_file_init(void);
 status_t cms_res_lock_init(void);
 status_t cms_get_start_lock(cms_disk_lock_t *lock, bool32 *cms_get_lock);
