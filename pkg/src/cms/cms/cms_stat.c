@@ -44,6 +44,7 @@
 #include "cms_log.h"
 #include "cms_cmd_upgrade.h"
 #include "cms_stat.h"
+#include "cm_dbstore.h"
 
 void cms_date2str(date_t date, char* str, uint32 max_size);
 
@@ -266,6 +267,69 @@ status_t cms_vote_info_lock_init(void)
     CT_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "_vote_info_lock",
         CMS_VOTE_INFO_LOCK_POS, CMS_RLOCK_VOTE_INFO_LOCK_START, CMS_RLOCK_VOTE_INFO_LOCK_LEN, g_cms_param->node_id,
         &g_cms_inst->vote_info_lock, NULL, 0, CT_FALSE));
+    return CT_SUCCESS;
+}
+
+uint32 cms_get_file_init_size(const char *filename)
+{
+    if (strstr(filename, GCC_FILE_MASTER_LOCK_NAME) != NULL) {
+        return GCC_FILE_MASTER_LOCK_SIZE;
+    }
+
+    if (strstr(filename, GCC_FILE_DETECT_DISK_NAME) != NULL) {
+        return GCC_FILE_DETECT_DISK_SIZE;
+    }
+
+    if (strstr(filename, GCC_FILE_VOTE_FILE_NAME) != NULL) {
+        return GCC_FILE_VOTE_FILE_SIZE;
+    }
+
+    if (strstr(filename, GCC_FILE_VOTE_INFO_LOCK_NAME) != NULL) {
+        return GCC_FILE_VOTE_INFO_LOCK_SIZE;
+    }
+
+    CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_60, "NOT init the file here by dbstor: %s", (char*)filename);
+    return 0;
+}
+
+status_t cms_init_file_dbs(object_id_t *handle, const char *filename)
+{
+    uint64 file_size = 0;
+    int ret = dbs_global_handle()->dbs_get_file_size(handle, &file_size);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("Failed to get file size by dbstore, file: %s", (char*)filename);
+        return CT_ERROR;
+    }
+
+    if (file_size > 0) {
+        return CT_SUCCESS;
+    }
+
+    uint32 init_length = cms_get_file_init_size(filename);
+    if (init_length == 0 || init_length > GCC_FILE_VOTE_FILE_SIZE) {
+        return CT_SUCCESS;
+    }
+    char *buf = (char*)malloc(init_length);
+    if (buf == NULL) {
+        CMS_LOG_ERR("malloc buf failed.");
+        return CT_ERROR;
+    }
+
+    ret =  memset_sp(buf, init_length, 0, init_length);
+    if (ret != EOK) {
+        free(buf);
+        CMS_LOG_ERR("memset_sp failed, ret %d.", ret);
+        return CT_ERROR;
+    }
+
+    CT_LOG_RUN_INF("init %s by dbstor", (char*)filename);
+    ret = cm_write_dbs_file(handle, 0, buf, init_length);
+    free(buf);
+    if (ret != CT_SUCCESS) {
+        CMS_LOG_ERR("init file by dbstor failed.");
+        return CT_ERROR;
+    }
+
     return CT_SUCCESS;
 }
 

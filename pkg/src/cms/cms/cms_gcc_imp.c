@@ -941,7 +941,7 @@ static status_t cms_import_gcc_read_file_dbs(const char* file_name, char* buf, i
 
     ret = dbs_global_handle()->dbs_get_file_size(&gcc_backup_file_handle, &file_size);
     if (ret != EOK) {
-        CT_LOG_RUN_ERR("Failed to open gcc export file %s by dbstore",
+        CT_LOG_RUN_ERR("Failed to get file size by dbstore, file: %s",
                        (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
         return CT_ERROR;
     }
