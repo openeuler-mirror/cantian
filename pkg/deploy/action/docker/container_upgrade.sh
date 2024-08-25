@@ -10,6 +10,7 @@ node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 cantian_group=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_group"`
+deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 upgrade_mode=`python3 ${CURRENT_PATH}/get_config_info.py "upgrade_mode"`
 METADATA_FS_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 upgrade_path="${METADATA_FS_PATH}/upgrade"
@@ -22,6 +23,7 @@ CLUSTER_COMMIT_STATUS=("prepared" "commit")
 CLUSTER_PREPARED=3
 
 source ${CURRENT_PATH}/../log4sh.sh
+source ${CURRENT_PATH}/dbstor_tool_opt_common.sh
 
 function check_if_need_upgrade() {
     if [ ! -f ${METADATA_FS_PATH}/${VERSION_FILE} ]; then
@@ -121,13 +123,15 @@ function cluster_rollback_status_check() {
     fi
 
     modify_cluster_or_node_status "${cluster_status_flag}" "normal" "cluster"
-    rm -rf ${cluster_and_node_status_path}
     logAndEchoInfo "all nodes have been rollback successfully."
 }
 
 function clear_flag_after_rollback () {
     upgrade_path="${METADATA_FS_PATH}/upgrade"
-    rm -f ${upgrade_path}/upgrade_node${node_id}.*
+    rm -f "${upgrade_path}"/upgrade_node${node_id}.*
+    rm -rf "${cluster_and_node_status_path}"
+    delete_fs_upgrade_file_or_path_by_dbstor "${upgrade_path}" upgrade_node"${node_id}".*
+    delete_fs_upgrade_file_or_path_by_dbstor "${upgrade_path}" cluster_and_node_status
 }
 
 function do_rollback() {
@@ -177,7 +181,6 @@ function check_white_list() {
 
 function container_upgrade_check() {
     check_if_need_upgrade
-
     # 不需要升级，检查是否需要回滚
     if [ $? -ne 0 ]; then
         rollback_check
@@ -218,12 +221,12 @@ function create_upgrade_flag() {
     
     if [ ! -f "${upgrade_flag}" ]; then
         touch ${upgrade_flag}
-        chmod 400 ${upgrade_flag}
+        chmod 600 ${upgrade_flag}
     fi
     
     if [ ! -f "${upgrade_lock}" ]; then
         touch ${upgrade_lock}
-        chmod 400 ${upgrade_lock}
+        chmod 600 ${upgrade_lock}
     fi
 
     if [ "${modify_systable}" == "true" ]; then
@@ -231,9 +234,10 @@ function create_upgrade_flag() {
             logAndEchoInfo "detected that the system tables file flag already exists."
             return 0
         fi
-        touch ${updatesys_flag} && chmod 400 ${updatesys_flag}
+        touch ${updatesys_flag} && chmod 600 ${updatesys_flag}
         logAndEchoInfo "detect need to update system tables, success to create updatesys_flag: '${updatesys_flag}'"
     fi
+
 }
 
 function upgrade_init_flag() {
@@ -321,9 +325,12 @@ function modify_cluster_or_node_status() {
         fi
     fi
 
-    echo "${new_status}" > ${cluster_or_node_status_file_path}
+    echo "${new_status}" > "${cluster_or_node_status_file_path}"
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change upgrade status of ${cluster_or_node} from '${old_status}' to '${new_status}' success."
+        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+            update_remote_status_file_path_by_dbstor ${cluster_or_node_status_file_path}
+        fi
         return 0
     else
         logAndEchoError "change upgrade status of ${cluster_or_node} from '${old_status}' to '${new_status}' failed."
@@ -431,11 +438,11 @@ function modify_sys_tables() {
         echo -e "${sys_password}" | su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/upgrade_systable.sh "127.0.0.1" ${systable_home}/../../../bin ${old_initdb_sql} ${new_initdb_sql} ${systable_home}"
         if [ $? -ne 0 ];then
             logAndEchoError "modify sys tables failed"
-            touch "${modify_sys_tables_failed}" && chmod 400 "${modify_sys_tables_failed}"
+            touch "${modify_sys_tables_failed}" && chmod 600 "${modify_sys_tables_failed}"
             exit 1
         fi
         rm "${modify_sys_table_flag}"
-        touch "${modify_sys_tables_success}" && chmod 400 "${modify_sys_tables_success}"
+        touch "${modify_sys_tables_success}" && chmod 600 "${modify_sys_tables_success}"
         logAndEchoInfo "modify sys tables success"
     else
         logAndEchoInfo "two init.sql files are the same, no need to modify sys tables."
@@ -468,6 +475,7 @@ function container_upgrade() {
 }
 
 function main() {
+    update_local_status_file_path_by_dbstor
     container_upgrade_check
     container_upgrade
 }

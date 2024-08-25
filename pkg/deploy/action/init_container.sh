@@ -9,6 +9,8 @@ deploy_mode=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_mode"`
 storage_share_fs=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "storage_share_fs"`
 cluster_name=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "cluster_name"`
 node_id=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "node_id"`
+storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
+metadata_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
@@ -51,6 +53,18 @@ function check_gcc_if_dbstore_unify() {
         return 0
     fi
     logAndEchoInfo "begin to check gcc file."
+    local version_file=$(su -s /bin/bash - "${cantian_user}"  -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "versions.yml" | wc -l)
+    if [[ ${version_file} -gt 0 ]];then
+        logAndEchoInfo "Versions.yaml file is exists, no need to check gcc file."
+        mkdir -p "${metadata_path}"
+        chown "${cantian_user}":"${cantian_group}" "${metadata_path}"
+        su -s /bin/bash - "${cantian_user}"  -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ --target-dir=${metadata_path} --file-name=versions.yml"
+        if [[ $? -ne 0 ]];then
+            logAndEchoError "Update local version file failed."
+            exit 1
+        fi
+        return 0
+    fi
     local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
     if [ ${is_gcc_file_exist} -ne 0 ]; then
         logAndEchoError "gcc file already exists, please check if any cluster is running or clustername has been used and not been uninstalled."
