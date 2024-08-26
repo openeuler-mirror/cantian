@@ -74,7 +74,18 @@ function wait_node0_online() {
 
 function start_cantiand() {
   log "================ start cantiand ${NODE_ID} ================"
-
+  numactl_str=" "
+  set +e
+  numactl --hardware
+  if [ $? -eq 0 ]; then
+    OS_ARCH=$(uname -i)
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+      CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
+      CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
+      numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+    fi
+  fi
+  set -e
   ever_started=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_EVER_START"`
   if [ "${NODE_ID}" != 0 ] && [ "${ever_started}" != "True" ]; then
     wait_node0_online || err "timeout waiting for node0"
@@ -123,7 +134,7 @@ function start_cantiand() {
           fi
         else
           log "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
-          nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
+          nohup ${numactl_str} ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
                                         --early-plugin-load="ha_ctc.so" \
                                         --default-storage-engine=CTC --core-file > ${STATUS_LOG} 2>&1 &
         fi
@@ -144,18 +155,6 @@ function start_cantiand() {
       echo "instance started" >> /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
       return 0
     fi
-    numactl_str=" "
-    set +e
-    numactl --hardware
-    if [ $? -eq 0 ]; then
-      OS_ARCH=$(uname -i)
-      if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
-        CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
-        numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
-      fi
-    fi
-    set -e
     if [ "${ever_started}" == "True" ]; then
       cms res -start db -node "${NODE_ID}"
       if [ $? -eq 0 ]; then

@@ -458,7 +458,8 @@ int create_mq_shm_file(void)
     return 0;
 }
 
-int mq_srv_init(void)
+//单、双进程均执行
+void init_cpu_info()
 {
     if (init_cpu_mask(tse_cpu_info_str, &tse_cpu_group_num, tse_cpu_info) != 0) {
         tse_cpu_group_num = 0;
@@ -466,6 +467,10 @@ int mq_srv_init(void)
     }
     init_mysql_cpu_info();
     set_cpu_mask();
+}
+
+int mq_srv_init(void)
+{
     if (clear_mmap() != 0) {
         CT_LOG_RUN_ERR("clear mmap dir failed.");
         return -1;
