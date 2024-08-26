@@ -48,18 +48,9 @@ class LSIDGenerate(object):
         return secrets_generator.randint(0, 2 ** 8 - 1)
 
     def random_seed_set(self):
-        if DBSTORE_UNIFY_FLAG:
-            if self.process_id == 1 or self.process_id == 0:
-                self.random_seed = 0
-            else:
-                self.random_seed = self.generate_random_seed()
-        else:
-            # 多租场景容器构建没有随机数生成，先默认取值0
-            tmp_seed = info.get("random_seed", '1')
-            if not tmp_seed:
-                raise Exception("invalid random seed!")
-            else:
-                self.random_seed = int(tmp_seed)
+        # 多租场景容器构建没有随机数生成，先默认取值0
+        tmp_seed = info.get("random_seed", '1')
+        self.random_seed = int(tmp_seed)
 
     def execute(self):
         self.random_seed_set()
