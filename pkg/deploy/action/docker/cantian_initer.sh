@@ -74,6 +74,51 @@ function change_mtu() {
     ifconfig net2 mtu 5500
 }
 
+function update_mysql_config() {
+    local mysql_config_file="${INIT_CONFIG_PATH}/mysql_config.json"
+    local my_cnf_file="/opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf"
+
+    if [ -f "${mysql_config_file}" ]; then
+        logAndEchoInfo "mysql_config.json found, updating my.cnf..."
+
+        # 读取 mysql_config.json 更新 my.cnf 置项
+        while IFS="=" read -r key value; do
+            key=$(echo $key | xargs | tr -d '"')
+            value=$(echo $value | xargs | tr -d '"')
+
+            # 处理特定值的逻辑
+            if [[ "$value" == "+add" ]]; then
+                if grep -q "^${key}" "${my_cnf_file}"; then
+                    logAndEchoInfo "Option '${key}' already exists in my.cnf, skipping."
+                else
+                    echo -e "\n${key}" >> "${my_cnf_file}"
+                    logAndEchoInfo "Added '${key}' to my.cnf."
+                fi
+            elif [[ "$value" == "-del" || "$value" == "-delete" || "$value" == "-remove" ]]; then
+                if grep -q "^${key}" "${my_cnf_file}"; then
+                    sed -i "/^${key}/d" "${my_cnf_file}"
+                    logAndEchoInfo "Removed '${key}' from my.cnf."
+                else
+                    logAndEchoInfo "Option '${key}' not found in my.cnf, nothing to remove."
+                fi
+            else
+                # 处理普通键值对
+                if grep -q "^${key}=" "${my_cnf_file}"; then
+                    sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
+                    logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
+                else
+                    echo -e "\n${key}=${value}" >> "${my_cnf_file}"
+                    logAndEchoInfo "Added '${key}' with value '${value}' to my.cnf."
+                fi
+            fi
+        done < <(jq -r 'to_entries|map("\(.key)=\(.value|tostring)")|.[]' "${mysql_config_file}")
+
+        logAndEchoInfo "my.cnf updated successfully."
+    else
+        logAndEchoInfo "mysql_config.json not found, skipping my.cnf update."
+    fi
+}
+
 function wait_config_done() {
     # 等待pod网络配置完成
     logAndEchoInfo "Begin to wait network done. cms_ip: ${node_domain}"
@@ -326,6 +371,10 @@ function init_start() {
             exit_with_log
         fi
     fi
+
+    # 更新 MySQL 配置文件,存在则更新
+    update_mysql_config
+
     # Cantian启动前参数预检查
     logAndEchoInfo "Begin to pre-check the parameters."
     python3 ${PRE_INSTALL_PY_PATH} 'override' ${CONFIG_PATH}/${CONFIG_NAME}

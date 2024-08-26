@@ -6,11 +6,14 @@ from logic.common_func import read_json_config, exec_popen, write_json_config
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from logic.storage_operate import StorageInf
 from om_log import LOGGER as LOG
+from get_config_info import get_env_info
 
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+RUN_USER = get_env_info("cantian_user")
+USER_GROUP = get_env_info("cantian_group")
 
 
 class UpdateDRParams(object):
@@ -22,6 +25,8 @@ class UpdateDRParams(object):
         self.storage_metadata_fs = self.deploy_params.get("storage_metadata_fs")
         self.mysql_metadata_in_cantian = self.deploy_params.get("mysql_metadata_in_cantian")
         self.dbstore_fs_vstore_id = self.deploy_params.get("dbstore_fs_vstore_id")
+        self.deploy_mode = self.deploy_params.get("deploy_mode")
+        self.metadata_fs = self.deploy_params.get("storage_metadata_fs")
 
     @staticmethod
     def restart_cantian_exporter():
@@ -33,13 +38,57 @@ class UpdateDRParams(object):
               " | grep -v grep | awk '{print $2}' | xargs kill -9"
         exec_popen(cmd)
 
-    def execute(self):
-        share_path = f"/mnt/dbdata/remote/metadata_{self.storage_metadata_fs}"
-        dr_deploy_param_file = os.path.join(share_path, "dr_deploy_param.json")
+    def copy_dr_deploy_param_file(self):
+        """
+        处理 dbstore_unify 模式下的 dr_deploy_param.json 文件读取逻辑，
+        如果不是 dbstore_unify 模式，则从共享路径中读取文件。
+        :return: dr_deploy_param_file 的路径
+        """
+        if self.deploy_mode == "dbstore_unify":
+            remote_dir = "/opt/cantian/config/remote/"
+            dr_deploy_param_file = os.path.join(remote_dir, "dr_deploy_param.json")
+
+            # 创建 remote 目录并设置权限
+            if not os.path.exists(remote_dir):
+                os.makedirs(remote_dir)
+                chown_command = f'chown "{RUN_USER}":"{USER_GROUP}" "{remote_dir}"'
+                LOG.info(f"Executing command: {chown_command}")
+                return_code, output, stderr = exec_popen(chown_command, timeout=30)
+
+                if return_code:
+                    err_msg = f"Execution of chown command failed, output: {output}, stderr: {stderr}"
+                    LOG.error(err_msg)
+                    raise Exception(err_msg)
+
+            dbstor_command = (
+                f'su -s /bin/bash - "{RUN_USER}" -c \''
+                f'dbstor --copy-file --fs-name="{self.metadata_fs}" '
+                f'--source-dir="/" '
+                f'--target-dir="{remote_dir}" '
+                f'--file-name="dr_deploy_param.json"\''
+            )
+            LOG.info(f"Executing command: {dbstor_command}")
+            return_code, output, stderr = exec_popen(dbstor_command, timeout=100)
+
+            if return_code:
+                err_msg = f"Execution of dbstor command failed, output: {output}, stderr: {stderr}"
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+        else:
+            # 处理非 dbstore_unify 模式的逻辑
+            share_path = f"/mnt/dbdata/remote/metadata_{self.storage_metadata_fs}"
+            dr_deploy_param_file = os.path.join(share_path, "dr_deploy_param.json")
+
+        # 检查文件是否存在
         if not os.path.exists(dr_deploy_param_file):
-            err_msg = "Dr deploy param file is not exist, please check whether dr deploy is successful."
+            err_msg = "Dr deploy param file does not exist, please check whether dr deploy is successful."
             LOG.error(err_msg)
             raise Exception(err_msg)
+
+        return dr_deploy_param_file
+
+    def execute(self):
+        dr_deploy_param_file = self.copy_dr_deploy_param_file()
         dr_deploy_params = read_json_config(dr_deploy_param_file)
         dm_ip = dr_deploy_params.get("dm_ip")
         dm_user = dr_deploy_params.get("dm_user")
