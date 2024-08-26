@@ -22,6 +22,7 @@ cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 mes_ssl_switch=`python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch"`
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 gcc_home="/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home"
+cms_gcc_bak="/mnt/dbdata/remote/archive_${storage_share_fs}"
 
 function set_cms_ip() {
     node_domain_0=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`
@@ -44,12 +45,13 @@ function set_cms_ip() {
 function set_fs() {
     if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
         gcc_home="/${storage_share_fs}/${cluster_name}_cms/gcc_home"
+        cms_gcc_bak="/${storage_archive_fs}/${cluster_name}_cms"
     fi
     sed -i -r "s:(GCC_HOME = ).*:\1${gcc_home}\/gcc_file:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(GCC_HOME = ).*:\1${gcc_home}\/gcc_file:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+    sed -i -r "s:(_CMS_GCC_BAK = ).*:\1${cms_gcc_bak}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     sed -i -r "s:(GCC_DIR = ).*:\1${gcc_home}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     sed -i -r "s:(FS_NAME = ).*:\1${storage_share_fs}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
-    sed -i -r "s:(archive_).*:\1${storage_archive_fs}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
 }
 
 function set_cms_cfg() {
