@@ -47,35 +47,6 @@ function check_port() {
   exit 1
 }
 
-function wait_for_node0_install() {
-    logAndEchoInfo "if block here, this node is wait for node 0 to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    local random_seed
-    random_seed=$(python3 ${CURRENT_PATH}/../get_config_info.py "share_random_seed")
-    try_times=180
-    while [ ${try_times} -gt 0 ]
-    do
-        try_times=$(expr "${try_times}" - 1)
-        if [[ "${random_seed}" != "" ]] && [[ "${random_seed}" != "None" ]]; then
-            return 0
-        else
-            sleep 1s
-            random_seed=$(python3 ${CURRENT_PATH}/../get_config_info.py "share_random_seed")
-        fi
-    done
-    logAndEchoError "deploy config file is not detected, please check node 0 weather is installed"
-    exit 1
-}
-
-function update_random_seed() {
-    cluster_name=$(python3 "${CURRENT_PATH}"/get_config_info.py "cluster_name")
-    random_seed=$(python3 -c "import random;import hashlib;random.seed(int(hashlib.sha256('${cluster_name}'.encode('utf-8')).hexdigest(), 16));print(random.randint(0, 255))")
-    if [[ x"${node_id}" != x"0" ]];then
-        wait_for_node0_install
-    fi
-    python3 ${CURRENT_PATH}/../write_config.py "random_seed" "${random_seed}"
-    python3 /opt/cantian/action/write_config.py "random_seed" "${random_seed}"
-}
-
 function copy_deploy_param() {
     if [[ x"${node_id}" == x"0" ]];then
         cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
@@ -181,8 +152,6 @@ function mount_fs() {
     fi
     chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    update_random_seed
-    # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
     copy_deploy_param
     if [ ! -f /mnt/dbdata/remote/metadata_${storage_metadata_fs}/versions.yml ] && [ "${node_id}" == "0" ]; then
         if [ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node0 ]; then

@@ -82,7 +82,8 @@ status_t dcs_send_data_retry(void *msg)
             status = mes_send_data(msg);
             SYNC_POINT_GLOBAL_END;
         } else {
-            CT_LOG_RUN_WAR("inst id(%u) is not alive, alive bitmap:%llu", head->dst_inst, view.bitmap);
+            CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "inst id(%u) is not alive, alive bitmap:%llu",
+                                 head->dst_inst, view.bitmap);
             return status;
         }
         if (retry_time % DCS_RESEND_MSG_TIMES == 0) {

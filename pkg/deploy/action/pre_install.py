@@ -610,6 +610,9 @@ class CheckInstallConfig(CheckBase):
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")
             if install_config_params['deploy_mode'] == "dbstore_unify":
+                if not install_config_params['mysql_metadata_in_cantian']:
+                    LOG.error('Failed to check. deploy_mode is dbstore_unify, mysql_metadata_in_cantian must be true')
+                    return False
                 ping_check_element.remove("share_logic_ip")
                 install_config_params['share_logic_ip'] = "127.0.0.1"
                 # 去nas防止报错，后续版本删除
