@@ -4,6 +4,7 @@
 #
 
 CURRENT_PATH=$(dirname $(readlink -f $0))
+MYSQLD_INSTALL_LOG_FILE="/opt/cantian/mysql/log/install.log"
 
 function help() {
     echo ""
@@ -99,7 +100,8 @@ function start_cantiand() {
     
     if [ "${IS_RERUN}" == 0 ]; then
         log "Init mysqld data dir ${MYSQL_DATA_DIR}"
-        nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin --early-plugin-load="ha_ctc.so" > ${STATUS_LOG} 2>&1 &
+        nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --initialize-insecure --datadir=${MYSQL_DATA_DIR} \
+            --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin --early-plugin-load="ha_ctc.so" >> ${MYSQLD_INSTALL_LOG_FILE} 2>&1 &
         return 0
     fi
     if [ "${RUN_MODE}" != "cantiand_with_mysql_st" ]; then
@@ -111,7 +113,7 @@ function start_cantiand() {
         else
           wait_node1_online || err "timeout waiting for node1"
         fi
-        echo "instance started" > /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log
+        echo "instance started" >> ${MYSQLD_INSTALL_LOG_FILE}
         return 0
       fi
         if [ "${ever_started}" == "True" ]; then
@@ -125,7 +127,7 @@ function start_cantiand() {
           log "Start mysqld with conf ${MYSQL_CONFIG_FILE}"
           nohup ${MYSQL_BIN_DIR}/bin/mysqld --defaults-file=${MYSQL_CONFIG_FILE} --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
                                         --early-plugin-load="ha_ctc.so" \
-                                        --default-storage-engine=CTC --core-file > ${STATUS_LOG} 2>&1 &
+                                        --default-storage-engine=CTC --core-file >> ${MYSQLD_INSTALL_LOG_FILE} 2>&1 &
         fi
       fi
     touch ${SINGLE_FLAG}
