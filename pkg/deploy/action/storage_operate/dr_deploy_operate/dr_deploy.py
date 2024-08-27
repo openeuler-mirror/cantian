@@ -96,6 +96,8 @@ class DRDeploy(object):
         self.run_user = RUN_USER
         self.deploy_mode = None
         self.metadata_fs = None
+        self.share_fs = None
+        self.cluster_name = None
 
     @staticmethod
     def restart_cantian_exporter():
@@ -1057,6 +1059,8 @@ class DRDeploy(object):
     def copy_param_file_to_metadata(self):
         self.deploy_mode = self.dr_deploy_info.get("deploy_mode")
         self.metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
+        self.share_fs = self.dr_deploy_info.get("storage_share_fs")
+        self.cluster_name = self.dr_deploy_info.get("cluster_name")
 
         dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
 
@@ -1073,9 +1077,9 @@ class DRDeploy(object):
             # 切换到指定用户并执行 dbstor 命令
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
-                f'dbstor --create-file --fs-name="{self.metadata_fs}" '
+                f'dbstor --create-file --fs-name="{self.share_fs}" '
                 f'--source-dir="{dr_deploy_param_path}" '
-                f'--file-name="dr_deploy_param.json"\''
+                f'--file-name="/{self.cluster_name}_cms/dr_deploy_param.json"\''
             )
 
             LOG.info(f"Executing command: {dbstor_command}")
