@@ -283,6 +283,11 @@ status_t cms_gcc_write_disk(cms_gcc_t* gcc)
 status_t cms_delete_gcc(void)
 {
     object_id_t root_handle = { 0 };
+    object_id_t cluster_name_dir_handle = { 0 };
+    char cluster_dir_name[CMS_PATH_BUFFER_SIZE] = { 0 };
+    int32 ret = sprintf_s(cluster_dir_name, CMS_PATH_BUFFER_SIZE, "%s_cms", (char *)g_cms_param->cluster_name);
+    PRTS_RETURN_IFERR(ret);
+
     if (dbs_global_handle()->dbs_clear_cms_name_space() != CT_SUCCESS) {
         printf("Failed to clear name space\n");
         return CT_ERROR;
@@ -293,7 +298,12 @@ status_t cms_delete_gcc(void)
         return CT_ERROR;
     }
 
-    if (cm_rm_dbs_dir_file(&root_handle, CMS_GCC_DIR_NAME) != CT_SUCCESS) {
+    if (cm_get_dbs_dir_handle(&root_handle, cluster_dir_name, &cluster_name_dir_handle) != CT_SUCCESS) {
+        printf("Failed to open cluster dir\n");
+        return CT_ERROR;
+    }
+
+    if (cm_rm_dbs_dir_file(&cluster_name_dir_handle, CMS_GCC_DIR_NAME) != CT_SUCCESS) {
         printf("Failed to delete gcc dir\n");
         return CT_ERROR;
     }
@@ -303,6 +313,9 @@ status_t cms_delete_gcc(void)
 
 status_t cms_create_gcc(void)
 {
+    // object_id_t root_handle = { 0 };
+    // object_id_t gcc_file_handle = { 0 };
+
     object_id_t gcc_file_handle = { 0 };
     if (cm_get_dbs_last_file_handle(g_cms_param->gcc_home, &gcc_file_handle)) {
         printf("Failed to get gcc file handle\n");

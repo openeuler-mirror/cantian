@@ -281,7 +281,7 @@ status_t cm_open_dbs_file(object_id_t* pHandle, char* file, object_id_t* handle)
     return CT_SUCCESS;
 }
 
-/* 获取文件路径上各级目录和文件的句柄 path格式：/fs_name/gcc_home/file_name; 它是一个文件的全路径名. */
+/* 获取文件路径上各级目录和文件的句柄 path格式：/fs_name/cluster_name_cms/gcc_home/file_name; 它是一个文件的全路径名. */
 status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
 {
     if (path == NULL || handle_ids == NULL || handle_len == 0) {
@@ -328,7 +328,7 @@ status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object
     return CT_SUCCESS;
 }
 
-/* 获取dbs文件路径中最后一级文件(xxx_file)对应的句柄, file格式:/fs_name/gcc_home/xxx_file */
+/* 获取dbs文件路径中最后一级文件(xxx_file)对应的句柄, file格式:/fs_name/cluster_name_cms/gcc_home/xxx_file */
 status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
 {
     errno_t ret = 0;
@@ -358,7 +358,7 @@ status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
     return CT_SUCCESS;
 }
 
-/* 获取全目录路径的句柄.path格式：/fs_name/gcc_home; 它是一个目录的全路径名，其中fs_name为文件系统名 */
+/* 获取全目录路径的句柄.path格式：/fs_name/cluster_name_cms/gcc_home; 它是一个目录的全路径名，其中fs_name为文件系统名 */
 status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
 {
     if (path == NULL || handle_ids == NULL || handle_len == 0) {
@@ -400,7 +400,7 @@ status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_
     return CT_SUCCESS;
 }
 
-/* 获取dbs文件路径中最后一级目录对应的句柄, file格式:/fs_name/gcc_home */
+/* 获取dbs文件路径中最后一级目录对应的句柄, file格式:/fs_name/cluster_name_cms/gcc_home */
 status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle)
 {
     errno_t ret = 0;
