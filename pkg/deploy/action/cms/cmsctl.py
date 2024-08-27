@@ -1293,7 +1293,6 @@ class CmsCtl(object):
             LOGGER.error(err_msg)
             if FORCE_UNINSTALL != "force":
                 raise Exception(err_msg)
-        time.sleep(15)
         timeout = 300
         while timeout:
             timeout -= 1
