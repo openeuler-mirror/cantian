@@ -65,7 +65,7 @@ function check_gcc_if_dbstore_unify() {
         fi
         return 0
     fi
-    local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
+    local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
     if [ ${is_gcc_file_exist} -ne 0 ]; then
         logAndEchoError "gcc file already exists, please check if any cluster is running or clustername has been used and not been uninstalled."
         exit 1
