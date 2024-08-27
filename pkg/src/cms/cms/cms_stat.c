@@ -294,14 +294,22 @@ uint32 cms_get_file_init_size(const char *filename)
 
 status_t cms_init_file_dbs(object_id_t *handle, const char *filename)
 {
+    if (handle == NULL || filename == NULL) {
+        return CT_ERROR;
+    }
+    if (strlen(filename) == 0) {
+        return CT_SUCCESS;
+    }
+
     uint64 file_size = 0;
     int ret = dbs_global_handle()->dbs_get_file_size(handle, &file_size);
-    if (ret != EOK) {
+    if (ret != 0) {
         CT_LOG_RUN_ERR("Failed to get file size by dbstore, file: %s", (char*)filename);
         return CT_ERROR;
     }
 
     if (file_size > 0) {
+        CMS_LOG_INF("filename %s is already inited, size %llu", filename, file_size);
         return CT_SUCCESS;
     }
 
@@ -315,7 +323,7 @@ status_t cms_init_file_dbs(object_id_t *handle, const char *filename)
         return CT_ERROR;
     }
 
-    ret =  memset_sp(buf, init_length, 0, init_length);
+    ret = memset_sp(buf, init_length, 0, init_length);
     if (ret != EOK) {
         free(buf);
         CMS_LOG_ERR("memset_sp failed, ret %d.", ret);

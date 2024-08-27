@@ -26,6 +26,7 @@ try:
     import json
     import sys
     import collections
+    from datetime import datetime, timezone
     from get_config_info import get_value
     from cantian_funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, \
         ClusterNode1Config, DefaultConfigValue
@@ -86,6 +87,7 @@ MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
 DEPLOY_MODE = ""
+MYSQLD_INSTALL_LOG_FILE = "/opt/cantian/mysql/log/install.log"
 
 g_opts = Options()
 CheckPathsInfo = collections.namedtuple('CheckPathsInfo', ['path_len', 'path_type_in', 'a_ascii',
@@ -2468,11 +2470,23 @@ class Installer:
         cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s >> %s 2>&1" % (
             g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
             g_opts.mysql_config_file_path, g_opts.log_file)
-        
-        if not mysql_init and g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST]:
-            cmd="echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s -R >> %s 2>&1" % (
-            g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
-            g_opts.mysql_config_file_path, g_opts.log_file)
+        install_log_file = self.status_log
+        if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST]:
+            install_log_file = MYSQLD_INSTALL_LOG_FILE
+            if not mysql_init:
+                cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s -R >> %s 2>&1" % (
+                    g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
+                    g_opts.mysql_config_file_path, g_opts.log_file)
+            now_time = datetime.now(timezone.utc)
+            begin_time = str(now_time).replace(" ", "T").strip("+00:00")
+            begin_time_cmd = ("echo 'current time:' >> %s && echo '%s' >> %s" 
+                            % (install_log_file, begin_time, install_log_file))
+            status, stdout, stderr = _exec_popen(begin_time_cmd)
+            if status != 0:
+                output = stdout + stderr
+                raise Exception("Can not write start begin time to install log file, output: %s" % output)
+        else:
+            begin_time = None
 
         status, stdout, stderr = _exec_popen(cmd)
         if status != 0:
@@ -2485,7 +2499,7 @@ class Installer:
         # it by checking the process cyclically after the start command
         # returned. If the cantiand process can't be found within the
         # expected time, it is considered that the startup failed.
-        tem_log_info, status_success = self.init_some_condition(status_success, self.status_log, mysql_init)
+        tem_log_info, status_success = self.init_some_condition(status_success, install_log_file, begin_time)
 
         # the log file's permission is 600, change it
         if os.path.exists(self.status_log):
@@ -2520,7 +2534,7 @@ class Installer:
         else:
             return output
 
-    def init_some_condition(self, status_success, status_log, mysql_init=False):
+    def init_some_condition(self, status_success, status_log, begin_time):
         start_time = 300
         tem_log_info = ""
         for i in range(0, start_time):
@@ -2540,14 +2554,31 @@ class Installer:
                 break
             else:
                 all_the_text = open(status_log).read()
-                LOGGER.info("Instance start log output: %s, cmd: %s" % (str(all_the_text), str(cmd)))
-                if all_the_text.find("instance started") >= 0:
+                is_instance_started = False
+                is_instance_failed = False
+                if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
+                                               CANTIAND_WITH_MYSQL_IN_CLUSTER]:
+                    succ_pattern_1 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}).*?\n.*?\ninstance started'
+                    fail_pattern_1 = (r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6})'
+                                      r'.*?\n.*?\ninstance startup failed')
+                    succ_pattern_2 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}).*?\ninstance started'
+                    fail_pattern_2 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}).*?\ninstance startup failed'
+                    succ_timestamps = re.findall(succ_pattern_1, all_the_text)
+                    succ_timestamps += re.findall(succ_pattern_2, all_the_text)
+                    fail_timestamps = re.findall(fail_pattern_1, all_the_text)
+                    fail_timestamps += re.findall(fail_pattern_2, all_the_text)
+                    is_instance_started = len(succ_timestamps) != 0 and max(succ_timestamps) >= begin_time
+                    is_instance_failed = len(fail_timestamps) != 0 and max(fail_timestamps) >= begin_time
+                else:
+                    is_instance_started = all_the_text.find("instance started") >= 0
+                    is_instance_failed = all_the_text.find("instance startup failed") > 0
+                if (is_instance_started):
                     if stdout:
                         status_success = True
                         self.pid = stdout.strip()
                         LOGGER.info("start instance successfully, pid = %s" % stdout)
                         break
-                elif all_the_text.find("instance startup failed") > 0:
+                elif (is_instance_failed):
                     status_success = False
                     tem_log_info = all_the_text.strip()
                     # Get the error message from run log. After roll_back,
@@ -2562,6 +2593,7 @@ class Installer:
                 status_success = False
                 tem_log_info = "Instance startup timeout, more than 900s"
             elif (i % 30) != 0:
+                LOGGER.info("Cmd output: %s" % stdout)
                 LOGGER.info("Instance startup in progress, please wait.")
         return tem_log_info, status_success
 
@@ -3285,6 +3317,9 @@ class Installer:
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
         if os.path.exists(ctc_path):
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
+            old_ctc_path = os.path.join(mysql_plugin_path, "ha_ctc.so")
+            if (os.path.exists(old_ctc_path)):
+                os.remove(old_ctc_path)
             shutil.copy(ctc_path, mysql_plugin_path)
 
     def set_mysql_env(self):

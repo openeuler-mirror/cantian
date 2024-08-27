@@ -8,20 +8,23 @@ CLUSTER_COMMIT_STATUS=("prepared" "commit")
 storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
+cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
+upgrade_mode=`python3 ${CURRENT_PATH}/get_config_info.py "upgrade_mode"`
 METADATA_FS_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 VERSION_FILE="versions.yml"
 WAIT_TIME=10
 
 source "${CURRENT_PATH}"/../log4sh.sh
 source "${CURRENT_PATH}"/../env.sh
+source ${CURRENT_PATH}/dbstor_tool_opt_common.sh
 
 function init_cluster_status_flag() {
     logAndEchoInfo "begin to init cluster status flag"
-
+    update_local_status_file_path_by_dbstor
     upgrade_path="${METADATA_FS_PATH}/upgrade"
     cluster_and_node_status_path="${upgrade_path}/cluster_and_node_status"
     cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
-    modify_sys_table_success_flag="${storage_metadata_fs_path}/updatesys.success"
+    modify_sys_table_success_flag="${upgrade_path}/updatesys.success"
     source_version=`cat ${METADATA_FS_PATH}/${VERSION_FILE} | grep 'Version:' | awk -F ":" '{print $2}' | sed -r 's/[a-z]*[A-Z]*0*([0-9])/\1/' | sed 's/ //g'`
     cluster_commit_flag="${upgrade_path}/cantian_upgrade_commit_${source_version}.success"
 
@@ -46,6 +49,43 @@ function check_upgrade_commit_flag() {
     return 1
 }
 
+function node_status_check() {
+    logAndEchoInfo "begin to check cluster upgrade status"
+
+    # 统计当前节点数目
+    node_count=$(expr "$(echo "${cms_ip}" | grep -o ";" | wc -l)" + 1)
+
+    # 读取各节点升级状态文件
+    node_status_files=($(find "${cluster_and_node_status_path}" -type f | grep -v grep | grep -E "^${cluster_and_node_status_path}/node[0-9]+_status\.txt$"))
+    status_array=()
+    for status in "${node_status_files[@]}";
+    do
+        status_array+=("$(cat ${status})")
+    done
+
+    # 执行了升级操作的节点数少于计算节点数，直接退出
+    if [ "${#status_array[@]}" != "${node_count}" ]; then
+        logAndEchoInfo "currently only ${#status_array[@]} nodes have performed the ${upgrade_mode} upgrade operation, totals:${node_count}."
+        return 0
+    fi
+
+    # 对升级状态数组去重
+    unique_status=($(printf "%s\n" "${status_array[@]}" | uniq))
+    # 去重后长度若不为1则直接退出
+    if [ ${#unique_status[@]} -ne 1 ]; then
+        logAndEchoInfo "existing nodes have not been upgraded successfully, details: ${status_array[@]}"
+        return 0
+    fi
+    # 去重后元素不是${upgrade_mode}_success
+    if [ "${unique_status[0]}" != "${upgrade_mode}_success" ]; then
+        logAndEchoError "none of the ${node_count} nodes were upgraded successfully"
+        exit 1
+    fi
+
+    logAndEchoInfo "all ${node_count} nodes were upgraded successfully, pass check cluster upgrade status"
+    return 3
+}
+
 function cluster_status_check() {
     logAndEchoInfo "begin to check cluster status"
 
@@ -55,10 +95,12 @@ function cluster_status_check() {
     fi
 
     cluster_status=$(cat ${cluster_status_flag})
+    node_status_check
+    node_status=$?
     if [ -z "${cluster_status}" ]; then
         logAndEchoError "no cluster status information in '${cluster_and_node_status_path}'"
         exit 1
-    elif [[ " ${CLUSTER_COMMIT_STATUS[*]} " != *" ${cluster_status} "* ]]; then
+    elif [[ " ${CLUSTER_COMMIT_STATUS[*]} " != *" ${cluster_status} "* ]] && [[ ${node_status} -ne 3 ]]; then
         logAndEchoError "the cluster status must be one of  '${CLUSTER_COMMIT_STATUS[@]}', instead of ${cluster_status}"
         exit 1
     fi
@@ -124,7 +166,7 @@ function upgrade_commit() {
     modify_cluster_status "${cluster_status_flag}" "commit"
     raise_version_num
     modify_cluster_status "${cluster_status_flag}" "normal"
-    touch "${cluster_commit_flag}" && chmod 400 "${cluster_commit_flag}"
+    touch "${cluster_commit_flag}" && chmod 600 "${cluster_commit_flag}"
     # 等待创建的标记文件生效
     sleep "${WAIT_TIME}"
     check_upgrade_commit_flag
@@ -132,6 +174,7 @@ function upgrade_commit() {
         logAndEchoError "Touch rollup upgrade commit tag file failed."
         exit 1
     fi
+    update_remote_status_file_path_by_dbstor "${cluster_status_flag}"
 }
 
 function clear_upgrade_residual_data() {
@@ -153,6 +196,9 @@ function clear_upgrade_residual_data() {
     if [[ -n $(ls "${upgrade_path}"/upgrade_node*."${target_version}") ]];then
         rm -f "${upgrade_path}"/upgrade_node*."${target_version}"
     fi
+    delete_fs_upgrade_file_or_path_by_dbstor cluster_and_node_status
+    delete_fs_upgrade_file_or_path_by_dbstor updatesys.*
+    delete_fs_upgrade_file_or_path_by_dbstor upgrade_node.*."${target_version}"
     logAndEchoInfo "clear residual data success"
 }
 
@@ -163,7 +209,7 @@ function set_version_file() {
     fi
 
     cp -rf ${PKG_PATH}/${VERSION_FILE} ${METADATA_FS_PATH}/${VERSION_FILE}
-
+    update_version_yml_by_dbstor
     init_sql="/opt/cantian/cantian/server/admin/scripts/initdb.sql"
     cp -rf ${init_sql} "${METADATA_FS_PATH}/initdb.sql"
 }

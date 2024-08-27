@@ -45,3 +45,4 @@ if [ -f /opt/cantian/mysql/install/mysql/bin/mysql ]
 then
     chmod 550 /opt/cantian/mysql/install/mysql/bin/mysql
 fi
+chmod 600 /opt/cantian/mysql/log/install.log

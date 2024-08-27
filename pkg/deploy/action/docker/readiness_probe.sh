@@ -7,6 +7,7 @@ cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 install_step=`python3 ${CURRENT_PATH}/../cms/get_config_info.py "install_step"`
+run_mode=`python3 ${CURRENT_PATH}/get_config_info.py "M_RUNING_MODE"`
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 
 cantiand_pid=$(ps -ef | grep cantiand | grep -v grep | awk 'NR==1 {print $2}')
@@ -44,7 +45,7 @@ if [[ ! -f "${READINESS_FILE}" ]]; then
     handle_failure
 fi
 
-if [[ -z "${cantiand_pid}" ]] && [ ! -f "${SINGLE_FLAG}" ]; then
+if [[ -z "${cantiand_pid}" ]] && [[ "${run_mode}" == "cantiand_in_cluster" ]]; then
     handle_failure
 fi
 
@@ -57,7 +58,7 @@ if [[ "${work_stat}" != "1" ]]; then
     handle_failure
 fi
 
-if [[ -z "${mysql_pid}" ]]; then
+if [[ -z "${mysql_pid}" ]] && [[ "${run_mode}" == "cantiand_with_mysql_in_cluster" ]]; then
     su -s /bin/bash - ${deploy_user} -c "python3 -B \
         /opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/install.py \
         -U ${deploy_user}:${deploy_group} -l /home/${deploy_user}/logs/install.log \
@@ -68,7 +69,7 @@ if [[ -z "${mysql_pid}" ]]; then
     fi
 fi
 
-if [[ -z "${cantian_daemon_pid}" ]]; then
+if [[ -z "${cantian_daemon_pid}" ]];then
     /bin/bash /opt/cantian/common/script/cantian_service.sh start
     cantian_daemon_pid=$(pgrep -f cantian_daemon)
     if [[ -z "${cantian_daemon_pid}" ]]; then

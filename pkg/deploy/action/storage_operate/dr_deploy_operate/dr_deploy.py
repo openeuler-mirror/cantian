@@ -27,6 +27,7 @@ from storage_operate.dr_deploy_operate import install_mysql
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 RUN_USER = get_env_info("cantian_user")
+USER_GROUP = get_env_info("cantian_group")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
@@ -93,6 +94,8 @@ class DRDeploy(object):
         self.backup_lock_shell = None
         self.sync_speed = 2
         self.run_user = RUN_USER
+        self.deploy_mode = None
+        self.metadata_fs = None
 
     @staticmethod
     def restart_cantian_exporter():
@@ -1051,6 +1054,46 @@ class DRDeploy(object):
                                            "failed", code=-1, description=str(err))
                 raise err
 
+    def copy_param_file_to_metadata(self):
+        self.deploy_mode = self.dr_deploy_info.get("deploy_mode")
+        self.metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
+
+        dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
+
+        if self.deploy_mode == "dbstore_unify":
+            chown_command = f'chown "{RUN_USER}":"{USER_GROUP}" "{dr_deploy_param_path}"'
+            LOG.info(f"Executing command: {chown_command}")
+            return_code, output, stderr = exec_popen(chown_command, timeout=30)
+
+            if return_code:
+                err_msg = f"Execution of chown command failed, output: {output}, stderr: {stderr}"
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+
+            # 切换到指定用户并执行 dbstor 命令
+            dbstor_command = (
+                f'su -s /bin/bash - "{RUN_USER}" -c \''
+                f'dbstor --create-file --fs-name="{self.metadata_fs}" '
+                f'--source-dir="{dr_deploy_param_path}" '
+                f'--file-name="dr_deploy_param.json"\''
+            )
+
+            LOG.info(f"Executing command: {dbstor_command}")
+            return_code, output, stderr = exec_popen(dbstor_command, timeout=100)
+
+            if return_code:
+                err_msg = f"Execution of dbstor command failed, output: {output}, stderr: {stderr}"
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+
+            LOG.info(f"Successfully executed: {dbstor_command}")
+        else:
+            share_path = f"/mnt/dbdata/remote/metadata_{self.metadata_fs}"
+            try:
+                shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), share_path)
+            except Exception as _err:
+                LOG.info(f"copy dr_deploy_param failed")
+
     def active_execute(self):
         """
         主端灾备搭建
@@ -1184,11 +1227,7 @@ class DRDeploy(object):
                 shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), "/opt/cantian/config/")
             except Exception as _err:
                 LOG.info(f"copy dr_deploy_param failed")
-            share_path = f"/mnt/dbdata/remote/metadata_{self.dr_deploy_info.get('storage_metadata_fs')}"
-            try:
-                shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), share_path)
-            except Exception as _err:
-                LOG.info(f"copy dr_deploy_param failed")
+            self.copy_param_file_to_metadata()
             self.restart_cantian_exporter()
         try:
             _execute()

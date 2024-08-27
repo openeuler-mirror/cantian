@@ -53,6 +53,11 @@ data:
         }
       }
     }
+  mysql_config.json: |
+    {
+      "read_rnd_buffer_size": "1M",
+      "skip-ssl": true
+    }
   mem_spec: "1"
 ---
 apiVersion: v1
@@ -109,6 +114,11 @@ data:
           "dbstore_fs_vstore_id": ""
         }
       }
+    }
+  mysql_config.json: |
+    {
+      "read_rnd_buffer_size": "1M",
+      "skip-ssl": true
     }
   mem_spec: "1"
 #   内存：60G mem_spec -> "1"
