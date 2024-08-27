@@ -3317,6 +3317,9 @@ class Installer:
             ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
         if os.path.exists(ctc_path):
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
+            old_ctc_path = os.path.join(mysql_plugin_path, "ha_ctc.so")
+            if (os.path.exists(old_ctc_path)):
+                os.remove(old_ctc_path)
             shutil.copy(ctc_path, mysql_plugin_path)
 
     def set_mysql_env(self):
