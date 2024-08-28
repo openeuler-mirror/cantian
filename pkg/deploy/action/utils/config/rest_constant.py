@@ -128,6 +128,12 @@ class VstorePairRunningStatus:
     ForceStarted = "93"       # 强制启动
 
 
+class VstorePairConfigStatus:
+    Normal = "0"              # 正常
+    Synchronizing = "1"       # 同步中
+    Unsynchronizing = "2"     # 待同步
+
+
 class FilesystemPairRunningStatus:
     Normal = "1"              # 正常
     Synchronizing = "23"      # 同步中
