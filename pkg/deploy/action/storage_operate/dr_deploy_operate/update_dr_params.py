@@ -23,10 +23,11 @@ class UpdateDRParams(object):
         self.storage_dbstore_page_fs = self.deploy_params.get("storage_dbstore_page_fs")
         self.storage_dbstore_fs = self.deploy_params.get("storage_dbstore_fs")
         self.storage_metadata_fs = self.deploy_params.get("storage_metadata_fs")
+        self.storage_share_fs = self.deploy_params.get("storage_share_fs")
+        self.cluster_name = self.deploy_params.get("cluster_name")
         self.mysql_metadata_in_cantian = self.deploy_params.get("mysql_metadata_in_cantian")
         self.dbstore_fs_vstore_id = self.deploy_params.get("dbstore_fs_vstore_id")
         self.deploy_mode = self.deploy_params.get("deploy_mode")
-        self.metadata_fs = self.deploy_params.get("storage_metadata_fs")
 
     @staticmethod
     def restart_cantian_exporter():
@@ -62,10 +63,10 @@ class UpdateDRParams(object):
 
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
-                f'dbstor --copy-file --fs-name="{self.metadata_fs}" '
-                f'--source-dir="/" '
+                f'dbstor --copy-file --fs-name="{self.storage_share_fs}" '
+                f'--source-dir="/{self.cluster_name}_cms/" '
                 f'--target-dir="{remote_dir}" '
-                f'--file-name="dr_deploy_param.json"\''
+                f'--file-name="/dr_deploy_param.json"\''
             )
             LOG.info(f"Executing command: {dbstor_command}")
             return_code, output, stderr = exec_popen(dbstor_command, timeout=100)

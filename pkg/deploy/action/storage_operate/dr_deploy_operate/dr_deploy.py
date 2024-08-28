@@ -13,7 +13,7 @@ import traceback
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import KmcResolve
 from utils.config.rest_constant import HealthStatus, MetroDomainRunningStatus, SecresAccess, VstorePairRunningStatus, \
-    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant, SPEED
+    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant, SPEED, VstorePairConfigStatus
 from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
@@ -49,6 +49,7 @@ FLUSH_TABLE = "flush table with read lock;unlock tables;"
 INSTALL_TIMEOUT = 900
 START_TIMEOUT = 3600
 FS_CREAT_TIMEOUT = 300
+TOTAL_CHECK_DURATION = 180    # 创建双活pair检查时间
 
 
 ACTIVE_RECORD_DICT = {
@@ -94,8 +95,11 @@ class DRDeploy(object):
         self.backup_lock_shell = None
         self.sync_speed = 2
         self.run_user = RUN_USER
+        self.deploy_mode = self.dr_deploy_info.get("deploy_mode")
         self.deploy_mode = None
         self.metadata_fs = None
+        self.share_fs = None
+        self.cluster_name = None
 
     @staticmethod
     def restart_cantian_exporter():
@@ -385,33 +389,50 @@ class DRDeploy(object):
         """
         self.record_deploy_process("create_metro_vstore_pair", "start")
         vstore_pair_id = None
+        vstore_pair_info = None
+        health_status = None
+        running_status = None
+        config_status = None
+
         remote_vstore_id = self.dr_deploy_info.get("remote_dbstore_fs_vstore_id")
         local_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         domain_id = domain_info.get("ID")
         vstore_pair_infos = self.dr_deploy_opt.query_hyper_metro_vstore_pair_info()
+
         for exist_vstore_pair_info in vstore_pair_infos:
             exist_remote_vstoreid = exist_vstore_pair_info.get("REMOTEVSTOREID")
             exist_local_vstoreid = exist_vstore_pair_info.get("LOCALVSTOREID")
             if exist_local_vstoreid == local_vstore_id and remote_vstore_id == exist_remote_vstoreid:
                 vstore_pair_id = exist_vstore_pair_info.get("ID")
+
         if vstore_pair_id is None:
             vstore_pair_info = self.dr_deploy_opt.create_hyper_metro_vstore_pair(
                 domain_id, local_vstore_id, remote_vstore_id)
-        else:
+            vstore_pair_id = vstore_pair_info.get("ID")
+
+        tmp_time = 0
+        while tmp_time < TOTAL_CHECK_DURATION:
             vstore_pair_info = self.dr_deploy_opt.query_hyper_metro_vstore_pair_info(vstore_pair_id)
-        health_status = vstore_pair_info.get("HEALTHSTATUS")
-        running_status = vstore_pair_info.get("RUNNINGSTATUS")
-        if running_status != VstorePairRunningStatus.Normal and health_status != HealthStatus.Normal:
-            err_msg = "Hyper metro vstore pair status is not normal, " \
-                      "health_status[%s], running_status[%s], details: %s" % \
-                      (get_status(health_status, HealthStatus),
-                       get_status(running_status, VstorePairRunningStatus),
-                       vstore_pair_info)
-            LOG.error(err_msg)
-            self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
-            raise Exception(err_msg)
-        self.record_deploy_process("create_metro_vstore_pair", "success")
-        return vstore_pair_info
+            health_status = vstore_pair_info.get("HEALTHSTATUS")
+            running_status = vstore_pair_info.get("RUNNINGSTATUS")
+            config_status = vstore_pair_info.get("CONFIGSTATUS")
+
+            if (running_status == VstorePairRunningStatus.Normal and health_status == HealthStatus.Normal
+                    and config_status == VstorePairConfigStatus.Normal):
+                self.record_deploy_process("create_metro_vstore_pair", "success")
+                return vstore_pair_info
+
+            time.sleep(10)
+            tmp_time += 10
+
+        err_msg = "Hyper metro vstore pair status is not normal, " \
+                  "health_status[%s], running_status[%s], details: %s" % \
+                  (get_status(health_status, HealthStatus),
+                   get_status(running_status, VstorePairRunningStatus),
+                   vstore_pair_info)
+        LOG.error(err_msg)
+        self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+        raise Exception(err_msg)
 
     def do_create_hyper_metro_filesystem_pair(self, vstore_pair_info: dict) -> dict:
         """
@@ -764,12 +785,6 @@ class DRDeploy(object):
         """
         LOG.info("Start to update %s status[%s] start", exec_step, exec_status)
         share_fs_name = self.dr_deploy_info.get("storage_share_fs")
-        share_path = f"/mnt/dbdata/remote/share_{share_fs_name}"
-        check_mount_cmd = f"mountpoint {share_path} > /dev/null 2>&1"
-        return_code, _, _ = exec_popen(check_mount_cmd)
-        if return_code:
-            LOG.info("Cantian hasn't been installed.")
-            return
         install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -983,11 +998,6 @@ class DRDeploy(object):
                 raise Exception(err_msg)
             self.update_install_status(node_id, "install", "success")
         LOG.info("Install cantian engine success.")
-        try:
-            self.do_install_mysql()
-        except Exception as e:
-            LOG.info("Install mysql failed, details:\n%s" % str(e))
-            raise e
         return True
 
     def do_install_mysql(self):
@@ -1055,8 +1065,9 @@ class DRDeploy(object):
                 raise err
 
     def copy_param_file_to_metadata(self):
-        self.deploy_mode = self.dr_deploy_info.get("deploy_mode")
         self.metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
+        self.share_fs = self.dr_deploy_info.get("storage_share_fs")
+        self.cluster_name = self.dr_deploy_info.get("cluster_name")
 
         dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
 
@@ -1073,9 +1084,9 @@ class DRDeploy(object):
             # 切换到指定用户并执行 dbstor 命令
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
-                f'dbstor --create-file --fs-name="{self.metadata_fs}" '
+                f'dbstor --create-file --fs-name="{self.share_fs}" '
                 f'--source-dir="{dr_deploy_param_path}" '
-                f'--file-name="dr_deploy_param.json"\''
+                f'--file-name="/{self.cluster_name}_cms/dr_deploy_param.json"\''
             )
 
             LOG.info(f"Executing command: {dbstor_command}")
@@ -1156,29 +1167,39 @@ class DRDeploy(object):
         metadata_fs_ready_flag = False if not mysql_metadata_in_cantian else True
         is_installed_flag = False
         wait_time = 0
+        metadata_fs_info = None
         while True:
             ulog_fs_pair_info, ulog_fs_pair_ready_flag = \
                 self.standby_check_ulog_fs_pair_ready(ulog_fs_pair_ready_flag)
             page_fs_pair_info, page_fs_pair_ready_flag = \
                 self.standby_check_page_fs_pair_ready(page_fs_pair_ready_flag)
-            metadata_fs_pair_info, metadata_fs_ready_flag, metadata_fs_info = \
-                self.standby_check_metadata_fs_pair_ready(metadata_fs_ready_flag)
-            fs_ready = ulog_fs_pair_info and page_fs_pair_info and metadata_fs_pair_info
+
+            if self.deploy_mode != "dbstore_unify":
+                metadata_fs_pair_info, metadata_fs_ready_flag, metadata_fs_info = \
+                    self.standby_check_metadata_fs_pair_ready(metadata_fs_ready_flag)
+                fs_ready = ulog_fs_pair_info and page_fs_pair_info and metadata_fs_pair_info
+            else:
+                fs_ready = ulog_fs_pair_info and page_fs_pair_info
+
             if fs_ready and not is_installed_flag:
-                LOG.info("Filesystem creat success, start to install cantian engine.")
+                LOG.info("Filesystem created successfully, start to install Cantian engine.")
                 self.record_deploy_process("standby_install", "running")
-                self.create_nfs_share_and_client(metadata_fs_info)
+
+                if self.deploy_mode != "dbstore_unify" and metadata_fs_info:
+                    self.create_nfs_share_and_client(metadata_fs_info)
+
                 self.standby_do_install()
                 self.record_deploy_process("standby_install", "success")
+                self.do_install_mysql()
                 is_installed_flag = True
             else:
                 if wait_time > FS_CREAT_TIMEOUT and not is_installed_flag:
-                    err_msg = "Wait for the filesystem creat timeout, please check."
+                    err_msg = "Wait for the filesystem creation timeout, please check."
                     self.record_deploy_process("standby_install", "failed", code=-1, description=err_msg)
                     LOG.error(err_msg)
                     raise Exception(err_msg)
-                LOG.info("Wait until the DR is successfully set up, waited[%s]s", wait_time)
-            pair_ready = metadata_fs_ready_flag and ulog_fs_pair_ready_flag and page_fs_pair_ready_flag
+                LOG.info("Waiting until the DR is successfully set up, waited [%s]s", wait_time)
+            pair_ready = ulog_fs_pair_ready_flag and page_fs_pair_ready_flag and metadata_fs_ready_flag
             if is_installed_flag and pair_ready:
                 self.record_deploy_process("standby_start", "running")
                 try:
@@ -1188,8 +1209,10 @@ class DRDeploy(object):
                     raise err
                 self.record_deploy_process("standby_start", "success")
                 break
+
             time.sleep(60)
             wait_time += 60
+
         self.query_cantian_disaster_recovery_status()
         self.record_deploy_process("dr_deploy", "success")
 
