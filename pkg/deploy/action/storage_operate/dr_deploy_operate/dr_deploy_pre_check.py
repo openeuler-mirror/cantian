@@ -331,7 +331,7 @@ class DRDeployPreCheck(object):
         if ulog_pair_info:
             err_msg.append("Filesystem[%s] metro pair is exist." % dbstore_fs)
         deploy_mode = self.local_conf_params.get("deploy_mode")
-        if metadata_in_cantian and deploy_mode != "dbstore_unify":
+        if metadata_in_cantian and deploy_mode != "dbstor":
             meta_pair_info = self.deploy_operate.query_remote_replication_pair_info(metadata_fs_id)
             if meta_pair_info:
                 err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
@@ -494,7 +494,7 @@ class DRDeployPreCheck(object):
             check_result.append(err_msg % ("metadata_logic_ip", metadata_logic_ip))
         meta_fs_info = self.storage_opt.query_filesystem_info(storage_metadata_fs, vstore_id="0")
         deploy_mode = self.local_conf_params.get("deploy_mode")
-        if mysql_metadata_in_cantian and not meta_fs_info and deploy_mode != "dbstore_unify":
+        if mysql_metadata_in_cantian and not meta_fs_info and deploy_mode != "dbstor":
             check_result.append(err_msg % ("storage_metadata_fs", storage_metadata_fs))
         if db_type == "1":
             archive_lif_info = self.storage_opt.query_logical_port_info(archive_logic_ip, vstore_id="0")

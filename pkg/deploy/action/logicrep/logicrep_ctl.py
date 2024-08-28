@@ -124,7 +124,7 @@ class Logicrep:
     def __init__(self, mode="active"):
         self.logicrep_user = ""
         self.storage_archive_fs = ""
-        self.deploy_mode = "nas"
+        self.deploy_mode = "file"
         self.cantian_in_container = get_value("cantian_in_container")
         self.home = r"/opt/software/tools/logicrep"
         self.init_conf_file = os.path.join(self.home, "conf", "init.properties")

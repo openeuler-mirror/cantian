@@ -69,7 +69,7 @@ function set_cantian_config() {
         node_domain_1="127.0.0.1"
     fi
 
-    if [ "$deploy_mode" = "dbstore_unify" ]; then
+    if [[ "$deploy_mode" == "dbstor" ]]; then
         sed -i -r "s:(ARCHIVE_DEST_1 = location=).*:\1\/${archive_fs}\/archive:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
         sed -i -r "s/(DBSTOR_DEPLOY_MODE = ).*/\11/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     else
@@ -97,9 +97,9 @@ function set_cantian_config() {
     # 判断单进程，并加入环境变量
     running_mode=$(grep '"M_RUNING_MODE"' /opt/cantian/action/cantian/install_config.json | cut -d '"' -f 4)
     single_mode="multiple"
-    if [ "$running_mode" = "cantiand_with_mysql" ] || 
-        [ "$running_mode" = "cantiand_with_mysql_in_cluster" ] || 
-        [ "$running_mode" = "cantiand_with_mysql_in_cluster_st" ]; then
+    if [[ "$running_mode" == "cantiand_with_mysql" ]] ||
+        [[ "$running_mode" == "cantiand_with_mysql_in_cluster" ]] ||
+        [[ "$running_mode" == "cantiand_with_mysql_in_cluster_st" ]]; then
         single_mode="single"
     fi
     if [ "${single_mode}" == "single" ];then

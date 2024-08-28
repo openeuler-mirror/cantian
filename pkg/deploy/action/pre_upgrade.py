@@ -29,8 +29,8 @@ if __name__ == '__main__':
     # 如果没有指定文件，检查升级包的配置文件中key与源配置文件key是否一致
     if len(sys.argv[:]) == 1:
         deploy_config = read_install_config(DEPLOY_CONFIG)
-        deploy_mode = deploy_config.get("deploy_mode", "dbstore")
-        if deploy_mode == "nas":
+        deploy_mode = deploy_config.get("deploy_mode", "combined")
+        if deploy_mode == "file":
             NEW_CONFIG_PATH = NEW_FILE_CONFIG_PATH
             if os.path.exists(SOURCE_FILE_CONFIG_PATH):
                 SOURCE_CONFIG_PATH = SOURCE_FILE_CONFIG_PATH

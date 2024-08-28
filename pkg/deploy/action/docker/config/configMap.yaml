@@ -7,7 +7,7 @@ data:
   deploy_param.json: |
     {
       "upgrade_mode": "rollup",
-      "deploy_mode": "dbstore",
+      "deploy_mode": "combined",
       "deploy_user": "ctdba:ctdba",
       "cluster_id": "0",
       "cluster_name": "cluster1234567",
@@ -70,7 +70,7 @@ data:
   deploy_param.json: |
     {
       "upgrade_mode": "rollup",
-      "deploy_mode": "dbstore",
+      "deploy_mode": "combined",
       "deploy_user": "ctdba:ctdba",
       "cluster_id": "0",
       "cluster_name": "cluster1234567",

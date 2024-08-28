@@ -402,7 +402,7 @@ function safety_upgrade_backup()
 
 function copy_cantian_dbstor_cfg()
 {
-    if [[ x"${deploy_mode}" == x"nas" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         return 0
     fi
     echo "update the cantian local config files for dbstor in ${cantian_local}"
@@ -449,7 +449,7 @@ function update_cantian_server()
     cp -arf ${cantian_pkg_file}/add-ons ${cantian_pkg_file}/admin ${cantian_pkg_file}/bin \
        ${cantian_pkg_file}/cfg ${cantian_pkg_file}/lib ${cantian_pkg_file}/package.xml ${cantian_home}/server
 
-    if [[ x"${deploy_mode}" == x"nas" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         return 0
     fi
 

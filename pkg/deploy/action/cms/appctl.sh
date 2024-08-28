@@ -291,7 +291,7 @@ function pre_upgrade()
         return 1
     fi
 
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]]; then
         echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
         if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
             echo "Error: gcc home does not exist!"
@@ -336,7 +336,7 @@ function post_upgrade()
     fi
     ls -l ${cms_scripts}
 
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]]; then
         echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
         if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
             echo "Error: gcc home does not exist!"
@@ -436,7 +436,7 @@ function update_cms_service() {
        ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cantian_home}/server
 
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" == x"nas" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         return 0
     fi
 
@@ -487,7 +487,7 @@ function update_cms_scripts() {
 
 function update_cms_config() {
     echo "update the cms ini in ${cms_home}/cfg"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_backup}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]] || [[ x"${deploy_mode_backup}" == x"dbstor" ]]; then
         return 0
     fi
 
@@ -501,7 +501,7 @@ function update_cms_config() {
 
 function update_cms_gcc_file() {
     echo "update the cms gcc file in share fs"
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ x"${deploy_mode_backup}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]] || [[ x"${deploy_mode_backup}" == x"dbstor" ]]; then
         return 0
     fi
     su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
@@ -697,7 +697,7 @@ function main_deploy()
             exit $?
             ;;
         install)
-            if [[ "${cantian_in_container}" == "0" && "${deploy_mode}" != "dbstore_unify" ]]; then
+            if [[ "${cantian_in_container}" == "0" && "${deploy_mode}" != "dbstor" && ${deploy_mode} != "combined" ]]; then
                 chown ${cantian_user_and_group} /mnt/dbdata/remote/share_${storage_share_fs}
             fi
             copy_cms_scripts

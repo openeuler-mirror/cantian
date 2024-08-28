@@ -39,7 +39,7 @@ function mountNfs()
         if [ $? -ne 0 ]; then
             logAndEchoInfo "/mnt/dbdata/remote/share_${storage_archive_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             archive_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "archive_logic_ip"`
-            if [[ x"${deploy_mode}" != x"nas" ]]; then
+            if [[ x"${deploy_mode}" != x"file" ]]; then
                 mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
             else
                 mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
@@ -58,7 +58,7 @@ function mountNfs()
     if [ $? -ne 0 ]; then
         logAndEchoInfo "/mnt/dbdata/remote/metadata_${storage_metadata_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         metadata_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "metadata_logic_ip"`
-        if [[ x"${deploy_mode}" != x"nas" ]]; then
+        if [[ x"${deploy_mode}" != x"file" ]]; then
             mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
         else
             mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
@@ -73,36 +73,11 @@ function mountNfs()
     fi
     # 防止日志输出到/var/log/messages中
 
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        mountpoint /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            logAndEchoInfo "/mnt/dbdata/remote/share_${storage_share_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            share_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "share_logic_ip"`
-            check_port
-            sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
-            if [ $? -ne 0 ];then
-                logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            fi
-            if [[ x"${deploy_mode}" != x"nas" ]]; then
-                mount -t nfs -o vers=4.0,sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-            else
-                mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-            fi
-
-            if [ $? -ne 0 ]; then
-                logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            else
-                logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            fi
-        fi
-    fi
-
-    if [[ x"${deploy_mode}" == x"nas" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         storage_dbstore_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_dbstore_fs"`
         storage_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_logic_ip"`
         mountpoint /mnt/dbdata/remote/storage_"${storage_dbstore_fs}" > /dev/null 2>&1
+
         if [ $? -ne 0 ]; then
             mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
         fi
@@ -113,6 +88,25 @@ function mountNfs()
         else
             logAndEchoInfo "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
+        mountpoint /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+          logAndEchoInfo "/mnt/dbdata/remote/share_${storage_share_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+          share_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "share_logic_ip"`
+          check_port
+          sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
+          if [ $? -ne 0 ];then
+              logAndEchoError "Sysctl service is not ready.[Line:${LINENO}, File:${SCRIPT_NAME}]"
+              exit 1
+          fi
+          mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+          if [ $? -ne 0 ]; then
+              logAndEchoError "mount /mnt/dbdata/remote/share_${storage_share_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+              exit 1
+          else
+              logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+          fi
+        fi
+
     fi
 }
 
@@ -136,7 +130,7 @@ function startDaemon()
     kerberos_type=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "kerberos_key"`
     deploy_mode=`python3 ${CURRENT_PATH}/../../action/get_config_info.py  "deploy_mode"`
     # 当前如果为去nas模式，不启动挂载
-    if [[ ! -f "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"  ]] && [[ x"${deploy_mode}" != x"dbstore_unify" ]];then
+    if [[ ! -f "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"  ]] && [[ x"${deploy_mode}" != x"dbstor" ]];then
         mountNfs
     fi
     local cantianPid=$(getDaemonPid)

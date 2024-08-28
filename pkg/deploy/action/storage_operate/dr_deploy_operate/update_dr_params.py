@@ -45,7 +45,7 @@ class UpdateDRParams(object):
         如果不是 dbstore_unify 模式，则从共享路径中读取文件。
         :return: dr_deploy_param_file 的路径
         """
-        if self.deploy_mode == "dbstore_unify":
+        if self.deploy_mode == "dbstor":
             remote_dir = "/opt/cantian/config/remote/"
             dr_deploy_param_file = os.path.join(remote_dir, "dr_deploy_param.json")
 

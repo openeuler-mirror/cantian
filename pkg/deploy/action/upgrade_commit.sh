@@ -260,7 +260,7 @@ function offline_upgrade_commit() {
     fi
     raise_version_num
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" != x"nas" ]];then
+    if [[ x"${deploy_mode}" != x"file" ]];then
         read -p "Please input dorado_ip:" dorado_ip
         echo "dorado_ip is: ${dorado_ip}"
         ping -c 1 "${dorado_ip}" > /dev/null 2>&1

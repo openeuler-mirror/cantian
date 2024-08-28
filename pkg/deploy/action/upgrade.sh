@@ -42,7 +42,7 @@ source ${CURRENT_PATH}/log4sh.sh
 # export此环境变量，方便调用ctbackup
 export PATH=/opt/cantian/mysql/install/mysql/bin/:$PATH
 
-if [[ x"${deploy_mode}" == x"nas" ]];then
+if [[ x"${deploy_mode}" == x"file" ]];then
     python3 "${CURRENT_PATH}"/modify_env.py
     if [  $? -ne 0 ];then
         echo "Current deploy mode is ${deploy_mode}, modify env.sh failed."
@@ -54,7 +54,7 @@ source ${CURRENT_PATH}/env.sh
 
 function rpm_check(){
     local count=2
-    if [ x"${deploy_mode}" != x"nas" ];then
+    if [ x"${deploy_mode}" != x"file" ];then
       count=3
     fi
     rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
@@ -392,7 +392,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" != x"nas" ];then
+    if [ x"${deploy_mode}" != x"file" ];then
         echo  "start replace rpm package"
         install_dbstore
         if [ $? -ne 0 ];then
@@ -958,11 +958,11 @@ function get_back_version() {
 function offline_upgrade() {
     cantian_status_check
     do_backup
-    if [[ ${node_id} == '0' ]] && [[ ${deploy_mode} != "nas" ]]; then
+    if [[ ${node_id} == '0' ]] && [[ ${deploy_mode} != "file" ]]; then
         creat_snapshot
     fi
     get_back_version
-    if [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" == x"dbstor" ]]; then
         umount /mnt/dbdata/remote/share_"${storage_share_fs}"
         rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi

@@ -113,7 +113,7 @@ def cantian_check_share_logic_ip_isvalid(node_ip, deploy_mode):
             return False
         return True
 
-    if deploy_mode == "dbstore_unify":
+    if deploy_mode == "dbstor":
         return True
     LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
@@ -996,7 +996,7 @@ def clean_archive_dir(json_data_deploy):
     archive_dir = os.path.join("/mnt/dbdata/remote", "archive_" + storage_archive_fs)
     cantian_check_share_logic_ip_isvalid(archive_logic_ip, deploy_mode)
 
-    if deploy_mode != "dbstore_unify":
+    if deploy_mode != "dbstor":
         cmd = "timeout 10 ls %s" % archive_dir
         ret_code, _, stderr = _exec_popen(cmd)
         if node_id == "0" and (ret_code == 0 or FORCE_UNINSTALL != "force"):

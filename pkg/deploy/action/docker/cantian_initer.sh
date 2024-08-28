@@ -30,7 +30,7 @@ touch ${HEALTHY_FILE}
 
 # 套餐化更新参数
 ret=$(python3 ${CURRENT_PATH}/update_policy_params.py)
-if [ ${ret} -ne 0 ]; then
+if [[ ${ret} -ne 0 ]]; then
     logAndEchoInfo "update policy parmas failed, details: ${ret}"
     exit 1
 fi
@@ -180,7 +180,7 @@ function check_container_context() {
 
 function init_container() {
     # 非去nas在后续init_container
-    if [ x"${deploy_mode}" != x"dbstore_unify" ]; then
+    if [ x"${deploy_mode}" != x"dbstor" ]; then
         return 0
     fi
     # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
@@ -191,8 +191,8 @@ function init_container() {
 }
 
 function mount_fs() {
-    if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
-        logAndEchoInfo "deploy_mode = dbstore_unify, no need to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    if [ x"${deploy_mode}" == x"dbstor" ]; then
+        logAndEchoInfo "deploy_mode = dbstor, no need to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         # 去nas临时创建防止bug，后续版本要删除，权限暂时全开放
         mkdir -m 755 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}
         mkdir -m 755 -p /mnt/dbdata/remote/share_${storage_share_fs}
@@ -222,7 +222,7 @@ function mount_fs() {
 }
 
 function check_version_file() {
-    if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+    if [ x"${deploy_mode}" == x"dbstor" ]; then
         versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path=/' | grep versions.yml | wc -l)
         if [ ${versions_no_nas} -eq 1 ]; then
             return 0
@@ -331,7 +331,7 @@ function set_version_file() {
     check_version_file
     is_version_file_exist=$?
     if [ ${is_version_file_exist} -eq 1 ]; then
-        if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+        if [ x"${deploy_mode}" == x"dbstor" ]; then
             chown "${cantian_user}":"${cantian_group}" "${PKG_PATH}/${VERSION_FILE}"
             su -s /bin/bash - "${cantian_user}" -c 'dbstor --create-file --fs-name='"${storage_share_fs}"' --source-dir='"${PKG_PATH}/${VERSION_FILE}"' --file-name='"${VERSION_FILE}"''
             if [ $? -ne 0 ]; then
@@ -364,7 +364,7 @@ function start_mysqld() {
 
 function init_start() {
     # 非去nas在这里init_container
-    if [ x"${deploy_mode}" != x"dbstore_unify" ]; then
+    if [ x"${deploy_mode}" != x"dbstor" ]; then
         sh ${SCRIPT_PATH}/appctl.sh init_container
         if [ $? -ne 0 ]; then
             exit_with_log
@@ -412,7 +412,7 @@ function init_start() {
 function exit_with_log() {
     # 首次初始化失败，清理gcc_file
     if [ ${node_id} -eq 0 ]; then
-        if [[ x"${deploy_mode}" == x"dbstore_unify" ]] && [[ -f ${CMS_CONTAINER_FLAG} ]]; then
+        if [[ x"${deploy_mode}" == x"dbstor" ]] && [[ -f ${CMS_CONTAINER_FLAG} ]]; then
             local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
             if [[ ${is_gcc_file_exist} -ne 0 ]]; then
                 su -s /bin/bash - "${cantian_user}" -c 'cms gcc -del'
