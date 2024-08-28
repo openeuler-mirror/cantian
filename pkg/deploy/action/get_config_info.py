@@ -37,15 +37,5 @@ def get_env_info(key):
 
 if __name__ == "__main__":
     _param = sys.argv[1]
-    if _param == "share_random_seed":
-        META_PATH = get_value("storage_metadata_fs")
-        META_FILE = f"/mnt/dbdata/remote/metadata_{META_PATH}/deploy_param.json"
-        share_info = {}
-        if os.path.exists(META_FILE):
-            with open(META_FILE, encoding="utf-8") as file:
-                tmp = file.read()
-                share_info = json.loads(tmp)
-        print(share_info.get("random_seed"))
-    else:
-        res = get_value(_param)
-        print(res)
+    res = get_value(_param)
+    print(res)

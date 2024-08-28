@@ -16,8 +16,7 @@ CHECK_LIST = [
     "mes_ssl_switch",
     "link_type",
     "db_type",
-    "mysql_metadata_in_cantian",
-    "random_seed"
+    "mysql_metadata_in_cantian"
 ]
 
 

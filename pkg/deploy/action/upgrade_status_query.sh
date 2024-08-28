@@ -35,7 +35,7 @@ function init_cluster_status_flag() {
         echo "[error] obtain current node storage_metadata_fs_name error, please check file: config/deploy_param.json" && exit 1
     fi
 
-    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/
     cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
     cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
     node_status_flag="${cluster_and_node_status_path}/${cluster_or_node}_status.txt"

@@ -303,14 +303,6 @@ function uninstall() {
     fi
 }
 
-function check_deploy_param() {
-    if [[ x"${node_id}" == x"0" ]];then
-        cp -rf "${CONFIG_PATH}"/deploy_param.json /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/
-        chmod 600 /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
-        chown "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
-    fi
-}
-
 function install_dbstor(){
     local arrch=$(uname -p)
     local dbstor_path="${CURRENT_PATH}"/../repo
@@ -447,38 +439,6 @@ function check_dbstore_client_compatibility() {
     logAndEchoInfo "dbstore client compatibility check success."
 }
 
-function wait_for_node0_install() {
-    logAndEchoInfo "if block here, this node is wait for node 0 to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-    random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
-    try_times=180
-    while [ ${try_times} -gt 0 ]
-    do
-        try_times=$(expr "${try_times}" - 1)
-        if [[ "${random_seed}" != "" ]] && [[ "${random_seed}" != "None" ]]; then
-            return 0
-        else
-            sleep 1s
-            random_seed=$(python3 ${CURRENT_PATH}/get_config_info.py "share_random_seed")
-        fi
-    done
-    logAndEchoError "deploy config file is not detected, please check node 0 weather is installed"
-    uninstall
-    exit 1
-}
-
-function update_random_seed() {
-  if [[ x"${dbstore_demo}" != x"True" ]]; then
-    cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
-    random_seed=$(python3 -c "import random;import hashlib;random.seed(int(hashlib.sha256('${cluster_name}'.encode('utf-8')).hexdigest(), 16));print(random.randint(0, 255))")
-    if [[ x"${node_id}" != x"0" ]];then
-        wait_for_node0_install
-    fi
-  else
-    random_seed=0
-  fi
-    python3 ${CURRENT_PATH}/write_config.py "random_seed" "${random_seed}"
-}
-
 function mount_fs() {
     mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
     chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
@@ -588,11 +548,6 @@ function mount_fs() {
     fi
     mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
     chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-    update_random_seed
-    # 挂载后，0节点拷贝配置文件至文件系统下，1节点检查对应配置文件参数
-    if [[ x"${dbstore_demo}" != x"True" ]]; then
-        check_deploy_param
-    fi
 }
 
 # 容器内无需ntp服务检查、参数预检查
@@ -898,7 +853,6 @@ do
                 exit 1
             fi
         fi
-
         if [[ "${cantian_in_container}" == "0" ]]; then
             check_dbstor_usr_passwd
             # 检查dbstore client 与server端是否兼容
@@ -920,6 +874,7 @@ done
 # 把升级备份相关路径拷贝到/opt/cantian
 cp -rfp ${CURRENT_PATH}/../repo /opt/cantian/
 cp -rfp ${CURRENT_PATH}/../versions.yml /opt/cantian/
+update_version_yml_by_dbstor
 
 config_security_limits > /dev/null 2>&1
 
