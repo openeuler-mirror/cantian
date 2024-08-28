@@ -911,7 +911,7 @@ status_t rc_wait_archive_log_finish(arch_proc_context_t *arch_proc_ctx)
             break;
         }
         if (arch_proc_ctx[i].arch_execute == CT_TRUE) {
-            sleep(DTC_REFORM_WAIT_ARCH_LOG);
+            cm_sleep(DTC_REFORM_WAIT_ARCH_LOG);
             continue;
         }
         i++;
