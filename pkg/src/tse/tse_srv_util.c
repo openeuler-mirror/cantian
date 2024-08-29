@@ -523,7 +523,6 @@ status_t tse_get_new_session(session_t **session_ptr)
     CT_LOG_DEBUG_INF("[TSE_ALLOC_SESS]:tse_get_new_sess session_id:%u", session->knl_session.id);
 
 #ifdef WITH_DAAC
-    //single process binds cpu core
     cpu_set_t mask;
     CPU_ZERO(&mask);
     int hash_seed = session->knl_session.id % SHM_SEG_MAX_NUM;
