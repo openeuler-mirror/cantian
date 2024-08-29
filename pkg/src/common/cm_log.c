@@ -53,7 +53,7 @@ static char *g_module_info[] = {
     "TBOX",
     "PE",
     "DBSTORE",
-    "TSE",
+    "CTC",
     "SERVER",
     "KNL_COMM",
     "CMS",

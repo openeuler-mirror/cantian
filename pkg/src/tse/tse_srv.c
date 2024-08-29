@@ -393,8 +393,8 @@ static void tse_update_get_serial_col_value(dc_entity_t *entity, knl_session_t *
     serial->max_serial_col_value = serial_col_value;
 }
 
-int tse_copy_cursor_row(knl_session_t *session, knl_cursor_t *cursor, row_head_t *src_row, row_head_t *compact_row,
-                        uint16 *size)
+int tse_copy_cursor_row(knl_session_t *session, knl_cursor_t *cursor, row_head_t *src_row,
+                        row_head_t *compact_row, uint16 *size)
 {
     /* for heap row lock confliction and re-read row after that, we need to update query scn
        in order to do index scan using the new data with new query scn for mysql */
@@ -413,6 +413,34 @@ int tse_copy_cursor_row(knl_session_t *session, knl_cursor_t *cursor, row_head_t
         *size = src_row->size;
     }
 
+    return CT_SUCCESS;
+}
+
+int tse_copy_cursor_row_read(knl_session_t *session, knl_cursor_t *cursor, record_info_t *record_info, bool copy_data)
+{
+    /* for heap row lock confliction and re-read row after that, we need to update query scn
+       in order to do index scan using the new data with new query scn for mysql */
+    if (cursor->scn > session->query_scn && cursor->action == CURSOR_ACTION_UPDATE) {
+        session->query_scn = cursor->scn;
+    }
+
+    if (cursor->action > CURSOR_ACTION_SELECT && !tse_alloc_stmt_context((session_t *)session)) {
+        return CT_ERROR;
+    }
+
+    if (cursor->row == NULL) {
+        return CT_SUCCESS;
+    }
+
+    record_info->record_len = cursor->row->size;
+    if (copy_data) {
+        errno_t ret = memcpy_sp(record_info->record, cursor->row->size, cursor->row, cursor->row->size);
+        knl_securec_check(ret);
+    } else {
+        record_info->record = cursor->row;
+        record_info->offsets = cursor->offsets;
+        record_info->lens = cursor->lens;
+    }
     return CT_SUCCESS;
 }
 
@@ -660,6 +688,78 @@ not_ret:
         }
     }
     return ret;
+}
+
+EXTER_ATTACK int tse_update_job(update_job_info info)
+{
+    session_t *session = NULL;
+    status_t status = tse_get_new_session(&session);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[tse_update_job]: alloc new session failed");
+        return status;
+    }
+    tse_set_no_use_other_sess4thd(session);
+    knl_session_t *knl_session = &session->knl_session;
+    CM_SAVE_STACK(knl_session->stack);
+    knl_cursor_t *cursor = tse_push_cursor(knl_session);
+    if (NULL == cursor) {
+        CT_LOG_RUN_ERR("[tse_update_job]: tse_push_cursor FAIL");
+        TSE_POP_CURSOR(knl_session);
+        tse_free_session(session);
+        return ERR_GENERIC_INTERNAL_ERROR;
+    }
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_JOB_ID, CT_INVALID_ID32);
+    
+    char *ptr;
+    uint32 len;
+    text_t job_name = { info.job_name_str, info.job_name_len };
+    while (CT_TRUE) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = tse_get_and_reset_err();
+            CT_LOG_RUN_ERR("[tse_update_job]: job %s not found", info.job_name_str);
+            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+            tse_free_session(session);
+            return status;
+        }
+        if (cursor->eof) {
+            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+            CT_LOG_RUN_ERR("[tse_update_job]: job %s not found", info.job_name_str);
+            tse_free_session(session);
+            return CT_ERROR;
+        }
+        ptr = CURSOR_COLUMN_DATA(cursor, SYS_JOB_WHAT);
+        len = CURSOR_COLUMN_SIZE(cursor, SYS_JOB_WHAT);
+        if (len > 0 && len <= MAX_LENGTH_WHAT && strncmp(ptr, job_name.str, job_name.len) == 0) {
+            break;
+        }
+    }
+
+    int32 is_broken = *(int32 *)CURSOR_COLUMN_DATA(cursor, SYS_JOB_FLAG);
+
+    knl_job_node_t job_info = { 0 };
+    job_info.job_id = *(int64 *)CURSOR_COLUMN_DATA(cursor, SYS_JOB_JOB_ID);
+    job_info.next_date = cm_now();
+    if (!info.switch_on) {
+        job_info.node_type = JOB_TYPE_BROKEN;
+        job_info.is_broken = true;
+    } else {
+        job_info.node_type = JOB_TYPE_RUN;
+        job_info.is_broken = false;
+    }
+    
+    text_t user = { info.user_str, info.user_len };
+    if (knl_update_job(knl_session, &user, &job_info, CT_TRUE) != CT_SUCCESS) {
+        status = tse_get_and_reset_err();
+        CT_LOG_RUN_ERR("[tse_update_job]: knl_update_job %s failed", info.job_name_str);
+        knl_rollback(knl_session, NULL);
+        CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+        tse_free_session(session);
+        return status;
+    }
+    knl_commit(knl_session);
+    CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+    tse_free_session(session);
+    return status;
 }
 
 EXTER_ATTACK int tse_write_row(tianchi_handler_t *tch, const record_info_t *record_info,
@@ -1055,7 +1155,7 @@ static void tse_fetch_cursor_rowid_pos_value(knl_session_t *knl_session, knl_cur
     cursor->ssn = knl_session->ssn;
 }
 
-int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, uint8_t *records, uint16 *size)
+int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, record_info_t *record_info, bool copy_data)
 {
     int ret = CT_SUCCESS;
     uint32 charset_id = knl_session->kernel->db.charset_id;
@@ -1074,9 +1174,9 @@ int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, uint8
         } else if (cond_result == CPR_FALSE) {
             continue;
         } else {
-            ret = tse_copy_cursor_row(knl_session, cursor, cursor->row, records, size);
+            ret = tse_copy_cursor_row_read(knl_session, cursor, record_info, copy_data);
             if (ret != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("tse_fetch_and_filter: tse_copy_cursor_row FAIL");
+                CT_LOG_RUN_ERR("tse_fetch_and_filter: tse_copy_cursor_row_read FAIL");
                 return ret;
             }
             break;
@@ -1087,6 +1187,7 @@ int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, uint8
 
 EXTER_ATTACK int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info)
 {
+    int ret = CT_SUCCESS;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
@@ -1101,8 +1202,7 @@ EXTER_ATTACK int tse_rnd_next(tianchi_handler_t *tch, record_info_t *record_info
         knl_inc_session_ssn(knl_session);
         cursor->ssn = knl_session->ssn;
     }
-
-    int ret = tse_fetch_and_filter(cursor, knl_session, record_info->record, &record_info->record_len);
+    ret = tse_fetch_and_filter(cursor, knl_session, record_info, !g_is_single_run_mode);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_rnd_next: tse_fetch_and_filter FAIL");
         tse_free_handler_cursor(session, tch);
@@ -1164,6 +1264,7 @@ EXTER_ATTACK int tse_scan_records(tianchi_handler_t *tch, uint64_t *num_rows, ch
 int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_lens,
                      uint32_t *recNum, uint64_t *rowids, int32_t max_row_size)
 {
+    int ret = CT_SUCCESS;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
@@ -1182,7 +1283,8 @@ int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_
 
     uint32_t record_buf_left_lens = MAX_RECORD_SIZE;
     for (uint32_t i = 0; i < TSE_MAX_PREFETCH_NUM && record_buf_left_lens >= max_row_size; i++) {
-        int ret = tse_fetch_and_filter(cursor, knl_session, records, &record_lens[i]);
+        record_info_t record_info = {records, 0, NULL, NULL};
+        ret = tse_fetch_and_filter(cursor, knl_session, &record_info, true);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("tse_rnd_prefetch: tse_fetch_and_filter FAIL");
             tse_free_handler_cursor(session, tch);
@@ -1192,7 +1294,7 @@ int tse_rnd_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *record_
             record_lens[i] = 0;
             break;
         }
-
+        record_lens[i] = ((row_head_t *)records)->size;
         rowids[i] = cursor->rowid.value;
         records += record_lens[i];
         *recNum += 1;
@@ -1253,7 +1355,8 @@ EXTER_ATTACK int tse_rnd_pos(tianchi_handler_t *tch, uint16_t pos_length, uint8_
     }
 
     if (!cursor->eof) {
-        int ret = tse_copy_cursor_row(knl_session, cursor, cursor->row, record_info->record, &record_info->record_len);
+        int ret = CT_SUCCESS;
+        ret = tse_copy_cursor_row_read(knl_session, cursor, record_info, !g_is_single_run_mode);
         if (ret != CT_SUCCESS) {
             tse_free_handler_cursor(session, tch);
             return ret;
@@ -1415,12 +1518,18 @@ bool is_fetched_the_same_key(knl_cursor_t *cursor, const index_key_info_t *index
             }
         }
     }
+
+    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
+    knl_column_t *column = dc_get_column(entity, desc->columns[column_id]);
+    cm_assert(column != NULL);
+    void *col_val = (void *)cursor->row + cursor->offsets[col_offset];
+    void *key_val = (void *)index_key_info->key_info[column_id].left_key;
+    uint16 left_key_len = (uint16)index_key_info->key_info[column_id].left_key_len;
+    int32 cmp_res = var_compare_data_ex(col_val, left_key_len, key_val, left_key_len, column->datatype, column->collate_id);
     // 先判断数据长度是否相等，再将取出来的值与key作memcmp，如果值相等则返回true
     if (!(cursor->lens[col_offset] == 0 ||
-        cursor->lens[col_offset] != index_key_info->key_info[column_id].left_key_len ||
-        memcmp((uint8_t *)cursor->row + cursor->offsets[col_offset],
-            index_key_info->key_info[column_id].left_key,
-            index_key_info->key_info[column_id].left_key_len) != 0)) {
+        cursor->lens[col_offset] != left_key_len ||
+        cmp_res != 0)) {
         return true;
     }
 
@@ -1439,7 +1548,6 @@ bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_
     }
 
     index_t *cursor_index = (index_t *)cursor->index;
-    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     knl_index_desc_t *desc = INDEX_DESC(cursor_index);
 
     int iter_end_id = index_key_info->index_skip_scan ? 0 : index_key_info->key_num - 1;
@@ -1452,6 +1560,33 @@ bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_
     return true;
 }
 
+static int tse_get_correct_pos(tianchi_handler_t *tch, session_t *session,
+                               knl_cursor_t *cursor, const index_key_info_t *index_key_info)
+{
+    int ret = CT_SUCCESS;
+    knl_session_t *knl_session = &session->knl_session;
+    if (knl_fetch(knl_session, cursor) != CT_SUCCESS) {
+        TSE_HANDLE_KNL_FETCH_FAIL_LIMIT(session, tch);
+    }
+    if (cursor->eof) {
+        return ret;
+    }
+    bool has_fetched_null = CT_FALSE;
+    while (is_need_one_more_fetch(cursor, index_key_info, index_key_info->find_flag, &has_fetched_null)) {
+        if (knl_fetch(knl_session, cursor) != CT_SUCCESS) {
+            TSE_HANDLE_KNL_FETCH_FAIL_LIMIT(session, tch);
+        }
+        if (cursor->eof) {
+            if (has_fetched_null) {
+                break;
+            } else {
+                return ret;
+            }
+        }
+    }
+    return ret;
+}
+
 int get_correct_pos_by_fetch(tianchi_handler_t *tch, knl_cursor_t *cursor,
                              record_info_t *record_info, const index_key_info_t *index_key_info)
 {
@@ -1461,28 +1596,15 @@ int get_correct_pos_by_fetch(tianchi_handler_t *tch, knl_cursor_t *cursor,
     knl_session_t *knl_session = &session->knl_session;
     uint32 charset_id = knl_session->kernel->db.charset_id;
     while (!cursor->eof) {
-        if (knl_fetch(knl_session, cursor) != CT_SUCCESS) {
-            TSE_HANDLE_KNL_FETCH_FAIL_LIMIT(session, tch);
-        }
-        if (cursor->eof) {
-            CT_LOG_DEBUG_INF("cannot find record with current key info.");
-            record_info->record_len = 0;
+        ret = tse_get_correct_pos(tch, session, cursor, index_key_info);
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("get_correct_pos_by_fetch: tse_fetch_correct_pos FAIL");
+            tse_free_handler_cursor(session, tch);
             return ret;
         }
-        bool has_fetched_null = CT_FALSE;
-        while (is_need_one_more_fetch(cursor, index_key_info, index_key_info->find_flag, &has_fetched_null)) {
-            if (knl_fetch(knl_session, cursor) != CT_SUCCESS) {
-                TSE_HANDLE_KNL_FETCH_FAIL_LIMIT(session, tch);
-            }
-            if (cursor->eof) {
-                if (has_fetched_null) {
-                    break;
-                } else {
-                    CT_LOG_DEBUG_INF("cannot find record with current key info.");
-                    record_info->record_len = 0;
-                    return ret;
-                }
-            }
+        if (cursor->eof) {
+            record_info->record_len = 0;
+            return ret;
         }
         cond_pushdown_result_t cond_result = check_cond_match_one_line((tse_conds *)cursor->cond, cursor, charset_id);
         if (cond_result == CPR_ERROR) {
@@ -1491,9 +1613,9 @@ int get_correct_pos_by_fetch(tianchi_handler_t *tch, knl_cursor_t *cursor,
         } else if (cond_result == CPR_FALSE) {
             continue;
         } else {
-            ret = tse_copy_cursor_row(knl_session, cursor, cursor->row, record_info->record, &record_info->record_len);
+            ret = tse_copy_cursor_row_read(knl_session, cursor, record_info, !g_is_single_run_mode);
             if (ret != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get_correct_pos_by_fetch: tse_copy_cursor_row FAIL");
+                CT_LOG_RUN_ERR("get_correct_pos_by_fetch: tse_copy_cursor_row_read FAIL");
                 tse_free_handler_cursor(session, tch);
                 return ret;
             }
@@ -2019,7 +2141,7 @@ EXTER_ATTACK int tse_general_fetch(tianchi_handler_t *tch, record_info_t *record
     knl_cursor_t *cursor = (knl_cursor_t *)tch->cursor_addr;
     CT_LOG_DEBUG_INF("tse_general_fetch: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
 
-    ret = tse_fetch_and_filter(cursor, knl_session, record_info->record, &record_info->record_len);
+    ret = tse_fetch_and_filter(cursor, knl_session, record_info, !g_is_single_run_mode);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("tse_general_fetch: tse_fetch_and_filter FAIL");
         tse_free_handler_cursor(session, tch);
@@ -2059,7 +2181,8 @@ int tse_general_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *rec
     *recNum = 0;
     uint32_t record_buf_left_lens = MAX_RECORD_SIZE;
     for (uint32_t i = 0; i < TSE_MAX_PREFETCH_NUM && record_buf_left_lens >= max_row_size; i++) {
-        ret = tse_fetch_and_filter(cursor, knl_session, records, &record_lens[i]);
+        record_info_t record_info = {records, 0, NULL, NULL};
+        ret = tse_fetch_and_filter(cursor, knl_session, &record_info, true);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("tse_general_prefetch: tse_fetch_and_filter FAIL");
             tse_free_handler_cursor(session, tch);
@@ -2071,9 +2194,9 @@ int tse_general_prefetch(tianchi_handler_t *tch, uint8_t *records, uint16_t *rec
         }
         if (cursor->index_only) {
             ret = tse_index_only_row_fill_bitmap(cursor, records);
-            record_lens[i] = ((row_head_t *)records)->size;
         }
 
+        record_lens[i] = ((row_head_t *)records)->size;
         rowids[i] = cursor->rowid.value;
         records += record_lens[i];
         *recNum += 1;

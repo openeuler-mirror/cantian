@@ -59,6 +59,18 @@ function check_process()
 }
 
 function start_cantian() {
+  numactl_str=" "
+  set +e
+  numactl --hardware > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+    OS_ARCH=$(uname -i)
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+      CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
+      CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
+      numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+    fi
+  fi
+  set -e
 	if [ "${loguser}" = "root" ]; then
 		if [ ${single_mode} = "single" ];then
 			sudo -E -i -u ${dbuser} sh -c "export CANTIAND_MODE=open && export CANTIAND_HOME_DIR=${CTDB_DATA} && export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH} \
@@ -82,7 +94,7 @@ function start_cantian() {
 			export CANTIAND_HOME_DIR=${CTDB_DATA}
 			export RUN_MODE=$running_mode
 			export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
-			nohup ${MYSQL_BIN_DIR}/bin/mysqld \
+			nohup ${numactl_str} ${MYSQL_BIN_DIR}/bin/mysqld \
 				--defaults-file=${MYSQL_CODE_DIR}/scripts/my.cnf --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
 				--early-plugin-load="ha_ctc.so" --default-storage-engine=CTC --core-file >> ${MYSQL_INSTALL_LOG_FILE} 2>&1 &
 			if [ $? -ne 0 ]; then 

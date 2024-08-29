@@ -458,7 +458,7 @@ int create_mq_shm_file(void)
     return 0;
 }
 
-int mq_srv_init(void)
+void init_cpu_info()
 {
     if (init_cpu_mask(tse_cpu_info_str, &tse_cpu_group_num, tse_cpu_info) != 0) {
         tse_cpu_group_num = 0;
@@ -466,6 +466,10 @@ int mq_srv_init(void)
     }
     init_mysql_cpu_info();
     set_cpu_mask();
+}
+
+int mq_srv_init(void)
+{
     if (clear_mmap() != 0) {
         CT_LOG_RUN_ERR("clear mmap dir failed.");
         return -1;
@@ -665,6 +669,13 @@ EXTER_ATTACK int tse_mq_write_row(dsw_message_block_t *message_block)
     CT_RETVALUE_IFTRUE((req->flag.auto_inc_step == 0), CT_ERROR);
     req->result = tse_write_row(&req->tch, &record_info, req->serial_column_offset,
                                 &req->last_insert_id, req->flag);
+    return req->result;
+}
+
+EXTER_ATTACK int tse_mq_update_job(dsw_message_block_t *message_block)
+{
+    struct update_job_request *req = message_block->seg_buf[0];
+    req->result = tse_update_job(req->info);
     return req->result;
 }
 
@@ -1335,6 +1346,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_CLOSE_TABLE,                   tse_mq_close_table},
     {TSE_FUNC_TYPE_CLOSE_SESSION,                 tse_mq_close_session},
     {TSE_FUNC_TYPE_WRITE_ROW,                     tse_mq_write_row},
+    {TSE_FUNC_TYPE_UPDATE_JOB,                    tse_mq_update_job},
     {TSE_FUNC_TYPE_WRITE_THROUGH_ROW,             tse_mq_write_through_row},
     {TSE_FUNC_TYPE_UPDATE_ROW,                    tse_mq_update_row},
     {CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,            ctc_mq_update_sample_size},
