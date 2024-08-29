@@ -458,7 +458,6 @@ int create_mq_shm_file(void)
     return 0;
 }
 
-//单、双进程均执行
 void init_cpu_info()
 {
     if (init_cpu_mask(tse_cpu_info_str, &tse_cpu_group_num, tse_cpu_info) != 0) {
