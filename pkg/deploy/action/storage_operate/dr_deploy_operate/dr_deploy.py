@@ -1086,7 +1086,7 @@ class DRDeploy(object):
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
                 f'dbstor --create-file --fs-name="{self.share_fs}" '
                 f'--source-dir="{dr_deploy_param_path}" '
-                f'--file-name="/{self.cluster_name}_cms/dr_deploy_param.json"\''
+                f'--file-name="dr_deploy_param.json"\''
             )
 
             LOG.info(f"Executing command: {dbstor_command}")
