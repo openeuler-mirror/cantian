@@ -91,14 +91,16 @@ function umount_fs() {
         return 0
     fi
 
+    rm -rf /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data > /dev/null 2>&1
+
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog
     fi
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
-    fi
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-      rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
     fi
 
     sysctl fs.nfs.nfs_callback_tcpport=0
@@ -111,21 +113,9 @@ function umount_fs() {
     fi
 
     umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    # 取消nfs挂载
-    if [ -d /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data ];then
-        rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data
-    fi
     if [[ x"${deploy_mode}" == x"nas" ]];then
         umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs}
     fi
-
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        rm -rf /mnt/dbdata/remote/share_${storage_share_fs}
-    fi
-    if [[ ${storage_archive_fs} != '' ]]; then
-        rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs}
-    fi
-    rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}
 }
 
 
