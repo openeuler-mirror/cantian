@@ -457,8 +457,36 @@ class DRDeploy(object):
             self.record_deploy_process("create_metro_fs_pair", "running")
             self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
         self.record_deploy_process("create_metro_fs_pair", "success")
-        filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
-        return filesystem_pair_info[0]
+        filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+        filesystem_pair_id = filesystem_pair_infos[0].get("ID")
+        tmp_time = 0
+        health_status = None
+        running_status = None
+        config_status = None
+        while tmp_time < TOTAL_CHECK_DURATION:
+            filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
+                pair_id=filesystem_pair_id)
+            health_status = filesystem_pair_info.get("HEALTHSTATUS")
+            running_status = filesystem_pair_info.get("RUNNINGSTATUS")
+            config_status = filesystem_pair_info.get("CONFIGSTATUS")
+
+            if (running_status == FilesystemPairRunningStatus.Normal and health_status == HealthStatus.Normal
+                    and config_status == VstorePairConfigStatus.Normal):
+                self.record_deploy_process("create_metro_vstore_pair", "success")
+                return filesystem_pair_info
+
+            time.sleep(10)
+            tmp_time += 10
+
+        err_msg = "Hyper metro vstore pair status is not normal, " \
+                  "health_status[%s], running_status[%s], config_status[%s], details: %s" % \
+                  (get_status(health_status, HealthStatus),
+                   get_status(running_status, FilesystemPairRunningStatus),
+                   get_status(config_status, VstorePairConfigStatus),
+                   filesystem_pair_info)
+        LOG.error(err_msg)
+        self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+        raise Exception(err_msg)
 
     def do_sync_hyper_metro_filesystem_pair(self, pair_id: str) -> bool:
         """
