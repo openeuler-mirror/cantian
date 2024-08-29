@@ -179,6 +179,14 @@ typedef struct {
 #pragma pack()
 
 typedef struct {
+    char job_name_str[SMALL_RECORD_SIZE];
+    uint32_t job_name_len;
+    char user_str[SMALL_RECORD_SIZE];
+    uint32_t user_len;
+    bool switch_on;
+} update_job_info;
+
+typedef struct {
     char error_msg[MAX_DDL_ERROR_MSG_LEN];
     char user_name[SMALL_RECORD_SIZE];
     char user_ip[SMALL_RECORD_SIZE];
@@ -284,6 +292,7 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_CLOSE_TABLE,
     TSE_FUNC_TYPE_CLOSE_SESSION,
     TSE_FUNC_TYPE_WRITE_ROW,
+    TSE_FUNC_TYPE_UPDATE_JOB,
     TSE_FUNC_TYPE_WRITE_THROUGH_ROW,
     TSE_FUNC_TYPE_UPDATE_ROW,
     CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,
@@ -536,6 +545,7 @@ void tse_free_buf(tianchi_handler_t *tch, uint8_t *buf);
 /* Data Manipulation Language(DML) Related Interface */
 int tse_write_row(tianchi_handler_t *tch, const record_info_t *record_info,
                   uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);
+int tse_update_job(update_job_info req_info);
 /* This function is for recording slow_log and general_log only. */
 int tse_write_through_row(tianchi_handler_t *tch, const record_info_t *record_info,
                           uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);

@@ -662,6 +662,78 @@ not_ret:
     return ret;
 }
 
+EXTER_ATTACK int tse_update_job(update_job_info info)
+{
+    session_t *session = NULL;
+    status_t status = tse_get_new_session(&session);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[tse_update_job]: alloc new session failed");
+        return status;
+    }
+    tse_set_no_use_other_sess4thd(session);
+    knl_session_t *knl_session = &session->knl_session;
+    CM_SAVE_STACK(knl_session->stack);
+    knl_cursor_t *cursor = tse_push_cursor(knl_session);
+    if (NULL == cursor) {
+        CT_LOG_RUN_ERR("[tse_update_job]: tse_push_cursor FAIL");
+        TSE_POP_CURSOR(knl_session);
+        tse_free_session(session);
+        return ERR_GENERIC_INTERNAL_ERROR;
+    }
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_JOB_ID, CT_INVALID_ID32);
+    
+    char *ptr;
+    uint32 len;
+    text_t job_name = { info.job_name_str, info.job_name_len };
+    while (CT_TRUE) {
+        if (knl_fetch(session, cursor) != CT_SUCCESS) {
+            status = tse_get_and_reset_err();
+            CT_LOG_RUN_ERR("[tse_update_job]: job %s not found", info.job_name_str);
+            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+            tse_free_session(session);
+            return status;
+        }
+        if (cursor->eof) {
+            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+            CT_LOG_RUN_ERR("[tse_update_job]: job %s not found", info.job_name_str);
+            tse_free_session(session);
+            return CT_ERROR;
+        }
+        ptr = CURSOR_COLUMN_DATA(cursor, SYS_JOB_WHAT);
+        len = CURSOR_COLUMN_SIZE(cursor, SYS_JOB_WHAT);
+        if (len > 0 && len <= MAX_LENGTH_WHAT && strncmp(ptr, job_name.str, job_name.len) == 0) {
+            break;
+        }
+    }
+
+    int32 is_broken = *(int32 *)CURSOR_COLUMN_DATA(cursor, SYS_JOB_FLAG);
+
+    knl_job_node_t job_info = { 0 };
+    job_info.job_id = *(int64 *)CURSOR_COLUMN_DATA(cursor, SYS_JOB_JOB_ID);
+    job_info.next_date = cm_now();
+    if (!info.switch_on) {
+        job_info.node_type = JOB_TYPE_BROKEN;
+        job_info.is_broken = true;
+    } else {
+        job_info.node_type = JOB_TYPE_RUN;
+        job_info.is_broken = false;
+    }
+    
+    text_t user = { info.user_str, info.user_len };
+    if (knl_update_job(knl_session, &user, &job_info, CT_TRUE) != CT_SUCCESS) {
+        status = tse_get_and_reset_err();
+        CT_LOG_RUN_ERR("[tse_update_job]: knl_update_job %s failed", info.job_name_str);
+        knl_rollback(knl_session, NULL);
+        CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+        tse_free_session(session);
+        return status;
+    }
+    knl_commit(knl_session);
+    CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+    tse_free_session(session);
+    return status;
+}
+
 EXTER_ATTACK int tse_write_row(tianchi_handler_t *tch, const record_info_t *record_info,
                                uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag)
 {

@@ -78,6 +78,11 @@ struct write_row_request {
     dml_flag_t flag;
 };
 
+struct update_job_request {
+    int result;
+    update_job_info info;
+};
+
 struct bulk_write_request {
     int result;
     tianchi_handler_t tch;
