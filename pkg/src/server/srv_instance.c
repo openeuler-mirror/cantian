@@ -2115,6 +2115,8 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
         return CT_ERROR;
     }
 
+    init_cpu_info();
+
 #ifndef WITH_DAAC
     if (mq_srv_init() != CT_SUCCESS) {
         srv_instance_destroy();
