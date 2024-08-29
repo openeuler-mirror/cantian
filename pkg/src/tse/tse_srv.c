@@ -1518,12 +1518,18 @@ bool is_fetched_the_same_key(knl_cursor_t *cursor, const index_key_info_t *index
             }
         }
     }
+
+    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
+    knl_column_t *column = dc_get_column(entity, desc->columns[column_id]);
+    cm_assert(column != NULL);
+    void *col_val = (void *)cursor->row + cursor->offsets[col_offset];
+    void *key_val = (void *)index_key_info->key_info[column_id].left_key;
+    uint16 left_key_len = (uint16)index_key_info->key_info[column_id].left_key_len;
+    int32 cmp_res = var_compare_data_ex(col_val, left_key_len, key_val, left_key_len, column->datatype, column->collate_id);
     // 先判断数据长度是否相等，再将取出来的值与key作memcmp，如果值相等则返回true
     if (!(cursor->lens[col_offset] == 0 ||
-        cursor->lens[col_offset] != index_key_info->key_info[column_id].left_key_len ||
-        memcmp((uint8_t *)cursor->row + cursor->offsets[col_offset],
-            index_key_info->key_info[column_id].left_key,
-            index_key_info->key_info[column_id].left_key_len) != 0)) {
+        cursor->lens[col_offset] != left_key_len ||
+        cmp_res != 0)) {
         return true;
     }
 
@@ -1542,7 +1548,6 @@ bool is_need_one_more_fetch(knl_cursor_t *cursor, const index_key_info_t *index_
     }
 
     index_t *cursor_index = (index_t *)cursor->index;
-    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
     knl_index_desc_t *desc = INDEX_DESC(cursor_index);
 
     int iter_end_id = index_key_info->index_skip_scan ? 0 : index_key_info->key_num - 1;
