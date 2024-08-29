@@ -493,8 +493,8 @@ function update_cms_config() {
 
     su -s /bin/bash - ${cantian_user} -c "cd ${CURRENT_PATH} && python3 ${CURRENT_PATH}/cmsctl.py upgrade"
     su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=GCC_TYPE --value=DBS"
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=GCC_HOME --value=/${storage_share_fs}/${cluster_name}_cms/gcc_home/gcc_file"
-    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=GCC_DIR --value=/${storage_share_fs}/${cluster_name}_cms/gcc_home"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=update --key=GCC_HOME --value=/${storage_share_fs}/gcc_home/gcc_file"
+    su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=GCC_DIR --value=/${storage_share_fs}/gcc_home"
     su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=CLUSTER_NAME --value=${cluster_name}"
     su -s /bin/bash - ${cantian_user} -c "python3 -B ${CURRENT_PATH}/../update_config.py --component=cms_ini --action=add --key=FS_NAME --value=${storage_share_fs}"
 }
