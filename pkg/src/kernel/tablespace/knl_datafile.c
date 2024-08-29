@@ -582,6 +582,8 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
             knl_securec_check(ret);
         }
     }
+
+    drc_invalidate_datafile_buf_res(session, df->ctrl->id);
 }
 
 status_t spc_init_datafile_head(knl_session_t *session, datafile_t *df)
