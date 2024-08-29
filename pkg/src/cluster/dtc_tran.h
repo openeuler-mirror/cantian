@@ -30,7 +30,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define TXN_REQ_TIMEOUT (100) //ms
+#define TXN_REQ_TIMEOUT (5000) // ms
 
 typedef struct st_msg_txn_info {
     mes_message_head_t head;
