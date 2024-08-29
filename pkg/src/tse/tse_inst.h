@@ -47,6 +47,7 @@ int add_mysql_inst_ctx_res(uint32_t inst_id, tse_context_t *ptr);
 int remove_mysql_inst_ctx_res(uint32_t inst_id, tse_context_t *ptr);
 uint32_t *get_ctc_max_inst_num(void);
 thread_lock_t *get_g_tse_mes_lock(void);
+void set_is_single_run_mode();
 #ifdef __cplusplus
 }
 #endif

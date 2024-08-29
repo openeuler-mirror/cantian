@@ -4204,41 +4204,6 @@ EXTER_ATTACK int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
     return CT_ERROR;
 }
 
-static bool32 is_runmode_single() {
-    // use env variable to check if single process
-    const char* run_mode = getenv("RUN_MODE");
-
-    const char* valid_modes[] = {
-        "cantiand_with_mysql", // single process mode
-        "cantiand_with_mysql_st", // single process mode with mysql llt
-        "cantiand_with_mysql_in_cluster" // single process mode in cluster
-    };
-
-    if (run_mode != NULL) {
-        bool32 found = CT_FALSE;
-
-        // check if cantian is installed with single process mode
-        for (int i = 0; i < sizeof(valid_modes) / sizeof(valid_modes[0]); i++) {
-            if (strcmp(run_mode, valid_modes[i]) == 0) {
-                found = CT_TRUE;
-                break;
-            }
-        }
-        
-        // single process mode no need to check whether cluster is ready
-        if (found) {
-            CT_LOG_RUN_INF("RUN_MODE %s is single process", run_mode);
-            return CT_TRUE;
-        } else {
-            CT_LOG_RUN_INF("RUN_MODE %s is not single process", run_mode);
-            return CT_FALSE;
-        }
-    } else {
-        CT_LOG_RUN_INF("RUN_MODE not set");
-        return CT_FALSE;
-    }
-}
-
 EXTER_ATTACK int ctc_query_shm_file_num(uint32_t *shm_file_num)
 {
     *shm_file_num = get_mq_queue_num();
@@ -4252,7 +4217,7 @@ EXTER_ATTACK int tse_search_metadata_status(bool *cantian_metadata_switch, bool 
     *cantian_metadata_switch = (ct_metadata_switch == CT_TRUE);
     CT_LOG_RUN_INF("[TSE_SEARCH_METADATA_STATUS]: cantian_metadata_switch: %d.", ct_metadata_switch);
     
-    if (is_runmode_single()) {
+    if (g_is_single_run_mode) {
         *cantian_cluster_ready = true;
         return CT_SUCCESS;
     }
