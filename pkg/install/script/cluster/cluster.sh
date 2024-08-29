@@ -61,7 +61,7 @@ function check_process()
 function start_cantian() {
   numactl_str=" "
   set +e
-  numactl --hardware > /dev/null
+  numactl --hardware > /dev/null 2>&1
   if [ $? -eq 0 ]; then
     OS_ARCH=$(uname -i)
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
