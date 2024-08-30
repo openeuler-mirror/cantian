@@ -40,10 +40,6 @@
 #define INT24_MAX  (8388607)
 #define INT24_MIN  (-8388608)
 
-
-extern int tse_cpu_group_num;
-extern cpu_set_t g_masks[SHM_SEG_MAX_NUM];
-
 void tse_calc_max_serial_value_integer(knl_column_t *knl_column, uint64_t *limit_value)
 {
     switch (knl_column->size) {
@@ -524,16 +520,9 @@ status_t tse_get_new_session(session_t **session_ptr)
     tse_new_session_init(session);
     *session_ptr = session;
     CT_LOG_DEBUG_INF("[TSE_ALLOC_SESS]:tse_get_new_sess session_id:%u", session->knl_session.id);
-
 #ifdef WITH_DAAC
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    int hash_seed = session->knl_session.id % SHM_SEG_MAX_NUM;
-    CT_LOG_DEBUG_INF("[TSE_ALLOC_SESS]:tse_get_new_sess hash_seed_id:%d", hash_seed);
-    mask = g_masks[hash_seed % tse_cpu_group_num];
-    pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+    knl_attach_cpu_core();
 #endif
-
     return CT_SUCCESS;
 }
 

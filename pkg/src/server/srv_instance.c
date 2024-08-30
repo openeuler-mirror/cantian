@@ -1957,6 +1957,12 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
         return CT_ERROR;
     }
 
+    if (init_cpu_info() != CT_SUCCESS) {
+        srv_instance_destroy();
+        CT_LOG_RUN_ERR("failed to initialize CPU instance resorces");
+        return CT_ERROR;
+    }
+
     (void)cm_lic_init();
     srv_print_params();
 
@@ -2114,8 +2120,6 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
         printf("Aborted due to initialize mysql instance resorces");
         return CT_ERROR;
     }
-
-    init_cpu_info();
 
 #ifndef WITH_DAAC
     if (mq_srv_init() != CT_SUCCESS) {

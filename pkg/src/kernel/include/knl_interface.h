@@ -927,6 +927,8 @@ void knl_lock_info_log_put4mysql(knl_handle_t session, void *lock_info);
 void knl_invalid_dd_log_put4mysql(knl_handle_t session, void *invalid_info);
 uint32 knl_db_node_count(knl_handle_t session);
 
+void knl_attach_cpu_core(void);
+
 /* @} */
 #ifdef __cplusplus
 }
