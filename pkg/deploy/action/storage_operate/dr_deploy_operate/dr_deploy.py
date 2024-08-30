@@ -96,7 +96,6 @@ class DRDeploy(object):
         self.sync_speed = 2
         self.run_user = RUN_USER
         self.deploy_mode = self.dr_deploy_info.get("deploy_mode")
-        self.deploy_mode = None
         self.metadata_fs = None
         self.share_fs = None
         self.cluster_name = None

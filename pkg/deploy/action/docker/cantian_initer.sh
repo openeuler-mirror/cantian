@@ -28,9 +28,15 @@ source ${CURRENT_PATH}/../log4sh.sh
 # 创建存活探针
 touch ${HEALTHY_FILE}
 
+# 套餐化更新参数
+ret=$(python3 ${CURRENT_PATH}/update_policy_params.py)
+if [ ${ret} -ne 0 ]; then
+    logAndEchoInfo "update policy parmas failed, details: ${ret}"
+    exit 1
+fi
+
 user=$(cat ${CONFIG_PATH}/${CONFIG_NAME} | grep -Po '(?<="deploy_user": ")[^":\\]*(?:\\.[^"\\]*)*')
-cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${CONFIG_PATH}/${CONFIG_NAME}
-cat ${INIT_CONFIG_PATH}/${CONFIG_NAME} > ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+cp ${CONFIG_PATH}/${CONFIG_NAME} ${OPT_CONFIG_PATH}/${CONFIG_NAME}
 if ( grep -q 'deploy_user' ${CONFIG_PATH}/${CONFIG_NAME} ); then
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${CONFIG_PATH}/${CONFIG_NAME}
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
