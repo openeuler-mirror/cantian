@@ -328,6 +328,38 @@ static status_t ckpt_save_ctrl(knl_session_t *session)
 
     return CT_SUCCESS;
 }
+void ckpt_remove_clean_page(knl_session_t *session, buf_set_t *set, buf_lru_list_t *page_list)
+{
+    buf_ctrl_t *shift = NULL;
+    cm_spin_lock(&set->write_list.lock, NULL);
+    buf_ctrl_t *ctrl = set->write_list.lru_last;
+    cm_spin_unlock(&set->write_list.lock);
+
+    while (ctrl != NULL) {
+        shift = ctrl;
+        ctrl = ctrl->prev;
+        if (shift->bucket_id == CT_INVALID_ID32 || (!shift->is_dirty && !shift->is_marked)) {
+            buf_stash_marked_page(set, page_list, shift);
+        }
+    }
+}
+
+void ckpt_remove_clean_page_all_set(knl_session_t *session)
+{
+    buf_context_t *ctx = &session->kernel->buf_ctx;
+    buf_set_t *set = NULL;
+    buf_lru_list_t page_list;
+    for (uint32 i = 0; i < ctx->buf_set_count; i++) {
+        set = &ctx->buf_set[i];
+        if (set->write_list.count == 0) {
+            continue;
+        }
+
+        page_list = g_init_list_t;
+        ckpt_remove_clean_page(session, set, &page_list);
+        buf_reset_cleaned_pages(set, &page_list);
+    }
+}
 
 void ckpt_block_and_wait_enable(ckpt_context_t *ctx)
 {
@@ -418,6 +450,7 @@ static void ckpt_full_checkpoint(knl_session_t *session)
 
         break;
     }
+    ckpt_remove_clean_page_all_set(session);
     uint64 task_end = KNL_NOW(session);
     CT_LOG_RUN_INF("Finish trigger full checkpoint, Flush pages %llu, Clean edp count %llu, cost time(us) %llu",
         ctx->stat.flush_pages[ctx->trigger_task] - curr_flush_count,
