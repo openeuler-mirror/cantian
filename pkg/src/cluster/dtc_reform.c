@@ -397,7 +397,6 @@ status_t rc_follower_reform(reform_mode_t mode, reform_detail_t *detail)
         CT_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as follower, session->kernel->lsn=%llu,"
                        " g_rc_ctx->status=%u", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->remaster_elapsed, RC_STEP_FAILED);
         return CT_ERROR;
     }
@@ -435,7 +434,6 @@ status_t rc_master_clean_ddl_op(reform_detail_t *detail)
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->clean_ddp_elapsed, RC_STEP_FAILED);
         CT_LOG_RUN_INF("[RC][partial restart] master clean ddl op failed");
         return CT_ERROR;
@@ -446,7 +444,6 @@ status_t rc_master_clean_ddl_op(reform_detail_t *detail)
                        "g_rc_ctx->status=%u",
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         knl_end_auton_rm(g_rc_ctx->session, status);
         RC_STEP_END(detail->clean_ddp_elapsed, RC_STEP_FAILED);
         CT_LOG_RUN_INF("[RC][partial restart] master clean ddl op failed");
@@ -473,7 +470,6 @@ status_t rc_master_start_remaster(reform_detail_t *detail)
         CT_LOG_RUN_ERR("[RC][partial restart] failed to partial restart as master, session->kernel->lsn=%llu,"
                        " g_rc_ctx->status=%u", ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->remaster_elapsed, RC_STEP_FAILED);
         CT_LOG_RUN_ERR("[RC][partial restart] remaster failed");
         return CT_ERROR;
@@ -491,7 +487,6 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
         if (!DB_IS_PRIMARY(&session->kernel->db)) {
             if (dtc_standby_partial_recovery() != CT_SUCCESS) {
                 g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-                g_rc_ctx->status = REFORM_PREPARE;
                 RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
                 CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
                 return CT_ERROR;
@@ -501,7 +496,6 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
         }
         if (dtc_partial_recovery(&g_rc_ctx->info.reform_list[REFORM_LIST_ABORT]) != CT_SUCCESS) {
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-            g_rc_ctx->status = REFORM_PREPARE;
             RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
             CT_LOG_RUN_ERR("[RC] failed to do partial recovery");
             CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
@@ -514,7 +508,6 @@ status_t rc_master_partial_recovery(reform_mode_t mode, reform_detail_t *detail)
             CT_LOG_RUN_ERR("[RC][partial restart] failed to broadcast reform status g_rc_ctx->status=%u",
                            g_rc_ctx->status);
             g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-            g_rc_ctx->status = REFORM_PREPARE;
             RC_STEP_END(detail->recovery_elapsed, RC_STEP_FAILED);
             CT_LOG_RUN_ERR("[RC][partial restart] recovery failed");
             return CT_ERROR;
@@ -542,7 +535,6 @@ status_t rc_master_rollback_node(reform_detail_t *detail)
     }
     if (dtc_rollback_node() != CT_SUCCESS) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->deposit_elapsed, RC_STEP_FAILED);
         CT_LOG_RUN_ERR("[RC] failed to do undo rollback");
         CT_LOG_RUN_ERR("[RC][partial restart] rollback failed");
@@ -556,7 +548,6 @@ status_t rc_master_wait_ckpt_finish(reform_mode_t mode)
 {
     if (mode == REFORM_MODE_OUT_OF_PLAN && dtc_update_ckpt_log_point()) {
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         CT_LOG_RUN_ERR("[RC] failed to do ckpt in reform");
         CT_LOG_RUN_ERR("[RC][partial restart] wait ckpt finish failed");
         return CT_ERROR;
@@ -574,7 +565,6 @@ status_t rc_reform_build_channel(reform_detail_t *detail)
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[RC] failed to rc_build_channel, g_rc_ctx->status=%u", g_rc_ctx->status);
         g_rc_ctx->info.failed_reform_status = g_rc_ctx->status;
-        g_rc_ctx->status = REFORM_PREPARE;
         RC_STEP_END(detail->build_channel_elapsed, RC_STEP_FAILED);
         return CT_ERROR;
     }
@@ -1229,6 +1219,7 @@ void rc_stop_cur_reform(void)
     CT_LOG_RUN_INF("[RC] start stop current reform, reform failed status(%u), remaster need stop(%u), recovery need "
                    "stop(%u), recovery failed(%u)", g_rc_ctx->info.failed_reform_status, drc_remaster_need_stop(),
                    dtc_recovery_need_stop(), dtc_recovery_failed());
+    g_rc_ctx->status = REFORM_PREPARE;
     if (drc_remaster_need_stop()) {
         if (drc_stop_remaster() != CT_SUCCESS) {
             CM_ABORT_REASONABLE(0, "ABORT INFO: stop remaster failed");
