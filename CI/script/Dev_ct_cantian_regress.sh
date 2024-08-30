@@ -26,7 +26,7 @@ function collect_core() {
 function run_ct_regress() {
 	echo "========================= Run Regression ======================="
 	cd ${ROOT_PATH}
-	git clean -nf |grep "pkg/test/ct_regress/*.*"|xargs rm -f
+	# git clean -nf |grep "pkg/test/ct_regress/*.*"|xargs rm -f
 	cp -f ${ROOT_PATH}/output/bin/ct_regress ${REGRESS_PATH}
 	chmod u+x ${REGRESS_PATH}/ct_regress
 	chown -R ${RUN_TEST_USER}:${RUN_TEST_USER} ${REGRESS_PATH}
@@ -290,9 +290,14 @@ main() {
     check_old_install
     init_test_environment
 
-    echo "Start compile, source code root path: ${ROOT_PATH}" > ${COMPILE_LOG}
-    echo "ROOT_PATH: ${ROOT_PATH}"
-    compile_code # local debug, if only change sql test file can annotate this step
+    if [ -z "${pass_build}" ] || [ $pass_build -eq 0 ]; then
+        echo "Start compile, source code root path: ${ROOT_PATH}" > ${COMPILE_LOG}
+        echo "ROOT_PATH: ${ROOT_PATH}"
+        compile_code # local debug, if only change sql test file can annotate this step
+    else
+        chown root:root -R /home/regress/CantianKernel/output/bin
+        echo "BUILD passed!"
+    fi
     install_cantiandb
 
     run_ct_regress
@@ -300,4 +305,3 @@ main() {
 }
 
 main "$@"
-
