@@ -252,8 +252,8 @@ void tms_check_monitor_time_result(void)
             char now_str[32], start_str[32];
             tms_date2str(cm_now(), now_str, sizeof(now_str));
             tms_date2str(monitor->monitor_start_time, start_str, sizeof(start_str));
-            CM_ABORT_REASONABLE(0, "[TMS] ABORT INFO: Monitor '%s' with thread ID %u has timed out. Current time: %s, Start time: %s",
-                        monitor->monitor_name, monitor->thread_tid, now_str, start_str);
+            CM_ABORT(0, "[TMS] ABORT INFO: Monitor '%s' with thread ID %u has timed out. Current time: %s, "
+                        "Start time: %s", monitor->monitor_name, monitor->thread_tid, now_str, start_str);
         }
 
     }
