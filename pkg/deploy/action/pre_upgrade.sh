@@ -64,9 +64,7 @@ function prepare_env() {
             logAndEchoError "config check failed, please check /opt/cantian/ct_om/log/om_deploy.log for detail"
             exit 1
         else
-            local random_seed=$(python3 /opt/cantian/action/get_config_info.py "random_seed")
             mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
-            python3 ${CURRENT_PATH}/write_config.py random_seed "${random_seed}"
         fi
     else
         python3 ${CURRENT_PATH}/pre_upgrade.py
@@ -96,6 +94,7 @@ function prepare_env() {
         sed -i "s/cantian_group=\"cantian\"/cantian_group=\"${deploy_group}\"/g" "${CURRENT_PATH}"/env.sh
         source ${CURRENT_PATH}/env.sh
     fi
+    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 }
 
 # 检查集群状态
@@ -235,7 +234,15 @@ function gen_upgrade_plan() {
     weather_change_system=$(echo ${white_list_check_res} | awk '{print $3}')
     if [ "${weather_change_system}" == "true" ]; then
         source_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
-        storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
+        storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
+        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+            if [  -d "${storage_metadata_fs_path}" ]; then
+                rm -rf  "${storage_metadata_fs_path}"
+            fi
+            mkdir -p -m 750 "${storage_metadata_fs_path}"
+            chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade
+            update_local_status_file_path_by_dbstor
+        fi
         # 提前创建避免报错
         if [ ! -d "${storage_metadata_fs_path}" ]; then
             mkdir -p -m 755 "${storage_metadata_fs_path}"
@@ -246,8 +253,12 @@ function gen_upgrade_plan() {
             logAndEchoInfo "detected that the system tables file flag already exists"
             return 0
         fi
-        touch ${UPDATESYS_FLAG} && chmod 400 ${UPDATESYS_FLAG}
+        touch ${UPDATESYS_FLAG} && chmod 600 ${UPDATESYS_FLAG}
         logAndEchoInfo "detected need to update system tables, success to create updatesys_flag: '${UPDATESYS_FLAG}'"
+        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+            chown "${cantian_user}":"${cantian_group}" "${UPDATESYS_FLAG}"
+            update_remote_status_file_path_by_dbstor ${storage_metadata_fs_path}
+        fi
     fi
     return 0
 }
@@ -335,11 +346,32 @@ function version_check() {
     fi
 }
 
+##############################################################################################
+# 生成升级标记文件，解决以下问题：
+# dbstor场景需要先同步远端升级状态文件至本地
+# 1、当前处于某个版本（如2.0.0）升级状态（升级中、升级失败、升级成功未提交），避免执行其他版本升级（如3.0.0）；
+# 2、确保不同节点使用的升级目标版本一致。
+##############################################################################################
+function check_upgrade_flag() {
+    upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
+    if [ ! -d "${upgrade_path}" ];then
+        return 0
+    fi
+    upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v "${target_version}" | grep -v upgrade.lock)
+    if [[ -n ${upgrade_file} ]];then
+        logAndEchoError "The cluster is being upgraded to another version: ${upgrade_file}, current target version: ${target_version}"
+        return 1
+    fi
+}
+
 function main() {
     logAndEchoInfo "begin to pre_upgrade"
     version_check
     input_params_check
     prepare_env
+    # 下个版本在加上，当前提供离线升级方式
+    # update_local_status_file_path_by_dbstor
+    check_upgrade_flag
     if [ ${UPGRADE_MODE} == "offline" ]; then
         offline_upgrade
     elif [ ${UPGRADE_MODE} == "rollup" ]; then

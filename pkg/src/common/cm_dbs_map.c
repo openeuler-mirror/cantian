@@ -33,11 +33,12 @@
 #include "cm_spinlock.h"
 
 #define CM_DBS_MAP_HASH_TABLE_SIZE 1024
+#define CM_DBS_MAX_HANDLE_SIZE 4096
 
 typedef struct {
     cm_list_head node;
     int32 handle;
-    char obj_name[CSS_MAX_NAME_LEN + 1];
+    char obj_name[MAX_DBS_FS_FILE_PATH_LEN + 1];
     uint32 type;
     cm_dbs_map_item_s item;
 } cm_dbs_map_value_s;
@@ -50,6 +51,7 @@ typedef struct {
 static struct {
     spinlock_t hdl_seed_lock; // 仅用于分配handle时加锁
     int32 hdl_seed;
+    uint32 used_cnt;
     cm_dbs_map_hs_list hs_cache[CM_DBS_MAP_HASH_TABLE_SIZE];
 } g_cm_dbs_cache_mgr = { 0 };
 
@@ -74,6 +76,7 @@ void cm_dbs_map_unlatch(uint32 index)
 
 void cm_dbs_map_init(void)
 {
+    g_cm_dbs_cache_mgr.used_cnt = 0;
     g_cm_dbs_cache_mgr.hdl_seed = CM_DBS_INVALID_HANDLE;
     for (uint32 idx = 0; idx < CM_DBS_MAP_HASH_TABLE_SIZE; idx++) {
         cm_list_init(&g_cm_dbs_cache_mgr.hs_cache[idx].hs_list);
@@ -164,6 +167,13 @@ status_t cm_dbs_map_set(const char *name, cm_dbs_map_item_s *item, int32 *handle
     cm_list_init(&(value->node));
     value->type = type;
     cm_spin_lock(&g_cm_dbs_cache_mgr.hdl_seed_lock, NULL);
+    if (g_cm_dbs_cache_mgr.used_cnt > CM_DBS_MAX_HANDLE_SIZE) {
+        cm_spin_unlock(&g_cm_dbs_cache_mgr.hdl_seed_lock);
+        cm_free(value);
+        CT_LOG_RUN_ERR("the dbs file handles is used up, max num %u.", CM_DBS_MAX_HANDLE_SIZE);
+        return CT_ERROR;
+    }
+    g_cm_dbs_cache_mgr.used_cnt++;
     value->handle = cm_dbs_cache_gen_handle();
     cm_spin_unlock(&g_cm_dbs_cache_mgr.hdl_seed_lock);
 
@@ -207,6 +217,10 @@ void cm_dbs_map_remove(int32 handle)
     cm_list_remove(&(value->node));
     cm_free(value);
     cm_dbs_map_unlatch(index);
+
+    cm_spin_lock(&g_cm_dbs_cache_mgr.hdl_seed_lock, NULL);
+    g_cm_dbs_cache_mgr.used_cnt--;
+    cm_spin_unlock(&g_cm_dbs_cache_mgr.hdl_seed_lock);
 }
 
 bool32 cm_dbs_map_exist(const char *name, uint32 type)

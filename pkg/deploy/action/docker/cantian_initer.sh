@@ -190,13 +190,6 @@ function init_container() {
     fi
 }
 
-function update_random_seed() {
-    cluster_name=$(python3 "${CURRENT_PATH}"/get_config_info.py "cluster_name")
-    random_seed=$(python3 -c "import random;import hashlib;random.seed(int(hashlib.sha256('${cluster_name}'.encode('utf-8')).hexdigest(), 16));print(random.randint(0, 255))")
-    python3 ${CURRENT_PATH}/../write_config.py "random_seed" "${random_seed}"
-    python3 /opt/cantian/action/write_config.py "random_seed" "${random_seed}"
-}
-
 function mount_fs() {
     if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
         logAndEchoInfo "deploy_mode = dbstore_unify, no need to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -420,7 +413,7 @@ function exit_with_log() {
     # 首次初始化失败，清理gcc_file
     if [ ${node_id} -eq 0 ]; then
         if [[ x"${deploy_mode}" == x"dbstore_unify" ]] && [[ -f ${CMS_CONTAINER_FLAG} ]]; then
-            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
+            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
             if [[ ${is_gcc_file_exist} -ne 0 ]]; then
                 su -s /bin/bash - "${cantian_user}" -c 'cms gcc -del'
             fi
@@ -454,7 +447,6 @@ function main() {
     check_container_context
     prepare_kmc_conf
     prepare_certificate
-    update_random_seed
     init_container
     mount_fs
     check_init_status

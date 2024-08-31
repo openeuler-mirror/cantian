@@ -44,8 +44,8 @@ function set_cms_ip() {
 
 function set_fs() {
     if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
-        gcc_home="/${storage_share_fs}/${cluster_name}_cms/gcc_home"
-        cms_gcc_bak="/${storage_archive_fs}/${cluster_name}_cms"
+        gcc_home="/${storage_share_fs}/gcc_home"
+        cms_gcc_bak="/${storage_archive_fs}"
     fi
     sed -i -r "s:(GCC_HOME = ).*:\1${gcc_home}\/gcc_file:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(GCC_HOME = ).*:\1${gcc_home}\/gcc_file:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}

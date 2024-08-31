@@ -300,6 +300,9 @@ void tse_free_cursors(session_t *session, uint64_t *cursors, int32_t csize)
  
 void tse_free_handler_cursor(session_t *session, tianchi_handler_t *tch)
 {
+    if (tch->cursor_addr == INVALID_VALUE64) {
+        return;
+    }
     tse_free_session_cursor(session, (knl_cursor_t *)tch->cursor_addr);
     tch->cursor_addr = INVALID_VALUE64;
     tch->cursor_valid = false;

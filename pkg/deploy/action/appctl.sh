@@ -135,6 +135,8 @@ function clean_dir() {
 }
 
 function upgrade_init_flag() {
+    # 不能放开头，install和pre_upgrade没有deploy_params.json,导入会失败
+    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
@@ -143,29 +145,11 @@ function upgrade_init_flag() {
     upgrade_flag=upgrade_node${node_id}.${target_version}
 }
 
-##############################################################################################
-# 生成升级标记文件，解决以下问题：
-# 1、当前处于某个版本（如2.0.0）升级状态（升级中、升级失败、升级成功未提交），避免执行其他版本升级（如3.0.0）；
-# 2、确保不同节点使用的升级目标版本一致。
-##############################################################################################
-function check_upgrade_flag() {
-    upgrade_init_flag
-    if [ ! -d "${upgrade_path}" ];then
-        return 0
-    fi
-    upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v "${target_version}" | grep -v upgrade.lock)
-    if [[ -n ${upgrade_file} ]];then
-        logAndEchoError "The cluster is being upgraded to another version: ${upgrade_file}, current target version: ${target_version}"
-        return 1
-    fi
-}
-
 function create_upgrade_flag() {
     upgrade_init_flag
     if [ ! -d "${upgrade_path}" ];then
         mkdir -m 755 -p "${upgrade_path}"
     fi
-    touch "${upgrade_path}"/"${upgrade_flag}" && chmod 400 "${upgrade_path}"/"${upgrade_flag}"
     if [[ ! -f "${upgrade_lock}" ]];then
         touch "${upgrade_lock}"
         chmod 400 "${upgrade_lock}"
@@ -178,6 +162,7 @@ function clear_flag_after_rollback() {
     if [ -f "${upgrade_path}"/"${upgrade_flag}" ];then
         rm -f "${upgrade_path}"/"${upgrade_flag}"
     fi
+    delete_fs_upgrade_file_or_path_by_dbstor "${upgrade_flag}"
 }
 
 # 升级场景增加文件锁，避免多节点同时进行
@@ -188,6 +173,9 @@ function upgrade_lock() {
         logAndEchoError "Other node is upgrading/rollback, please check again later."
         exit 1
     fi
+    upgrade_lock_by_dbstor
+    touch "${upgrade_path}"/"${upgrade_flag}" && chmod 600 "${upgrade_path}"/"${upgrade_flag}"
+    update_remote_status_file_path_by_dbstor "${upgrade_path}"/"${upgrade_flag}"
 }
 
 function warning_tips() {
@@ -415,11 +403,6 @@ case "$ACTION" in
             touch ${FAIL_FLAG} && chmod 400 ${FAIL_FLAG}
             exit 1
         fi
-        check_upgrade_flag
-        if [ $? -ne 0 ]; then
-            touch ${FAIL_FLAG} && chmod 400 ${FAIL_FLAG}
-            exit 1
-        fi
         gen_pre_check_flag "${INSTALL_TYPE}"
         exit 0
         ;;
@@ -432,6 +415,7 @@ case "$ACTION" in
             do_deploy ${UPGRADE_NAME} ${INSTALL_TYPE} ${UPGRADE_IP_PORT}
             ret=$?
             flock -u 506
+            upgrade_unlock_by_dbstor
             exit ${ret}
         elif [[ -f ${FAIL_FLAG} ]]; then
             logAndEchoError "pre_upgrade failed, upgrade is not allowed"
@@ -446,6 +430,7 @@ case "$ACTION" in
         upgrade_lock
         lock_file=${UPGRADE_COMMIT_NAME}
         do_deploy ${UPGRADE_COMMIT_NAME} ${INSTALL_TYPE}
+        upgrade_unlock_by_dbstor
         exit $?
         ;;
     check_point)
@@ -466,6 +451,7 @@ case "$ACTION" in
             exit 1
         fi
         clear_flag_after_rollback
+        upgrade_unlock_by_dbstor
         exit $?
         ;;
     clear_upgrade_backup)

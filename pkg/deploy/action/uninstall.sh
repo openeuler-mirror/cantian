@@ -37,6 +37,11 @@ function clear_residual_files() {
     if [[ -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/versions.yml ]] && [[ "${node_id}" == "0" ]]; then
         rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/versions.yml
     fi
+
+    if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+        su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=upgrade" > /dev/null 2>&1
+        su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=versions.yml" > /dev/null 2>&1
+    fi
 }
 
 # 为支持卸载重入，增加创建用户
@@ -138,6 +143,9 @@ logAndEchoInfo "uninstall begin"
 
 clear_security_limits
 
+# 清理残留文件
+clear_residual_files
+
 logAndEchoInfo "Begin to uninstall. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 for lib_name in "${UNINSTALL_ORDER[@]}"
 do
@@ -164,8 +172,6 @@ do
 done
 
 uninstall_rpm
-# 清理残留文件
-clear_residual_files
 
 # 如果uninstall_type为override 执行以下操作
 echo "uninstall_type is: ${uninstall_type}"
