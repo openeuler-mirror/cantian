@@ -1139,9 +1139,8 @@ class CmsCtl(object):
             LOGGER.info("check install type : override cms")
             self.parse_parameters(self.install_config_file)
             if deploy_mode == "dbstore_unify":
-                self.gcc_home = os.path.join("/", self.storage_share_fs, str(self.cluster_name) + "_cms", "gcc_home")
-                self.cms_gcc_bak = os.path.join("/", self.storage_archive_fs, 
-                                                str(self.cluster_name) + "_cms")
+                self.gcc_home = os.path.join("/", self.storage_share_fs, "gcc_home")
+                self.cms_gcc_bak = os.path.join("/", self.storage_archive_fs)
             else:
                 self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
                 self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
@@ -1408,10 +1407,13 @@ class CmsCtl(object):
                 self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
                 LOGGER.info("if blocked here, please check if the network is normal")
             if deploy_mode != "dbstore_unify":
-                str_cmd = "rm -rf %s" % (self.gcc_home)
+                versions_yml = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "versions.yml")
+                str_cmd = "rm -rf %s && rm -rf %s" % (self.gcc_home, versions_yml)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
             else:
-                str_cmd = "cms gcc -del"
+                str_cmd = "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml && " \
+                          "dbstor --delete-file --fs-name=%s --file-name=gcc_backup" \
+                          % (self.storage_share_fs, self.storage_archive_fs)
                 ret_code = 0
             if ret_code == 0:
                 LOGGER.info("clean gcc home cmd : %s" % str_cmd)

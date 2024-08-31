@@ -64,7 +64,7 @@ class UpdateDRParams(object):
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
                 f'dbstor --copy-file --fs-name="{self.storage_share_fs}" '
-                f'--source-dir="/{self.cluster_name}_cms/" '
+                f'--source-dir="/" '
                 f'--target-dir="{remote_dir}" '
                 f'--file-name="/dr_deploy_param.json"\''
             )

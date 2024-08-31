@@ -413,7 +413,7 @@ function exit_with_log() {
     # 首次初始化失败，清理gcc_file
     if [ ${node_id} -eq 0 ]; then
         if [[ x"${deploy_mode}" == x"dbstore_unify" ]] && [[ -f ${CMS_CONTAINER_FLAG} ]]; then
-            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="'${cluster_name}_cms'/gcc_home"' | grep gcc_file | wc -l)
+            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
             if [[ ${is_gcc_file_exist} -ne 0 ]]; then
                 su -s /bin/bash - "${cantian_user}" -c 'cms gcc -del'
             fi
