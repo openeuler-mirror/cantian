@@ -1599,7 +1599,6 @@ int get_correct_pos_by_fetch(tianchi_handler_t *tch, knl_cursor_t *cursor,
         ret = tse_get_correct_pos(tch, session, cursor, index_key_info);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("get_correct_pos_by_fetch: tse_fetch_correct_pos FAIL");
-            tse_free_handler_cursor(session, tch);
             return ret;
         }
         if (cursor->eof) {
