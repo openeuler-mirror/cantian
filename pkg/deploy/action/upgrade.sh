@@ -49,6 +49,7 @@ if [[ x"${deploy_mode}" == x"nas" ]];then
     fi
 fi
 
+source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 source ${CURRENT_PATH}/env.sh
 
 function rpm_check(){
@@ -141,7 +142,7 @@ function get_config_info() {
         logAndEchoError "failed to obtain source version"
         exit 1
     fi
-    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/${UPGRADE_MODE}_bak_${source_version}"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
 }
 
 ######################################################################
@@ -510,78 +511,7 @@ function correct_files_mod() {
     chown -h "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/update_config.py
     # 修改日志定期清理执行脚本权限
     chown -h "${cantian_user}":"${cantian_group}" ${CURRENT_PATH}/../common/script/logs_handler/do_compress_and_archive.py
-    version_first_number=$(cat /opt/cantian/versions.yml |sed 's/ //g' | grep 'Version:' | awk -F ':' '{print $2}' | awk -F '.' '{print $1}')
-    if [[ ${version_first_number} -eq 2 ]];then
-        change_new_owner
-        export_user_env
-        check_sem_id
-    fi
     logAndEchoInfo "correct file mod success"
-}
-
-#  离线升级2升3 修改文件属主
-function change_new_owner() {
-    logAndEchoInfo "begin to correct files owner"
-    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/config
-    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/common/data
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        chown -h "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}
-        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home > /dev/null 2>&1
-        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node0 > /dev/null 2>&1
-        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs}/node1 > /dev/null 2>&1
-    fi
-    chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
-    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/local/cantian
-    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/cantian/server
-    chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/local/cantian > /dev/null 2>&1
-    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    chmod 770 /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-    chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-    chmod 660 /dev/shm/cantian*
-    chown -hR "${cantian_user}":"${deploy_group}" /dev/shm/cantian*
-}
-
-# 离线升级2升3 配置环境变量
-function export_user_env(){
-    logAndEchoInfo "begin to export environment variable"
-    cantian_profile="/home/${cantian_user}/.bashrc"
-    deploy_user_profile="/home/${deploy_user}/.bashrc"
-    grep "CMS_HOME" ${cantian_profile} > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        logAndEchoInfo "export environment variable success"
-        return 0
-    fi
-    rm -f ${cantian_profile}
-    cp -fP ${deploy_user_profile} ${cantian_profile}
-    chown ${cantian_user}:${cantian_group} ${cantian_profile}
-    if [ $? -ne 0 ]; then
-        logAndEchoError "export environment variable failed"
-        exit 1
-    fi
-    USER_ENV_CMDS[0]="/^export\sPATH=\"\/opt\/cantian\/cms\/service\/bin\":\$PATH$/d"
-    USER_ENV_CMDS[1]="/^export\sPATH=\"\/opt\/cantian\/cantian\/server\/bin\":\$PATH$/d"
-    USER_ENV_CMDS[2]="/^export\sLD_LIBRARY_PATH=\"\/opt\/cantian\/cms\/service\/lib\"/d"
-    USER_ENV_CMDS[3]="/^export\sLD_LIBRARY_PATH=\"\/opt\/cantian\/cantian\/server\/lib\"/d"
-    USER_ENV_CMDS[4]="/^export\sCMS_HOME=/d"
-    USER_ENV_CMDS[5]="/^export\sCTDB_HOME=/d"
-    USER_ENV_CMDS[6]="/^export\sCTDB_DATA=/d"
-
-    for cmd in ${USER_ENV_CMDS[@]};do
-        sed -i ${cmd} ${deploy_user_profile} > /dev/null 2>&1
-    done
-
-    logAndEchoInfo "export environment variable success"
-
-}
-
-# 离线升级2升3 如果存在信号量则删除，防止信号量权限异常
-function check_sem_id() {
-    ret=`lsipc -s -c | grep 0x20161227`
-    if [ -n "$ret" ]; then
-        arr=($ret)
-        sem_id=${arr[1]}
-        ipcrm -s $sem_id
-    fi
 }
 
 #  启动参天
@@ -690,11 +620,13 @@ function modify_sys_tables() {
         echo -e "${cantian_sys_pwd}" | su -s /bin/bash - "${cantian_user}" -c "sh ${systable_home}/upgrade_systable.sh ${node_ip} ${systable_home}/../../../bin ${old_initdb_sql} ${new_initdb_sql} ${systable_home}"
         if [ $? -ne 0 ];then
             logAndEchoError "modify sys tables failed"
-            touch "${modify_sys_tables_failed}" && chmod 400 "${modify_sys_tables_failed}"
+            touch "${modify_sys_tables_failed}" && chmod 600 "${modify_sys_tables_failed}"
+            update_remote_status_file_path_by_dbstor "${modify_sys_tables_failed}"
             exit 1
         fi
         rm "${modify_sys_table_flag}"
-        touch "${modify_sys_tables_success}" && chmod 400 "${modify_sys_tables_success}"
+        touch "${modify_sys_tables_success}" && chmod 600 "${modify_sys_tables_success}"
+        update_remote_status_file_path_by_dbstor "${modify_sys_tables_success}"
         logAndEchoInfo "modify sys tables success"
     fi
 }
@@ -722,6 +654,7 @@ function modify_cluster_or_node_status() {
 
     echo "${new_status}" > ${cluster_or_node_status_file_path}
     if [ $? -eq 0 ]; then
+        update_remote_status_file_path_by_dbstor "${cluster_or_node_status_file_path}"
         logAndEchoInfo "change upgrade status of ${cluster_or_node} from '${old_status}' to '${new_status}' success."
         return 0
     else
@@ -733,14 +666,12 @@ function modify_cluster_or_node_status() {
 # 滚动升级，升级准备步骤：初始化节点/集群状态标记文件名
 function init_cluster_or_node_status_flag() {
     cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
+    cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
+    local_node_status_flag="${cluster_and_node_status_path}/node${node_id}_status.txt"
     # 支持重入
     if [ ! -d "${cluster_and_node_status_path}" ]; then
         mkdir -m 755 -p "${cluster_and_node_status_path}"
     fi
-
-    cluster_status_flag="${cluster_and_node_status_path}/cluster_status.txt"
-    local_node_status_flag="${cluster_and_node_status_path}/node${node_id}_status.txt"
-
     logAndEchoInfo ">>>>> init cluster and node status flag success <<<<<"
 
     # 判断当前集群升级状态，若为prepared或commit则直接退出升级流程
@@ -920,11 +851,11 @@ function do_rollup_upgrade() {
     stop_cms
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败
-    touch "${storage_metadata_fs_path}/call_ctback_tool.success" && chmod 400 "${storage_metadata_fs_path}/call_ctback_tool.success"
+    touch "${storage_metadata_fs_path}/call_ctback_tool.success" && chmod 600 "${storage_metadata_fs_path}/call_ctback_tool.success"
     if [ $? -ne 0 ]; then
         logAndEchoError "create call_ctback_tool.success failed" && exit 1
     fi
-
+    update_remote_status_file_path_by_dbstor "${storage_metadata_fs_path}/call_ctback_tool.success"
     do_backup
     do_upgrade
     # 启动参天前执行一把清理，否则参天会启动失败
@@ -1031,30 +962,13 @@ function offline_upgrade() {
         creat_snapshot
     fi
     get_back_version
-    if [[ ${node_id} == '1' && "$back_version" == "2.0.0"* ]]; then
-        kerberos_type=$(python3 "${CURRENT_PATH}"/get_config_info.py "kerberos_key")
-        share_logic_ip=$(python3 "${CURRENT_PATH}"/get_config_info.py "share_logic_ip")
-        storage_share_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_share_fs")
-        umount /mnt/dbdata/remote/share_"${storage_share_fs}"
-        sleep 2
-        if [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
-            mount -t nfs -o sec="${kerberos_type}",timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
-        fi
-    elif [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
         umount /mnt/dbdata/remote/share_"${storage_share_fs}"
         rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi
     do_upgrade
 
     start_cantian
-    if [[ "$back_version" == "2.0.0"* ]]; then
-        logAndEchoInfo "Upgrade ctsql _sys_passwd"
-        echo -e "${cantian_sys_pwd}" | su -s /bin/bash - cantian -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=ctsql --action=update --key=_sys_password --value=ctsql"
-        if [ $? -ne 0 ];then
-            logAndEchoError "Update ctsql _sys_passwd failed"
-            exit 1
-        fi
-    fi
     check_local_nodes
     if [[ ${node_id} == '0' ]]; then
         modify_sys_tables
@@ -1066,6 +980,8 @@ function offline_upgrade() {
 }
 
 function rollup_upgrade() {
+    # 升级前先同步远端集群信息至本地
+    update_local_status_file_path_by_dbstor
     # step1：升级前准备
     init_cluster_or_node_status_flag
     check_if_any_node_in_upgrade_status

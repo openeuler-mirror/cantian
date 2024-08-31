@@ -40,7 +40,6 @@ local_node_status=""
 storage_metadata_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_metadata_fs")
 
 source ${CURRENT_PATH}/log4sh.sh
-
 deploy_user=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_user")
 deploy_mode=$(python3 "${CURRENT_PATH}"/get_config_info.py "deploy_mode")
 
@@ -91,11 +90,11 @@ function get_user_input() {
 
 # 防呆功能，在滚动升级或回滚时执行离线回滚会再次询问:滚动升级提交、提交成功，滚动升级修改系统表成功或者失败场景只支持离线回退
 function mode_check(){
-    local storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${back_version}"
+    local storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
     local modify_sys_tables_success="${storage_metadata_fs_path}/updatesys.success"
     local modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
     local upgrade_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade"
-    local node_flag_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${back_version}/cluster_and_node_status"
+    local node_flag_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/cluster_and_node_status"
     if ls "${node_flag_path}"/node*_status.txt >/dev/null 2>&1; then
         cluster_status=$(cat "${node_flag_path}"/cluster_status.txt)
         if [[ x"${cluster_status}" != x"commit" && ! -f ${modify_sys_tables_success} && ! -f ${modify_sys_tables_failed} ]];then
@@ -172,80 +171,6 @@ function stop_cantian() {
     fi
 
     logAndEchoInfo "stop cantian success"
-}
-
-# 切换成老版本的权限
-function change_old_owner(){
-    logAndEchoInfo "begin to correct files owner"
-    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/common/config
-    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/common/data
-    chown -hR "${deploy_user}":"${deploy_group}" /mnt/dbdata/local/cantian
-    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/cantian/ /opt/cantian/cms/ /opt/cantian/ct_om/ /opt/cantian/dbstor/
-    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/deploy/logs/cantian_exporter/
-
-    chown -hR ctmgruser:ctmgruser /opt/cantian/ct_om/log /opt/cantian/ct_om/service/
-    chown -h "${deploy_user}":"${deploy_group}" /opt/cantian/ct_om/service/
-    chown -hR "${deploy_user}":"${deploy_group}" /opt/cantian/ct_om/service/cantian_exporter
-
-    chown -hR "${deploy_user}":"${deploy_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-    chown -hR "${deploy_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
-    chown "${deploy_user}":"${deploy_group}" /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
-    chown ${deploy_user}:${deploy_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-    chown "${deploy_user}":"${deploy_group}" /opt/cantian/action/obtains_lsid.py
-    chown "${deploy_user}":"${deploy_group}" "${CURRENT_PATH}"/implement/update_cantian_passwd.py > /dev/null 2>&1
-    chown "${deploy_user}":"${deploy_group}" "${CURRENT_PATH}"/update_config.py > /dev/null 2>&1
-}
-
-# 配置环境变量
-function export_user_env(){
-    logAndEchoInfo "begin to export environment variable"
-    cantian_profile="/home/${cantian_user}/.bashrc"
-    deploy_user_profile="/home/${deploy_user}/.bashrc"
-    grep "CMS_HOME" ${deploy_user_profile} > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        logAndEchoInfo "export environment variable success"
-        return 0
-    fi
-    rm -f ${deploy_user_profile}
-    cp -fP ${cantian_profile} ${deploy_user_profile}
-    chown ${deploy_user}:${deploy_group} ${deploy_user_profile}
-    if [ $? -ne 0 ]; then
-        logAndEchoError "export environment variable failed"
-        exit 1
-    fi
-    logAndEchoInfo "export environment variable success"
-
-}
-
-function change_user_group() {
-    less /etc/group | grep "^cantiangroup:" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        groupadd cantiangroup -g 1100
-        if [ $? -ne 0 ]; then
-            logAndEchoError "add group failed"
-        fi
-    fi
-
-    less /etc/group | grep "^cantianmgrgroup:" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        groupadd cantianmgrgroup -g 1101
-        if [ $? -ne 0 ]; then
-            logAndEchoError "add group failed"
-        fi
-    fi
-
-    usermod ctmgruser -G cantiangroup,cantianmgrgroup,${deploy_group}
-}
-
-# 如果存在信号量则删除，防止信号量权限异常
-function check_sem_id() {
-    ret=`lsipc -s -c | grep 0x20161227`
-    if [ -n "$ret" ]; then
-        arr=($ret)
-        sem_id=${arr[1]}
-        ipcrm -s $sem_id
-    fi
 }
 
 function install_dbstore(){
@@ -349,15 +274,7 @@ function do_rollback() {
     backup_path="/opt/cantian/upgrade_backup/cantian_upgrade_bak_${back_version}"
     back_config_path="${backup_path}"/config/deploy_param.json
     deploy_mode_back=$(cat "${back_config_path}" | grep 'deploy_mode' | awk -F'"' '{print $4}')
-    if [[ ${node_id} == '1' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && ${back_version} == "2.0.0"* ]]; then
-        logAndEchoInfo "Mount share file system."
-        kerberos_type=$(python3 "${CURRENT_PATH}"/get_config_info.py "kerberos_key")
-        share_logic_ip=$(cat "${back_config_path}" | grep 'share_logic_ip' | awk -F'"' '{print $4}')
-        storage_share_fs=$(python3 "${CURRENT_PATH}"/get_config_info.py "storage_share_fs")
-        umount /mnt/dbdata/remote/share_"${storage_share_fs}"
-        sleep 2
-        mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
-    elif [[ x"${deploy_mode_back}" == x"dbstore" ]]; then
+    if [[ x"${deploy_mode_back}" == x"dbstore" ]]; then
         kerberos_type=$(cat "${back_config_path}" | grep 'kerberos_key' | awk -F'"' '{print $4}')
         share_logic_ip=$(cat "${back_config_path}" | grep 'share_logic_ip' | awk -F'"' '{print $4}')
         storage_share_fs=$(cat "${back_config_path}" | grep 'storage_share_fs' | awk -F'"' '{print $4}')
@@ -367,7 +284,6 @@ function do_rollback() {
         fi
         mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi
-
     uninstall_rpm
     install_rpm
 
@@ -383,12 +299,6 @@ function do_rollback() {
         logAndEchoInfo "rollback ${rollback_module} success"
     done
 
-    if [[ ${version_first_number} -eq 2 ]];then
-        change_old_owner
-        export_user_env
-        change_user_group
-        check_sem_id
-    fi
     cp -rfp "${backup_path}/action" ${BACKUP_TARGET_PATH}
     cp -rfp "${backup_path}/common" ${BACKUP_TARGET_PATH}
     cp -rfp "${backup_path}/config" ${BACKUP_TARGET_PATH}
@@ -518,7 +428,7 @@ function upgrade_checkpoint() {
 }
 
 function clear_tag_file() {
-    local ctbackup_flag=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/rollup_bak_"${back_version}"/call_ctback_tool.success
+    local ctbackup_flag=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/call_ctback_tool.success
     local offline_commit_flag="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/cantian_offline_upgrade_commit_${source_version}.success"
     TAG_FILES=("${CHECK_POINT_FLAG}" "${ctbackup_flag}" "${offline_commit_flag}" "${UPGRADE_SUCCESS_FLAG}" "${DR_DEPLOY_FLAG}")
     for _file in "${TAG_FILES[@]}";
@@ -527,12 +437,14 @@ function clear_tag_file() {
             rm -rf "${_file}"
         fi
     done
+    delete_fs_upgrade_file_or_path_by_dbstor call_ctback_tool.success
+    delete_fs_upgrade_file_or_path_by_dbstor cantian_offline_upgrade_commit_${source_version}.success
     # 滚动升级场景进行离线回退，需要清理滚动升级相关文件
     if [[ x"${choose}" == x"yes" && x"${node_id}" != x"0" ]];then
         local commit_success=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/cantian_rollup_upgrade_commit_${back_version}.success
-        local upgrade_flag=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/rollup_bak_"${back_version}"/cluster_and_node_status
-        local modify_sys_tables_failed=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/rollup_bak_"${back_version}"/updatesys.failed
-        local modify_sys_tables_success=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/rollup_bak_"${back_version}"/updatesys.true
+        local upgrade_flag=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/cluster_and_node_status
+        local modify_sys_tables_failed=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/updatesys.failed
+        local modify_sys_tables_success=/mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/upgrade/updatesys.true
         if [ -d "${upgrade_flag}" ];then
             rm -rf ${upgrade_flag}
         fi
@@ -545,20 +457,12 @@ function clear_tag_file() {
         if [ -f ${commit_success} ];then
             rm -rf ${commit_success}
         fi
+        delete_fs_upgrade_file_or_path_by_dbstor cantian_rollup_upgrade_commit_${back_version}.success
+        delete_fs_upgrade_file_or_path_by_dbstor cluster_and_node_status
+        delete_fs_upgrade_file_or_path_by_dbstor updatesys.failed
+        delete_fs_upgrade_file_or_path_by_dbstor updatesys.true
     fi
     logAndEchoInfo "clear tag file success"
-}
-
-function remove_old_user(){
-    if [[ ${version_first_number} -eq 2 ]] && id -u ${cantian_user} > /dev/null 2>&1; then
-        userdel -rf ${cantian_user}
-        if [ $? -eq 0 ]; then
-            logAndEchoInfo "remove user cantian success"
-        else
-            logAndEchoError "remove user cantian failed"
-            exit 1
-        fi
-    fi
 }
 
 # 回退后检查
@@ -619,6 +523,7 @@ function modify_cluster_or_node_status() {
 
     echo "${new_status}" > ${cluster_or_node_status_file_path}
     if [ $? -eq 0 ]; then
+        update_remote_status_file_path_by_dbstor "${cluster_or_node_status_file_path}"
         logAndEchoInfo "change rollback status of ${cluster_or_node} from '${old_status}' to '${new_status}' success."
         return 0
     else
@@ -640,7 +545,7 @@ function init_cluster_or_node_status_flag() {
         logAndEchoError "obtain current node  storage_share_fs_name error, please check file: config/deploy_param.json"
         exit 1
     fi
-    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/rollup_bak_${source_version}"
+    storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
 
     cluster_and_node_status_path="${storage_metadata_fs_path}/cluster_and_node_status"
     # 支持重入
@@ -808,6 +713,7 @@ function post_rolldown_nodes_status() {
 
     modify_cluster_or_node_status "${cluster_status_flag}" "normal" "cluster"
     rm -f ${cluster_and_node_status_path}/node*
+    delete_fs_upgrade_file_or_path_by_dbstor cluster_and_node_status/node*
     logAndEchoInfo ">>>>> all nodes join the cluster successfully <<<<<"
 
 }
@@ -838,35 +744,10 @@ function degrade_version() {
     logAndEchoInfo "calling cms tool to degrade the version success"
 }
 
-function rollback_file_system() {
-    logAndEchoInfo "Begin to rollback dbstore file system."
-    echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "rollback" "${CURRENT_PATH}"/../config/deploy_param.json
-    if [ $? -ne 0 ]; then
-        logAndEchoError "rollback dbstore file system failed"
-        exit 1
-    fi
-
-    logAndEchoInfo "rollback dbstore file system success"
-
-    logAndEchoInfo "rollback to split cms share file system."
-    dircetory_path="/opt/cantian/upgrade_backup/cantian_upgrade_bak_${back_version}"
-    echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/migrate_file_system.py "rollback" "${CURRENT_PATH}"/../config/deploy_param.json "${dircetory_path}"/config/deploy_param.json
-    if [ $? -ne 0 ]; then
-        logAndEchoError "rollback cms file system failed"
-        exit 1
-    fi
-
-    logAndEchoInfo "rollback cms file system success"
-}
-
 # 离线升级回滚入口
 function offline_rollback() {
     get_mnt_dir_name
     get_rollback_version
-    version_first_number=`echo ${back_version} | awk -F '.' '{print $1}'`
-    if [[ ${version_first_number} -eq 2 ]];then
-        user=${deploy_user}
-    fi
     mode_check
     stopping_check
     if [[ ${node_id} == '0' && -f ${CHECK_POINT_FLAG} ]]; then
@@ -887,7 +768,6 @@ function offline_rollback() {
         echo -e "\033[31m${warning_msg}\033[0m"
     fi
     clear_tag_file
-    remove_old_user
 }
 
 # 滚动升级回滚总入口
@@ -933,6 +813,7 @@ function main() {
     input_params_check
     get_current_node
     modify_env
+    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
     source ${CURRENT_PATH}/env.sh
     user=${cantian_user}
 

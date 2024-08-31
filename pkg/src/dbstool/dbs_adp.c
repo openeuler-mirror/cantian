@@ -1112,14 +1112,14 @@ int32 dbs_copy_file(int32 argc, char *argv[])
 {
     char source_dir[MAX_DBS_FS_FILE_PATH_LEN] = {0};
     char target_dir[MAX_DBS_FILE_PATH_LEN] = {0};
-    char file_name[MAX_DBS_FILE_NAME_LEN] = {0};
+    char file_name[MAX_DBS_FILE_PATH_LEN] = {0};
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
 
     const char *params[] = {DBS_TOOL_PARAM_SOURCE_DIR, DBS_TOOL_PARAM_TARGET_DIR,
                             DBS_TOOL_PARAM_FILE_NAME, DBS_TOOL_PARAM_FS_NAME};
     char *results[] = {source_dir, target_dir, file_name, fs_name};
     size_t result_lens[] = {MAX_DBS_FS_FILE_PATH_LEN, MAX_DBS_FILE_PATH_LEN,
-                            MAX_DBS_FILE_NAME_LEN, MAX_DBS_FS_NAME_LEN};
+                            MAX_DBS_FILE_PATH_LEN, MAX_DBS_FS_NAME_LEN};
     params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_TARGET_DIR, target_dir},
                                         {DBS_TOOL_PARAM_SOURCE_DIR, source_dir}};
     params_list_t params_list = {params, results, result_lens, check_list, DBS_COPY_FILE_PRAMA_NUM,

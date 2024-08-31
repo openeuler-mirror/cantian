@@ -15,6 +15,7 @@ from utils.config.rest_constant import SystemRunningStatus, \
     RepFileSystemNameRule
 from om_log import LOGGER as LOG
 from get_config_info import get_env_info
+from obtains_lsid import LSIDGenerate
 from logic.common_func import exec_popen, read_json_config, write_json_config, get_status
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -307,7 +308,7 @@ class DRDeployPreCheck(object):
         dbstore_fs_info = self.storage_opt.query_filesystem_info(metadata_fs)
         metadata_fs_id = dbstore_fs_info.get("ID")
         # 检查双活域是否已经存在
-        random_seed = self.deploy_params.get("random_seed", 1)
+        random_seed = LSIDGenerate.generate_random_seed()
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
         domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
         for domain_info in domain_infos:

@@ -6,16 +6,24 @@ deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 storage_share_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs"`
 storage_share_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs"`
 storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
+cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
 lock_file_prefix=upgrade_lock_
-count_max=$(echo $((RANDOM % 4)))
-sleep_time=$(echo $((RANDOM % 11)))
 METADATA_FS_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 VERSION_FILE="versions.yml"
 
 
-source "${CURRENT_PATH}"/../log4sh.sh
-source "${CURRENT_PATH}"/../env.sh
+if [[ -f "${CURRENT_PATH}"/../log4sh.sh ]];then
+    # 容器内source路径
+    source "${CURRENT_PATH}"/../log4sh.sh
+    source "${CURRENT_PATH}"/../env.sh
+    PKG_PATH="${CURRENT_PATH}"/../../
+else
+    # 物理部署source路径
+    source "${CURRENT_PATH}"/log4sh.sh
+    source "${CURRENT_PATH}"/env.sh
+    PKG_PATH="${CURRENT_PATH}"/../
+fi
 
 #---------container dbstor upgrade prepare------#
 #   去NAS场景从文件系统中将升级文件拷贝到本地
@@ -26,22 +34,23 @@ function update_local_status_file_path_by_dbstor() {
     if [[ "${deploy_mode}" != "dbstore_unify" ]];then
         return 0
     fi
-    version_file=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-    --fs-name=${storage_share_fs} --file-path=/ | grep versions\.yml" | wc -l)
-
-    if [[ ${version_file} -eq 0 ]];then
-        return 0
-    fi
     chown "${cantian_user}":"${cantian_group}" ${METADATA_FS_PATH}
-    if [[ -f ${METADATA_FS_PATH}/versions.yml ]];then
-        rm -rf "${METADATA_FS_PATH}"/versions.yml
-    fi
-    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --fs-name=${storage_share_fs} \
-    --source-dir=/ --target-dir=${METADATA_FS_PATH} --file-name=versions.yml"
-
-    if [[ $? -ne 0 ]];then
-        logAndEchoError "Copy versions.yml from fs to local failed."
-        exit 0
+    if [[ "${cantian_in_container}" != "0" ]];then
+        # 容器内需要根据versions.yaml判断是否需要升级
+        version_file=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
+        --fs-name=${storage_share_fs} --file-path=/ | grep versions\.yml" | wc -l)
+        if [[ ${version_file} -eq 0 ]];then
+            return 0
+        fi
+        if [[ -f ${METADATA_FS_PATH}/versions.yml ]];then
+            rm -rf "${METADATA_FS_PATH}"/versions.yml
+        fi
+        su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --fs-name=${storage_share_fs} \
+        --source-dir=/ --target-dir=${METADATA_FS_PATH} --file-name=versions.yml"
+        if [[ $? -ne 0 ]];then
+            logAndEchoError "Copy versions.yml from fs to local failed."
+            exit 0
+        fi
     fi
     upgrade_dir=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
     --fs-name=${storage_share_fs} --file-path=/" | grep -E "^upgrade$" | grep -v grep | wc -l)
@@ -140,33 +149,28 @@ function upgrade_lock_by_dbstor() {
     if [[ "${deploy_mode}" != "dbstore_unify" ]];then
         return 0
     fi
-    count=0
-    time_out=60
-    while [[ ${count} -lt ${count_max} ]] && [[ ${time_out} -gt 0 ]]
-    do
-        node_lock_file=${lock_file_prefix}${node_id}
-
-        upgrade_nodes=($(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-        --fs-name=${storage_share_fs} --file-path=/upgrade" | grep -E "${lock_file_prefix}"))
-
-        nodes_length=${#upgrade_nodes[@]}
-        if [[ ${nodes_length} -gt 1 ]];then
-            logAndEchoError "Exist upgrade node , details:${upgrade_nodes}"
-            sleep 10
-            let time_out--
-            continue
-        fi
-        if [[ ${nodes_length} -eq 1 ]] && [[ "${upgrade_nodes[0]}" != "${node_lock_file}" ]];then
-            logAndEchoError "Exist upgrade node , details:${upgrade_nodes}"
-            sleep 10
-            let time_out--
-            continue
-        fi
-        let count++
-        sleep ${sleep_time}
-    done
+    node_lock_file=${lock_file_prefix}${node_id}
+    upgrade_nodes=($(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
+    --fs-name=${storage_share_fs} --file-path=/upgrade" | grep -E "${lock_file_prefix}"))
+    nodes_length=${#upgrade_nodes[@]}
+    if [[ ${nodes_length} -gt 1 ]];then
+        logAndEchoError "Exist upgrade node , details:${upgrade_nodes}"
+        exit 1
+    fi
+    if [[ ${nodes_length} -eq 1 ]] && [[ "${upgrade_nodes[0]}" != "${node_lock_file}" ]];then
+        logAndEchoError "Exist upgrade node , details:${upgrade_nodes}"
+        exit 1
+    fi
+    if [[ ${nodes_length} -eq 1 ]] && [[ "${upgrade_nodes[0]}" == "${node_lock_file}" ]];then
+        return 0
+    fi
     su -s /bin/bash - "${cantian_user}" -c "dbstor --create-file --fs-name=${storage_share_fs} \
     --file-name=/upgrade/${node_lock_file}"
+    if [[ $? -ne 0 ]];then
+        logAndEchoError "upgrade lock failed"
+        exit 1
+    fi
+    return 0
 }
 
 function upgrade_unlock_by_dbstor() {
@@ -187,4 +191,5 @@ function upgrade_unlock_by_dbstor() {
         logAndEchoError "Execute clear lock file failed."
         exit 1
     fi
+    return 0
 }

@@ -24,6 +24,7 @@ from om_log import DR_DEPLOY_LOG as LOG
 from cantian_common.mysql_shell import MysqlShell
 from get_config_info import get_env_info
 from storage_operate.dr_deploy_operate import install_mysql
+from obtains_lsid import LSIDGenerate
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 RUN_USER = get_env_info("cantian_user")
@@ -359,8 +360,7 @@ class DRDeploy(object):
         remote_dev_name = self.dr_deploy_info.get("remote_dev_name")
         remote_dev_esn = self.dr_deploy_info.get("remote_dev_esn")
         remote_device_id = self.dr_deploy_info.get("remote_device_id")
-        deploy_params = read_json_config(DEPLOY_PARAM_FILE)
-        random_seed = deploy_params.get("random_seed", 1)
+        random_seed = LSIDGenerate.generate_random_seed()
         domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
         if hyper_domain_id is None:
             domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(

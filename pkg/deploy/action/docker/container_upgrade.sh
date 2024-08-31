@@ -130,8 +130,8 @@ function clear_flag_after_rollback () {
     upgrade_path="${METADATA_FS_PATH}/upgrade"
     rm -f "${upgrade_path}"/upgrade_node${node_id}.*
     rm -rf "${cluster_and_node_status_path}"
-    delete_fs_upgrade_file_or_path_by_dbstor "${upgrade_path}" upgrade_node"${node_id}".*
-    delete_fs_upgrade_file_or_path_by_dbstor "${upgrade_path}" cluster_and_node_status
+    delete_fs_upgrade_file_or_path_by_dbstor upgrade_node"${node_id}".*
+    delete_fs_upgrade_file_or_path_by_dbstor cluster_and_node_status
 }
 
 function do_rollback() {

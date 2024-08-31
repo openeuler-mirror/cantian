@@ -37,7 +37,7 @@
 typedef struct {
     cm_list_head node;
     int32 handle;
-    char obj_name[CSS_MAX_NAME_LEN + 1];
+    char obj_name[MAX_DBS_FS_FILE_PATH_LEN + 1];
     uint32 type;
     cm_dbs_map_item_s item;
 } cm_dbs_map_value_s;
