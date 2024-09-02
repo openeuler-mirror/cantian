@@ -1,5 +1,5 @@
 {
-  "deploy_mode": "nas",
+  "deploy_mode": "file",
   "deploy_user": "ctdba:ctdba",
   "node_id": "0",
   "cms_ip": "192.168.86.1;192.168.86.2",

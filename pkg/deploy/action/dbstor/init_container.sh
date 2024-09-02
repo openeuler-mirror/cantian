@@ -56,9 +56,7 @@ function set_dbstor_config() {
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
-    if [ ${deploy_mode} == dbstore_unify ];then
-        python3 ${CURRENT_PATH}/init_unify_config.py
-    fi
+    python3 ${CURRENT_PATH}/init_unify_config.py
 }
 
 function cantian_copy_dbstor_config() {

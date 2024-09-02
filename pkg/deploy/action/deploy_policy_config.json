@@ -5,7 +5,7 @@
         "config": {
             "cantian_in_container": "0",
             "mysql_in_container": "0",
-            "deploy_mode": "nas",
+            "deploy_mode": "file",
             "mysql_metadata_in_cantian": false
         }
     },
@@ -14,7 +14,7 @@
         "config": {
             "cantian_in_container": "0",
             "mysql_in_container": "0",
-            "deploy_mode": "dbstore",
+            "deploy_mode": "combined",
             "mysql_metadata_in_cantian": true
         }
     },
@@ -23,7 +23,7 @@
         "config": {
             "cantian_in_container": "1",
             "mysql_in_container": "1",
-            "deploy_mode": "dbstore_unify",
+            "deploy_mode": "dbstor",
             "mysql_metadata_in_cantian": true
         }
     },
@@ -32,7 +32,7 @@
         "config": {
             "cantian_in_container": "0",
             "mysql_in_container": "0",
-            "deploy_mode": "dbstore_unify",
+            "deploy_mode": "dbstor",
             "mysql_metadata_in_cantian": true
         }
     },
@@ -41,7 +41,7 @@
         "config": {
             "cantian_in_container": "2",
             "mysql_in_container": "1",
-            "deploy_mode": "dbstore_unify",
+            "deploy_mode": "dbstor",
             "mysql_metadata_in_cantian": true
         }
     }

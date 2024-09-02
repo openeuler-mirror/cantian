@@ -47,9 +47,9 @@ function check_dbstore_client_compatibility() {
     logAndEchoInfo "dbstore client compatibility check success."
 }
 
-function check_gcc_if_dbstore_unify() {
+function check_gcc_file() {
     # 检查gcc文件
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]] || [[ ${node_id} -ne 0 ]]; then
+    if [[ ${node_id} -ne 0 ]]; then
         return 0
     fi
     logAndEchoInfo "begin to check gcc file."
@@ -89,7 +89,7 @@ function init_module() {
             check_dbstor_usr_passwd
             # 检查dbstore client 与server端是否兼容
             check_dbstore_client_compatibility
-            check_gcc_if_dbstore_unify
+            check_gcc_file
         fi
     done
 }

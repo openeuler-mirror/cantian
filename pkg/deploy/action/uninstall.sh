@@ -38,7 +38,7 @@ function clear_residual_files() {
         rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/versions.yml
     fi
 
-    if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" == "dbstor" ]];then
         su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=upgrade" > /dev/null 2>&1
         su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=versions.yml" > /dev/null 2>&1
     fi
@@ -110,7 +110,7 @@ function umount_fs() {
 
     sysctl fs.nfs.nfs_callback_tcpport=0
     # 取消nfs挂载
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
     fi
     if [[ ${storage_archive_fs} != '' ]]; then
@@ -118,7 +118,7 @@ function umount_fs() {
     fi
 
     umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    if [[ x"${deploy_mode}" == x"nas" ]];then
+    if [[ x"${deploy_mode}" == x"file" ]];then
         umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs}
     fi
 }

@@ -235,7 +235,7 @@ function gen_upgrade_plan() {
     if [ "${weather_change_system}" == "true" ]; then
         source_version=$(python3 ${CURRENT_PATH}/implement/get_source_version.py)
         storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
-        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+        if [[ "${deploy_mode}" == "dbstor" ]];then
             if [  -d "${storage_metadata_fs_path}" ]; then
                 rm -rf  "${storage_metadata_fs_path}"
             fi
@@ -255,7 +255,7 @@ function gen_upgrade_plan() {
         fi
         touch ${UPDATESYS_FLAG} && chmod 600 ${UPDATESYS_FLAG}
         logAndEchoInfo "detected need to update system tables, success to create updatesys_flag: '${UPDATESYS_FLAG}'"
-        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+        if [[ "${deploy_mode}" == "dbstor" ]];then
             chown "${cantian_user}":"${cantian_group}" "${UPDATESYS_FLAG}"
             update_remote_status_file_path_by_dbstor ${storage_metadata_fs_path}
         fi
@@ -265,7 +265,7 @@ function gen_upgrade_plan() {
 
 function check_dbstore_client_compatibility() {
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" == x"nas" || "${source_version}" == "2.0.0"* ]]; then
+    if [[ x"${deploy_mode}" == x"file" || "${source_version}" == "2.0.0"* ]]; then
         return 0
     fi
     logAndEchoInfo "begin to check dbstore client compatibility."

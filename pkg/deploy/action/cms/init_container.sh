@@ -43,7 +43,7 @@ function set_cms_ip() {
 }
 
 function set_fs() {
-    if [ x"${deploy_mode}" == x"dbstore_unify" ]; then
+    if [[ x"${deploy_mode}" == x"dbstor" || x"${deploy_mode}" == x"combined" ]]; then
         gcc_home="/${storage_share_fs}/gcc_home"
         cms_gcc_bak="/${storage_archive_fs}"
     fi
@@ -65,7 +65,7 @@ function set_cms_cfg() {
     else
         sed -i -r "s:(_CMS_MES_SSL_SWITCH = ).*:\1False:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
-    if [[ x"${deploy_mode}" == x"dbstore_unify" ]]; then
+    if [[ x"${deploy_mode}" == x"dbstor" || x"${deploy_mode}" == x"combined" ]]; then
         sed -i -r "s:(GCC_TYPE = ).*:\1DBS:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
 }
@@ -79,7 +79,7 @@ if [ -f ${CONFIG_PATH}/${CMS_JSON_NAME} ]; then
     rm -rf ${CONFIG_PATH}/${CMS_JSON_NAME}
 fi
 
-if [ ${node_id} -eq 0 ] && [ x"${deploy_mode}" != x"dbstore_unify" ]; then
+if [ ${node_id} -eq 0 ] && [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]]; then
     # 以700权限创建gcc_home
     mkdir -m 700 -p "${gcc_home}"
     chown ${cantian_user}:${cantian_group} -R ${gcc_home}

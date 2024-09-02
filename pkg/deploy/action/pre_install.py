@@ -113,7 +113,7 @@ class ConfigChecker:
 
     @staticmethod
     def deploy_mode(value):
-        deploy_mode_enum = {"nas", "dbstore", "dbstore_unify"}
+        deploy_mode_enum = {"file", "combined", "dbstor"}
         if value not in deploy_mode_enum:
             return False
 
@@ -325,7 +325,7 @@ class CheckInstallConfig(CheckBase):
             'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
-            'mes_ssl_switch', 'cantian_in_container', 'dbstore_demo', 'deploy_policy'
+            'mes_ssl_switch', 'cantian_in_container', 'deploy_policy'
         }
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
@@ -438,10 +438,14 @@ class CheckInstallConfig(CheckBase):
         for element in not_in_either:
             # 去nas忽略部分参数
             install_config_params = self.read_install_config()
-            ignore_params = {"storage_metadata_fs", "share_logic_ip", "archive_logic_ip", "metadata_logic_ip"}
-            if element in ignore_params and install_config_params['deploy_mode'] == "dbstore_unify":
+            dbstor_ignore_params = {"storage_metadata_fs", "share_logic_ip",
+                                    "archive_logic_ip", "metadata_logic_ip", "vstore_id"}
+            combined_ignore_params = {"share_logic_ip", "vstore_id"}
+            if element in dbstor_ignore_params and install_config_params['deploy_mode'] == "dbstor":
                 continue
-            if element != 'dbstore_demo' and element not in install_config_keys:
+            if element in combined_ignore_params and install_config_params['deploy_mode'] == "combined":
+                continue
+            if element not in install_config_keys:
                 LOG.error('config_params.json need param %s', element)
                 return False
         return True
@@ -605,13 +609,13 @@ class CheckInstallConfig(CheckBase):
         if install_config_params.get("storage_archive_fs") == "":
             ping_check_element.remove("archive_logic_ip")
 
-        if install_config_params['deploy_mode'] != "nas":
+        if install_config_params['deploy_mode'] != "file":
             self.config_key.remove("storage_logic_ip")
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")
-            if install_config_params['deploy_mode'] == "dbstore_unify":
+            if install_config_params['deploy_mode'] == "dbstor":
                 if not install_config_params['mysql_metadata_in_cantian']:
-                    LOG.error('Failed to check. deploy_mode is dbstore_unify, mysql_metadata_in_cantian must be true')
+                    LOG.error('Failed to check. deploy_mode is dbstor, mysql_metadata_in_cantian must be true')
                     return False
                 ping_check_element.remove("share_logic_ip")
                 install_config_params['share_logic_ip'] = "127.0.0.1"
@@ -642,7 +646,8 @@ class CheckInstallConfig(CheckBase):
 
         if not self.check_install_config_params(install_config_params.keys()):
             return False
-        if not self.check_storage_cantian_vlan_ip_scale(install_config_params):
+        if (install_config_params['deploy_mode'] != "file" and
+                not self.check_storage_cantian_vlan_ip_scale(install_config_params)):
             return False
 
         for key, value in install_config_params.items():
@@ -683,7 +688,7 @@ class CheckInstallConfig(CheckBase):
         if 'mes_ssl_switch' not in install_config_params.keys():
             install_config_params['mes_ssl_switch'] = False
         if 'deploy_mode' not in install_config_params.keys():
-            install_config_params['deploy_mode'] = "dbstore"
+            install_config_params['deploy_mode'] = "combined"
         if 'dbstore_fs_vstore_id' not in install_config_params.keys():
             install_config_params['dbstore_fs_vstore_id'] = "0"
         if install_config_params.get("mes_ssl_switch") == True and install_config_params.get("cantian_in_container", "-1") == "0":

@@ -31,7 +31,7 @@ fi
 #   需要更新状态时，再拷贝对应文件至文件系统
 #-----------------------------------------------#
 function update_local_status_file_path_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     chown "${cantian_user}":"${cantian_group}" ${METADATA_FS_PATH}
@@ -88,7 +88,7 @@ function update_local_status_file_path_by_dbstor() {
 }
 
 function update_remote_status_file_path_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     cluster_or_node_status_file_path=$1
@@ -111,7 +111,7 @@ function update_remote_status_file_path_by_dbstor() {
 }
 
 function delete_fs_upgrade_file_or_path_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     local file_name=$1
@@ -132,7 +132,7 @@ function delete_fs_upgrade_file_or_path_by_dbstor() {
 }
 
 function update_version_yml_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     chown "${cantian_user}":"${cantian_group}" "${PKG_PATH}/${VERSION_FILE}"
@@ -146,7 +146,7 @@ function update_version_yml_by_dbstor() {
 }
 
 function upgrade_lock_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     node_lock_file=${lock_file_prefix}${node_id}
@@ -174,7 +174,7 @@ function upgrade_lock_by_dbstor() {
 }
 
 function upgrade_unlock_by_dbstor() {
-    if [[ "${deploy_mode}" != "dbstore_unify" ]];then
+    if [[ "${deploy_mode}" != "dbstor" ]];then
         return 0
     fi
     node_lock_file=${lock_file_prefix}${node_id}
