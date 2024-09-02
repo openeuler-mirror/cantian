@@ -202,7 +202,7 @@ class CApiWrapper(object):
         self.primary_keystore = primary_keystore
         self.standby_keystore = standby_keystore
         self.get_dbstor_para()
-        if self.deploy_mode != "nas":
+        if self.deploy_mode != "file":
             self.kmc_ext = ctypes.cdll.LoadLibrary(self.KMC_EXT_LIB_PATH)
 
     def get_dbstor_para(self):
@@ -211,7 +211,7 @@ class CApiWrapper(object):
             self.deploy_mode = json_data.get('deploy_mode', "").strip()
 
     def initialize(self):
-        if self.initialized or self.deploy_mode == "nas":
+        if self.initialized or self.deploy_mode == "file":
             return 0
 
         conf = KmcInitConf(
@@ -282,9 +282,9 @@ class CApiWrapper(object):
         return encoded.decode('utf-8')
 
     def encrypt(self, plain):
-        if self.deploy_mode != "nas":
+        if self.deploy_mode != "file":
             return self.encrypt_by_kmc(plain)
-        elif self.deploy_mode == "nas":
+        elif self.deploy_mode == "file":
             return self.encrypt_by_base64(plain)
         return ""
 
@@ -311,14 +311,14 @@ class CApiWrapper(object):
         return decoded.decode('utf-8')
 
     def decrypt(self, cipher):
-        if self.deploy_mode != "nas":
+        if self.deploy_mode != "file":
             return self.decrypt_by_kmc(cipher)
-        elif self.deploy_mode == "nas":
+        elif self.deploy_mode == "file":
             return self.decrypt_by_base64(cipher)
         return ""
 
     def finalize(self):
-        if not self.initialized or self.deploy_mode == "nas":
+        if not self.initialized or self.deploy_mode == "file":
             return 0
         return self.kmc_ext.KeFinalizeEx(pointer(self.kmc_ctx))
 

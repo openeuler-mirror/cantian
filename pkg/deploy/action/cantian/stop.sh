@@ -25,7 +25,7 @@ function cantian_stop()
 
     python3 ${CURRENT_PATH}/cantian_check_status.py
 
-    if [ $? -ne 0 ] && [ ${CANTIAN_START_STATUS} == "default" ]; then
+    if [ $? -ne 0 ] && [ x"${CANTIAN_START_STATUS}" == x"default" ]; then
         log "Cantian status is default, instance cantiand has not started."
         return 0
     fi

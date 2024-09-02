@@ -242,7 +242,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" != x"nas" ];then
+    if [ x"${deploy_mode}" != x"file" ];then
         echo "start rollback rpm package"
         install_dbstore
         if [ $? -ne 0 ];then
@@ -314,7 +314,7 @@ function do_rollback() {
     cp -f ${backup_path}/config/cantian*.timer /etc/systemd/system/
     # 回滚完快照再执行拷贝操作，避免回滚快照使用的是旧脚本
 
-    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "nas" ]]; then
+    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "file" ]]; then
         rollback_snapshot
         clear_mem
     fi
@@ -346,7 +346,7 @@ function rollback_snapshot() {
 
 # 调用dbstor的脚本在回滚快照后，清除内存占用
 function clear_mem() {
-    if [[ x"${deploy_mode}" == x"nas" ]];then
+    if [[ x"${deploy_mode}" == x"file" ]];then
         return
     fi
     if [[ ! -f ${CLEAR_MEM_FILE} ]];then
@@ -800,7 +800,7 @@ function rollup_rollback() {
 }
 
 function modify_env() {
-    if [[ x"${deploy_mode}" == x"nas" ]];then
+    if [[ x"${deploy_mode}" == x"file" ]];then
         python3 "${CURRENT_PATH}"/modify_env.py
         if [ $? -ne 0 ];then
             echo "Current deploy mode is ${deploy_mode}, modify env.sh failed."

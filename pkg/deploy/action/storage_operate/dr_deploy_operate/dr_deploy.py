@@ -1098,7 +1098,7 @@ class DRDeploy(object):
 
         dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
 
-        if self.deploy_mode == "dbstore_unify":
+        if self.deploy_mode == "combined":
             chown_command = f'chown "{RUN_USER}":"{USER_GROUP}" "{dr_deploy_param_path}"'
             LOG.info(f"Executing command: {chown_command}")
             return_code, output, stderr = exec_popen(chown_command, timeout=30)
@@ -1201,7 +1201,7 @@ class DRDeploy(object):
             page_fs_pair_info, page_fs_pair_ready_flag = \
                 self.standby_check_page_fs_pair_ready(page_fs_pair_ready_flag)
 
-            if self.deploy_mode != "dbstore_unify":
+            if self.deploy_mode != "dbstor":
                 metadata_fs_pair_info, metadata_fs_ready_flag, metadata_fs_info = \
                     self.standby_check_metadata_fs_pair_ready(metadata_fs_ready_flag)
                 fs_ready = ulog_fs_pair_info and page_fs_pair_info and metadata_fs_pair_info
@@ -1212,7 +1212,7 @@ class DRDeploy(object):
                 LOG.info("Filesystem created successfully, start to install Cantian engine.")
                 self.record_deploy_process("standby_install", "running")
 
-                if self.deploy_mode != "dbstore_unify" and metadata_fs_info:
+                if self.deploy_mode != "dbstor" and metadata_fs_info:
                     self.create_nfs_share_and_client(metadata_fs_info)
 
                 self.standby_do_install()

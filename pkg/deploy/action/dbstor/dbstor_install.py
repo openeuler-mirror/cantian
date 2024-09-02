@@ -650,7 +650,7 @@ class DBStor:
         with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r") as file_obj:
             json_data = json.load(file_obj)
             deploy_mode = json_data.get("deploy_mode")
-        if deploy_mode == "dbstore_unify":
+        if deploy_mode == "dbstor" or deploy_mode == "combined":
             configTool = ConfigTool()
             configTool.create_unify_dbstor_config()
 

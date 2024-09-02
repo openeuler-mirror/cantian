@@ -28,7 +28,7 @@ FS_TYPE_LIST = [
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
 ]
-if DEPLOY_MODE == "dbstore_unify":
+if DEPLOY_MODE == "dbstor":
     FS_TYPE_LIST = [
         "storage_dbstore_fs", "storage_dbstore_page_fs",
         "storage_share_fs", "storage_archive_fs"
@@ -178,7 +178,7 @@ class CreateFS(object):
                 if _fs_info:
                     err_msg = "The file system[%s] already exists." % _fs_name
                     self.handle_error_msg(err_msg)
-                if fs_type in SHARE_FS_TYPE_LIST and deploy_mode != "dbstore_unify":
+                if fs_type in SHARE_FS_TYPE_LIST and deploy_mode != "dbstor":
                     fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DEFAULT)
                     nfs_share_id = self._create_nfs_share(fs_id, fs_type)
                     nfs_share_client_id = self._add_nfs_client(nfs_share_id, fs_type)

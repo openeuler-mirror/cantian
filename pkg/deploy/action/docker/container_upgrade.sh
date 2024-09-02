@@ -282,6 +282,9 @@ function init_cluster_or_node_status_flag() {
 }
 
 function check_if_any_node_in_upgrade_status() {
+    if [[ "${deploy_mode}" == "dbstor" ]];then
+        return 0
+    fi
     logAndEchoInfo "begin to check if any nodes in upgrading state"
     node_status_files=($(find "${cluster_and_node_status_path}" -type f | grep -v grep | grep -E "^${cluster_and_node_status_path}/node[0-9]+_status\.txt$" | grep -v "node${node_id}"))
     if [ ${#node_status_files[@]} -eq 0 ]; then
@@ -328,7 +331,7 @@ function modify_cluster_or_node_status() {
     echo "${new_status}" > "${cluster_or_node_status_file_path}"
     if [ $? -eq 0 ]; then
         logAndEchoInfo "change upgrade status of ${cluster_or_node} from '${old_status}' to '${new_status}' success."
-        if [[ "${deploy_mode}" == "dbstore_unify" ]];then
+        if [[ "${deploy_mode}" == "dbstor" ]];then
             update_remote_status_file_path_by_dbstor ${cluster_or_node_status_file_path}
         fi
         return 0

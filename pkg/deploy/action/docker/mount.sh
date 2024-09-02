@@ -56,10 +56,9 @@ function copy_deploy_param() {
 }
 
 function mount_fs() {
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
-        chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
-    fi
+    # 该脚本只有两种模式：file和combined
+    mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+    chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
 
     if [[ ${storage_archive_fs} != '' ]]; then
         mkdir -m 750 -p /mnt/dbdata/remote/archive_${storage_archive_fs}
@@ -70,16 +69,9 @@ function mount_fs() {
     
 
     # 获取nfs挂载的ip
-    share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
-    if [[ ${storage_archive_fs} != '' ]]; then
-        archive_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "archive_logic_ip"`
-        if [[ ${archive_logic_ip} = '' ]]; then
-            logAndEchoInfo "please check archive_logic_ip"
-        fi
-    fi
     metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
 
-    if [[ x"${deploy_mode}" != x"nas" ]]; then
+    if [[ x"${deploy_mode}" != x"file" ]]; then
         kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
         mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     else
@@ -94,45 +86,51 @@ function mount_fs() {
     check_port
     sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
     # 挂载share nfs
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        if [[ x"${deploy_mode}" == x"dbstore" ]]; then
-            mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-        else
-            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-        fi
-        share_result=$?
-        if [ ${share_result} -ne 0 ]; then
-            logAndEchoError "mount share nfs failed"
-        fi
-        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-        checkMountNFS ${share_result}
-    fi
     if [[ ${storage_archive_fs} != '' ]]; then
-        if [[ x"${deploy_mode}" != x"nas" ]]; then
+        archive_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "archive_logic_ip"`
+        if [[ ${archive_logic_ip} = '' ]]; then
+            logAndEchoInfo "please check archive_logic_ip"
+        fi
+
+        if [[ x"${deploy_mode}" != x"file" ]]; then
             mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
         else
             mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
         fi
-
         archive_result=$?
         if [ ${archive_result} -ne 0 ]; then
             logAndEchoError "mount archive nfs failed"
         fi
         checkMountNFS ${archive_result}
+
         chmod 750 /mnt/dbdata/remote/archive_${storage_archive_fs}
         chown -hR "${cantian_user}":"${deploy_group}" /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
         # 修改备份nfs路径属主属组
     fi
     checkMountNFS ${metadata_result}
 
-    if [[ x"${deploy_mode}" == x"nas" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
+        share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
         storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
         storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
+        # nas模式才挂载share nfs
+        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+        share_result=$?
+        if [ ${share_result} -ne 0 ]; then
+            logAndEchoError "mount share nfs failed"
+        fi
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+        checkMountNFS ${share_result}
+
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
         mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        checkMountNFS $?
+        dbstore_result=$?
+        if [ ${dbstore_result} -ne 0 ]; then
+            logAndEchoError "mount dbstore nfs failed"
+        fi
         chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        checkMountNFS dbstore_result
+
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
         chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
@@ -147,9 +145,8 @@ function mount_fs() {
     remoteInfo=`ls -l /mnt/dbdata/remote`
     logAndEchoInfo "/mnt/dbdata/remote detail is: ${remoteInfo}"
     # 目录权限最小化
-    if [[ x"${deploy_mode}" != x"dbstore_unify" ]]; then
-        chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
-    fi
+    chmod 750 /mnt/dbdata/remote/share_${storage_share_fs}
+
     chmod 755 /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
     copy_deploy_param

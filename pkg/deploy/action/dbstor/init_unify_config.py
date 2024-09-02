@@ -102,7 +102,7 @@ class ConfigTool:
             self.cluster_name = json_data.get("cluster_name", '')
             
     def create_unify_dbstor_config(self):
-        logger.info('Deploy_mode = dbstore_unify, begin to set config.')
+        logger.info('Deploy_mode = dbstor, begin to set config.')
         config = ConfigParser()
         config.optionxform = str
         conf_file_path = "/opt/cantian/dbstor/tools"

@@ -299,21 +299,21 @@ def load_config_param(json_data):
         g_opts.link_type = "RDMA_1823"
     if json_data.get('cantian_in_container', 0) == '1':
         g_opts.cantian_in_container = True
+    global DEPLOY_MODE
+    DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
     g_opts.db_type = json_data.get('db_type', '').strip()
     g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs").strip()
     g_opts.storage_share_fs = json_data['storage_share_fs'].strip()
     g_opts.namespace = json_data.get('cluster_name', 'test1').strip()
-    g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip()
+    g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip() if DEPLOY_MODE == "file" else None
     g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
     g_opts.mes_type = json_data.get("mes_type", "UC").strip()
     g_opts.mes_ssl_switch = json_data.get("mes_ssl_switch", False)
-    global DEPLOY_MODE
-    DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
     storage_archive_fs = json_data['storage_archive_fs'].strip()
-    g_opts.use_dbstor = DEPLOY_MODE != "nas"
+    g_opts.use_dbstor = DEPLOY_MODE != "file"
     g_opts.archive_location = f"""location=/{f'mnt/dbdata/remote/archive_{storage_archive_fs}' 
-        if DEPLOY_MODE != 'dbstore_unify' else f'{storage_archive_fs}/archive'}"""
-    g_opts.dbstor_deploy_mode = DEPLOY_MODE == "dbstore_unify"
+        if DEPLOY_MODE != 'dbstor' else f'{storage_archive_fs}/archive'}"""
+    g_opts.dbstor_deploy_mode = DEPLOY_MODE == "dbstor"
     metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
     node_str = "node" + str(g_opts.node_id)
     global MYSQL_DATA_DIR
@@ -510,7 +510,7 @@ def log_exit(msg):
     LOGGER.error(msg)
 
 
-def cantian_check_share_logic_ip_isvalid(nodeip):
+def cantian_check_share_logic_ip_isvalid(ipname, nodeip):
     """
     function: Check the nfs logic ip is valid
     input : ip
@@ -523,16 +523,19 @@ def cantian_check_share_logic_ip_isvalid(nodeip):
         if ret_code or stdout != '3':
             return False
         return True
-    
-    if DEPLOY_MODE == "dbstore_unify":
+
+    if DEPLOY_MODE == "dbstor":
         return True
+    if DEPLOY_MODE == "combined" and ipname != "archive":
+        return True
+
     LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):
-        err_msg = "checked the node IP address or domain name failed: %s" % nodeip
+        err_msg = "checked the node %s IP address or domain name failed: %s" % (ipname, nodeip)
         LOGGER.error(err_msg)
         raise Exception(err_msg)
 
-    LOGGER.info("checked the node IP address or domain name success: %s" % nodeip)
+    LOGGER.info("checked the node %s IP address or domain name success: %s" % (ipname, nodeip))
 
 
 def file_reader(file_path):
@@ -1891,7 +1894,7 @@ class Installer:
                 raise Exception("Decompress bin return: " + str(ret_code) + os.linesep + stderr)
 
         if not g_opts.cantian_in_container:
-            cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+            cantian_check_share_logic_ip_isvalid("share", g_opts.share_logic_ip)
 
         if g_opts.use_dbstor:
             self.install_xnet_lib()
@@ -2698,7 +2701,7 @@ class Installer:
         """
         LOGGER.info("Creating database.")
 
-        cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+        cantian_check_share_logic_ip_isvalid("share", g_opts.share_logic_ip)
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -2750,7 +2753,7 @@ class Installer:
             if g_opts.node_id != 0:
                 # node 1
                 self.failed_pos = self.CREATE_DB_FAILED
-                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                cantian_check_share_logic_ip_isvalid("share", g_opts.share_logic_ip)
                 LOGGER.info('Begin to start node1')
                 with os.fdopen(os.open(CONFIG_PARAMS_FILE, flags, modes), 'r') as fp:
                     json_data = json.load(fp)
@@ -2775,7 +2778,7 @@ class Installer:
             else:
                 # node 0
                 # 1.start dn process in nomount or mount mode
-                cantian_check_share_logic_ip_isvalid(g_opts.share_logic_ip)
+                cantian_check_share_logic_ip_isvalid("share", g_opts.share_logic_ip)
                 self.start_cantiand()
                 log("Creating cantian database...")
                 log('wait for cantiand thread startup')
@@ -3385,8 +3388,8 @@ def check_archive_dir():
     if start_parameters.setdefault('db_create_status', "default") == "done":
         return
 
-    if DEPLOY_MODE != "dbstore_unify":
-        cantian_check_share_logic_ip_isvalid(g_opts.archive_logic_ip)
+    if DEPLOY_MODE != "dbstor":
+        cantian_check_share_logic_ip_isvalid("archive", g_opts.archive_logic_ip)
         archive_dir = g_opts.archive_location.split("=")[1]
         if os.path.exists(archive_dir):
             files = os.listdir(archive_dir)
