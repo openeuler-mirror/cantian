@@ -92,7 +92,7 @@ void dtc_flush_log(knl_session_t *session, page_id_t page_id)
     buf_bucket_t *bucket = buf_find_bucket(session, page_id);
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
     buf_ctrl_t *ctrl = buf_find_from_bucket(bucket, page_id);
-    bool32 need_flush = (ctrl->is_dirty || ctrl->is_marked) && DAAC_NEED_FLUSH_LOG(session, ctrl);
+    bool32 need_flush = (ctrl != NULL) && (ctrl->is_dirty || ctrl->is_marked) && DAAC_NEED_FLUSH_LOG(session, ctrl);
     cm_spin_unlock(&bucket->lock);
 
     if (need_flush) {
