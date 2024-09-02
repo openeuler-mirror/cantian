@@ -230,7 +230,13 @@ function prepare() {
     fi
   elif [[ ${BUILD_MODE} == "single" ]]; then
     echo "compiling single process"
-    sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1"
+    if [[ ${BUILD_TYPE} == "debug" ]]; then
+      echo "compiling multiple process debug"
+      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1 DAAC_READ_WRITE=1"
+    else
+      echo "compiling multiple process release"
+      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1"
+    fi
   else
     echo "unsupported build mode"
     exit 1
