@@ -96,31 +96,25 @@ function umount_fs() {
         return 0
     fi
 
-    rm -rf /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-    rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
-    rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
-    rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data > /dev/null 2>&1
-
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog
     fi
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf
     fi
+    rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
 
     sysctl fs.nfs.nfs_callback_tcpport=0
     # 取消nfs挂载
-    if [[ x"${deploy_mode}" == x"file" ]]; then
-        umount -f -l /mnt/dbdata/remote/share_${storage_share_fs}
-    fi
-    if [[ ${storage_archive_fs} != '' ]]; then
-        umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs}
-    fi
+    umount -f -l /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+    umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
+    umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
+    umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs} > /dev/null 2>&1
 
-    umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs}
-    if [[ x"${deploy_mode}" == x"file" ]];then
-        umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs}
-    fi
+    rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
 }
 
 
