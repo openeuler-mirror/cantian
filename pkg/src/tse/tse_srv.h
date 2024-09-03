@@ -343,6 +343,7 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_UNLOCK_INSTANCE,
     TSE_FUNC_CHECK_TABLE_EXIST,
     TSE_FUNC_SEARCH_METADATA_SWITCH,
+    CTC_FUNC_QUERY_SHM_USAGE,
     TSE_FUNC_QUERY_CLUSTER_ROLE,
     TSE_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN,
     TSE_FUNC_PRE_CREATE_DB,
@@ -643,6 +644,8 @@ int tse_set_cluster_role_by_cantian(bool is_slave);
 
 int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broadcast_request *broadcast_req, bool allow_fail);
 int tse_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
+int ctc_query_shm_file_num(uint32_t *shm_file_num);
+int ctc_query_shm_usage(uint32_t *shm_usage);
 #ifdef __cplusplus
 }
 #endif

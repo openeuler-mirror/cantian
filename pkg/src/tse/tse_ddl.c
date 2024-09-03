@@ -64,6 +64,10 @@
 
 #define USER_LOCK_MAX_WAIT 10000
 
+#ifndef MEM_CLASS_NUM
+#define MEM_CLASS_NUM 27
+#endif
+
 typedef struct st_mysql_cantiandba_type {
     enum_tse_ddl_field_types mysql_type;
     ct_type_t cantian_type;
