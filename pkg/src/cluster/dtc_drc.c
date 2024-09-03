@@ -5493,7 +5493,7 @@ status_t drc_execute_remaster(knl_session_t *session, reform_info_t *reform_info
         }
     }
 
-    if (reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count > 0) {
+    if (part_mngr->mgrt_fail_list == CT_TRUE && reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count > 0) {
         ret = drc_scalein_remaster(reform_info->reform_list[REFORM_LIST_ABORT].inst_id_list, reform_info->reform_list[REFORM_LIST_ABORT].inst_id_count, part_mngr, CT_TRUE);
         if (ret != CT_SUCCESS) {
             cm_spin_unlock(&part_mngr->lock);
