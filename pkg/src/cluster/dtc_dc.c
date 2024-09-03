@@ -571,13 +571,13 @@ status_t dtc_process_heap_extend(knl_session_t *session, char *data, uint8 src_i
         return CT_ERROR;
     }
     if (bcast->extending == CT_TRUE && heap->extending) {
-        CT_LOG_DEBUG_ERR(
+        CT_LOG_DEBUG_INF(
             "[DTC][process_heap_extend] current node is doing heap extend, uid/table_id/part/subpart:[%d-%d-%u-%u], "
             "extending:%d, compacting:%d, extend owner:%d, wait ticks:%u", bcast->uid, bcast->table_id,
             bcast->part_loc.part_no, bcast->part_loc.subpart_no, bcast->extending, bcast->compacting,
             heap->extend_owner, heap->wait_ticks);
         dc_close(&dc);
-        return CT_ERROR;
+        return CT_SUCCESS;
     }
     heap->extending = bcast->extending;
     heap->compacting = bcast->compacting;
