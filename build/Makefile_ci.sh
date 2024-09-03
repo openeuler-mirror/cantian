@@ -403,7 +403,7 @@ func_make_release()
     echo "make release"
     func_all Release
     func_prepare_pkg_name
-    func_release_symbol
+    # func_release_symbol
     func_pkg_run
 }
 
@@ -682,7 +682,7 @@ func_making_package()
     fi
 
     if [[ "${build_package_mode}" = 'Release' ]] || [[ "${build_package_mode}" = 'Shard_Release' ]]; then
-        func_release_symbol
+        # func_release_symbol
         func_pkg_run
     fi
     func_toolkit
