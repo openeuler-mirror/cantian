@@ -321,7 +321,6 @@ bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id)
     }
 
     if (IS_INVALID_PAGID(page_id)) {
-        CT_LOG_RUN_ERR("page_id is invalid");
         return CT_FALSE;
     }
     bool32 page_need_recover = dtc_page_in_rcyset(session, page_id);
@@ -369,7 +368,6 @@ bool32 dtc_dls_readable(knl_session_t *session, drid_t *lock_id)
 
     uint16 uid = lock_id->uid;
     if (uid == CT_INVALID_ID16) {
-        CT_LOG_RUN_ERR("lock uid is invalid");
         return CT_FALSE;
     }
     bool32 lock_need_recover = dtc_lock_in_rcy_space_set(uid);

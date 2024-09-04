@@ -186,7 +186,7 @@ class Logicrep:
         self.node_id = info.get("node_id")
         if mode == "install" or mode == "init_container":
             self.storage_archive_fs = info.get("storage_archive_fs")
-            self.deploy_mode = info.get("deploy_mode")
+            self.deploy_mode = "nas" if info.get("deploy_mode") == "file" else "dbstore"
             ctsql_file = glob.glob(CTSQL_INI_PATH)[0]
             ctsql_ini_data = file_reader(ctsql_file)
             encrypt_pwd = ctsql_ini_data[ctsql_ini_data.find('=') + 1:].strip()
