@@ -2138,8 +2138,19 @@ class Installer:
         if not os.path.exists('/usr/bin/lscpu'):
             log("Warning: lscpu path get error")
             return
-
-        ret_code, result, stderr = _exec_popen('/usr/bin/lscpu | grep -i "NUMA node(s)"')
+        
+        _, result, _ = _exec_popen('/usr/bin/lscpu') 
+        if "NUMA node(s)" not in result:
+            err_code, ans, err_msg = _exec_popen('/usr/bin/lscpu | grep -i "On-line CPU(s) list"')
+            _ans = ans.strip().split(':')
+            if len(_ans) != 2:
+                log("Warning: CPU(s) list get error, ans:%s" % ans)
+                return
+            self.cantiandConfigs["SHM_MYSQL_CPU_GROUP_INFO"] = _ans[1].strip() + " "
+            self.cantiandConfigs["SHM_CPU_GROUP_INFO"] = _ans[1].strip() + " "
+            return
+        
+        ret_code, result, stderr = _exec_popen('/usr/bin/lscpu | grep -i "NUMA node(s)"')        
         if ret_code:
             logExit("can not get numa node parameters, err: %s" % stderr)
         _result = result.strip().split(':')
