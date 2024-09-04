@@ -2538,7 +2538,6 @@ class Installer:
             return output
 
     def init_some_condition(self, status_success, status_log, begin_time_source):
-        begin_time = begin_time_source.split(".")[0]
         start_time = 300
         tem_log_info = ""
         for i in range(0, start_time):
@@ -2562,6 +2561,7 @@ class Installer:
                 is_instance_failed = False
                 if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
                                                CANTIAND_WITH_MYSQL_IN_CLUSTER]:
+                    begin_time = begin_time_source.split(".")[0]
                     succ_pattern_1 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}).*?\n.*?\ninstance started'
                     fail_pattern_1 = (r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2})'
                                       r'.*?\n.*?\ninstance startup failed')
