@@ -683,7 +683,7 @@ reform_action_info_t g_reform_sm[RC_CMS_STATE_COUNT][RC_CMS_STATE_COUNT][RC_WORK
         },
         { // from: ONLINE to: OFFLINE
             { // from: ONLINE JONING   to: OFFLINE
-                {{REFORM_LIST_FAIL},  1, CT_TRUE,  CT_FALSE},                     // from: ONLINE JOINING to: OFFLINE JOINING
+                {{REFORM_LIST_BEFORE, REFORM_LIST_ABORT}, 2, CT_TRUE, CT_FALSE},  // from: ONLINE JOINING to: OFFLINE JOINING
                 {{}, 0, CT_FALSE, CT_TRUE},                                       // from: ONLINE JOINING to: OFFLINE JOINED,  can not happen
                 {{}, 0, CT_FALSE, CT_TRUE},                                       // from: ONLINE JOINING to: OFFLINE LEAVING, can not happen
                 {{}, 0, CT_FALSE, CT_TRUE}                                        // from: ONLINE JOINING to: OFFLINE LEFT,    can not happen
