@@ -44,6 +44,8 @@ extern "C" {
 #define INDEX_NEED_REBUILD_RATION 0.5
 #define INDEX_NEED_REBUILD_SIZE SIZE_G(1)
 
+#define MAX_DUPKEY_MSG_LEN 256
+#define MAX_DUPKEY_MSG_KEY_LEN 64
 #define MAX_SORT_THREADS 12
 #define MIN_SORT_THREADS 2
 #define INDEX_IS_UNSTABLE(index, is_splitting) (((index)->desc.primary || (index)->desc.unique) && !(is_splitting))
@@ -249,6 +251,7 @@ void auto_rebuild_add_index(knl_session_t *session, index_t *index, knl_part_loc
 void auto_rebuild_release_item(knl_session_t *session, uint32 id_input);
 void auto_rebuild_close(knl_session_t *session);
 void idx_auto_rebuild_proc(thread_t *thread);
+void index_print_key(index_t *index, const char *key, char *buf, uint16 buf_len);
 #ifdef __cplusplus
 }
 #endif
