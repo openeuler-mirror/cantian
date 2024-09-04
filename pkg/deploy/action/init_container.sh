@@ -10,6 +10,7 @@ storage_share_fs=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "storage_sh
 cluster_name=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "cluster_name"`
 node_id=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "node_id"`
 storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
+storage_dbstore_page_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_page_fs"`
 metadata_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 
 source ${CURRENT_PATH}/env.sh
@@ -52,21 +53,39 @@ function check_gcc_file() {
     if [[ ${node_id} -ne 0 ]]; then
         return 0
     fi
-    logAndEchoInfo "begin to check gcc file."
-    local version_file=$(su -s /bin/bash - "${cantian_user}"  -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "versions.yml" | wc -l)
-    if [[ ${version_file} -gt 0 ]];then
-        logAndEchoInfo "Versions.yaml file is exists, no need to check gcc file."
-        mkdir -p "${metadata_path}"
-        chown "${cantian_user}":"${cantian_group}" "${metadata_path}"
-        su -s /bin/bash - "${cantian_user}"  -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ --target-dir=${metadata_path} --file-name=versions.yml"
-        if [[ $? -ne 0 ]];then
-            logAndEchoError "Update local version file failed."
+
+    logAndEchoInfo "begin to check versions.yaml and gcc file."
+    if [[ x"${deploy_mode}" == x"dbstor" ]]; then
+        version_file=$(su -s /bin/bash - "${cantian_user}" \
+            -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "versions.yml" | wc -l)
+    else
+        version_file=$(su -s /bin/bash - "${cantian_user}" \
+            -c "ls -l ${metadata_path}" | grep "versions.yml" | wc -l)
+    fi
+    local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" \
+        -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
+    if [[ ${version_file} -gt 0 ]] && [[ ${is_gcc_file_exist} -gt 0 ]];then
+        logAndEchoInfo "versions.yaml and gcc file is exists."
+
+        logAndEchoInfo "begin to check cluster name."
+        is_cluster_name_exist=$(su -s /bin/bash - "${cantian_user}" \
+            -c 'dbstor --query-file --fs-name='"${storage_dbstore_page_fs}"' --file-path=/' | grep "^${cluster_name}$" | wc -l)
+        if [[ ${is_cluster_name_exist} -eq 0 ]];then
+            logAndEchoError "query cluster name failed, please check whether cluster config parameters conflict."
             exit 1
         fi
+        if [[ x"${deploy_mode}" == x"dbstor" ]]; then
+            mkdir -p "${metadata_path}"
+            chown "${cantian_user}":"${cantian_group}" "${metadata_path}"
+            su -s /bin/bash - "${cantian_user}" \
+                -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ --target-dir=${metadata_path} --file-name=versions.yml"
+            if [[ $? -ne 0 ]];then
+                logAndEchoError "update local version file failed."
+                exit 1
+            fi
+        fi
         return 0
-    fi
-    local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
-    if [ ${is_gcc_file_exist} -ne 0 ]; then
+    elif [[ ${is_gcc_file_exist} -gt 0 ]];then
         logAndEchoError "gcc file already exists, please check if any cluster is running or clustername has been used and not been uninstalled."
         exit 1
     fi
