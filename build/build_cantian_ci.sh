@@ -254,4 +254,4 @@ prepare
 buildCtOmPackage
 packageTarget
 newPackageTarget
-packageSymbol
+#packageSymbol
