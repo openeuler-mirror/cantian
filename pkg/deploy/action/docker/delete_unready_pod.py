@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import requests
 import base64
 import re
@@ -134,6 +133,44 @@ class KubernetesService:
                         })
 
         return pod_info
+
+    def get_all_pod_info(self):
+        """
+        获取所有服务的 Pod 信息
+        """
+        services_data = self._get("/api/v1/services")
+        pods_data = self._get("/api/v1/pods")
+
+        all_pod_info = []
+
+        for service in services_data.get("items", []):
+            service_selector = service["spec"].get("selector", {})
+            if not service_selector:
+                continue
+
+            matching_pods = []
+            for pod in pods_data.get("items", []):
+                pod_labels = pod["metadata"].get("labels", {})
+                if all(item in pod_labels.items() for item in service_selector.items()):
+                    matching_pods.append(pod)
+
+            for pod in matching_pods:
+                pod_name_all = pod.get("metadata", {}).get("name")
+                pod_ip = pod.get("status", {}).get("podIP")
+                containers = pod.get("spec", {}).get("containers", [])
+                for container in containers:
+                    ports = container.get("ports", [])
+                    for port in ports:
+                        container_port = port.get("containerPort")
+                        if pod_name_all and pod_ip and container_port:
+                            all_pod_info.append({
+                                "service_name": service["metadata"]["name"],
+                                "pod_name": pod_name_all,
+                                "pod_ip": pod_ip,
+                                "container_port": container_port
+                            })
+
+        return all_pod_info
 
     def get_pods(self):
         return self._get("/api/v1/pods")

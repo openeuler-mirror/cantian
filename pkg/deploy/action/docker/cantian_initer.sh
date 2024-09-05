@@ -429,6 +429,18 @@ function exit_with_log() {
     tail -f /dev/null
 }
 
+function execute_cantian_numa() {
+    # 添加cantian-numa命令，实现容器绑核
+    ln -sf /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py /usr/local/bin/cantian-numa
+    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
+
+    /usr/local/bin/cantian-numa
+    if [ $? -ne 0 ]; then
+        echo "Error occurred in cantian-numa execution."
+        return 0
+    fi
+}
+
 function process_logs() {
   while true; do
     /bin/python3 /opt/cantian/common/script/logs_handler/execute.py
@@ -451,6 +463,7 @@ function main() {
     mount_fs
     check_init_status
     init_start
+    execute_cantian_numa
     process_logs
 }
 
