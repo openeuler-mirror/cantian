@@ -188,13 +188,16 @@ do
             logAndEchoInfo "[cantian daemon] cms status is abnormal. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             CMS_COUNT=$(expr "${CMS_COUNT}" + 1)
             if [ ${cms_process_count} -eq 0 ]; then
-                logAndEchoInfo "[cantian daemon] begin to close iptables. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                iptables -D INPUT -p udp --sport 14587 -j ACCEPT -w 60
-                iptables -D FORWARD -p udp --sport 14587 -j ACCEPT -w 60
-                iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
-                iptables -I INPUT -p udp --sport 14587 -j ACCEPT -w 60
-                iptables -I FORWARD -p udp --sport 14587 -j ACCEPT -w 60
-                iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
+                iptables_path=$(whereis iptables | awk -F: '{print $2}')
+                if [ ! -z "${iptables_path}" ];then
+                    logAndEchoInfo "[cantian daemon] begin to close iptables. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                    iptables -D INPUT -p tcp --sport 14587 -j ACCEPT -w 60
+                    iptables -D FORWARD -p tcp --sport 14587 -j ACCEPT -w 60
+                    iptables -D OUTPUT -p tcp --sport 14587 -j ACCEPT -w 60
+                    iptables -I INPUT -p tcp --sport 14587 -j ACCEPT -w 60
+                    iptables -I FORWARD -p tcp --sport 14587 -j ACCEPT -w 60
+                    iptables -I OUTPUT -p tcp --sport 14587 -j ACCEPT -w 60
+                fi
                 logAndEchoInfo "[cantian daemon] begin to start cms use ${cantian_user}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/deploy/deploy_daemon.log 2>&1 &
                 logAndEchoInfo "[cantian daemon] starting cms in backstage ${CMS_COUNT} times. [Line:${LINENO}, File:${SCRIPT_NAME}]"
