@@ -167,13 +167,6 @@ function buildMysql() {
     exit 1
   fi
 
-  if [[ ${BUILD_TYPE} == "release" ]]; then
-    mkdir -p "${CANTIANDB_BIN}"/mysql-server-symbol/{nometa,meta}
-    seperateSymbol ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so
-    seperateSymbol ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so
-    mv ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so.symbol ${CANTIANDB_BIN}/mysql-server-symbol/nometa
-    mv ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so.symbol ${CANTIANDB_BIN}/mysql-server-symbol
-  fi
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
 
   echo "patching MysqlCode for mysql source"
@@ -193,10 +186,6 @@ function buildMysql() {
   fi
 
   revertPatching
-  if [[ ${BUILD_TYPE} == "release" ]]; then
-    seperateSymbol ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so
-    mv ${MYSQL_CODE_PATH}/bld_debug/plugin_output_directory/ha_ctc.so.symbol ${CANTIANDB_BIN}/mysql-server-symbol/meta
-  fi
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
   collectMysqlTarget
 }
