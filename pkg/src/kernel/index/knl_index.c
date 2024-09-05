@@ -35,7 +35,6 @@
 #include "dtc_dls.h"
 #include "dtc_tran.h"
 
-#define MAX_DUPKEY_MSG_LEN 256
 #define MAX_INDEX_COLUMN_MSG_LEN 128
 #define MAX_INDEX_COLUMN_STR_LEN 6  // sizeof("65535,")
 
@@ -297,12 +296,11 @@ static inline void index_reverse_print_key(knl_column_t *column, bool32 is_page_
     }
 }
 
-static void index_print_key(knl_session_t *session, index_t *index, const char *key, char *buf, uint16 buf_len)
+void index_print_key(index_t *index, const char *key, char *buf, uint16 buf_len)
 {
     dc_entity_t *entity = index->entity;
     knl_column_t *column = NULL;
     uint16 bitmap;
-    char *data = NULL;
     uint16 i;
     uint16 col_id;
     text_t value;
@@ -317,8 +315,8 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
     value.str = (char *)col_str;
     value.len = MAX_INDEX_COLUMN_MSG_LEN;
 
-    CM_SAVE_STACK(session->stack);
-    data = (char*)cm_push(session->stack, CT_MAX_KEY_SIZE);
+    char data_temp[CT_MAX_KEY_SIZE];
+    char *data = data_temp;
 
     if (is_pcr) {
         bitmap = ((pcrb_key_t *)key)->bitmap;
@@ -472,7 +470,6 @@ static void index_print_key(knl_session_t *session, index_t *index, const char *
         value.len = MAX_INDEX_COLUMN_MSG_LEN;
     }
     buf[offset] = '\0';
-    CM_RESTORE_STACK(session->stack);
 }
 
 status_t idx_generate_dupkey_error(knl_session_t *session, index_t *index, const char *key)
@@ -484,7 +481,7 @@ status_t idx_generate_dupkey_error(knl_session_t *session, index_t *index, const
                      index->desc.name);
     knl_securec_check_ss(ret);
 
-    index_print_key(session, index, key, (char *)msg_buf + strlen(msg_buf),
+    index_print_key(index, key, (char *)msg_buf + strlen(msg_buf),
         (uint16)(MAX_DUPKEY_MSG_LEN - strlen(msg_buf)));
     CT_THROW_ERROR(ERR_DUPLICATE_KEY, msg_buf);
 

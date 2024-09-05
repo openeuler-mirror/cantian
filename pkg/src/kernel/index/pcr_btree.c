@@ -37,6 +37,7 @@
 #include "rc_reform.h"
 #include "srv_instance.h"
 #include "cm_io_record.h"
+#include "knl_index.h"
 
 #define PCRB_MIN_PAGE_USED_RATIO 0.4
 #define PCRB_MAX_BATCH_INSERT_SIZE 128
@@ -4190,7 +4191,11 @@ status_t pcrb_compare_mtrl_key(mtrl_segment_t *segment, char *data1, char *data2
 
     if (!cmp_rowid) {
         if (IS_COMPATIBLE_MYSQL_INST) {
-            CT_THROW_ERROR(ERR_DUPLICATE_ENTRY, index->entity->table.desc.name,
+            char msg_buf[MAX_DUPKEY_MSG_KEY_LEN] = { 0 };
+
+            index_print_key(index, data1, msg_buf, (uint16)MAX_DUPKEY_MSG_KEY_LEN);
+
+            CT_THROW_ERROR(ERR_DUPLICATE_ENTRY, msg_buf, index->entity->table.desc.name,
                            index->desc.primary ? "PRIMARY" : index->desc.name);
         } else {
             CT_THROW_ERROR(ERR_DUPLICATE_KEY, "");
