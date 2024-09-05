@@ -470,48 +470,37 @@ class DRDeployPreCheck(object):
     def check_nfs_lif_info(self):
         """检查share、archive、meta文件系统是否存在，逻辑端口是否存在, 检查nfs协议是否开启"""
         check_result = []
-        share_vstore_id = None
         err_msg = "Param [%s: %s] is incorrect."
         db_type = self.local_conf_params.get("db_type")
         storage_share_fs = self.local_conf_params.get("storage_share_fs")
         storage_archive_fs = self.local_conf_params.get("storage_archive_fs")
         storage_metadata_fs = self.local_conf_params.get("storage_metadata_fs")
-        share_logic_ip = self.local_conf_params.get("share_logic_ip")
         archive_logic_ip = self.local_conf_params.get("archive_logic_ip")
         metadata_logic_ip = self.local_conf_params.get("metadata_logic_ip")
-        mysql_metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
-        share_lif_info = self.storage_opt.query_logical_port_info(share_logic_ip)
-        if not share_lif_info:
-            check_result.append(err_msg % ("share_logic_ip", share_logic_ip))
-        else:
-            share_vstore_id = share_lif_info[0].get("vstoreId")
-            share_fs_info = self.storage_opt.query_filesystem_info(storage_share_fs, vstore_id=share_vstore_id)
-            if not share_fs_info:
-                check_result.append(err_msg % ("storage_share_fs", storage_share_fs) +
-                                    "Please confirm share_logic_ip and storage_share_fs is in the same vstore")
-        meta_lif_info = self.storage_opt.query_logical_port_info(metadata_logic_ip, vstore_id="0")
-        if not meta_lif_info:
-            check_result.append(err_msg % ("metadata_logic_ip", metadata_logic_ip))
-        meta_fs_info = self.storage_opt.query_filesystem_info(storage_metadata_fs, vstore_id="0")
         deploy_mode = self.local_conf_params.get("deploy_mode")
-        if mysql_metadata_in_cantian and not meta_fs_info and deploy_mode != "dbstor":
-            check_result.append(err_msg % ("storage_metadata_fs", storage_metadata_fs))
-        if db_type == "1":
+        mysql_metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
+        share_fs_info = self.storage_opt.query_filesystem_info(storage_share_fs, vstore_id="0")
+        if not share_fs_info:
+            check_result.append(err_msg % ("storage_share_fs", storage_share_fs))
+        if deploy_mode == "combined":
+            meta_lif_info = self.storage_opt.query_logical_port_info(metadata_logic_ip, vstore_id="0")
+            if not meta_lif_info:
+                check_result.append(err_msg % ("metadata_logic_ip", metadata_logic_ip))
+            meta_fs_info = self.storage_opt.query_filesystem_info(storage_metadata_fs, vstore_id="0")
+            if mysql_metadata_in_cantian and not meta_fs_info:
+                check_result.append(err_msg % ("storage_metadata_fs", storage_metadata_fs))
+            system_nfs_service = self.storage_opt.query_nfs_service(vstore_id="0")
+            support_v41 = system_nfs_service.get("SUPPORTV41")
+            if support_v41 == "false":
+                check_result.append("System vstore nfs service[v4.1] is not support.")
+        if db_type == "1" and deploy_mode == "combined":
             archive_lif_info = self.storage_opt.query_logical_port_info(archive_logic_ip, vstore_id="0")
             if not archive_lif_info:
                 check_result.append(err_msg % ("archive_logic_ip", archive_logic_ip))
+        if db_type == "1":
             archive_fs_info = self.storage_opt.query_filesystem_info(storage_archive_fs, vstore_id="0")
             if not archive_fs_info:
                 check_result.append(err_msg % ("storage_archive_fs", storage_archive_fs))
-        if share_vstore_id:
-            share_vstore_nfs_service = self.storage_opt.query_nfs_service(vstore_id=share_vstore_id)
-            support_v4 = share_vstore_nfs_service.get("SUPPORTV4")
-            if support_v4 == "false":
-                check_result.append("Share vstore[%s] nfs service[v4.0] is not support." % share_vstore_id)
-        system_nfs_service = self.storage_opt.query_nfs_service(vstore_id="0")
-        support_v41 = system_nfs_service.get("SUPPORTV41")
-        if support_v41 == "false":
-            check_result.append("System vstore nfs service[v4.1] is not support.")
         return check_result
 
     def check_standby_params(self):

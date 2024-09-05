@@ -1298,6 +1298,13 @@ EXTER_ATTACK int ctc_mq_query_shm_file_num(dsw_message_block_t *message_block)
     return req->result;
 }
 
+EXTER_ATTACK int ctc_mq_query_shm_usage(dsw_message_block_t *message_block)
+{
+    struct query_shm_usage_request *req = message_block->seg_buf[0];
+    req->result = ctc_query_shm_usage(req->shm_usage);
+    return req->result;
+}
+
 EXTER_ATTACK int tse_mq_wait_instance_startuped(dsw_message_block_t *message_block)
 {
     return srv_wait_instance_startuped();
@@ -1395,6 +1402,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_UNLOCK_INSTANCE,                    tse_mq_unlock_instance},
     {TSE_FUNC_CHECK_TABLE_EXIST,                  tse_mq_check_db_table_exists},
     {TSE_FUNC_SEARCH_METADATA_SWITCH,             tse_mq_search_metadata_switch},
+    {CTC_FUNC_QUERY_SHM_USAGE,                    ctc_mq_query_shm_usage},
     {TSE_FUNC_QUERY_CLUSTER_ROLE,                 tse_mq_query_cluster_role},
     {TSE_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN,        tse_set_cluster_role_by_cantian},
     {TSE_FUNC_PRE_CREATE_DB,                      tse_mq_pre_create_db},
@@ -1737,4 +1745,27 @@ void *alloc_share_mem(void* shm_inst, uint32_t mem_size)
 void free_share_mem(void* shm_inst, void *shm_mem)
 {
     shm_free((struct shm_seg_s *) shm_inst, shm_mem);
+}
+
+int ctc_query_shm_usage(uint32_t *shm_usage)
+{
+    uint32_t idx = 0;
+    uint32_t shm_file_num = get_mq_queue_num();
+    for (int i = 0; i < shm_file_num + 1; i++) {
+        struct shm_seg_sysv_s *seg = (struct shm_seg_sysv_s *)g_shm_segs[i]->priv;
+        shm_area_t *all_shm = seg->all_seg_shm;
+        for (int j = 0; j < all_shm->head.nr_mem_class; j++) {
+            shm_mem_list_t mem_list = all_shm->mem_list[j];
+            shm_free_list_t free_list = mem_list.free_list;
+            mem_blk_hdr_t *hdr = NULL;
+            uint32_t free_size = 0;
+            for (uint32_t node = free_list.head; node != SHM_NULL; node = hdr->next) {
+                hdr = (mem_blk_hdr_t *)shm2ptr((char *)(all_shm), node);
+                free_size++;
+            }
+            shm_usage[idx++] = all_shm->mem_list[j].total - free_size;
+        }
+    }
+
+    return CT_SUCCESS;
 }

@@ -404,7 +404,7 @@ func_make_release()
     echo "make release"
     func_all Release
     func_prepare_pkg_name
-    func_release_symbol
+    # func_release_symbol
     func_pkg_run
 }
 
@@ -426,17 +426,17 @@ func_collect_mysql_target()
 func_prepare_header_files()
 {
     if [[ ! -e "${MYSQL_DIR}/include/protobuf-c" ]]; then
-      mkdir -p ${MYSQL_DIR}/3rdPratyPkg
-      cd ${MYSQL_DIR}/3rdPratyPkg
+      mkdir -p ${MYSQL_DIR}/3rdPartyPkg
+      cd ${MYSQL_DIR}/3rdPartyPkg
       wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
       unzip cantian3.0.0.zip
       mv cantian-test-cantian3.0.0/* ./
       rm -rf cantian-test-cantian3.0.0
       tar -zxvf protobuf-c-1.4.1.tar.gz
       mkdir -p ${MYSQL_DIR}/include/protobuf-c
-      cp ${MYSQL_DIR}/3rdPratyPkg/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${MYSQL_DIR}/include/protobuf-c/
+      cp ${MYSQL_DIR}/3rdPartyPkg/protobuf-c-1.4.1/protobuf-c/protobuf-c.h ${MYSQL_DIR}/include/protobuf-c/
       cd -
-      rm -rf ${MYSQL_DIR}/3rdPratyPkg
+      rm -rf ${MYSQL_DIR}/3rdPartyPkg
     fi
 }
 
@@ -664,7 +664,7 @@ func_making_package()
     fi
 
     if [[ "${build_package_mode}" = 'Release' ]] || [[ "${build_package_mode}" = 'Shard_Release' ]]; then
-        func_release_symbol
+        # func_release_symbol
         func_pkg_run
     fi
 
