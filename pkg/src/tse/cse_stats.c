@@ -91,6 +91,7 @@ io_record_event_desc_t g_tse_io_record_event_desc[TSE_FUNC_TYPE_NUMBER] = {
     {"TSE_FUNC_UNLOCK_INSTANCE", ""},
     {"TSE_FUNC_CHECK_TABLE_EXIST", ""},
     {"TSE_FUNC_SEARCH_METADATA_SWITCH", ""},
+    {"CTC_FUNC_QUERY_SHM_USAGE", ""},
     {"TSE_FUNC_QUERY_CLUSTER_ROLE", ""},
     {"TSE_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN", ""},
     {"TSE_FUNC_PRE_CREATE_DB", ""},

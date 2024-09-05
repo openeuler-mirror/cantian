@@ -408,6 +408,11 @@ struct query_shm_file_num_request {
     bool cluster_ready;
     int result;
 };
+
+struct query_shm_usage_request {
+    uint32_t *shm_usage;
+    int result;
+};
  
 struct set_cluster_role_by_cantian_request {
     bool is_slave;
