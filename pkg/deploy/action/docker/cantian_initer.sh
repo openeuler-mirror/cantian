@@ -166,8 +166,8 @@ function check_cpu_limit() {
     MY_CPU_NUM=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_CPU_NUM | cut -d= -f2)
 
     if [[ ! -z "${MY_CPU_NUM}" ]]; then  
-        if [[ "${MY_CPU_NUM}" -lt 12 ]]; then  
-            logAndEchoError "cpu limit cannot be less than 12, current cpu limit is ${MY_CPU_NUM}."
+        if [[ "${MY_CPU_NUM}" -lt 8 ]]; then
+            logAndEchoError "cpu limit cannot be less than 8, current cpu limit is ${MY_CPU_NUM}."
             exit_with_log
         fi
     fi
