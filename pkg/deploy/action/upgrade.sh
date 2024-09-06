@@ -977,6 +977,10 @@ function offline_upgrade() {
     if [ -f ${UPGRADE_SUCCESS_FLAG} ]; then
         rm -f ${UPGRADE_SUCCESS_FLAG}
     fi
+    if [[ "${deploy_mode}" == "dbstor" ]] && [[ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade ]];then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/*
+    fi
+
 }
 
 function rollup_upgrade() {

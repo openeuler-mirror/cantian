@@ -130,34 +130,42 @@ function clear_shm()
 }
 
 function iptables_accept() {
-    echo "start accept iptables"
-    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
-    if [ ${ret} != 0 ];then
-        iptables -I INPUT -p udp --sport 14587 -j ACCEPT -w 60
+    iptables_path=$(whereis iptables | awk -F: '{print $2}')
+    if [ -z "${iptables_path}" ];then
+        return
     fi
-    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
-    if [ ${ret} != 0 ];then
-        iptables -I FORWARD -p udp --sport 14587 -j ACCEPT -w 60
+    echo "start accept iptables, path ${iptables_path}"
+    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
+    if [ ${ret} == 0 ];then
+        iptables -I INPUT -p tcp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
-    if [ ${ret} != 0 ];then
-        iptables -I OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
+    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
+    if [ ${ret} == 0 ];then
+        iptables -I FORWARD -p tcp --sport 14587 -j ACCEPT -w 60
+    fi
+    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
+    if [ ${ret} == 0 ];then
+        iptables -I OUTPUT -p tcp --sport 14587 -j ACCEPT -w 60
     fi
 }
 
 function iptables_delete() {
-    echo "start delete iptables"
-    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
-    if [ ${ret} != 0 ];then
-        iptables -D INPUT -p udp --sport 14587 -j ACCEPT -w 60
+    iptables_path=$(whereis iptables | awk -F: '{print $2}')
+    if [ -z "${iptables_path}" ];then
+        return
     fi
-    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    echo "start delete iptables, path ${iptables_path}"
+    ret=`iptables -L INPUT -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -D FORWARD -p udp --sport 14587 -j ACCEPT -w 60
+        iptables -D INPUT -p tcp --sport 14587 -j ACCEPT -w 60
     fi
-    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep udp | wc -l`
+    ret=`iptables -L FORWARD -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
     if [ ${ret} != 0 ];then
-        iptables -D OUTPUT -p udp --sport 14587 -j ACCEPT -w 60
+        iptables -D FORWARD -p tcp --sport 14587 -j ACCEPT -w 60
+    fi
+    ret=`iptables -L OUTPUT -w 60 | grep ACCEPT | grep 14587 | grep tcp | wc -l`
+    if [ ${ret} != 0 ];then
+        iptables -D OUTPUT -p tcp --sport 14587 -j ACCEPT -w 60
     fi
 }
 
