@@ -242,7 +242,7 @@ static status_t mes_ssl_inner_accept(cs_pipe_t *pipe)
     mes_message_t msg;
     bool32 ready;
     mes_channel_t *channel;
-    char msg_buf[MES_128K_MESSAGE_BUFFER_SIZE];
+    char msg_buf[MES_512K_MESSAGE_BUFFER_SIZE];
 
     status_t err = cs_ssl_accept(g_mes.mes_ctx.recv_ctx, pipe);
     if (err == CT_ERROR) {
@@ -296,7 +296,7 @@ static status_t mes_accept(cs_pipe_t *pipe)
     mes_message_t msg;
     bool32 ready;
     mes_channel_t *channel;
-    char msg_buf[MES_128K_MESSAGE_BUFFER_SIZE];
+    char msg_buf[MES_512K_MESSAGE_BUFFER_SIZE];
 
     if (mes_init_pipe(pipe) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[mes]: init pipe failed.");

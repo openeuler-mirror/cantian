@@ -506,7 +506,7 @@ int tse_broadcast_mysql_dd_invalidate_impl(tianchi_handler_t *tch, knl_handle_t 
     msg_invalid_dd_req_t req = tse_fill_invalid_dd_req(tch, broadcast_req);
     mes_init_send_head(&req.head, MES_CMD_INVALID_DD_REQ, sizeof(msg_invalid_dd_req_t), CT_INVALID_ID32,
         DCS_SELF_INSTID((knl_session_t *)knl_session), 0, ((knl_session_t *)knl_session)->id, CT_INVALID_ID16);
-    knl_panic(sizeof(msg_invalid_dd_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+    knl_panic(sizeof(msg_invalid_dd_req_t) < MES_512K_MESSAGE_BUFFER_SIZE);
  
     SYNC_POINT_GLOBAL_START(TSE_BEFORE_INVALID_MYSQL_CACHE_ABORT, NULL, 0);
     SYNC_POINT_GLOBAL_END;
@@ -691,7 +691,7 @@ int tse_ddl_execute_and_broadcast(tianchi_handler_t *tch, tse_ddl_broadcast_requ
     tse_fill_execute_ddl_req(&req, tch->thd_id, broadcast_req, allow_fail);
     mes_init_send_head(&req.head, MES_CMD_EXECUTE_DDL_REQ, sizeof(msg_execute_ddl_req_t), CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id,
         CT_INVALID_ID16);
-    knl_panic(sizeof(msg_execute_ddl_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+    knl_panic(sizeof(msg_execute_ddl_req_t) < MES_512K_MESSAGE_BUFFER_SIZE);
 
     int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
     if (!knl_db_is_primary(knl_session)) {
@@ -803,7 +803,7 @@ int tse_rewrite_open_conn(tianchi_handler_t *tch, tse_ddl_broadcast_request *bro
     tse_fill_execute_ddl_req(&req, tch->thd_id, broadcast_req, true);
     mes_init_send_head(&req.head, MES_CMD_REWRITE_OPEN_CONN_REQ, sizeof(msg_execute_ddl_req_t), CT_INVALID_ID32,
         DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
-    knl_panic(sizeof(msg_execute_ddl_req_t) < MES_128K_MESSAGE_BUFFER_SIZE);
+    knl_panic(sizeof(msg_execute_ddl_req_t) < MES_512K_MESSAGE_BUFFER_SIZE);
 
     int error_code = tse_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, NULL);
     if (error_code != CT_SUCCESS) {
