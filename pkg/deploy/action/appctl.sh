@@ -335,9 +335,15 @@ case "$ACTION" in
             exit 1
         fi
         do_deploy ${START_NAME} ${INSTALL_TYPE}
-        exit $?
+        ret=$?
+        if [[ -f /opt/cantian/stop.enable ]];then
+            rm -rf /opt/cantian/stop.enable
+        fi
+        exit $ret
         ;;
     stop)
+        # 容器手动停止参天场景，生成标记文件后不在检查cantian状态
+        touch /opt/cantian/stop.enable
         lock_file=${STOP_NAME}
         do_deploy ${STOP_NAME}
         exit $?
