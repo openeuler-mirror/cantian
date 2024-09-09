@@ -71,7 +71,7 @@ extern "C" {
 #define IS_TSE_PART(part_id) ((part_id) < (PART_CURSOR_NUM))
 #define MAX_BULK_INSERT_PART_ROWS 128
 #define SESSION_CURSOR_NUM (8192 * 2)
-#define MAX_MESSAGE_SIZE 8200000  // 共享内存最大可申请空间大小
+#define MAX_MESSAGE_SIZE 4194304  // 共享内存最大可申请空间大小
 
 // for broadcast_req.options
 #define TSE_SET_VARIABLE_PERSIST (0x1 << 8)
