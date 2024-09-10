@@ -31,7 +31,6 @@ spec:
   mtu: 5500
   linkType: ETH
   nicSelector:
-    deviceID: "1015"
     pfNames:
     - enp4s0f1np1
     - enp132s0f1np1
@@ -72,7 +71,6 @@ spec:
   mtu: 5500
   linkType: ETH
   nicSelector:
-    deviceID: "1015"
     pfNames:
     - enp4s0f0np0
     - enp132s0f0np0

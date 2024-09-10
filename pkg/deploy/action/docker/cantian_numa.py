@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
 import re
@@ -82,17 +82,18 @@ class CPUAllocator:
         cpu_info = {}
         total_cpus = 0
         for line in stdout.splitlines():
-            match = re.search(r'NUMA node(\d+) CPU\(s\):\s+([\d\-]+)', line)
+            match = re.search(r'NUMA node(\d+) CPU\(s\):\s+([\d,\-]+)', line)
             if match:
                 node = str(match.group(1))
-                cpu_range = list(map(int, match.group(2).split('-')))
-                node_cpus = cpu_range[1] - cpu_range[0] + 1
+                cpu_list_str = match.group(2)
+                cpu_list = CPUAllocator._parse_cpu_list(cpu_list_str)
+                node_cpus = len(cpu_list)
                 total_cpus = max(total_cpus, node_cpus)
                 cpu_info[node] = {
-                    "available_cpus": list(range(cpu_range[0], cpu_range[1] + 1)),
+                    "available_cpus": cpu_list,
                     "available_cpu_count": node_cpus,
-                    "max_cpu": cpu_range[1],
-                    "min_cpu": cpu_range[0]
+                    "max_cpu": max(cpu_list),
+                    "min_cpu": min(cpu_list)
                 }
         return total_cpus, numa_nodes, cpu_info
 
