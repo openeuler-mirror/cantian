@@ -219,10 +219,6 @@ void try_cms_dbs_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence
         CT_LOG_RUN_INF("dbstore is not enabled");
         return;
     }
-    if (cms_online_res_count(res_id, iofence_type) == 0) {
-        CMS_LOG_INF("cluster have no online res, no need iofence");
-        return;
-    }
 
     start_time = cm_now();
     while (!g_cms_inst->is_dbstor_cli_init) {
@@ -250,10 +246,6 @@ void try_cms_dbs_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence
 
 void try_cms_file_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence_type)
 {
-    if (cms_online_res_count(res_id, iofence_type) == 0) {
-        CMS_LOG_INF("cluster have no online res, no need iofence");
-        return;
-    }
     status_t ret = CT_ERROR;
     for (int i = 0; i < IOF_RETRY_NUM; i++) {
         ret = cm_file_iof_kick_by_inst_id(node_id);

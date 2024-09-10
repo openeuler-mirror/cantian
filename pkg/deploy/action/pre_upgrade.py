@@ -27,9 +27,9 @@ def read_install_config(config_path):
 
 if __name__ == '__main__':
     # 如果没有指定文件，检查升级包的配置文件中key与源配置文件key是否一致
+    deploy_config = read_install_config(DEPLOY_CONFIG)
+    deploy_mode = deploy_config.get("deploy_mode", "combined")
     if len(sys.argv[:]) == 1:
-        deploy_config = read_install_config(DEPLOY_CONFIG)
-        deploy_mode = deploy_config.get("deploy_mode", "combined")
         if deploy_mode == "file":
             NEW_CONFIG_PATH = NEW_FILE_CONFIG_PATH
             if os.path.exists(SOURCE_FILE_CONFIG_PATH):
@@ -44,7 +44,16 @@ if __name__ == '__main__':
             sys.exit(1)
         else:
             sys.exit(0)
-
+    new_config = read_install_config(NEW_CONFIG_PATH)
+    new_mode = new_config.get("deploy_mode", "combined")
+    if new_mode != deploy_mode:
+        LOG.error("Deploy mode is different from config mode, please check.")
+        sys.exit(1)
+    mysql_metadata_in_cantian = deploy_config.get("mysql_metadata_in_cantian")
+    new_mysql_metadata_in_cantian = new_config.get("mysql_metadata_in_cantian")
+    if new_mysql_metadata_in_cantian != mysql_metadata_in_cantian:
+        LOG.error("mysql_metadata_in_cantian is different from new config file, please check.")
+        sys.exit(1)
     CONFIG_PATH = sys.argv[1]
     res = CheckInstallConfig(CONFIG_PATH).get_result()
     if res:

@@ -94,7 +94,6 @@ function prepare_env() {
         sed -i "s/cantian_group=\"cantian\"/cantian_group=\"${deploy_group}\"/g" "${CURRENT_PATH}"/env.sh
         source ${CURRENT_PATH}/env.sh
     fi
-    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 }
 
 # 检查集群状态
@@ -370,7 +369,8 @@ function main() {
     input_params_check
     prepare_env
     # 下个版本在加上，当前提供离线升级方式
-    # update_local_status_file_path_by_dbstor
+    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
+    update_local_status_file_path_by_dbstor
     check_upgrade_flag
     if [ ${UPGRADE_MODE} == "offline" ]; then
         offline_upgrade
