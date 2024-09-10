@@ -5,6 +5,7 @@ SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
 CMS_ENABLE="/opt/cantian/cms/cfg/cms_enable"
 cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
+install_step=`python3 ${CURRENT_PATH}/../cms/get_config_info.py "install_step"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 run_mode=`python3 ${CURRENT_PATH}/get_config_info.py "M_RUNING_MODE"`
 node_id=`python3 ${CURRENT_PATH}/get_config_info.py "node_id"`
@@ -15,8 +16,8 @@ cms_pid=$(ps -ef | grep cms | grep server | grep start | grep -v grep | awk 'NR=
 cantian_daemon_pid=$(pgrep -f cantian_daemon)
 
 
-# 手动停止cantian场景不触发飘逸和检查
-if [[ -f /opt/cantian/stop.enable ]];then
+# 手动停止cantian场景不触发飘逸和检查/cms未安装完成也不检查
+if [[ -f /opt/cantian/stop.enable ]] || [[ x"${install_step}" != x"3" ]];then
     exit 1
 fi
 
