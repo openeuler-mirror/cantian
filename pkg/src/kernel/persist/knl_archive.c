@@ -90,10 +90,35 @@ void arch_set_arch_end(knl_session_t *session, uint32 end, uint32 node_id)
     dtc_get_ctrl(session, node_id)->archived_end = end;
 }
 
-status_t arch_save_ctrl(knl_session_t *session, uint32 node_id)
+status_t arch_save_node_ctrl(knl_session_t *session, uint32 node_id, uint32 start_asn, uint32 end_asn)
 {
     if (session->kernel->attr.clustered) {
-        return dtc_save_ctrl(session, node_id);
+        ctrlfile_t *ctrlfile = NULL;
+        database_t *db = &session->kernel->db;
+        cm_spin_lock(&db->ctrl_lock, NULL);
+        arch_set_arch_start(session, start_asn, node_id);
+        arch_set_arch_end(session, end_asn, node_id);
+        for (uint32 i = 0; i < db->ctrlfiles.count; i++) {
+            ctrlfile = &db->ctrlfiles.items[i];
+
+            /* ctrlfile can be opened for a long time, closed in db_close_ctrl_files */
+            if (cm_open_device(ctrlfile->name, ctrlfile->type, knl_io_flag(session), &ctrlfile->handle) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DB] failed to open %s ", ctrlfile->name);
+                cm_spin_unlock(&db->ctrl_lock);
+                CM_ABORT_REASONABLE(0, "[DB] ABORT INFO: save core control file failed when open device");
+                return CT_ERROR;
+            }
+
+            if (db_save_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + node_id) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DB] failed to write %s ", ctrlfile->name);
+                cm_spin_unlock(&db->ctrl_lock);
+                CM_ABORT_REASONABLE(0, "[DB] ABORT INFO: save core control file failed");
+                return CT_ERROR;
+            }
+        }
+
+        cm_spin_unlock(&db->ctrl_lock);
+        return CT_SUCCESS;
     }
 
     if (db_save_core_ctrl(session) != CT_SUCCESS) {
@@ -1649,7 +1674,6 @@ status_t arch_save_archinfo(knl_session_t *session, arch_ctrl_record_info_t *arc
     arch_record_arch_ctrl(session, arch_ctrl_record_info);
 
     proc_ctx->curr_arch_size += real_file_size;
-    arch_set_arch_end(session, end_pos, node_id);
 
     int32 head_size = CM_CALC_ALIGN(sizeof(log_file_head_t), arch_ctrl->block_size);
     aligned_buf_t *arch_buf = &proc_ctx->arch_rw_buf.aligned_buf;
@@ -1668,7 +1692,8 @@ status_t arch_save_archinfo(knl_session_t *session, arch_ctrl_record_info_t *arc
     }
 
     // save node ctrl and arch ctrl
-    if (db_save_arch_ctrl(session, archived_end, node_id) != CT_SUCCESS) {
+
+    if (db_save_arch_ctrl(session, archived_end, node_id, archived_start, end_pos) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -2288,7 +2313,8 @@ status_t arch_do_real_clean(knl_session_t *session, arch_proc_context_t *proc_ct
         (void)knl_meta_delete(session, arch_ctrl->first);
         proc_ctx->curr_arch_size -= arch_get_ctrl_real_size(arch_ctrl);
 
-        if (db_save_arch_ctrl(session, clean_locator, session->kernel->id) != CT_SUCCESS) {
+        if (db_save_arch_ctrl(session, clean_locator, session->kernel->id,
+            clean_locator + 1, archived_end) != CT_SUCCESS) {
             cm_spin_unlock(&proc_ctx->record_lock);
             return CT_ERROR;
         }
@@ -2297,12 +2323,7 @@ status_t arch_do_real_clean(knl_session_t *session, arch_proc_context_t *proc_ct
             break;
         }
     }
-
     archived_start = (archived_start + clean_num) % CT_MAX_ARCH_NUM;
-    arch_set_arch_start(session, archived_start, session->kernel->id);
-    if (arch_save_ctrl(session, session->kernel->id) != CT_SUCCESS) {
-        status = CT_ERROR;
-    }
     CT_LOG_RUN_INF("[ARCH_STANDBY] clean archive file succ, current archived start %u, end %u, size %lld",
                    archived_start, archived_end, proc_ctx->curr_arch_size);
     cm_spin_unlock(&proc_ctx->record_lock);
@@ -2457,7 +2478,8 @@ status_t arch_clean_arch_files_standby(knl_session_t *session, arch_proc_context
         arch_ctrl->recid = 0;
         clean_num++;
         proc_ctx->curr_arch_size -= arch_get_ctrl_real_size(arch_ctrl);
-        if (db_save_arch_ctrl(session, clean_locator, proc_ctx->arch_standby_node) != CT_SUCCESS) {
+        if (db_save_arch_ctrl(session, clean_locator, proc_ctx->arch_standby_node,
+            clean_locator + 1, archived_end) != CT_SUCCESS) {
             CT_LOG_RUN_WAR("[ARCH_STANDBY] save arch ctrl failed, locator: %u", clean_locator);
             cm_spin_unlock(&proc_ctx->record_lock);
             return CT_ERROR;
@@ -2467,10 +2489,6 @@ status_t arch_clean_arch_files_standby(knl_session_t *session, arch_proc_context
         }
     }
     archived_start = (archived_start + clean_num) % CT_MAX_ARCH_NUM;
-    arch_set_arch_start(session, archived_start, proc_ctx->arch_standby_node);
-    if (arch_save_ctrl(session, proc_ctx->arch_standby_node) != CT_SUCCESS) {
-        status = CT_ERROR;
-    }
     CT_LOG_RUN_INF("[ARCH_STANDBY] clean archive file succ, current archived start %u, end %u, arch size %lld",
                    archived_start, archived_end, proc_ctx->curr_arch_size);
     cm_spin_unlock(&proc_ctx->record_lock);
@@ -2941,9 +2959,8 @@ status_t rc_arch_record_archinfo(arch_proc_context_t *proc_ctx, uint32 dest_pos,
         arch_ctrl = db_get_arch_ctrl(session, end_pos, node_id);
         arch_ctrl->recid = 1;
         archived_end = (archived_start + 1) % CT_MAX_ARCH_NUM;
-        arch_set_arch_end(session, archived_end, node_id);
         // only save node ctrl
-        if (arch_save_ctrl(session, node_id) != CT_SUCCESS) {
+        if (arch_save_node_ctrl(session, node_id, archived_start, archived_end) != CT_SUCCESS) {
             CM_ABORT(0, "[RC_ARCH] ABORT INFO: save core control file failed when record archive log file %s for "
                      "log [%u-%u] start %u end %u",
                      file_name, log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
@@ -2954,9 +2971,8 @@ status_t rc_arch_record_archinfo(arch_proc_context_t *proc_ctx, uint32 dest_pos,
     arch_ctrl->dest_id = dest_pos - 1;
     arch_ctrl->real_size = real_file_size;
     rc_arch_record_arch_ctrl(arch_ctrl, session, file_name, log_head);
-    arch_set_arch_end(session, end_pos, node_id);
     // save node ctrl and arch ctrl
-    if (db_save_arch_ctrl(session, archived_end, node_id) != CT_SUCCESS) {
+    if (db_save_arch_ctrl(session, archived_end, node_id, archived_start, end_pos) != CT_SUCCESS) {
         CM_ABORT(0, "[RC_ARCH] ABORT INFO: save arch control file failed when record archive log file %s for "
                  "log [%u-%u] start %u end %u",
                  file_name, log_head->rst_id, log_head->asn, node_ctrl->archived_start, node_ctrl->archived_end);
@@ -4222,7 +4238,7 @@ void arch_reset_archfile(knl_session_t *session, uint32 replay_asn)
 
             arch_ctrl->recid = 0;
 
-            if (db_save_arch_ctrl(session, i, session->kernel->id) != CT_SUCCESS) {
+            if (db_save_arch_ctrl(session, i, session->kernel->id, archived_start, archived_end) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[ARCH] failed to save archive control file");
             }
         }
@@ -4348,7 +4364,8 @@ status_t arch_process_existed_archfile(knl_session_t *session, const char *arch_
         if (arch_ctrl->asn == head.asn && arch_ctrl->rst_id == head.rst_id) {
             proc_ctx->curr_arch_size -= (int64)arch_ctrl->blocks * arch_ctrl->block_size;
             arch_ctrl->recid = 0;
-            if (db_save_arch_ctrl(session, i, session->kernel->id) != CT_SUCCESS) {
+            if (db_save_arch_ctrl(session, i, session->kernel->id,
+                node_ctrl->archived_start, node_ctrl->archived_end) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("[ARCH] failed to save archive control file");
             }
             break;
@@ -5174,9 +5191,8 @@ status_t arch_dbs_ctrl_rebuild_parse_arch_ctrl(knl_session_t *session, const cha
         arch_ctrl = db_get_arch_ctrl(session, end_pos, node_id);
         arch_ctrl->recid = 1;
         archived_end = (archived_start + 1) % CT_MAX_ARCH_NUM;
-        arch_set_arch_end(session, archived_end, node_id);
         // only save node ctrl
-        if (arch_save_ctrl(session, node_id) != CT_SUCCESS) {
+        if (arch_save_node_ctrl(session, node_id, archived_start, archived_end) != CT_SUCCESS) {
             CM_ABORT(0, "[arch_bk] ABORT INFO: save core control file failed when record archive log file %s for "
                      "start %u end %u",
                      file_name, node_ctrl->archived_start, node_ctrl->archived_end);
@@ -5184,9 +5200,8 @@ status_t arch_dbs_ctrl_rebuild_parse_arch_ctrl(knl_session_t *session, const cha
     }
     arch_ctrl = db_get_arch_ctrl(session, archived_end, node_id);
     arch_dbs_ctrl_record_arch_ctrl(arch_ctrl, &log_head, file_name);
-    arch_set_arch_end(session, end_pos, node_id);
     // save node ctrl and arch ctrl
-    if (db_save_arch_ctrl(session, archived_end, node_id) != CT_SUCCESS) {
+    if (db_save_arch_ctrl(session, archived_end, node_id, archived_start, end_pos) != CT_SUCCESS) {
         CM_ABORT(0, "[arch_bk] ABORT INFO: save core control file failed when record archive log file %s for "
                      "start %u end %u node_id %u.",
                      file_name, node_ctrl->archived_start, node_ctrl->archived_end, node_id);
