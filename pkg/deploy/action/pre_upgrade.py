@@ -12,6 +12,7 @@ SOURCE_CONFIG_PATH = str(Path('/opt/cantian/action/config_params.json'))
 NEW_FILE_CONFIG_PATH = str(Path(f'{CUR_PATH}/config_params_file.json'))
 SOURCE_FILE_CONFIG_PATH = str(Path('/opt/cantian/action/config_params_file.json'))
 DEPLOY_CONFIG = str(Path("/opt/cantian/config/deploy_param.json"))
+NEW_DEPLOY_CONFIG = str(Path(f"{CUR_PATH}/deploy_param.json"))
 
 
 def read_install_config(config_path):
@@ -44,7 +45,9 @@ if __name__ == '__main__':
             sys.exit(1)
         else:
             sys.exit(0)
-    new_config = read_install_config(NEW_CONFIG_PATH)
+    CONFIG_PATH = sys.argv[1]
+    res = CheckInstallConfig(CONFIG_PATH).get_result()
+    new_config = read_install_config(NEW_DEPLOY_CONFIG)
     new_mode = new_config.get("deploy_mode", "combined")
     if new_mode != deploy_mode:
         LOG.error("Deploy mode is different from config mode, please check.")
@@ -54,8 +57,6 @@ if __name__ == '__main__':
     if new_mysql_metadata_in_cantian != mysql_metadata_in_cantian:
         LOG.error("mysql_metadata_in_cantian is different from new config file, please check.")
         sys.exit(1)
-    CONFIG_PATH = sys.argv[1]
-    res = CheckInstallConfig(CONFIG_PATH).get_result()
     if res:
         sys.exit(0)
     else:
