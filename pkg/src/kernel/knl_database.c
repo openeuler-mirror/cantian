@@ -1332,13 +1332,11 @@ status_t db_clean_record_arch(knl_session_t *session)
         for (uint32 arch_locator = archived_start; arch_locator < archived_end; arch_locator++) {
             arch_ctrl = db_get_arch_ctrl(session, arch_locator, node_id);
             arch_ctrl->recid = 0;
-            if (db_save_arch_ctrl(session, arch_locator, node_id) != CT_SUCCESS) {
+            if (db_save_arch_ctrl(session, arch_locator, node_id, arch_locator, archived_end) != CT_SUCCESS) {
                 return CT_ERROR;
             }
         }
-        arch_set_arch_start(session, 0, node_id);
-        arch_set_arch_end(session, 0, node_id);
-        if (arch_save_ctrl(session, node_id) != CT_SUCCESS) {
+        if (arch_save_node_ctrl(session, node_id, 0, 0) != CT_SUCCESS) {
             return CT_ERROR;
         }
     }
