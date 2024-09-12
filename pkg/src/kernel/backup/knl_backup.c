@@ -50,6 +50,7 @@ extern "C" {
 #define BAK_DATAFILE_VERSION    DATAFILE_STRUCTURE_VERSION
 #define BAK_WAIT_REFORM_TIMEOUT (60 * (MICROSECS_PER_MIN))
 #define BAK_RW_TIME_THRESHOLD 1.2
+#define BAK_BUF_SIZE_SCALE 2
 
 void bak_read_proc(thread_t *thread); // backup process for read local file
 
@@ -641,18 +642,22 @@ static status_t bak_alloc_resource(knl_session_t *session, bak_t *bak)
      */
     const int32 ctrl_backup_buffer_size = (CTRL_MAX_PAGES(session) + 1) * CT_DFLT_CTRL_BLOCK_SIZE;
     const int32 node_ctrl_page_size = CT_DFLT_CTRL_BLOCK_SIZE * CT_MAX_INSTANCES;
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak) * 2 + COMPRESS_BUFFER_SIZE(bak) +
+    int64 compress_buffer_size = bak->record.attr.compress == COMPRESS_NONE ? 0 : COMPRESS_BUFFER_SIZE(bak);
+    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak) * BAK_BUF_SIZE_SCALE + compress_buffer_size +
         ctrl_backup_buffer_size + node_ctrl_page_size,
         "bak buffer", &bak->align_buf) != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY,
-            (uint64)BACKUP_BUFFER_SIZE(bak) * 2 + (uint64)COMPRESS_BUFFER_SIZE(bak), "backup");
+            (uint64)BACKUP_BUFFER_SIZE(bak) * BAK_BUF_SIZE_SCALE + (uint64)compress_buffer_size, "backup");
         return CT_ERROR;
     }
+
+    CT_LOG_RUN_INF("[Test] cm_aligned_malloc size is %llu", (uint64)(BACKUP_BUFFER_SIZE(bak) * BAK_BUF_SIZE_SCALE +
+                    compress_buffer_size + ctrl_backup_buffer_size + node_ctrl_page_size));
     bak->backup_buf = bak->align_buf.aligned_buf;
     bak->depends = (bak_dependence_t *)(bak->backup_buf + BACKUP_BUFFER_SIZE(bak));
     /* 2 * CT_BACKUP_BUFFER_SIZE for size of bak->backup_buf and size of bak->depends */
-    bak->compress_buf = bak->backup_buf + 2 * BACKUP_BUFFER_SIZE(bak);
-    bak->ctrl_backup_buf = bak->compress_buf + COMPRESS_BUFFER_SIZE(bak);
+    bak->compress_buf = bak->backup_buf + BAK_BUF_SIZE_SCALE * BACKUP_BUFFER_SIZE(bak);
+    bak->ctrl_backup_buf = bak->compress_buf + compress_buffer_size;
     bak->ctrl_backup_bak_buf = bak->ctrl_backup_buf + ctrl_backup_buffer_size;
 
     if (BAK_IS_UDS_DEVICE(bak)) {
@@ -664,14 +669,17 @@ static status_t bak_alloc_resource(knl_session_t *session, bak_t *bak)
         }
     }
 
-    // send_stream buffers are released in bak_end
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "bak stream buf0", &bak->send_stream.bufs[0]) != CT_SUCCESS) {
-        return CT_ERROR;
+    if (BAK_IS_STREAM_READING(&session->kernel->backup_ctx)) {
+        // send_stream buffers are released in bak_end
+        if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "bak stream buf0", &bak->send_stream.bufs[0]) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+        if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "bak stream buf1", &bak->send_stream.bufs[1]) != CT_SUCCESS) {
+            return CT_ERROR;
+        }
+        bak->send_stream.buf_size = BACKUP_BUFFER_SIZE(bak);
     }
-    if (cm_aligned_malloc(BACKUP_BUFFER_SIZE(bak), "bak stream buf1", &bak->send_stream.bufs[1]) != CT_SUCCESS) {
-        return CT_ERROR;
-    }
-    bak->send_stream.buf_size = BACKUP_BUFFER_SIZE(bak);
+
     return CT_SUCCESS;
 }
 
@@ -695,17 +703,22 @@ status_t bak_init_paral_proc_resource(bak_process_t *proc, bak_context_t *ctx, u
         return CT_ERROR;
     }
 
-    if (cm_aligned_malloc((int64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process",
-        &proc->encrypt_ctx.encrypt_buf) != CT_SUCCESS) {
-        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process");
-        return CT_ERROR;
+    if (ctx->bak.encrypt_info.encrypt_alg != ENCRYPT_NONE) {
+        if (cm_aligned_malloc((int64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process",
+            &proc->encrypt_ctx.encrypt_buf) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process");
+            return CT_ERROR;
+        }
     }
 
-    if (cm_aligned_malloc((int64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process",
-        &proc->compress_ctx.compress_buf) != CT_SUCCESS) {
-        CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process");
-        return CT_ERROR;
+    if (ctx->bak.record.attr.compress != COMPRESS_NONE) {
+        if (cm_aligned_malloc((int64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process",
+            &proc->compress_ctx.compress_buf) != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_ALLOC_MEMORY, (uint64)COMPRESS_BUFFER_SIZE(&ctx->bak), "backup paral process");
+            return CT_ERROR;
+        }
     }
+
     if (cm_create_thread(bak_paral_task_write_proc, 0, proc, &proc->write_thread) != CT_SUCCESS) {
         return CT_ERROR;
     }

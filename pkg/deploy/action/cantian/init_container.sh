@@ -108,7 +108,6 @@ function set_cantian_config() {
         echo "MYSQL_DATA_DIR=${mysql_data_dir}" >> /home/${cantian_user}/.bashrc
         echo "MYSQL_LOG_FILE=${mysql_data_dir}/mysql.log" >> /home/${cantian_user}/.bashrc
     fi
-
     if [[ ${mes_ssl_switch} == "True" ]]; then
         cert_password=`cat ${DORADO_CONF_PATH}/${CERT_PASS}`
         sed -i -r "s:(MES_SSL_KEY_PWD = ).*:\1${cert_password}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
