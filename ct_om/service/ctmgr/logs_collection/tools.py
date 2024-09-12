@@ -58,7 +58,7 @@ class RecordLogPackingProgress:
         with os.fdopen(os.open(self.record_file, flags, modes), "a", encoding="utf-8") as file:
             info_dict.update({"start_time": start_time})
             info_dict.update({"end_time": end_time})
-            info_dict.update({"module_name": module})
+            info_dict.update({"log_name": module})
             info_dict.update({"generate_type": generate_type})
             info_dict.update({"status": status})
             info_dict.update({"err_type":  err_type})

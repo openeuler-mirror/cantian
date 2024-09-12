@@ -74,7 +74,8 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/run/dsware_cantiand_0.log",
+    "is_repeat_generate": true,
+    "dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/*/*dsware_*_0.log*",
     "tar_name": "dsware_cantiand.tar.gz",
     "generate_type": "task generated"
   },
@@ -122,6 +123,15 @@
   {
     "type": "file",
     "size": "30",
+    "is_repeat_generate": true,
+    "dir": "/opt/cantian/cms/dbstor/data/logs/run/*dsware_cms_0.log*",
+    "tar_name": "dsware_cms.log.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
     "dir": "/opt/cantian/cms/log/cms_deploy.log",
     "tar_name": "cms_deploy.tar.gz",
     "generate_type": "task generated"
@@ -131,7 +141,14 @@
     "size": "30",
     "is_repeat_generate": true,
     "dir": "/mnt/dbdata/remote/metadata_*/*/mysql/*.log",
-    "tar_name": "mysql.tar.gz",
+    "tar_name": "mysql_container.tar.gz",
+    "generate_type": "task generated"
+  },
+  {
+    "type": "file",
+    "size": "30",
+    "dir": "/opt/cantian/mysql/log/install.log",
+    "tar_name": "mysql_install.tar.gz",
     "generate_type": "task generated"
   }
 ]
