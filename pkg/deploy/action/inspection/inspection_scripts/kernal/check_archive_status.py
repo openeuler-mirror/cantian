@@ -51,6 +51,11 @@ class CheckArchiveStatus(BaseItem):
         if not self.check_config():
             return
         if self.deploy_mode == "dbstor":
+            self.result.rst = ResultStatus.NG
+            values["result"] = "Deploy mode is %s, please check whether the "\
+                               "remaining capacity of the file system meets "\
+                               "the requirements by self." % self.deploy_mode
+            self.result.val = json.dumps(values)
             return
 
         cmd = "ping %s -i 1 -c 3 |grep ttl |wc -l" % self.archive_ip

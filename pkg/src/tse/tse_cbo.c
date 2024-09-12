@@ -51,7 +51,6 @@ status_t fill_cbo_stats_column(cbo_stats_column_t *cbo_column, tse_cbo_stats_col
     SYNC_POINT_GLOBAL_START(TSE_FILL_CBO_STATS_COL_FAIL, &ret, CT_ERROR);
     SYNC_POINT_GLOBAL_END;
     if (cbo_column == NULL) {
-        CT_LOG_RUN_INF("[fill_cbo_stats_column]cbo_column = null hist count:%u", tse_column->hist_count);
         return ret;
     }
     tse_column->num_null = cbo_column->num_null;
