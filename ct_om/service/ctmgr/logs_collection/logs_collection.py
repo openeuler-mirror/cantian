@@ -187,7 +187,7 @@ class LogsCollection:
 
             if not os.path.exists(log_file_dir):
                 LOG.error('log_source_path: {} does not exist log collection failed and exited'.format(log_file_dir))
-                self.record_cur_progress(("fail", 'invalid path'), (idx, generate_type, log_name), start_time)
+                self.record_cur_progress(("fail", 'not exist'), (idx, generate_type, log_name), start_time)
                 return False
 
             if not self.path_authority_judgment(log_file_dir) or not self.path_authority_judgment(log_directory):
