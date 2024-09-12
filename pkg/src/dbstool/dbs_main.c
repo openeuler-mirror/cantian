@@ -125,6 +125,9 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--page-data", "*[PARAM]"}, dbs_page_export,
         "\tUsage: export page file for debug.\n"
         "\tparams: [page-db] [target-dir] [page-id(optional)] [page-num(optional)]"},
+    {{"--set-link-timeout", "*[PARAM]"}, dbs_set_link_timeout,
+        "\tUsage: set link timeout period, restart to take effect.\n"
+        "\tparams: link-timeout"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])
