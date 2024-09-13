@@ -68,6 +68,11 @@ function set_cms_cfg() {
     if [[ x"${deploy_mode}" == x"dbstor" || x"${deploy_mode}" == x"combined" ]]; then
         sed -i -r "s:(GCC_TYPE = ).*:\1DBS:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
+    if [[ x"${deploy_mode}" == x"file" ]]; then
+        sed -i -r "s:(GCC_TYPE = ).*:\1FILE:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+        sed -i -r "s:(_USE_DBSTOR = ).*:\1False:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+        sed -i -r "s:(_CMS_MES_PIPE_TYPE = ).*:\1TCP:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+    fi
 }
 
 # 修改cms配置文件

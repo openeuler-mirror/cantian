@@ -28,6 +28,9 @@ source ${CURRENT_PATH}/../log4sh.sh
 # 创建存活探针
 touch ${HEALTHY_FILE}
 
+# 记录pod拉起信息，自动拉起次数
+python3 ${CURRENT_PATH}/pod_record.py
+
 # 套餐化更新参数
 ret=$(python3 ${CURRENT_PATH}/update_policy_params.py)
 if [[ ${ret} -ne 0 ]]; then
@@ -37,6 +40,26 @@ fi
 
 user=$(cat ${CONFIG_PATH}/${CONFIG_NAME} | grep -Po '(?<="deploy_user": ")[^":\\]*(?:\\.[^"\\]*)*')
 cp ${CONFIG_PATH}/${CONFIG_NAME} ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+
+if [ "${deploy_mode}" == "file" ]; then
+    WAIT_TIMES=3600 # 第三方模式拉起时间长
+    if ! grep -q '"cluster_id":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "cluster_id": "0",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "cluster_id": "0",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+
+    if ! grep -q '"cluster_name":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "cluster_name": "cantian_file",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "cluster_name": "cantian_file",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+
+    if ! grep -q '"remote_cluster_name":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "remote_cluster_name": "cantian_file",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "remote_cluster_name": "cantian_file",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+fi
+
 if ( grep -q 'deploy_user' ${CONFIG_PATH}/${CONFIG_NAME} ); then
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${CONFIG_PATH}/${CONFIG_NAME}
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
@@ -63,7 +86,6 @@ cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_con
 mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_metadata_in_cantian"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
-deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 VERSION_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
@@ -169,8 +191,8 @@ function check_cpu_limit() {
     MY_CPU_NUM=$(cat /proc/1/environ | tr '\0' '\n' | grep MY_CPU_NUM | cut -d= -f2)
 
     if [[ ! -z "${MY_CPU_NUM}" ]]; then  
-        if [[ "${MY_CPU_NUM}" -lt 12 ]]; then  
-            logAndEchoError "cpu limit cannot be less than 12, current cpu limit is ${MY_CPU_NUM}."
+        if [[ "${MY_CPU_NUM}" -lt 8 ]]; then
+            logAndEchoError "cpu limit cannot be less than 8, current cpu limit is ${MY_CPU_NUM}."
             exit_with_log
         fi
     fi
@@ -409,8 +431,6 @@ function init_start() {
 
     # 创建就绪探针
     touch ${READINESS_FILE}
-
-    logAndEchoInfo "cantian container init success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
 function exit_with_log() {
@@ -443,6 +463,8 @@ function execute_cantian_numa() {
         echo "Error occurred in cantian-numa execution."
         return 0
     fi
+
+     logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
 function process_logs() {

@@ -4,6 +4,9 @@ class Options(object):
     """
 
     def __init__(self):
+        self.dbstor_deploy_mode = None
+        self.max_arch_files_size = None
+        self.cluster_id = None
         self.log_file = ""
         self.opts = []
 

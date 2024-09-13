@@ -21,6 +21,7 @@ cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 archive_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_archive_fs"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
+storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 max_arch_files_size=`python3 ${CURRENT_PATH}/get_config_info.py "MAX_ARCH_FILES_SIZE"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
@@ -77,6 +78,17 @@ function set_cantian_config() {
             ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     fi
 
+     if [[ "$deploy_mode" == "dbstor" || "$deploy_mode" == "combined" ]]; then
+        sed -i -r "s/(ENABLE_DBSTOR = ).*/\1TRUE/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    elif [[ "$deploy_mode" == "file" ]]; then
+        sed -i -r "s/(ENABLE_DBSTOR = ).*/\1FALSE/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+        sed -i -r "s/(INTERCONNECT_TYPE = ).*/\1TCP/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+        sed -i "s|SHARED_PATH.*|SHARED_PATH = /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data|g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    else
+        echo "Unknown deployment mode: $deploy_mode"
+        exit 1
+    fi
+
     sed -i -r "s:(INTERCONNECT_ADDR = ).*:\1${node_domain_0};${node_domain_1}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(DBSTOR_NAMESPACE = ).*:\1${cluster_name}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(INSTANCE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
@@ -84,9 +96,9 @@ function set_cantian_config() {
     sed -i -r "s:(MYSQL_DATA_DIR = ).*:\1${mysql_data_dir}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MYSQL_LOG_FILE = ).*:\1${mysql_data_dir}/mysql.log:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(MAX_ARCH_FILES_SIZE = ).*:\1${max_arch_files_size}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+    sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(MYSQL_METADATA_IN_CANTIAN = ).*:\1${mysql_metadata_in_cantian^^}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(CTC_MAX_INST_PER_NODE = ).*:\1${CTC_MAX_INST_PER_NODE}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
-    sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     sed -i -r "s:(_SYS_PASSWORD = ).*:\1${password}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     if [ ${node_id} == 0 ]; then
         sed -i -r "s:(LSNR_ADDR = ).*:\1127.0.0.1,${node_domain_0}:g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}

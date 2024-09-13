@@ -95,6 +95,11 @@ function check_gcc_file() {
 function init_module() {
     for lib_name in "${INIT_CONTAINER_ORDER[@]}"
     do
+        if [[ "${lib_name}" == "dbstor" && x"${deploy_mode}" == x"file" ]]; then
+            logAndEchoInfo "Skipping init for ${lib_name} because deploy_mode is 'file'. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            continue
+        fi
+
         logAndEchoInfo "init ${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh init_container >> ${OM_DEPLOY_LOG_FILE} 2>&1
         if [ $? -ne 0 ]; then

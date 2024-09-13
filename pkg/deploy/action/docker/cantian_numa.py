@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
 import re
@@ -12,12 +12,13 @@ from logic.common_func import exec_popen
 from delete_unready_pod import KubernetesService, get_pod_name_from_info
 from om_log import LOGGER as LOG
 
-NUMA_INFO_PATH = "/home/mfdb_core/NUMA-INFO/numa-pod.json"
+NUMA_INFO_PATH = "/root/.kube/NUMA-INFO/numa-pod.json"
 TIME_OUT = 100
 
 
 class LockFile:
     """持锁状态下对文件标识符进行修改，使用阻塞模式等待锁释放"""
+
     @staticmethod
     def lock(handle):
         fcntl.flock(handle, fcntl.LOCK_EX)
@@ -81,23 +82,46 @@ class CPUAllocator:
         cpu_info = {}
         total_cpus = 0
         for line in stdout.splitlines():
-            match = re.search(r'NUMA node(\d+) CPU\(s\):\s+([\d\-]+)', line)
+            match = re.search(r'NUMA node(\d+) CPU\(s\):\s+([\d,\-]+)', line)
             if match:
                 node = str(match.group(1))
-                cpu_range = list(map(int, match.group(2).split('-')))
-                node_cpus = cpu_range[1] - cpu_range[0] + 1
+                cpu_list_str = match.group(2)
+                cpu_list = CPUAllocator._parse_cpu_list(cpu_list_str)
+                node_cpus = len(cpu_list)
                 total_cpus = max(total_cpus, node_cpus)
                 cpu_info[node] = {
-                    "available_cpus": list(range(cpu_range[0], cpu_range[1] + 1)),
+                    "available_cpus": cpu_list,
                     "available_cpu_count": node_cpus,
-                    "max_cpu": cpu_range[1],
-                    "min_cpu": cpu_range[0]
+                    "max_cpu": max(cpu_list),
+                    "min_cpu": min(cpu_list)
                 }
         return total_cpus, numa_nodes, cpu_info
 
     def bind_cpu(self, cpus, pid=1):
-        cmd = f"taskset -cp {','.join(map(str, cpus))} {pid}"
-        return self.execute_cmd(cmd)
+        cpu_range = ",".join(map(str, cpus))
+        taskset_cmd = f"taskset -cp {cpu_range} {pid}"
+        cpuset_cpu_cmd = f"echo {cpu_range} > /sys/fs/cgroup/cpuset/cpuset.cpus"
+
+        numa_nodes = self.get_numa_nodes_for_cpus(cpus)
+        cpuset_mems_cmd = f"echo {numa_nodes} > /sys/fs/cgroup/cpuset/cpuset.mems"
+
+        self.execute_cmd(taskset_cmd)
+        self.execute_cmd(cpuset_cpu_cmd)
+        self.execute_cmd(cpuset_mems_cmd)
+
+    def get_numa_nodes_for_cpus(self, cpus):
+        """
+        根据 CPU 列表确定属于哪个 NUMA 节点，跨 NUMA 节点时返回对应的 NUMA 节点范围。
+        """
+        total_cpus, numa_nodes, cpu_info = self.get_numa_info()
+
+        nodes = set()
+        for cpu in cpus:
+            for node, info in cpu_info.items():
+                if info["min_cpu"] <= cpu <= info["max_cpu"]:
+                    nodes.add(node)
+
+        return ",".join(sorted(nodes))
 
     def verify_binding(self, expected_cpu_num, pid=1):
         cmd = f"taskset -cp {pid}"
@@ -249,6 +273,7 @@ class CPUAllocator:
                 }
                 self.update_available_cpus(numa_data, cpu_info, binding_cpus)
             else:
+                LOG.error(f"NUMA binding failed for host {hostname}.")
                 numa_data[hostname] = {
                     "bind_cpus": "",
                     "bind_flag": False,
@@ -285,6 +310,10 @@ def load_or_initialize_json(filepath):
     """
     加载或初始化 JSON 文件，并使用文件锁保护文件操作
     """
+    directory = os.path.dirname(filepath)
+    if not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
+
     fd = os.open(filepath, os.O_RDWR | os.O_CREAT, 0o644)
     with os.fdopen(fd, 'r+') as file:
         LockFile.lock(file)
@@ -296,6 +325,7 @@ def load_or_initialize_json(filepath):
                 return {}
         finally:
             LockFile.unlock(file)
+
 
 def write_json_to_file(filepath, data):
     """

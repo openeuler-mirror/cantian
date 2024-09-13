@@ -20,8 +20,9 @@ source ${CURRENT_PATH}/../env.sh
 # 检查NFS是否挂载成功
 function checkMountNFS() {
     check_item=$1
-    if [[ ${check_item} != '0' ]]; then
-        mount_nfs_check='fales'
+    if [[ ${check_item} -ne 0 ]]; then
+        mount_nfs_check='false'
+        logAndEchoError "NFS mount failed with exit code ${check_item}"
     fi
 }
 
@@ -129,12 +130,15 @@ function mount_fs() {
             logAndEchoError "mount dbstore nfs failed"
         fi
         chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        checkMountNFS dbstore_result
+        checkMountNFS ${dbstore_result}
 
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
-        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+        rm -rf /mnt/dbdata/local/cantian/tmp/data/data
+        ln -s /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data/ /mnt/dbdata/local/cantian/tmp/data/data
+        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/local/cantian/tmp/data/data
+        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
+        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
     fi
 
     # 检查nfs是否都挂载成功
