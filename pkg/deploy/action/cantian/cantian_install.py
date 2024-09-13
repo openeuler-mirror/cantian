@@ -308,6 +308,8 @@ def load_config_param(json_data):
     g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip() if DEPLOY_MODE == "file" else None
     g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
     g_opts.mes_type = json_data.get("mes_type", "UC").strip()
+    if DEPLOY_MODE == "file":
+        g_opts.mes_type = "TCP"
     g_opts.mes_ssl_switch = json_data.get("mes_ssl_switch", False)
     storage_archive_fs = json_data['storage_archive_fs'].strip()
     g_opts.use_dbstor = DEPLOY_MODE != "file"
@@ -321,7 +323,7 @@ def load_config_param(json_data):
     global MYSQL_LOG_FILE
     MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
     g_opts.max_arch_files_size = json_data['MAX_ARCH_FILES_SIZE'].strip()
-    g_opts.cluster_id = json_data['cluster_id'].strip()
+    g_opts.cluster_id = json_data.get("cluster_id", "0").strip()
 
 
 def parse_parameter():

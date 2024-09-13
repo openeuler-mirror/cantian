@@ -464,20 +464,31 @@ status_t cms_get_mes_ssl_config(config_t *cfg)
 status_t cms_get_dbstore_config_value(config_t *cfg)
 {
     char* value;
+    char* gcc_type;
     status_t ret;
     bool32 enable = CT_FALSE;
     // dataPgSize is not used in the cms
     uint32 dataPgSize = CT_MAX_UINT32;
 
     value = cm_get_config_value(cfg, "_USE_DBSTOR");
-    if (value == NULL || cm_strcmpi(value, "FALSE") == 0) {
+    gcc_type = cm_get_config_value(cfg, "GCC_TYPE");
+    if (cm_strcmpi(gcc_type, "FILE") == 0 && cm_strcmpi(value, "FALSE") == 0) {
         enable = CT_FALSE;
-        CMS_LOG_INF("DBStore is not enabled");
-        return cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE, 0);
-    } else if (cm_strcmpi(value, "TRUE") == 0) {
+    } else if (cm_strcmpi(gcc_type, "DBS") == 0 && (value == NULL || cm_strcmpi(value, "TRUE") == 0)) {
         enable = CT_TRUE;
+        CMS_LOG_INF("DBStore not enabled for DBS");
+        cms_set_recv_timeout();
+        g_cms_dbstor_enable = CT_TRUE;
+    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "TRUE") == 0) {
+        enable = CT_TRUE;
+        CMS_LOG_INF("DBStore not enabled for NFS");
+        cms_set_recv_timeout();
+        g_cms_dbstor_enable = CT_TRUE;
+    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "FALSE") == 0) {
+        enable = CT_FALSE;
+        CMS_LOG_INF("DBStore disabled for NFS");
     } else {
-        CMS_LOG_ERR("invalid parameter value of '_USE_DBSTOR':%s", value);
+        CMS_LOG_ERR("Invalid parameters for '_USE_DBSTOR': gcc_type=%s, value=%s", gcc_type, value);
         return CT_ERROR;
     }
 
@@ -499,6 +510,7 @@ status_t cms_load_param(int64* time_stamp)
     char file_name[CMS_FILE_NAME_BUFFER_SIZE];
     errno_t ret;
     char* value;
+    char* gcc_type;
     uint64 size;
     uint32 val_uint32;
     int64 val_int64;
@@ -692,15 +704,24 @@ status_t cms_load_param(int64* time_stamp)
 
     bool32 enable = CT_FALSE;
     value = cm_get_config_value(&cfg, "_USE_DBSTOR");
-    if (value == NULL || cm_strcmpi(value, "FALSE") == 0) {
+    gcc_type = cm_get_config_value(&cfg, "GCC_TYPE");
+    if (cm_strcmpi(gcc_type, "FILE") == 0 && cm_strcmpi(value, "FALSE") == 0) {
         enable = CT_FALSE;
-        CMS_LOG_INF("DBStore is not enabled");
-    } else if (cm_strcmpi(value, "TRUE") == 0) {
+    } else if (cm_strcmpi(gcc_type, "DBS") == 0 && (value == NULL || cm_strcmpi(value, "TRUE") == 0)) {
         enable = CT_TRUE;
+        CMS_LOG_INF("DBStore not enabled for DBS");
         cms_set_recv_timeout();
         g_cms_dbstor_enable = CT_TRUE;
+    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "TRUE") == 0) {
+        enable = CT_TRUE;
+        CMS_LOG_INF("DBStore not enabled for NFS");
+        cms_set_recv_timeout();
+        g_cms_dbstor_enable = CT_TRUE;
+    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "FALSE") == 0) {
+        enable = CT_FALSE;
+        CMS_LOG_INF("DBStore disabled for NFS");
     } else {
-        CMS_LOG_ERR("invalid parameter value of '_USE_DBSTOR':%s", value);
+        CMS_LOG_ERR("Invalid parameters for '_USE_DBSTOR': gcc_type=%s, value=%s", gcc_type, value);
         return CT_ERROR;
     }
     mes_set_dbstor_enable(enable);
@@ -774,14 +795,14 @@ status_t cms_get_detect_file(char *detect_file_all, uint32 detect_file_all_len, 
         if (ret_dir != EOK) {
             return CT_ERROR;
         }
-        errno_t ret_file = strcat_sp(file_be_detected, CMS_MAX_DETECT_FILE_NAME, file_name);
-        if (ret_file != EOK) {
-            return CT_ERROR;
-        }
         if (g_cms_param->gcc_type == CMS_DEV_TYPE_FILE) {
             if (access(file_be_detected, 0) == -1) { // 0 indicates whether the file exists.
                 return CT_ERROR;
             }
+        }
+        errno_t ret_file = strcat_sp(file_be_detected, CMS_MAX_DETECT_FILE_NAME, file_name);
+        if (ret_file != EOK) {
+            return CT_ERROR;
         }
         errno_t ret_detect_file =
             strcpy_sp(g_param.wait_detect_file[detect_file_mark], CMS_MAX_DETECT_FILE_NAME, file_be_detected);

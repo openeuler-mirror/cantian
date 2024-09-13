@@ -298,14 +298,9 @@ status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_
         return CT_ERROR;
     }
 
-    CT_LOG_RUN_INF("[SPACE] spc create datafile def name %s", def->name.str);
-    if (cm_dbs_is_enable_dbs()) {
-        const char *last_slash = strrchr(def->name.str, '/');
-        if (last_slash != NULL) {
-            PRTS_RETURN_IFERR(snprintf_s(def->name.str, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "-%s", last_slash + 1));
-            def->name.len = strlen(def->name.str);
-            CT_LOG_RUN_INF("[SPACE] spc create datafile is enable dbs def name %s", def->name.str);
-        }
+    if (cm_dbs_is_enable_dbs() && def->name.str[0] != '-') {
+        CT_THROW_ERROR(ERR_SPACE_NAME_INVALID, "need add - before the name using dbstor");
+        return CT_ERROR;
     }
 
     // Acquire a free slot in database datafile list.

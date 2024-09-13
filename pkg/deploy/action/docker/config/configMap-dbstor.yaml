@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node0-config
+  namespace: cantian
+data:
+  deploy_param.json: |
+    {
+      "deploy_mode": "dbstor",
+      "deploy_user": "ctdba:ctdba",
+      "cluster_id": "0",
+      "cluster_name": "cluster1234567",
+      "remote_cluster_name": "cluster1234567",
+      "node_id": "0",
+      "cantian_vlan_ip": "net1;net2",
+      "storage_vlan_ip": "66.66.66.10;66.66.66.11;77.77.77.10;77.77.77.11",
+      "cms_ip": "cantian-node0.cantian-svc.cantian.svc.cluster.local;cantian-node1.cantian-svc.cantian.svc.cluster.local",
+      "storage_dbstore_fs": "foo",
+      "storage_dbstore_page_fs": "foo_page",
+      "dbstore_fs_vstore_id": "0",
+      "cantian_in_container": "1",
+      "mysql_in_container": "1",
+      "vstore_id": "0",
+      "mes_type": "UC",
+      "mes_ssl_switch": false,
+      "link_type": "1",
+      "db_type": "1",
+      "deploy_policy": "default",
+      "kerberos_key": "sys",
+      "mysql_metadata_in_cantian": true,
+      "MAX_ARCH_FILES_SIZE": "300G",
+      "ca_path": "/opt/certificate/ca.crt",
+      "crt_path": "/opt/certificate/mes.crt",
+      "key_path": "/opt/certificate/mes.key",
+      "dr_deploy": {
+        "active": {
+          "dm_ip": "",
+          "dm_user": "",
+          "esn": ""
+        },
+        "standby": {
+          "dm_ip": "",
+          "dm_user": "",
+          "esn": "",
+          "pool_id": "",
+          "dbstore_fs_vstore_id": ""
+        }
+      }
+    }
+  mysql_config.json: |
+    {
+      "max_connections": "1000"
+    }
+  mem_spec: "1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node1-config
+  namespace: cantian
+data:
+  deploy_param.json: |
+    {
+      "deploy_mode": "dbstor",
+      "deploy_user": "ctdba:ctdba",
+      "cluster_id": "0",
+      "cluster_name": "cluster1234567",
+      "remote_cluster_name": "cluster1234567",
+      "node_id": "1",
+      "cantian_vlan_ip": "net1;net2",
+      "storage_vlan_ip": "66.66.66.10;66.66.66.11;77.77.77.10;77.77.77.11",
+      "cms_ip": "cantian-node0.cantian-svc.cantian.svc.cluster.local;cantian-node1.cantian-svc.cantian.svc.cluster.local",
+      "storage_dbstore_fs": "foo",
+      "storage_dbstore_page_fs": "foo_page",
+      "dbstore_fs_vstore_id": "0",
+      "cantian_in_container": "1",
+      "mysql_in_container": "1",
+      "vstore_id": "0",
+      "mes_type": "UC",
+      "mes_ssl_switch": false,
+      "link_type": "1",
+      "db_type": "1",
+      "deploy_policy": "default",
+      "kerberos_key": "sys",
+      "mysql_metadata_in_cantian": true,
+      "MAX_ARCH_FILES_SIZE": "300G",
+      "ca_path": "/opt/certificate/ca.crt",
+      "crt_path": "/opt/certificate/mes.crt",
+      "key_path": "/opt/certificate/mes.key",
+      "dr_deploy": {
+        "active": {
+          "dm_ip": "",
+          "dm_user": "",
+          "esn": ""
+        },
+        "standby": {
+          "dm_ip": "",
+          "dm_user": "",
+          "esn": "",
+          "pool_id": "",
+          "dbstore_fs_vstore_id": ""
+        }
+      }
+    }
+  mysql_config.json: |
+    {
+      "max_connections": "1000"
+    }
+  mem_spec: "1"

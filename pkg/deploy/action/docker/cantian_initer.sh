@@ -28,6 +28,9 @@ source ${CURRENT_PATH}/../log4sh.sh
 # 创建存活探针
 touch ${HEALTHY_FILE}
 
+# 记录pod拉起信息，自动拉起次数
+python3 ${CURRENT_PATH}/pod_record.py
+
 # 套餐化更新参数
 ret=$(python3 ${CURRENT_PATH}/update_policy_params.py)
 if [[ ${ret} -ne 0 ]]; then
@@ -37,6 +40,26 @@ fi
 
 user=$(cat ${CONFIG_PATH}/${CONFIG_NAME} | grep -Po '(?<="deploy_user": ")[^":\\]*(?:\\.[^"\\]*)*')
 cp ${CONFIG_PATH}/${CONFIG_NAME} ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+
+if [ "${deploy_mode}" == "file" ]; then
+    WAIT_TIMES=3600 # 第三方模式拉起时间长
+    if ! grep -q '"cluster_id":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "cluster_id": "0",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "cluster_id": "0",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+
+    if ! grep -q '"cluster_name":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "cluster_name": "cantian_file",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "cluster_name": "cantian_file",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+
+    if ! grep -q '"remote_cluster_name":' ${OPT_CONFIG_PATH}/${CONFIG_NAME}; then
+        sed -i '/{/a\    "remote_cluster_name": "cantian_file",' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
+        sed -i '/{/a\    "remote_cluster_name": "cantian_file",' ${CONFIG_PATH}/${CONFIG_NAME}
+    fi
+fi
+
 if ( grep -q 'deploy_user' ${CONFIG_PATH}/${CONFIG_NAME} ); then
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${CONFIG_PATH}/${CONFIG_NAME}
     sed -i 's/  "deploy_user": ".*"/  "deploy_user": "'${user}':'${user}'"/g' ${OPT_CONFIG_PATH}/${CONFIG_NAME}
@@ -63,7 +86,6 @@ cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_con
 mysql_metadata_in_cantian=`python3 ${CURRENT_PATH}/get_config_info.py "mysql_metadata_in_cantian"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
-deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 VERSION_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
@@ -71,8 +93,10 @@ gcc_file="/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home/gcc_file"
 
 if [ ${node_id} -eq 0 ]; then
     node_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`
+    remote_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[2]}'`
 else
     node_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[2]}'`
+    remote_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`
 fi
 
 function change_mtu() {
@@ -126,10 +150,11 @@ function update_mysql_config() {
 }
 
 function wait_config_done() {
+    current_domain=$1
     # 等待pod网络配置完成
-    logAndEchoInfo "Begin to wait network done. cms_ip: ${node_domain}"
+    logAndEchoInfo "Begin to wait network done. cms_ip: ${current_domain}"
     resolve_times=1
-    ping ${node_domain} -c 1 -w 1
+    ping "${current_domain}" -c 1 -w 1
     while [ $? -ne 0 ]
     do
         let resolve_times++
@@ -138,8 +163,8 @@ function wait_config_done() {
             logAndEchoError "timeout for resolving cms domain name!"
             exit_with_log
         fi
-        logAndEchoInfo "wait cms_ip: ${node_domain} ready, it has been ping ${resolve_times} times."
-        ping ${node_domain} -c 1 -w 1
+        logAndEchoInfo "wait cms_ip: ${current_domain} ready, it has been ping ${resolve_times} times."
+        ping "${current_domain}" -c 1 -w 1
     done
 }
 
@@ -239,10 +264,11 @@ function check_version_file() {
 }
 
 function check_init_status() {
-    # 对端节点的cms会使用旧ip建链60s，等待对端节点cms解析新的ip
     check_version_file
-
     if [ $? -eq 0 ]; then
+        # 对端节点的cms会使用旧ip建链60s，等待对端节点cms解析新的ip
+        logAndEchoInfo "wait remote domain ready."
+        wait_config_done "${remote_domain}"
         logAndEchoInfo "The cluster has been initialized, no need create database. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         sed -i "s/\"db_create_status\": \"default\"/\"db_create_status\": \"done\"/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
         sed -i "s/\"ever_started\": false/\"ever_started\": true/g" /opt/cantian/cantian/cfg/${START_STATUS_NAME}
@@ -405,8 +431,6 @@ function init_start() {
 
     # 创建就绪探针
     touch ${READINESS_FILE}
-
-    logAndEchoInfo "cantian container init success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
 function exit_with_log() {
@@ -439,6 +463,8 @@ function execute_cantian_numa() {
         echo "Error occurred in cantian-numa execution."
         return 0
     fi
+
+     logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
 function process_logs() {
@@ -455,7 +481,7 @@ function process_logs() {
 
 function main() {
     #change_mtu
-    wait_config_done
+    wait_config_done "${node_domain}"
     check_container_context
     prepare_kmc_conf
     prepare_certificate
