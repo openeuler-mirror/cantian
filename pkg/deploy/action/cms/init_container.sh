@@ -58,7 +58,7 @@ function set_cms_cfg() {
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${CONFIG_PATH}/${CLUSTER_CONFIG_NAME}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
-    sed -i -r "s:(_DBSTOR_NAMESAPCE = ).*:\1${cluster_name}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+    sed -i -r "s:(_DBSTOR_NAMESPACE = ).*:\1${cluster_name}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     if [[ ${mes_ssl_switch} == "True" ]]; then
         cert_password=`cat ${DORADO_CONF_PATH}/${CERT_PASS}`
         sed -i -r "s:(_CMS_MES_SSL_KEY_PWD = ).*:\1${cert_password}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}

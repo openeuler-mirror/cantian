@@ -2556,7 +2556,7 @@ class Installer:
                                 % (str(cmd), str(stderr)))
                 break
             else:
-                all_the_text = open(status_log).read()
+                all_the_text = open(status_log, errors='ignore').read()
                 is_instance_started = False
                 is_instance_failed = False
                 if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,

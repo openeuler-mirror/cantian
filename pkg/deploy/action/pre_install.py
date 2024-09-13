@@ -432,18 +432,18 @@ class CheckInstallConfig(CheckBase):
 
         return {}
 
-    def check_install_config_params(self, install_config_keys):
+    def check_install_config_params(self, install_config):
+        install_config_keys = install_config.keys()
         not_in_either = install_config_keys ^ self.config_key
         # 如果 config_key中存在的关键字install_config.json中没有，报错。
         for element in not_in_either:
             # 去nas忽略部分参数
-            install_config_params = self.read_install_config()
             dbstor_ignore_params = {"storage_metadata_fs", "share_logic_ip",
                                     "archive_logic_ip", "metadata_logic_ip", "vstore_id"}
             combined_ignore_params = {"share_logic_ip", "vstore_id"}
-            if element in dbstor_ignore_params and install_config_params['deploy_mode'] == "dbstor":
+            if element in dbstor_ignore_params and install_config['deploy_mode'] == "dbstor":
                 continue
-            if element in combined_ignore_params and install_config_params['deploy_mode'] == "combined":
+            if element in combined_ignore_params and install_config['deploy_mode'] == "combined":
                 continue
             if element not in install_config_keys:
                 LOG.error('config_params.json need param %s', element)
@@ -644,7 +644,7 @@ class CheckInstallConfig(CheckBase):
         if not max_arch_files_size:
             install_config_params['MAX_ARCH_FILES_SIZE'] = '300G'
 
-        if not self.check_install_config_params(install_config_params.keys()):
+        if not self.check_install_config_params(install_config_params):
             return False
         if (install_config_params['deploy_mode'] != "file" and
                 not self.check_storage_cantian_vlan_ip_scale(install_config_params)):
