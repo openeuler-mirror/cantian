@@ -28,6 +28,9 @@ source ${CURRENT_PATH}/../log4sh.sh
 # 创建存活探针
 touch ${HEALTHY_FILE}
 
+# 记录pod拉起信息，自动拉起次数
+python3 ${CURRENT_PATH}/pod_record.py
+
 # 套餐化更新参数
 ret=$(python3 ${CURRENT_PATH}/update_policy_params.py)
 if [[ ${ret} -ne 0 ]]; then
