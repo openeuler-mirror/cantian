@@ -1337,12 +1337,6 @@ EXTER_ATTACK int tse_mq_register_instance(dsw_message_block_t *message_block)
     return CT_SUCCESS;
 }
 
-EXTER_ATTACK int ctc_mq_update_sample_size(dsw_message_block_t *message_block)
-{
-    uint32_t *req = message_block->seg_buf[0];
-    return ctc_update_sample_size(*req);
-}
-
 struct mq_recv_msg_node {
     enum TSE_FUNC_TYPE func_type;
     int (*deal_msg)(dsw_message_block_t *message_block);
@@ -1356,7 +1350,6 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_UPDATE_JOB,                    tse_mq_update_job},
     {TSE_FUNC_TYPE_WRITE_THROUGH_ROW,             tse_mq_write_through_row},
     {TSE_FUNC_TYPE_UPDATE_ROW,                    tse_mq_update_row},
-    {CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,            ctc_mq_update_sample_size},
     {TSE_FUNC_TYPE_DELETE_ROW,                    tse_mq_delete_row},
     {TSE_FUNC_TYPE_RND_INIT,                      tse_mq_rnd_init},
     {TSE_FUNC_TYPE_RND_END,                       tse_mq_rnd_end},

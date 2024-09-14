@@ -297,7 +297,6 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_UPDATE_JOB,
     TSE_FUNC_TYPE_WRITE_THROUGH_ROW,
     TSE_FUNC_TYPE_UPDATE_ROW,
-    CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,
     TSE_FUNC_TYPE_DELETE_ROW,
     TSE_FUNC_TYPE_RND_INIT,
     TSE_FUNC_TYPE_RND_END,
@@ -528,8 +527,6 @@ typedef struct {
     uint32_t part_id;
     uint32_t subpart_id;
 } ctc_part_t;
-
-int ctc_update_sample_size(uint32_t sample_size);
 
 /* General Control Interface */
 int srv_wait_instance_startuped(void);

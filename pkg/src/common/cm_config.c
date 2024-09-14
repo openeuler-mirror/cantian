@@ -178,32 +178,6 @@ static status_t cm_get_fullpath(config_t *config, text_t *filepath, char *fullpa
     return CT_SUCCESS;
 }
 
-status_t cm_update_statistics_sample_size_value(config_t      *config, 
-                                                config_item_t *item,
-                                                const char    *value,
-                                                uint32         value_len)
-{
-    
-    errno_t errcode;
-    uint32 alloc_capacity = value_len + 1;
-
-    if (item->is_default) {
-        if (item->value == NULL) {
-            CT_RETURN_IFERR(cm_alloc_config_buf(config, alloc_capacity, &item->value));
-            item->runtime_value = item->value;
-        }
-        item->is_default = false;
-    }
-    
-    errcode = strcpy_s(item->value, alloc_capacity, value);
-    if (errcode != EOK) {
-        CT_THROW_ERROR(ERR_SYSTEM_CALL, errcode);
-        return CT_ERROR;
-    }
-
-    return CT_SUCCESS;
-}
-
 static status_t cm_set_ifile_value(config_t *config, config_item_t *ifile, const char *file_name, uint32 file_name_len)
 {
     uint32 file_name_size;
