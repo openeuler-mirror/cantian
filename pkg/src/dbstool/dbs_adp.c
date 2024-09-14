@@ -44,6 +44,8 @@
 #define DBS_CLUSTER_UUID_LEN 37
 
 #define DBS_TOOL_CONFIG_PATH "/opt/cantian/dbstor/conf/dbs"
+#define DBS_CANTIAN_CONFIG_PATH "/mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/dbstor_config.ini"
+#define DBS_CMS_CONFIG_PATH "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config.ini"
 #define DBS_HOME_PATH "/opt/cantian"
 #define ARCHIVE_DEST_PATH "ARCHIVE_DEST_1"
 #define CANTIAND_INI_FILE_NAME "cantiand.ini"
@@ -55,6 +57,10 @@
 #define DBS_TOOL_PARAM_CLUSTER_NAME "--cluster-name="
 #define DBS_TOOL_PARAM_FILE_NAME "--file-name="
 #define DBS_TOOL_PARAM_FILE_PATH "--file-path="
+#define DBS_LINK_CHECK_CNT "LINK_CHECK_CNT"
+#define DBS_LINK_CHECK_PARAM_LEN 64
+#define DBS_LINK_TIMEOUT_MIN 3
+#define DBS_LINK_TIMEOUT_MAX 10
 
 #define DBS_ARCH_QUERY_PRAMA_NUM 1
 #define DBS_ARCH_CLEAN_PRAMA_NUM 1
@@ -566,7 +572,7 @@ status_t dbs_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
             }
         }
     }
-    fclose(fp);
+    (void)fclose(fp);
     return ret;
 }
 
@@ -1203,7 +1209,7 @@ int32 dbs_query_file(int32 argc, char *argv[])
                                  DBS_QUERY_FILE_CHECK_PRAMA_NUM};
 
     if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
-        printf("Invalid command.\nUsage: --delete-file --fs-name=xxx --file-name=xxx\n");
+        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx\n");
         return CT_ERROR;
     }
 
@@ -1369,7 +1375,7 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
                 printf("The buffer capacity is insufficient for LSN(%lu)\n", option.lsn.startLsn);
                 ret = CT_SUCCESS;
             } else {
-                printf("Failed to read ulog ret:%u\n", result.result);
+                printf("Failed to read ulog ret:%d\n", result.result);
                 cm_aligned_free(&read_buf);
                 break;
             }
@@ -1603,5 +1609,94 @@ int32 dbs_page_export(int32 argc, char *argv[])
         printf("Failed to export page(%d), start_page_id %llu, export num %llu, pageSize %u, target_dir %s \n",
             ret, start_page_id, total_export_page_num, attr.pageSize, target_dir);
     }
+    return ret;
+}
+
+// 新增链接超时配置
+status_t dbs_insert_link_timeout(uint32 linkTimeOut, char *path)
+{
+    FILE *file = fopen(path, "a");
+    if (file == NULL) {
+        printf("Open file %s failed\n", path);
+        return CT_ERROR;
+    }
+
+    // 将缓冲区的数据写入文件
+    char buffer[DBS_LINK_CHECK_PARAM_LEN];
+    int32 ret = sprintf_s(buffer, DBS_LINK_CHECK_PARAM_LEN, "%s = %u\n", DBS_LINK_CHECK_CNT, linkTimeOut);
+    if (ret == CT_ERROR) {
+        printf("sprintf_s faild(%d).\n", ret);
+        return CT_ERROR;
+    }
+    size_t bytes_written = fwrite(buffer, 1, strlen(buffer), file);
+    if (bytes_written != strlen(buffer)) {
+        printf("Writing to file(%s) failed.\n", path);
+        ret = CT_ERROR;
+    }
+
+    // 关闭文件
+    (void)fclose(file);
+    return CT_SUCCESS;
+}
+
+// 更新链接超时配置
+status_t dbs_edit_link_timeout(uint32 linkTimeOut, char *path)
+{
+    FILE *file = fopen(path, "r+");
+    if (file == NULL) {
+        printf("Open file %s failed\n", path);
+        return CT_ERROR;
+    }
+
+    bool isExist = false;
+    char buffer[DBS_LINK_CHECK_PARAM_LEN];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        if (strstr(buffer, DBS_LINK_CHECK_CNT)) {
+            fseek(file, -strlen(buffer), SEEK_CUR);
+            fprintf(file, "%s = %u\n", DBS_LINK_CHECK_CNT, linkTimeOut);
+            isExist = true;
+            break;
+        }
+    }
+    (void)fclose(file);
+
+    int32 ret = CT_SUCCESS;
+    if (!isExist) {
+        ret = dbs_insert_link_timeout(linkTimeOut, path);
+        if (ret != CT_SUCCESS) {
+            printf("Insert link timeout(%d).\n", ret);
+        }
+    }
+    return ret;
+}
+
+// dbstor --set-link-timeout link-timeout
+int32 dbs_set_link_timeout(int32 argc, char *argv[])
+{
+    if (argc != NUM_THREE) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("dbstor --set-link-timeout link-timeout\n");
+        return CT_ERROR;
+    }
+
+    uint32 linkTimeOut = (uint32)atoi(argv[NUM_TWO]);
+    if (linkTimeOut < DBS_LINK_TIMEOUT_MIN || linkTimeOut > DBS_LINK_TIMEOUT_MAX) {
+        printf("The link timeout(%u) should be between %u and %u.\n",
+            linkTimeOut, DBS_LINK_TIMEOUT_MIN, DBS_LINK_TIMEOUT_MAX);
+        return CT_ERROR;
+    }
+
+    status_t ret = dbs_edit_link_timeout(linkTimeOut, DBS_CANTIAN_CONFIG_PATH);
+    if (ret != CT_SUCCESS) {
+        printf("Set link timeout failed(%d).\n", ret);
+        return ret;
+    }
+
+    ret = dbs_edit_link_timeout(linkTimeOut, DBS_CMS_CONFIG_PATH);
+    if (ret != CT_SUCCESS) {
+        printf("Set link timeout failed(%d).\n", ret);
+        return ret;
+    }
+    printf("Set link timeout success.\n");
     return ret;
 }
