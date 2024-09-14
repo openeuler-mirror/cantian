@@ -54,6 +54,10 @@ status_t cm_dbs_ulog_archive(int32 src_file, int32 dst_file, uint64 offset, uint
 status_t cm_check_file_path(const char *file_path);
 void cm_remove_extra_delim(char *file_path, const char delim);
 
+// for a share file system whose vstore id is not zero
+status_t cm_dbs_query_dir_vstore_id(uint32 vstore_id, const char *name, void *file_list, uint32 *file_num);
+status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name);
+
 #ifdef __cplusplus
 }
 #endif
