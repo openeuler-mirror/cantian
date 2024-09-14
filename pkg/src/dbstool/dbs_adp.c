@@ -1209,7 +1209,7 @@ int32 dbs_query_file(int32 argc, char *argv[])
                                  DBS_QUERY_FILE_CHECK_PRAMA_NUM};
 
     if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
-        printf("Invalid command.\nUsage: --delete-file --fs-name=xxx --file-name=xxx\n");
+        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx\n");
         return CT_ERROR;
     }
 
@@ -1375,7 +1375,7 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
                 printf("The buffer capacity is insufficient for LSN(%lu)\n", option.lsn.startLsn);
                 ret = CT_SUCCESS;
             } else {
-                printf("Failed to read ulog ret:%u\n", result.result);
+                printf("Failed to read ulog ret:%d\n", result.result);
                 cm_aligned_free(&read_buf);
                 break;
             }
