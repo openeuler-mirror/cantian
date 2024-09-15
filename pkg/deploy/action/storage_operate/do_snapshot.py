@@ -160,16 +160,16 @@ def main(mode, ip_address, main_path):
     dbstore_fs_vstore_id = config_params.get("dbstore_fs_vstore_id", 0)
     fs_names_type = []
     for fs_type, fs_name in config_params.items():
-        if fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_share_fs":
+        if fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_share_fs" and fs_name:
             fs_names_type.append((fs_name, fs_type, vstore_id))
-        elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_dbstore_fs":
+        elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_dbstore_fs" and fs_name:
             fs_names_type.append((fs_name, fs_type, dbstore_fs_vstore_id))
-        elif fs_type.endswith('_fs') and fs_type.startswith("storage"):
+        elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_name:
             fs_names_type.append((fs_name, fs_type, 0))
     fs_names = [
         fs_val
         for fs_name, fs_val in config_params.items()
-        if fs_name.endswith('_fs') and fs_name.startswith("storage")
+        if fs_name.endswith('_fs') and fs_name.startswith("storage") and fs_val
     ]
     process_fs_path = '{}/cantian_upgrade_snapshots'.format(main_path)
     fs_processed_data = get_fs_processed_info(process_fs_path, fs_names)

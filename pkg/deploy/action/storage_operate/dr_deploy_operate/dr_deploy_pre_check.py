@@ -20,6 +20,7 @@ from logic.common_func import exec_popen, read_json_config, write_json_config, g
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+DEPLOY_POLICY_FILE = os.path.join(CURRENT_PATH, "../../deploy_policy_config.json")
 DR_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 CANTIAN_STOP_SUCCESS_FLAG = os.path.join(CURRENT_PATH, "../../../config/.stop_success")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
@@ -350,9 +351,9 @@ class DRDeployPreCheck(object):
             "cluster_name",
             "storage_dbstore_fs",
             "storage_dbstore_page_fs",
-            "storage_metadata_fs",
             "mysql_metadata_in_cantian",
-            "dbstore_fs_vstore_id"
+            "dbstore_fs_vstore_id",
+            "deploy_mode",
         ]
         if not os.path.exists(DEPLOY_PARAM_FILE):
             _err_msg = "Deploy param file[%s] is not exists, " \
@@ -360,6 +361,9 @@ class DRDeployPreCheck(object):
             LOG.error(_err_msg)
             raise Exception(_err_msg)
         self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
+        deploy_mode = self.deploy_params.get("deploy_mode")
+        if deploy_mode != "dbstor":
+            check_list.append("storage_metadata_fs")
         diff_list = []
         for check_item in check_list:
             if self.deploy_params.get(check_item) != self.local_conf_params.get(check_item):
@@ -399,6 +403,11 @@ class DRDeployPreCheck(object):
             })
         self.remote_conf_params = copy.deepcopy(conf_params)
         self.remote_conf_params.update(remote_dr_deploy_param)
+        deploy_policy = self.local_conf_params.get("deploy_policy", "default")
+        if deploy_policy != "default":
+            deploy_policy_param = read_json_config(DEPLOY_POLICY_FILE)
+            new_config = deploy_policy_param.get(deploy_policy).get("config")
+            self.local_conf_params.update(new_config)
         LOG.info("Parse config params end.")
 
     def record_config(self):

@@ -195,7 +195,7 @@ status_t bak_paral_create_bakfile(knl_session_t *session, uint32 file_index, bak
     bool32 is_paral_log_backup = assign_ctrl->is_paral_log_backup;
     char *bak_name = NULL;
     int32 *bak_handle = NULL;
-    uint32 mode = O_BINARY | O_RDWR | O_EXCL;
+    uint32 mode = O_BINARY | O_RDWR | O_EXCL | O_SYNC;
 
     if (!is_paral_log_backup) {
         bak_name = bak->local.name;
@@ -943,7 +943,7 @@ void bak_paral_backup_task(knl_session_t *session, bak_process_t *proc)
     bak_ctrl_t *ctrl = &proc->ctrl;
     timeval_t tv_begin;
     status_t status;
-    uint32 mode = O_BINARY | O_RDWR;
+    uint32 mode = O_BINARY | O_SYNC | O_RDWR;
     bool32 can_direct = CT_FALSE;
     if (bak_check_direct_mode_for_archfile(assign_ctrl, bak, mode, &can_direct) != CT_SUCCESS) {
         bak->failed = CT_TRUE;
