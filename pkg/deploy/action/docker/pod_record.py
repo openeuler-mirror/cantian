@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import os
-import json
 import sys
 from datetime import datetime
+from docker_common.file_utils import load_or_initialize_json, write_json
 
 sys.path.append('/ctdb/cantian_install/cantian_connector/action')
 
@@ -11,37 +11,12 @@ from delete_unready_pod import KubernetesService, get_pod_name_from_info
 from om_log import LOGGER as LOG
 
 POD_RECORD_FILE_PATH = "/home/mfdb_core/POD-RECORD/cantian-pod-record.json"
-# 重启次数阈值,超过该次数则触发漂移
-RESTART_THRESHOLD = 16
-
-
-def ensure_record_file_exists():
-    directory = os.path.dirname(POD_RECORD_FILE_PATH)
-    if not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
-
-    if not os.path.exists(POD_RECORD_FILE_PATH):
-        fd = os.open(POD_RECORD_FILE_PATH, os.O_WRONLY | os.O_CREAT, 0o600)
-        with os.fdopen(fd, 'w') as file:
-            json.dump({}, file)
-
-
-def load_pod_record():
-    with open(POD_RECORD_FILE_PATH, 'r') as file:
-        return json.load(file)
-
-
-def write_pod_record(data):
-    fd = os.open(POD_RECORD_FILE_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-
-    with os.fdopen(fd, 'w') as file:
-        json.dump(data, file, indent=4)
+# 重启次数阈值，超过该次数则触发漂移
+RESTART_THRESHOLD = 6
 
 
 def update_pod_restart_record(k8s_service, pod_name_full, pod_namespace):
-    ensure_record_file_exists()
-
-    pod_record = load_pod_record()
+    pod_record = load_or_initialize_json(POD_RECORD_FILE_PATH)
 
     if pod_name_full not in pod_record:
         pod_record[pod_name_full] = {
@@ -60,7 +35,7 @@ def update_pod_restart_record(k8s_service, pod_name_full, pod_namespace):
     else:
         LOG.info("Cantian pod start record updated successfully.")
 
-    write_pod_record(pod_record)
+    write_json(POD_RECORD_FILE_PATH, pod_record)
 
 
 def main():
@@ -95,4 +70,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as err:
+        LOG.error(f"Error in pod_record.py: {err}")
