@@ -53,6 +53,7 @@ extern "C" {
 #define MAX_DBS_FS_FILE_PATH_LEN (MAX_DBS_FS_NAME_LEN + MAX_DBS_FILE_PATH_LEN)
 #define MAX_DBS_FILE_NAME_LEN 64
 #define MAX_DBS_FILE_NUM_INDIR 1024
+#define MAX_DBS_VSTORE_ID_LEN 11
 
 // define-namespace
 #define NS_MAX_NODE_NUM 64

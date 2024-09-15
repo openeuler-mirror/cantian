@@ -38,6 +38,7 @@
 #include "cm_dbs_intf.h"
 #include "cm_dbs_defs.h"
 #include "cm_dbstore.h"
+#include "cm_dbs_file.h"
 
 #define DBSTOR_MAX_FILE_SIZE (1024ULL * 1024 * 1024 * 1024)
 #define DBSTOR_MAX_RWBUF_SIZE (1 * 1024 * 1024)
@@ -149,7 +150,7 @@ status_t cm_get_file_name_and_dir(const char *file_path, uint32 path_depth,
 status_t cm_dbs_open_root(char *fs_name, int32 *root_handle)
 {
     cm_dbs_map_item_s root_item = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_item.obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_item.obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -239,7 +240,7 @@ status_t cm_dbs_open_file_common(const char *name, uint32 file_type, int32 *hand
     }
 
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -350,7 +351,7 @@ status_t cm_dbs_create_file_common(const char *name, uint32 file_type, int32 *ha
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file path %s", file_path);
         return CT_ERROR;
     }
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -380,7 +381,7 @@ status_t cm_dbs_get_dir_handle(char *file_dir, uint32 dir_path_depth, object_id_
     }
     CT_LOG_RUN_INF("[CM_DEVICE] begin to open root, file dir %s, fs_name %s", file_dir, fs_name);
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -445,6 +446,59 @@ status_t cm_dbs_remove_file(const char *name)
 status_t cm_dbs_remove_dir(const char *name)
 {
     return cm_dbs_remove_file(name);
+}
+
+status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name)
+{
+    char file_path[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
+    MEMS_RETURN_IFERR(strcpy_sp(file_path, MAX_DBS_FS_FILE_PATH_LEN, name));
+    cm_remove_extra_delim(file_path, '/');
+    if (cm_check_file_path(file_path) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file_path, "/", &path_depth) != CT_SUCCESS || path_depth < DBSTOR_MIN_DIR_DEPTH) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file path %s depth %d failed", file_path, path_depth);
+        return CT_ERROR;
+    }
+
+    char file_name[MAX_DBS_FILE_NAME_LEN] = { 0 };
+    char file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
+    if (cm_get_file_name_and_dir(file_path, path_depth, "/", file_name, file_dir) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file name and dir failed, file path %s", file_path);
+        return CT_ERROR;
+    }
+    object_id_t dir_obj_id = { 0 };
+    char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
+    if (cm_get_fs_name(file_dir, "/", fs_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    object_id_t root_obj_id = { 0 };
+    int32 ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
+        return CT_ERROR;
+    }
+    
+    if (path_depth == 1) {
+        dir_obj_id = root_obj_id;
+    } else {
+        char *fix_file_path = cm_find_fix_delim(file_dir, '/', 2);
+        ret = dbs_global_handle()->dbs_file_open_by_path(&root_obj_id, fix_file_path + 1, DIR_TYPE, &dir_obj_id);
+        if (ret != 0) {
+            CT_LOG_RUN_ERR("[CM_DEVICE] open file dir failed, ret %d, file dir %s", ret, file_dir);
+            return CT_ERROR;
+        }
+    }
+
+    ret = dbs_global_handle()->dbs_file_remove(&dir_obj_id, file_name);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] remove file failed, ret %d, file path %s", ret, file_path);
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[CM_DEVICE] remove file success, file path %s", file_path);
+    return CT_SUCCESS;
 }
 
 status_t cm_dbs_open_fs(const char *name, int32 *root_handle)
@@ -690,7 +744,7 @@ bool32 cm_dbs_exist_file(const char *name, uint32 file_type)
         return CT_FALSE;
     }
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_FALSE;
@@ -738,6 +792,55 @@ status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num)
     }
 
     int32 ret = dbs_global_handle()->dbs_file_get_list(&dir_obj_id, file_list, file_num);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file list, ret %d, file dir %s", ret, file_dir);
+        return CT_ERROR;
+    }
+
+    CT_LOG_RUN_INF("[CM_DEVICE] Success to get file list, file_num %u, file dir %s", *file_num, file_dir);
+    return CT_SUCCESS;
+}
+
+status_t cm_dbs_query_dir_vstore_id(uint32 vstore_id, const char *name, void *file_list, uint32 *file_num)
+{
+    CT_LOG_RUN_INF("[CM_DEVICE] begin to get file list, file dir %s", name);
+    char file_dir[MAX_DBS_FILE_PATH_LEN] = { 0 };
+    MEMS_RETURN_IFERR(strcpy_sp(file_dir, MAX_DBS_FILE_PATH_LEN, name));
+    cm_remove_extra_delim(file_dir, '/');
+    if (cm_check_file_path(file_dir) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file_dir, "/", &path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file dir %s depth failed", file_dir);
+        return CT_ERROR;
+    }
+
+    object_id_t dir_obj_id = { 0 };
+    char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
+    if (cm_get_fs_name(file_dir, "/", fs_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    object_id_t root_obj_id = { 0 };
+    int32 ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
+        return CT_ERROR;
+    }
+    
+    if (path_depth == 1) {
+        dir_obj_id = root_obj_id;
+    } else {
+        char *fix_file_path = cm_find_fix_delim(file_dir, '/', 2);
+        ret = dbs_global_handle()->dbs_file_open_by_path(&root_obj_id, fix_file_path + 1, DIR_TYPE, &dir_obj_id);
+        if (ret != 0) {
+            CT_LOG_RUN_ERR("[CM_DEVICE] open file dir failed, ret %d, file dir %s", ret, file_dir);
+            return CT_ERROR;
+        }
+    }
+
+    ret = dbs_global_handle()->dbs_file_get_list(&dir_obj_id, file_list, file_num);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file list, ret %d, file dir %s", ret, file_dir);
         return CT_ERROR;
