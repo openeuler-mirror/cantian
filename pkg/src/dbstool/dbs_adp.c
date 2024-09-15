@@ -36,6 +36,7 @@
 #include "cm_dbs_intf.h"
 #include "cm_config.h"
 #include "cm_utils.h"
+#include "cm_dbs_file.h"
 
 #define DBS_CONFIG_FILE_NAME_LEN 32
 #define DBS_WAIT_CONFIG_RETRY_NUM 2
@@ -57,6 +58,8 @@
 #define DBS_TOOL_PARAM_CLUSTER_NAME "--cluster-name="
 #define DBS_TOOL_PARAM_FILE_NAME "--file-name="
 #define DBS_TOOL_PARAM_FILE_PATH "--file-path="
+#define DBS_TOOL_PARAM_VSTORE_ID "--vstore_id="
+#define MAX_VALUE_UINT32 "4294967295"
 #define DBS_LINK_CHECK_CNT "LINK_CHECK_CNT"
 #define DBS_LINK_CHECK_PARAM_LEN 64
 #define DBS_LINK_TIMEOUT_MIN 3
@@ -66,7 +69,7 @@
 #define DBS_ARCH_CLEAN_PRAMA_NUM 1
 #define DBS_ARCH_EXPORT_PRAMA_NUM 3
 #define DBS_ARCH_IMPORT_PRAMA_NUM 3
-#define DBS_ULOG_CLEAN_PRAMA_NUM 2
+#define DBS_ULOG_CLEAN_PRAMA_NUM 3
 #define DBS_PGPOOL_CLEAN_PRAMA_NUM 2
 #define DBS_CRAETE_FILE_PRAMA_NUM 3
 #define DBS_COPY_FILE_PRAMA_NUM 4
@@ -76,7 +79,7 @@
 #define DBS_NO_CHECK_PRAMA_NUM 0
 #define DBS_ARCH_EXPORT_PRAMA_CHECK_NUM 1
 #define DBS_ARCH_IMPORT_PRAMA_CHECK_NUM 1
-#define DBS_ULOG_CLEAN_CHECK_PRAMA_NUM 2
+#define DBS_ULOG_CLEAN_CHECK_PRAMA_NUM 3
 #define DBS_PGPOOL_CLEAN_CHECK_PRAMA_NUM 2
 #define DBS_CRAETE_FILE_CHECK_PRAMA_NUM 2
 #define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
@@ -88,6 +91,7 @@ typedef struct {
     char log_fs_name[MAX_DBS_FS_NAME_LEN];
     char page_fs_name[MAX_DBS_FS_NAME_LEN];
     char cluster_name[MAX_DBS_FILE_NAME_LEN];
+    char log_fs_vstore_id[MAX_DBS_VSTORE_ID_LEN];
 } dbs_fs_info_t;
 
 dbs_fs_info_t g_dbs_fs_info = { 0 };
@@ -479,6 +483,28 @@ status_t dbs_alloc_conf_file_retry(char *config_name)
     return CT_ERROR;
 }
 
+status_t dbs_get_param_value(char *line, char *value, uint32 length)
+{
+    char line_cpy[DBS_CONFIG_MAX_PARAM] = { 0 };
+    char *context = NULL;
+    text_t param = { 0 };
+    errno_t ret = strcpy_s(line_cpy, DBS_CONFIG_MAX_PARAM, line);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("strcpy_s line failed %d.", ret);
+        return CT_ERROR;
+    }
+    param.str = strtok_s(line_cpy, "=", &context);
+    param.str = strtok_s(NULL, "\n", &context);
+    param.len = strlen(param.str);
+    cm_trim_text(&param);
+    ret = strcpy_s(value, length, param.str);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("strcpy_s value failed %d.", ret);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t dbs_get_fs_info_from_config(char* cfg_name)
 {
     char file_path[CT_FILE_NAME_BUFFER_SIZE];
@@ -492,45 +518,24 @@ status_t dbs_get_fs_info_from_config(char* cfg_name)
         return CT_ERROR;
     }
 
+    status_t result = CT_SUCCESS;
     while (fgets(line, sizeof(line), fp) != NULL) {
-        char *context = NULL;
         if (strstr(line, "NAMESPACE_FSNAME") != NULL) {
-            text_t fs_name_t;
-            fs_name_t.str = strtok_s(line, "=", &context);
-            fs_name_t.str = strtok_s(NULL, "\n", &context);
-            fs_name_t.len = strlen(fs_name_t.str);
-            cm_trim_text(&fs_name_t);
-            ret = strcpy_s(g_dbs_fs_info.log_fs_name, MAX_DBS_FS_NAME_LEN, fs_name_t.str);
-            if (ret != EOK) {
-                CT_LOG_RUN_ERR("strcpy_s failed %d.", ret);
-                break;
-            }
+            result = dbs_get_param_value(line, g_dbs_fs_info.log_fs_name, MAX_DBS_FS_NAME_LEN);
         } else if (strstr(line, "NAMESPACE_PAGE_FSNAME") != NULL) {
-            text_t fs_name_t;
-            fs_name_t.str = strtok_s(line, "=", &context);
-            fs_name_t.str = strtok_s(NULL, "\n", &context);
-            fs_name_t.len = strlen(fs_name_t.str);
-            cm_trim_text(&fs_name_t);
-            ret = strcpy_s(g_dbs_fs_info.page_fs_name, MAX_DBS_FS_NAME_LEN, fs_name_t.str);
-            if (ret != EOK) {
-                CT_LOG_RUN_ERR("strcpy_s failed %d.", ret);
-                break;
-            }
+            result = dbs_get_param_value(line, g_dbs_fs_info.page_fs_name, MAX_DBS_FS_NAME_LEN);
         } else if (strstr(line, "CLUSTER_NAME") != NULL) {
-            text_t cluster_name_t;
-            cluster_name_t.str = strtok_s(line, "=", &context);
-            cluster_name_t.str = strtok_s(NULL, "\n", &context);
-            cluster_name_t.len = strlen(cluster_name_t.str);
-            cm_trim_text(&cluster_name_t);
-            ret = strcpy_s(g_dbs_fs_info.cluster_name, MAX_DBS_FILE_NAME_LEN, cluster_name_t.str);
-            if (ret != EOK) {
-                CT_LOG_RUN_ERR("strcpy_s failed %d.", ret);
-                break;
-            }
+            result = dbs_get_param_value(line, g_dbs_fs_info.cluster_name, MAX_DBS_FILE_NAME_LEN);
+        } else if (strstr(line, "LOG_VSTOR") != NULL) {
+            result = dbs_get_param_value(line, g_dbs_fs_info.log_fs_vstore_id, MAX_DBS_VSTORE_ID_LEN);
+        }
+        if (result != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("get param value failed, line %s.", line);
+            break;
         }
     }
     (void)fclose(fp);
-    return ret;
+    return result;
 }
 
 status_t dbs_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
@@ -668,6 +673,12 @@ status_t parse_params_list(int32 argc, char *argv[], params_list_t *params_list)
             printf("%s not specified.\n", params_list->check_list->key);
             return CT_ERROR;
         }
+        if (strcmp(params_list->check_list->key, DBS_TOOL_PARAM_VSTORE_ID) == 0) {
+            if (strcmp(params_list->check_list->value, MAX_VALUE_UINT32) > 0) {
+                printf("Invalid vstore_id %s.\n", params_list->check_list->value);
+                return CT_ERROR;
+            }
+        }
     }
     return CT_SUCCESS;
 }
@@ -801,6 +812,38 @@ status_t dbs_clean_files(dbs_device_info_t *src_info, void *file_list, uint32 fi
     return CT_SUCCESS;
 }
 
+status_t dbs_clean_files_ulog(uint32 vstore_id, dbs_device_info_t *src_info, void *file_list,
+                              uint32 file_num, file_filter_func filter_func)
+{
+    CT_LOG_RUN_INF("[DBSTOR] Removed files in dir %s", src_info->path);
+    printf("Remove files list:\n");
+    for (uint32 i = 0; i < file_num; i++) {
+        char file_path[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
+        char *file_name = cm_get_name_from_file_list(src_info->type, file_list, i);
+        if (file_name == NULL) {
+            printf("Failed to get file name.\n");
+            return CT_ERROR;
+        }
+
+        if (filter_func != NULL && filter_func(file_name) == CT_TRUE) {
+            continue;
+        }
+
+        PRTS_RETURN_IFERR(snprintf_s(file_path, MAX_DBS_FS_FILE_PATH_LEN,
+            MAX_DBS_FS_FILE_PATH_LEN - 1, "%s/%s", src_info->path, file_name));
+
+        if (cm_dbs_remove_file_vstore_id(vstore_id, file_path) != CT_SUCCESS) {
+            printf("remove file failed, file name %s\n", file_name);
+            CT_LOG_RUN_ERR("[DBSTOR] remove file failed, file name %s", file_name);
+            return CT_ERROR;
+        }
+        printf("%s\n", file_name);
+        CT_LOG_RUN_INF("[DBSTOR] Removed file: %s\n", file_name);
+    }
+    printf("Remove files successful.\n");
+    return CT_SUCCESS;
+}
+
 bool32 arch_file_filter(const char *file_name)
 {
     return !cm_match_arch_pattern(file_name) && strstr(file_name, "arch_file.tmp") == NULL;
@@ -922,22 +965,27 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
 {
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
     char cluster_name[MAX_DBS_FILE_PATH_LEN] = {0};
+    char vstore_id[MAX_DBS_VSTORE_ID_LEN] = {0};
     MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.log_fs_name,
                                 strlen(g_dbs_fs_info.log_fs_name)));
     MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name,
                                 strlen(g_dbs_fs_info.cluster_name)));
+    MEMS_RETURN_IFERR(strncpy_s(vstore_id, MAX_DBS_VSTORE_ID_LEN, g_dbs_fs_info.log_fs_vstore_id,
+                                strlen(g_dbs_fs_info.log_fs_vstore_id)));
 
-    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_CLUSTER_NAME};
-    char *results[] = {fs_name, cluster_name};
-    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
-    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_CLUSTER_NAME, cluster_name}};
+    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_CLUSTER_NAME, DBS_TOOL_PARAM_VSTORE_ID};
+    char *results[] = {fs_name, cluster_name, vstore_id};
+    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_VSTORE_ID_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_CLUSTER_NAME, cluster_name},
+                                        {DBS_TOOL_PARAM_VSTORE_ID, vstore_id}};
     params_list_t params_list = {params, results, result_lens, check_list, DBS_ULOG_CLEAN_PRAMA_NUM,
                                  DBS_ULOG_CLEAN_CHECK_PRAMA_NUM};
 
     if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
-        printf("Invalid command.\nUsage: --ulog-clean [--fs-name=xxx] [--cluster-name=xxx]\n");
+        printf("Invalid command.\nUsage: --ulog-clean [--fs-name=xxx] [--cluster-name=xxx] [--vstore_id=xxx]\n");
         return CT_ERROR;
     }
+    uint32 vstore_id_uint = (uint32)atoi(vstore_id);
     char ulog_path[MAX_DBS_FS_FILE_PATH_LEN] = {0};
     PRTS_RETURN_IFERR(snprintf_s(ulog_path, MAX_DBS_FS_FILE_PATH_LEN,
         MAX_DBS_FS_FILE_PATH_LEN - 1, "/%s/%s", fs_name, cluster_name));
@@ -950,14 +998,13 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
     if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
         return CT_ERROR;
     }
-
-    if (cm_query_device(src_info.type, src_info.path, file_list, &file_num) != CT_SUCCESS) {
+    if (cm_dbs_query_dir_vstore_id(vstore_id_uint, src_info.path, file_list, &file_num) != CT_SUCCESS) {
         printf("Failed to get file list, dir is %s.\n", src_info.path);
         cm_free_file_list(&file_list);
         return CT_ERROR;
     }
 
-    if (dbs_clean_files(&src_info, file_list, file_num, ulog_file_filter) != CT_SUCCESS) {
+    if (dbs_clean_files_ulog(vstore_id_uint, &src_info, file_list, file_num, ulog_file_filter) != CT_SUCCESS) {
         printf("ULOG clean failed.\n");
         cm_free_file_list(&file_list);
         return CT_ERROR;
@@ -1289,12 +1336,12 @@ int32 append_to_file(char *directory, char *filename, char *buffer, uint32 buffe
     return CT_SUCCESS;
 }
 
-int32 get_ulog_handle(char *fs_name, char *path, object_id_t *ulog_obj_id)
+int32 get_ulog_handle(uint32 vstore_id, char *fs_name, char *path, object_id_t *ulog_obj_id)
 {
     int32 ret = CT_SUCCESS;
     // 获取根目录的句柄
     object_id_t root_obj_id = { 0 };
-    ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
+    ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
     if (ret != CT_SUCCESS) {
         printf("Failed to dbs_file_open_root(%d), fs name %s\n", ret, fs_name);
         return ret;
@@ -1424,6 +1471,7 @@ int32 dbs_ulog_export(int32 argc, char *argv[])
     MEMS_RETURN_IFERR(strcpy_s(fs_name, sizeof(fs_name), g_dbs_fs_info.log_fs_name));
     char cluster_name[MAX_DBS_FILE_NAME_LEN];
     MEMS_RETURN_IFERR(strcpy_s(cluster_name, sizeof(cluster_name), g_dbs_fs_info.cluster_name));
+    uint32 vstore_id = (uint32)atoi(g_dbs_fs_info.log_fs_vstore_id);
 
     uint32 node = 0;
     char target_dir[MAX_DBS_FILE_PATH_LEN];
@@ -1458,7 +1506,7 @@ int32 dbs_ulog_export(int32 argc, char *argv[])
 
     // 获取ulog目录handle
     object_id_t ulog_obj_id = { 0 };
-    ret = get_ulog_handle(fs_name, path, &ulog_obj_id);
+    ret = get_ulog_handle(vstore_id, fs_name, path, &ulog_obj_id);
     if (ret != CT_SUCCESS) {
         printf("Failed to get ulog handle, ret %d, fsname %s, path %s \n", ret, fs_name, path);
         return ret;
