@@ -65,6 +65,13 @@ typedef struct {
         }                                                          \
     } while (0)
 
+#define TSE_RET_IF_CP_INVALID_COL(invalid_index_col)               \
+    do {                                                           \
+        if (invalid_index_col) {                                   \
+            return (CPR_TRUE);                                     \
+        }                                                          \
+    } while (0)
+
 #define TSE_LOG_RET_VAL_IF_NUL(val, ret, fmt, ...)                 \
     do {                                                           \
         if ((val) == NULL) {                                       \
@@ -183,7 +190,7 @@ void tse_fill_update_info(knl_update_info_t *ui, uint16_t new_record_len,
 
 int fetch_and_delete_all_rows(knl_session_t *knl_session, knl_cursor_t *cursor, dml_flag_t flag);
 
-cond_pushdown_result_t update_cond_field_col(knl_cursor_t *cursor, uint16_t *cond_col, bool *col_updated);
+cond_pushdown_result_t update_cond_field_col(knl_cursor_t *cursor, tse_cond_field *field_info);
 bool check_column_field_is_null(knl_cursor_t *cursor, uint16_t col);
 bool check_value_is_compare(tse_func_type_t func_type, int32 cmp);
 int32 compare_var_data_ins(char *data1, uint16 size1, char *data2, uint16 size2, ct_type_t type);
