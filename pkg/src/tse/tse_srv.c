@@ -28,8 +28,6 @@
 
 #define TSE_MAX_MYSQL_INST_SIZE (128)
 #define TSE_MAX_PREFETCH_NUM (100)
-#define CTC_SIZE_UNIT (1024)
-#define CTC_MAX_SAMPLE_SIZE_LENGTH (6) // sample_size最大为4096M
 
 /*
  * lob text data struct
@@ -45,26 +43,6 @@ int32 sint3korr(uchar *A)
     return ((int32)(((A[2]) & 128)
                         ? (((uint32)255L << 24) | (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0]))
                         : (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0])));
-}
-
-EXTER_ATTACK int ctc_update_sample_size(uint32_t sample_size)
-{
-    config_item_t *item = NULL;
-    text_t parameter = {0};
-
-    parameter.str = "STATISTICS_SAMPLE_SIZE";
-    parameter.len = (uint32)strlen(parameter.str);
-    item = cm_get_config_item(GET_CONFIG, &parameter, CT_FALSE);
-
-    char value[CTC_MAX_SAMPLE_SIZE_LENGTH] = {0};
-    if (sprintf_s(value, CTC_MAX_SAMPLE_SIZE_LENGTH, "%d%s", sample_size, "M") == CT_ERROR) {
-        return CT_FALSE;
-    }
-    
-    CT_RETURN_IFERR(cm_update_statistics_sample_size_value(GET_CONFIG, item, value, (uint32)strlen(value)));
-    g_instance->kernel.attr.stats_sample_size = (uint64_t)sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
-    
-    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int tse_open_table(tianchi_handler_t *tch, const char *table_name, const char *user_name)

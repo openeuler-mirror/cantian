@@ -177,11 +177,6 @@ config_item_t *cm_get_config_item(const config_t *config, text_t *name, bool32 s
 
 status_t cm_modify_runtimevalue(config_t *config, const char *name, const char *value);
 
-status_t cm_update_statistics_sample_size_value(config_t      *config, 
-                                                config_item_t *item,
-                                                const char    *value,
-                                                uint32         value_len);
-
 #ifdef __cplusplus
 }
 #endif
