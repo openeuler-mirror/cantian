@@ -487,6 +487,7 @@ typedef struct en_tse_cond_field_t {
     bool null_value;
     uint32_t collate_id;
     bool col_updated;
+    bool index_only_invalid_col; // col in cond but not in index while select with index_only
     bool no_backslash;
 } tse_cond_field;
 
