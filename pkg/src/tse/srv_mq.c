@@ -226,11 +226,20 @@ char tse_cpu_info_str[CPU_INFO_STR_SIZE];
 char mysql_cpu_info_str[CPU_INFO_STR_SIZE];
 
 int tse_cpu_info[SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE];
-int tse_cpu_group_num = 0;
+int g_cpu_group_num = 0;
 int mysql_cpu_info[MAX_SHM_PROC][SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE];
 int mysql_cpu_group_num[MAX_SHM_PROC];
-
 cpu_set_t g_masks[SHM_SEG_MAX_NUM];
+
+int get_cpu_group_num(void)
+{
+    return g_cpu_group_num;
+}
+
+cpu_set_t* get_cpu_masks(void)
+{
+    return g_masks;
+}
 
 static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE])
 {
@@ -272,7 +281,7 @@ static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SH
 
 static void set_cpu_mask(void)
 {
-    for (int i = 0; i < tse_cpu_group_num; i++) {
+    for (int i = 0; i < g_cpu_group_num; i++) {
         cpu_set_t mask;
         CPU_ZERO(&mask);
         for (int j = 0; j < SMALL_RECORD_SIZE; j++) {
@@ -451,21 +460,22 @@ int create_mq_shm_file(void)
             continue;
         }
 
-        if (mq_srv_start(g_shm_segs[i], (tse_cpu_group_num == 0) ? NULL : &g_masks[i % tse_cpu_group_num]) != 0) {
+        if (mq_srv_start(g_shm_segs[i], (g_cpu_group_num == 0) ? NULL : &g_masks[i % g_cpu_group_num]) != 0) {
             return -1;
         }
     }
     return 0;
 }
 
-void init_cpu_info()
+int init_cpu_info(void)
 {
-    if (init_cpu_mask(tse_cpu_info_str, &tse_cpu_group_num, tse_cpu_info) != 0) {
-        tse_cpu_group_num = 0;
-        CT_LOG_RUN_ERR("cpu group init error!");
+    if (init_cpu_mask(tse_cpu_info_str, &g_cpu_group_num, tse_cpu_info) != 0 || g_cpu_group_num == 0) {
+        CT_LOG_RUN_ERR("g_cpu_group_num init error, g_cpu_group_num is %d", g_cpu_group_num);
+        return CT_ERROR;
     }
     init_mysql_cpu_info();
     set_cpu_mask();
+    return CT_SUCCESS;
 }
 
 int mq_srv_init(void)

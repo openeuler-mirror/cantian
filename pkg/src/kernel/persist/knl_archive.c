@@ -3659,6 +3659,18 @@ status_t arch_start(knl_session_t *session)
 
 void arch_close(knl_session_t *session)
 {
+    bool32 is_archive = session->kernel->arch_ctx.is_archive;
+    if (!is_archive) {
+        CT_LOG_RUN_INF("[ARCH] no need to close arch proc");
+        return;
+    }
+
+    if (!knl_db_is_primary(session) && cm_dbs_is_enable_dbs() && rc_is_master()) {
+        CT_LOG_RUN_INF("[ARCH_STANDBY] db is standby and master node, deinit arch proc");
+        arch_deinit_proc_standby();
+        return;
+    }
+
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
     arch_proc_context_t *proc_ctx = NULL;
     uint32 i;
@@ -3666,8 +3678,8 @@ void arch_close(knl_session_t *session)
     for (i = 0; i < CT_MAX_ARCH_DEST; i++) {
         proc_ctx = &arch_ctx->arch_proc[i];
         if (proc_ctx->arch_dest[0] != '\0' && proc_ctx->enabled) {
-            cm_close_thread(&proc_ctx->write_thread);
             cm_close_thread(&proc_ctx->read_thread);
+            cm_close_thread(&proc_ctx->write_thread);
             cm_aligned_free(&proc_ctx->arch_rw_buf.aligned_buf);
             cm_aligned_free(&proc_ctx->cmp_ctx.compress_buf);
             knl_compress_free(DEFAULT_ARCH_COMPRESS_ALGO, &proc_ctx->cmp_ctx, CT_TRUE);
