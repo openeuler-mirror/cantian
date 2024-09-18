@@ -43,7 +43,7 @@
 
 dtc_rcy_analyze_paral_node_t g_analyze_paral_mgr;
 dtc_rcy_replay_paral_node_t g_replay_paral_mgr = {0};
-
+extern uint32 shm_memory_reduction_ratio;
 page_stack_t g_dtc_rcy_page_id_stack;
 
 log_batch_t* dtc_rcy_get_curr_batch(dtc_rcy_context_t *dtc_rcy, uint32 idx, uint8 index){
@@ -3327,11 +3327,11 @@ static void dtc_release_rcy_page_list(knl_session_t *session)
 {
     knl_instance_t *kernel = session->kernel;
     rcy_context_t *rcy = &kernel->rcy_ctx;
-    if (rcy->page_list_count < RCY_PAGE_LIST_RELEASE_THRESHOLD) {
+    if (rcy->page_list_count < RCY_PAGE_LIST_RELEASE_THRESHOLD / shm_memory_reduction_ratio) {
         return;
     }
     CT_LOG_RUN_INF("[DTC RCY] page_list count is %u, release threshold is %u, need to release", rcy->page_list_count,
-                   RCY_PAGE_LIST_RELEASE_THRESHOLD);
+                   RCY_PAGE_LIST_RELEASE_THRESHOLD / shm_memory_reduction_ratio);
     rcy_wait_replay_complete(session);
     return;
 }
