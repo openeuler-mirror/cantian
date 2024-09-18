@@ -734,7 +734,9 @@ void ckpt_proc(thread_t *thread)
     cm_set_thread_name("ckpt");
     CT_LOG_RUN_INF("ckpt thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-    
+#ifdef WITH_DAAC
+    knl_attach_cpu_core();
+#endif
     while (!thread->closed) {
         /* If the database has come to recovery stage, we will break and go to normal schedul once
          * a trigger task is received.
@@ -2504,6 +2506,9 @@ void dbwr_proc(thread_t *thread)
     cm_set_thread_name("dbwr");
     CT_LOG_RUN_INF("dbwr thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
+#ifdef WITH_DAAC
+    knl_attach_cpu_core();
+#endif
     while (!thread->closed) {
 #ifdef WIN32
         if (WaitForSingleObject(dbwr->sem, 5000) == WAIT_TIMEOUT) {

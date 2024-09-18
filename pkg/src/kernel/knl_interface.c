@@ -46,6 +46,8 @@
 #include "knl_log_file.h"
 #include "temp_btree.h"
 #include "ostat_load.h"
+#include "srv_mq.h"
+#include "srv_mq_msg.h"
 #ifdef DB_DEBUG_VERSION
 #include "knl_syncpoint.h"
 #endif /* DB_DEBUG_VERSION */
@@ -247,6 +249,26 @@ __declspec(thread) void *tls_curr_sess = 0;
 #else
 __thread void *tls_curr_sess = 0;
 #endif
+
+void knl_attach_cpu_core(void)
+{
+    int cpu_group_num = get_cpu_group_num();
+    cpu_set_t* cpu_masks = get_cpu_masks();
+    cpu_set_t mask; 
+    CPU_ZERO(&mask);
+    if (cpu_group_num <= 0) {
+        CT_LOG_RUN_ERR("Invalid cpu_group_num is %d!", cpu_group_num);
+        return;
+    } else if (cpu_masks == NULL) {
+        CT_LOG_RUN_ERR("cpu_masks is NULL");
+        return;
+    } else {
+        mask = cpu_masks[(cm_get_current_thread_id() % SHM_SEG_MAX_NUM) % cpu_group_num];
+    }
+    if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) != 0) {
+        CT_LOG_RUN_ERR("the thread attach cpu is error!");
+    }
+}
 
 void knl_set_curr_sess2tls(void *sess)
 {
