@@ -51,8 +51,8 @@ extern "C" {
 #define STATS_HISTGRAM_MAX_SIZE 254
 #define SMALL_RECORD_SIZE 128  // 表名、库名等长度不会特别大，取128
 #define ERROR_MESSAGE_LEN 512
-#define MAX_DDL_SQL_LEN_CONTEXT (129024)  // 126kb, 预留2kb
-#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过128kb, 超过了会报错
+#define MAX_DDL_SQL_LEN_CONTEXT (63488)  //  62kb, 预留2kb
+#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过64kb, 超过了会报错
 #define DD_BROADCAST_RECORD_LENGTH (3072)
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)

@@ -33,7 +33,8 @@
 #include "cm_spinlock.h"
 
 #define CM_DBS_MAP_HASH_TABLE_SIZE 1024
-#define CM_DBS_MAX_HANDLE_SIZE 4096
+// 设置为最大规格，1023：最大datafile数量，18000：最大session数量，1024 * 3：预留redo/file类型
+#define CM_DBS_MAX_HANDLE_SIZE (1023 * 18000 + 1024 * 3)
 
 typedef struct {
     cm_list_head node;
