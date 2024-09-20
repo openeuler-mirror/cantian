@@ -785,6 +785,11 @@ int32_t create_link_callback(u32 uiDstlsId, dpuc_qlink_event qlinkEvent, dpuc_pl
     if (qlinkEvent == DPUC_QLINK_UP) {
         conn->uc_channel_state = MES_CHANNEL_CONNECTED;
         CT_LOG_RUN_INF("channel status covert to CONNECTED.");
+        if (conn->is_allow_msg_transfer == CT_FALSE) {
+            rc_bitmap64_set(&g_channel_reconn_bits, inst_id);
+            cm_release_cond_signal(&g_reconn_thread_cond);
+            CT_LOG_RUN_INF("cm realse cond signal success.");
+        }
     } else if ((qlinkEvent == DPUC_QLINK_DOWN) && (conn->uc_channel_state == MES_CHANNEL_CONNECTED)) {
         conn->uc_channel_state = MES_CHANNEL_UNCONNECTED;
         CT_LOG_RUN_INF("channel status covert to UNCONNECTED.");
