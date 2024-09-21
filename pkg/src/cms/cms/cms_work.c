@@ -504,15 +504,21 @@ status_t cms_stop_res_local(uint32 res_id, char* err_info)
     CMS_LOG_INF("begin cms stop res local.");
     status_t ret = CT_SUCCESS;
     errno_t err = EOK;
-    bool32 res_running = CT_TRUE;
-    ret = cms_res_check(res_id, &res_running);
+    status_t res_status = CT_SUCCESS;
+    ret = cms_res_check(res_id, &res_status);
     if (ret != CT_SUCCESS) {
         err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "check resource failed");
         cms_securec_check(err);
         return CT_ERROR;
     }
-    if (res_running != CT_TRUE) {
-        err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "res count is 0 or greater than 1");
+    if (res_status != CT_SUCCESS) {
+        if (res_status == CT_ERROR) {
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "resource has been already stoped");
+        } else if (res_status == CT_EAGAIN) {
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "resource count exceeds 1");
+        } else {
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "unknow error");
+        }
         cms_securec_check(err);
         return CT_ERROR;
     }

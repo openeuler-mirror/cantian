@@ -269,7 +269,7 @@ status_t cms_res_init(uint32 res_id, uint32 timeout_ms);
 status_t cms_res_start(uint32 res_id, uint32 timeout_ms);
 status_t cms_res_stop(uint32 res_id, uint8 need_write_disk);
 status_t cms_res_stop_by_force(uint32 res_id, uint8 need_write_disk);
-status_t cms_res_check(uint32 res_id, bool32 *res_running);
+status_t cms_res_check(uint32 res_id, status_t *res_status);
 status_t cms_res_reset(uint32 res_id);
 
 status_t cms_res_started(uint32 res_id);
