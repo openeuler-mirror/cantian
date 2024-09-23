@@ -6,7 +6,6 @@ import stat
 import subprocess
 from datetime import datetime
 
-# 导入 KubernetesService 类
 from docker_common.kubernetes_service import KubernetesService
 from get_config_info import get_value
 

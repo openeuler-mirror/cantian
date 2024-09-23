@@ -35,49 +35,46 @@ if [[ "$1" == "startup-check" ]]; then
 fi
 
 function handle_failure() {
-    # 手动停止cantian记录
     manual_stop_count=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($5=="OFFLINE" && $1=='"${node_id}"'){print $5}}' | wc -l)
     if [[ -f "${CMS_ENABLE}" ]] && [[ ${manual_stop_count} -eq 1 ]]; then
-        logInfo "CMS is manually stopped."
+        logInfo "CMS is manually stopped. Exiting."
         exit 0
     fi
     if [[ -f "${READINESS_FILE}" ]]; then
         python3 ${CURRENT_PATH}/delete_unready_pod.py
     fi
-    logError "Failure detected, exiting with code 1."
     exit 1
 }
 
 if [[ ! -f "${READINESS_FILE}" ]]; then
-    logWarn "Readiness file missing, triggering failure handling."
     handle_failure
 fi
 
 if [[ -z "${cantiand_pid}" ]] && [[ "${run_mode}" == "cantiand_in_cluster" ]]; then
-    logWarn "Cantiand process not running in cluster mode, triggering failure handling."
+    logWarn "Cantiand process not running in cluster mode."
     handle_failure
 fi
 
 if [[ -z "${cms_pid}" ]]; then
-    logWarn "CMS process not found, triggering failure handling."
+    logWarn "CMS process not found."
     handle_failure
 fi
 
 work_stat=$(su -s /bin/bash - ${cantian_user} -c 'cms stat' | awk -v nid=$((${node_id}+1)) 'NR==nid+1 {print $6}')
 if [[ "${work_stat}" != "1" ]]; then
-    logWarn "Work status is not 1, triggering failure handling."
+    logWarn "Work status is not 1."
     handle_failure
 fi
 
 if [[ -z "${mysql_pid}" ]] && [[ "${run_mode}" == "cantiand_in_cluster" ]]; then
-    logInfo "MySQL process not found, attempting to start."
+    logInfo "MySQL process not found. Attempting to start."
     su -s /bin/bash - ${deploy_user} -c "python3 -B \
         /opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/install.py \
         -U ${deploy_user}:${deploy_group} -l /home/${deploy_user}/logs/install.log \
         -M mysqld -m /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf -g withoutroot"
     mysql_pid=$(ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | awk 'NR==1 {print $2}')
     if [[ -z "${mysql_pid}" ]]; then
-        logError "Failed to start MySQL, triggering failure handling."
+        logError "Failed to start MySQL."
         handle_failure
     else
         logInfo "MySQL started successfully."
@@ -85,11 +82,11 @@ if [[ -z "${mysql_pid}" ]] && [[ "${run_mode}" == "cantiand_in_cluster" ]]; then
 fi
 
 if [[ -z "${cantian_daemon_pid}" ]]; then
-    logInfo "Cantian daemon process not found, attempting to start."
+    logInfo "Cantian daemon not found. Attempting to start."
     /bin/bash /opt/cantian/common/script/cantian_service.sh start
     cantian_daemon_pid=$(pgrep -f cantian_daemon)
     if [[ -z "${cantian_daemon_pid}" ]]; then
-        logError "Failed to start Cantian daemon, triggering failure handling."
+        logError "Failed to start Cantian daemon."
         handle_failure
     else
         logInfo "Cantian daemon started successfully."
