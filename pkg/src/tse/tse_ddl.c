@@ -466,7 +466,6 @@ EXTER_ATTACK int tse_lock_table(tianchi_handler_t *tch, const char *db_name, tse
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
     if (knl_session->user_locked_ddl == CT_TRUE) {
         CT_LOG_RUN_ERR("[CTC_LOCK_TABLE]: Instance has been locked, disallow this operation"
@@ -749,7 +748,6 @@ EXTER_ATTACK int tse_execute_mysql_ddl_sql(tianchi_handler_t *tch, tse_ddl_broad
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
     if (DB_ATTR_MYSQL_META_IN_DACC(knl_session) && !(broadcast_req->sql_command == SQLCOM_SET_OPTION)) {
         return CT_SUCCESS;
@@ -821,7 +819,6 @@ EXTER_ATTACK int tse_broadcast_rewrite_sql(tianchi_handler_t *tch, tse_ddl_broad
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
     
     knl_session_t *knl_session = &session->knl_session;
     if (!tse_check_db_exists(knl_session, broadcast_req->db_name)) {
@@ -857,7 +854,6 @@ EXTER_ATTACK int ctc_record_sql_for_cantian(tianchi_handler_t *tch, tse_ddl_broa
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
 
     knl_session_t *knl_session = &session->knl_session;
     if (!tse_check_db_exists(knl_session, broadcast_req->db_name)) {
@@ -1209,7 +1205,6 @@ EXTER_ATTACK int tse_unlock_table(tianchi_handler_t *tch, uint32_t mysql_inst_id
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(tse_get_or_new_session(&session, tch, true, false, &is_new_session));
-    tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
 
     CT_RETURN_IFERR(tse_unlock_table_impl(tch, knl_session, mysql_inst_id, lock_info));

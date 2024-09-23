@@ -554,6 +554,7 @@ int tse_get_or_new_session(session_t **session, tianchi_handler_t *tch,
     if (need_init) {
         return init_ddl_session(*session);
     }
+    tse_set_no_use_other_sess4thd(*session);
 
     return CT_SUCCESS;
 }

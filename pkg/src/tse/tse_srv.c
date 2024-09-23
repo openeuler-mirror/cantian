@@ -109,9 +109,9 @@ EXTER_ATTACK void tse_kill_session(tianchi_handler_t *tch)
         CM_ASSERT(0);
         return;
     }
+    tse_set_no_use_other_sess4thd(session);
     CT_LOG_DEBUG_INF("[TSE_KILL_SESSION]:conn_id=%u, tse_inst_id:%u, session_id=%u",
         tch->thd_id, tch->inst_id, session->knl_session.id);
-    tse_set_no_use_other_sess4thd(session);
     session->knl_session.canceled = CT_TRUE;
 }
 
@@ -1461,6 +1461,7 @@ int tse_check_partition_status(tianchi_handler_t *tch, knl_cursor_t **cursor,
     int ret;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
@@ -2201,6 +2202,7 @@ int tse_free_session_cursors(tianchi_handler_t *tch, uint64_t *cursors, int32_t 
 {
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     tse_free_cursors(session, cursors, csize);
     return CT_SUCCESS;
 }
@@ -2338,6 +2340,7 @@ EXTER_ATTACK int tse_get_index_name(tianchi_handler_t *tch, char *index_name)
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "session lookup failed");
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     if (tse_context->dup_key_slot < 0 || tse_context->dup_key_slot >= CT_MAX_TABLE_INDEXES) {
         CT_LOG_RUN_ERR("tse_context->dup_key_slot(%u) is out of range.", tse_context->dup_key_slot);
         return CT_ERROR;
@@ -2356,6 +2359,7 @@ EXTER_ATTACK int tse_get_serial_value(tianchi_handler_t *tch, uint64_t *value, d
 {
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     
     if (tch->ctx_addr == INVALID_VALUE64 || ((tse_context_t *)tch->ctx_addr) == NULL) {
         CT_LOG_RUN_ERR("ctx_addr(0x%llx) is invalid.", tch->ctx_addr);
