@@ -13,7 +13,7 @@
         "single_process": "0",
         "config": {
             "cantian_in_container": "0",
-            "mysql_in_container": "0",
+            "mysql_in_container": "1",
             "deploy_mode": "combined",
             "mysql_metadata_in_cantian": true
         }
