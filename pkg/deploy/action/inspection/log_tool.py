@@ -1,5 +1,6 @@
 import logging
 import os
+import getpass
 from logging import handlers
 
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -23,11 +24,18 @@ log_config = CONSOLE_CONF.get("log")
 
 def _get_log_file_path(project):
     logger_dir = log_config.get("log_dir")
-
+    username = getpass.getuser()
     if logger_dir:
         if not os.path.exists(logger_dir):
             os.makedirs(logger_dir)
-        return os.path.join(logger_dir, "{}.log".format(project))
+        file_stat = os.stat(os.path.basename(__file__))
+        owner_uid = file_stat.st_uid
+        owner_gid = file_stat.st_gid
+        os.chown(logger_dir, owner_uid, owner_gid)
+        logger_file = os.path.join(logger_dir, "{}.log".format(project))
+        if os.path.exists(logger_file):
+            os.chown(logger_file, owner_uid, owner_gid)
+        return logger_file
 
     return ''
 
