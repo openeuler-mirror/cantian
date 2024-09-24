@@ -132,6 +132,23 @@ class SwitchOver(object):
             raise Exception(err_msg)
         LOG.info("Standby start by cms command success.")
 
+    def standby_cancel_iof(self):
+        """
+        recover 阵列正常状态，cantian拉起前需要用户手动执行命令进行iof
+            0： 取消iof
+            1： 设置iof
+        :return:
+        """
+        LOG.info("Standby cancel iof.")
+        cmd = "su -s /bin/bash - %s -c \"source ~/.bashrc && "\
+              "dbstor --set-ns-forbidden 0\"" % self.run_user
+        return_code, output, stderr = exec_popen(cmd, timeout=60)
+        if return_code:
+            err_msg = "Cantian start failed, error:%s." % output + stderr
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+        LOG.info("Standby cancel iof success.")
+
     def init_storage_opt(self):
         """
         从配置文件中读取参数，初始化操作，登录DM
@@ -295,9 +312,7 @@ class DRRecover(SwitchOver):
 
     def execute_replication_steps(self, running_status, pair_id):
         LOG.info("Execute replication steps. Singel_write: %s" % self.single_write)
-        if self.single_write == "0":
-            LOG.info("Single write is disabled, no need to execute replication steps.")
-        else:
+        if self.single_write == "1":
             if running_status != ReplicationRunningStatus.Synchronizing:
                 self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=pair_id,
                                                                         vstore_id="0",
@@ -313,6 +328,8 @@ class DRRecover(SwitchOver):
                 replication_progress = pair_info.get("REPLICATIONPROGRESS")
                 LOG.info(f"Page fs rep pair is synchronizing, current progress: {replication_progress}%, please wait...")
                 time.sleep(10)
+        else:
+            LOG.info("Single write is disabled, no need to execute replication steps.")
         self.repl_success_flag = True
         self.dr_deploy_opt.split_remote_replication_filesystem_pair(pair_id)
         self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(pair_id)
@@ -480,6 +497,7 @@ class DRRecover(SwitchOver):
             self.rep_pair_recover(self.meta_fs_pair_id)
         self.standby_logicrep_stop()
         time.sleep(10)
+        self.standby_cancel_iof()
         self.standby_cms_res_start()
         self.check_cluster_status()
         if self.repl_success_flag:
