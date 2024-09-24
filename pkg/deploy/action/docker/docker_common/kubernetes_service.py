@@ -40,17 +40,20 @@ class KubernetesService:
         with os.fdopen(key_fd, "wb") as key_file:
             key_file.write(client_key_data)
 
+        os.chmod(cert_file_path, 0o666)
+        os.chmod(key_file_path, 0o666)
+
         self.cert = (cert_file_path, key_file_path)
 
-    def _get(self, path):
+    def _get(self, path, timeout=5):
         url = f"{self.api_server}{path}"
-        response = requests.get(url, headers=self.headers, cert=self.cert, verify=False)
+        response = requests.get(url, headers=self.headers, cert=self.cert, verify=False, timeout=timeout)
         response.raise_for_status()
         return response.json()
 
-    def get_service_by_pod_name(self, pod_name):
-        services_data = self._get("/api/v1/services")
-        pods_data = self._get("/api/v1/pods")
+    def get_service_by_pod_name(self, pod_name, timeout=5):
+        services_data = self._get("/api/v1/services", timeout=timeout)
+        pods_data = self._get("/api/v1/pods", timeout=timeout)
 
         try:
             for service in services_data.get("items", []):
@@ -109,9 +112,9 @@ class KubernetesService:
 
         return pod_info
 
-    def get_all_pod_info(self):
-        services_data = self._get("/api/v1/services")
-        pods_data = self._get("/api/v1/pods")
+    def get_all_pod_info(self, timeout=5):
+        services_data = self._get("/api/v1/services", timeout=timeout)
+        pods_data = self._get("/api/v1/pods", timeout=timeout)
 
         all_pod_info = []
 
@@ -147,9 +150,9 @@ class KubernetesService:
     def get_pods(self):
         return self._get("/api/v1/pods")
 
-    def delete_pod(self, name, namespace):
+    def delete_pod(self, name, namespace, timeout=5):
         url = f"{self.api_server}/api/v1/namespaces/{namespace}/pods/{name}"
-        response = requests.delete(url, headers=self.headers, cert=self.cert, verify=False)
+        response = requests.delete(url, headers=self.headers, cert=self.cert, verify=False, timeout=timeout)
         response.raise_for_status()
         return response.json()
 

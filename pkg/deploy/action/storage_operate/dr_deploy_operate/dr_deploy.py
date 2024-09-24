@@ -1098,7 +1098,7 @@ class DRDeploy(object):
 
         dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
 
-        if self.deploy_mode == "combined":
+        if self.deploy_mode == "dbstor":
             chown_command = f'chown "{RUN_USER}":"{USER_GROUP}" "{dr_deploy_param_path}"'
             LOG.info(f"Executing command: {chown_command}")
             return_code, output, stderr = exec_popen(chown_command, timeout=30)

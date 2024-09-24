@@ -2363,7 +2363,7 @@ void rcy_preload_proc(thread_t *thread)
         knl_panic(ctrl->load_status == (uint8)BUF_NEED_LOAD);
 
         if (DB_IS_CLUSTER(session)) {
-            if (dtc_get_share_owner_pages(session, &ctrl, NULL, 1) != CT_SUCCESS) {
+            if (dtc_get_exclusive_owner_pages(session, &ctrl, NULL, 1) != CT_SUCCESS) {
                 rcy_update_preload_info(info, rcy, PRELOAD_BUFFER_PAGES);
                 buf_unlatch(session, ctrl, CT_TRUE);
                 continue;

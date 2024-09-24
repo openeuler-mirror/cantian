@@ -36,12 +36,12 @@ class DeclearEnv:
         :return:
             string: name of the user, such as root.
         """
-        run_user = self.get_run_user()
-        user_info = pwd.getpwnam(run_user)
         user_id = os.getuid()
         if user_id == self.root_id:
             return "root"
 
+        run_user = self.get_run_user()
+        user_info = pwd.getpwnam(run_user)
         if user_id == user_info.pw_uid:
             return run_user
 

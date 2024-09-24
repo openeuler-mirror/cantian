@@ -28,8 +28,6 @@
 
 #define TSE_MAX_MYSQL_INST_SIZE (128)
 #define TSE_MAX_PREFETCH_NUM (100)
-#define CTC_SIZE_UNIT (1024)
-#define CTC_MAX_SAMPLE_SIZE_LENGTH (6) // sample_size最大为4096M
 
 /*
  * lob text data struct
@@ -45,26 +43,6 @@ int32 sint3korr(uchar *A)
     return ((int32)(((A[2]) & 128)
                         ? (((uint32)255L << 24) | (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0]))
                         : (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0])));
-}
-
-EXTER_ATTACK int ctc_update_sample_size(uint32_t sample_size)
-{
-    config_item_t *item = NULL;
-    text_t parameter = {0};
-
-    parameter.str = "STATISTICS_SAMPLE_SIZE";
-    parameter.len = (uint32)strlen(parameter.str);
-    item = cm_get_config_item(GET_CONFIG, &parameter, CT_FALSE);
-
-    char value[CTC_MAX_SAMPLE_SIZE_LENGTH] = {0};
-    if (sprintf_s(value, CTC_MAX_SAMPLE_SIZE_LENGTH, "%d%s", sample_size, "M") == CT_ERROR) {
-        return CT_FALSE;
-    }
-    
-    CT_RETURN_IFERR(cm_update_statistics_sample_size_value(GET_CONFIG, item, value, (uint32)strlen(value)));
-    g_instance->kernel.attr.stats_sample_size = (uint64_t)sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
-    
-    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int tse_open_table(tianchi_handler_t *tch, const char *table_name, const char *user_name)
@@ -131,9 +109,9 @@ EXTER_ATTACK void tse_kill_session(tianchi_handler_t *tch)
         CM_ASSERT(0);
         return;
     }
+    tse_set_no_use_other_sess4thd(session);
     CT_LOG_DEBUG_INF("[TSE_KILL_SESSION]:conn_id=%u, tse_inst_id:%u, session_id=%u",
         tch->thd_id, tch->inst_id, session->knl_session.id);
-    tse_set_no_use_other_sess4thd(session);
     session->knl_session.canceled = CT_TRUE;
 }
 
@@ -1483,6 +1461,7 @@ int tse_check_partition_status(tianchi_handler_t *tch, knl_cursor_t **cursor,
     int ret;
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
     tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
@@ -2223,6 +2202,7 @@ int tse_free_session_cursors(tianchi_handler_t *tch, uint64_t *cursors, int32_t 
 {
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     tse_free_cursors(session, cursors, csize);
     return CT_SUCCESS;
 }
@@ -2360,6 +2340,7 @@ EXTER_ATTACK int tse_get_index_name(tianchi_handler_t *tch, char *index_name)
     TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "session lookup failed");
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     if (tse_context->dup_key_slot < 0 || tse_context->dup_key_slot >= CT_MAX_TABLE_INDEXES) {
         CT_LOG_RUN_ERR("tse_context->dup_key_slot(%u) is out of range.", tse_context->dup_key_slot);
         return CT_ERROR;
@@ -2378,6 +2359,7 @@ EXTER_ATTACK int tse_get_serial_value(tianchi_handler_t *tch, uint64_t *value, d
 {
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    tse_set_no_use_other_sess4thd(session);
     
     if (tch->ctx_addr == INVALID_VALUE64 || ((tse_context_t *)tch->ctx_addr) == NULL) {
         CT_LOG_RUN_ERR("ctx_addr(0x%llx) is invalid.", tch->ctx_addr);

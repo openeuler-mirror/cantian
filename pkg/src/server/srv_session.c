@@ -1096,7 +1096,7 @@ status_t srv_wait_all_session_be_killed(session_t *session)
             return CT_SUCCESS;
         }
 
-        if (cs_wait(session->pipe, CS_WAIT_FOR_READ, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
+        if (session->pipe != NULL && cs_wait(session->pipe, CS_WAIT_FOR_READ, CT_POLL_WAIT, &ready) != CT_SUCCESS) {
             CT_THROW_ERROR(ERR_IN_SHUTDOWN_CANCELED);
             return CT_ERROR;
         }

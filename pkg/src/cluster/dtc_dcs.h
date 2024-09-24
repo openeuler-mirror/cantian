@@ -284,7 +284,7 @@ EXTER_ATTACK status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info
     uint32 length);
 EXTER_ATTACK void dcs_process_page_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dcs_process_invld_req(void *sess, mes_message_t *msg);
-status_t dcs_try_get_page_share_owner(knl_session_t *session, buf_ctrl_t **ctrl_array, page_id_t *page_ids,
+status_t dcs_try_get_page_exclusive_owner(knl_session_t *session, buf_ctrl_t **ctrl_array, page_id_t *page_ids,
                                       uint32 count, uint8 master_id, uint32 *valid_count);
 EXTER_ATTACK void dcs_process_ddl_broadcast(void *sess, mes_message_t *msg);
 status_t dcs_claim_page_share_owners(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id);

@@ -479,7 +479,7 @@ config_item_t g_parameters[] = {
       sql_notify_als_max_connect_by_level, NULL, NULL },
     { "SHM_MEMORY_REDUCTION_RATIO", CT_TRUE, ATTR_NONE, "1", NULL, NULL, "-", "[1,8]", "CT_TYPE_INTEGER", NULL,
       PARAM_CANTIAN_CONTAINER_NUMS, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL,
-      NULL, NULL },
+      NULL, "CANTIAN_CONTAINER_NUMS" },
     { "BACKUP_BUFFER_SIZE", CT_TRUE, ATTR_NONE, "128M", NULL, NULL, "-", "[8M,512M]", "CT_TYPE_INTEGER", NULL,
       PARAM_BACKUP_BUFFER_SIZE, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_backup_buf_size,
       sql_notify_als_backup_buf_size, NULL, NULL },

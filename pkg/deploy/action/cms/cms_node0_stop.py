@@ -45,11 +45,19 @@ def stop_services():
     LOGGER.info("Stopping node0 cms services...")
     returncode, stdout, stderr = _exec_popen("rm -rf /opt/cantian/cms/cfg/cms_enable")
     if returncode != 0:
-        LOGGER.error(f"Error removing cms_enablep: {stderr}")
+        LOGGER.error(f"Error removing cms_enable: {stderr}")
 
     returncode, stdout, stderr = _exec_popen("kill -9 $(pidof cms)")
     if returncode != 0:
         LOGGER.error(f"Error stopping CMS process: {stderr}")
+
+
+def ping_kubernetes_service():
+    try:
+        subprocess.check_output(["timeout", "1", "ping", "-c", "1", "kubernetes.default.svc"], stderr=subprocess.STDOUT)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 
 def main():
@@ -57,23 +65,10 @@ def main():
     cantian_in_container = get_value('cantian_in_container')
 
     if node_id == "0" and cantian_in_container in ["1", "2"]:
-        sys.path.append('/ctdb/cantian_install/cantian_connector/action')
-        from docker.docker_common.kubernetes_service import KubernetesService
-
-        pod_name = os.getenv("HOSTNAME")
-        if not pod_name:
-            exit(1)
-
-        kube_config_path = os.path.expanduser("~/.kube/config")
-        k8s_service = KubernetesService(kube_config_path)
-        try:
-            service_name = k8s_service.get_service_by_pod_name(pod_name)
-        except Exception:
-            LOGGER.info(f"Error getting service name.")
-            service_name = None
-
-        if not service_name:
+        if not ping_kubernetes_service():
+            LOGGER.info("Kubernetes service is not reachable. Stopping cms services...")
             stop_services()
+            return
 
 
 if __name__ == "__main__":

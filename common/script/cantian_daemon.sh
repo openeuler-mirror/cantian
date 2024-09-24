@@ -127,27 +127,27 @@ do
     if [[ -z ${cms_start_pid} && -n ${cms_pid} && -n ${cantiand_pid} ]];then
         cgroup_add_pid ${cms_pid} ${CMS_CGROUP}
     fi
-    su -s /bin/bash - ctmgruser -c "sh /opt/cantian/action/ct_om/check_status.sh"
-    if [ $? -ne 0 ];then
-        logAndEchoInfo "[cantian daemon] ct_om is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        sh /opt/cantian/action/ct_om/appctl.sh start
-        logAndEchoInfo "[cantian daemon] start ct_om result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+
+    # 创建cantian_exporter cgroup
+    cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk 'NR==1 {print $2}')
+    if [ -z ${cantian_exporter_pid} ];then
+        logAndEchoInfo "[cantian daemon] cantian_exporter is check_status return 1, begin to start cantian_exporter. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        sh /opt/cantian/action/cantian_exporter/appctl.sh start
+        logAndEchoInfo "[cantian daemon] start cantian_exporter result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk 'NR==1 {print $2}')
+        memory_monitoring "${cantian_exporter_pid}" "${CGROUP_SIZE_MAP['cantian_exporter']}"
+        cgroup_add_pid ${cantian_exporter_pid} ${CANTIAN_EXPORTER_CGROUP}
     fi
     # 创建ctmgr cgroup
     ctmgr_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep | awk ' NR==1 {print $2}')
-    memory_monitoring "${ctmgr_pid}" "${CGROUP_SIZE_MAP['ctmgr']}"
-    cgroup_add_pid ${ctmgr_pid} ${CTMGR_CGROUP}
-
-    su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cantian_exporter/check_status.sh"
-    if [ $? -ne 0 ];then
-        logAndEchoInfo "[cantian daemon] cantian_exporter is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        sh /opt/cantian/action/cantian_exporter/appctl.sh start
-        logAndEchoInfo "[cantian daemon] start cantian_exporter result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    if [ -z ${ctmgr_pid} ];then
+        logAndEchoInfo "[cantian daemon] ct_om is check_status return 1, begin to start ct_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        sh /opt/cantian/action/ct_om/appctl.sh start
+        logAndEchoInfo "[cantian daemon] start ct_om result: $?. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        ctmgr_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/ctmgr/uds_server.py" | grep -v grep | awk ' NR==1 {print $2}')
+        memory_monitoring "${ctmgr_pid}" "${CGROUP_SIZE_MAP['ctmgr']}"
+        cgroup_add_pid ${ctmgr_pid} ${CTMGR_CGROUP}
     fi
-    # 创建cantian_exporter cgroup
-    cantian_exporter_pid=$(ps -ef | grep "python3 /opt/cantian/ct_om/service/cantian_exporter/exporter/execute.py" | grep -v grep | awk 'NR==1 {print $2}')
-    memory_monitoring "${cantian_exporter_pid}" "${CGROUP_SIZE_MAP['cantian_exporter']}"
-    cgroup_add_pid ${cantian_exporter_pid} ${CANTIAN_EXPORTER_CGROUP}
 
     # CCB结论：内存阈值主动故障倒换
     system_memory_used_percent

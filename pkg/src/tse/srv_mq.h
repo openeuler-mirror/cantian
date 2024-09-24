@@ -41,10 +41,11 @@ typedef struct tag_mq_cfg_s {
     uint32_t mysql_deploy_group_id;
 } mq_cfg_s;
 
-void init_cpu_info(void);
+int init_cpu_info(void);
 int mq_srv_init(void);
 int mq_srv_destory(void);
-
+int get_cpu_group_num(void);
+cpu_set_t* get_cpu_masks(void);
 void *get_upstream_shm_inst(void);
 mq_cfg_s* get_global_mq_cfg(void);
 char *get_global_mq_cpu_info(void);

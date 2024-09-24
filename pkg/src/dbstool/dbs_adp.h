@@ -53,3 +53,5 @@ int32 dbs_delete_path_or_file(int32 argc, char *argv[]);
 int32 dbs_query_file(int32 argc, char *argv[]);
 int32 dbs_ulog_export(int32 argc, char *argv[]);
 int32 dbs_page_export(int32 argc, char *argv[]);
+int32 dbs_set_link_timeout(int32 argc, char *argv[]);
+int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[]);

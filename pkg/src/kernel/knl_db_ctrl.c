@@ -803,7 +803,7 @@ status_t db_save_space_ctrl(knl_session_t *session, uint32 id)
     return CT_SUCCESS;
 }
 
-status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id)
+status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id, uint32 start_asn, uint32 end_asn)
 {
     ctrlfile_t *ctrlfile = NULL;
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
@@ -813,6 +813,8 @@ status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id)
     uint32 page_id = db->ctrl.arch_segment + pages_per_inst * node_id + id / count;
 
     cm_spin_lock(&db->ctrl_lock, NULL);
+    arch_set_arch_start(session, start_asn, node_id);
+    arch_set_arch_end(session, end_asn, node_id);
     db_store_core(db);
 
     for (uint32 i = 0; i < db->ctrlfiles.count; i++) {
@@ -833,15 +835,17 @@ status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id)
             cm_spin_unlock(&db->ctrl_lock);
             return CT_ERROR;
         }
-    }
 
-    cm_spin_unlock(&db->ctrl_lock);
-    if (session->kernel->attr.clustered) {
-        if (dtc_save_ctrl(session, node_id) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DB] failed to save ctrl for instance %u", session->kernel->id);
-            return CT_ERROR;
+        if (session->kernel->attr.clustered) {
+            if (db_save_ctrl_page(session, ctrlfile, CTRL_LOG_SEGMENT + node_id) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DB] failed to write %s ", ctrlfile->name);
+                cm_spin_unlock(&db->ctrl_lock);
+                CM_ABORT_REASONABLE(0, "[DB] ABORT INFO: save core control file failed");
+                return CT_ERROR;
+            }
         }
     }
+    cm_spin_unlock(&db->ctrl_lock);
     return CT_SUCCESS;
 }
 

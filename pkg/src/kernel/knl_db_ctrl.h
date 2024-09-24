@@ -48,7 +48,7 @@ status_t db_save_node_ctrl(knl_session_t *session);
 status_t db_save_log_ctrl(knl_session_t *session, uint32 id, uint32 node_id);
 status_t db_save_datafile_ctrl(knl_session_t *session, uint32 id);
 status_t db_save_space_ctrl(knl_session_t *session, uint32 id);
-status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id);
+status_t db_save_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id, uint32 start_asn, uint32 end_asn);
 status_t db_load_logfiles(knl_session_t *session);
 arch_ctrl_t *db_get_arch_ctrl(knl_session_t *session, uint32 id, uint32 node_id);
 void db_init_logfile_ctrl(knl_session_t *session, uint32 *offset);

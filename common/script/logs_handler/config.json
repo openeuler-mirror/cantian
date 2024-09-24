@@ -11,8 +11,21 @@
     "userandgroup": "deploy_user"
   },
 
-    {
+  {
+    "log_file_dir": "/opt/cantian/cms/dbstor/data/logs/bak/log-dsware_cms_0.log",
+    "max_log_vol": "80",
+    "userandgroup": "deploy_user"
+  },
+
+  {
     "log_file_dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/bak/log-dsware_cantiand_0.log",
+    "max_log_vol": "80",
+    "userandgroup": "deploy_user"
+  },
+
+
+  {
+    "log_file_dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/bak/log-dsware_mysqld_0.log",
     "max_log_vol": "80",
     "userandgroup": "deploy_user"
   },
