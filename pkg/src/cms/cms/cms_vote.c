@@ -329,6 +329,31 @@ static void cms_update_vote_info(void)
     }
 }
 
+void cms_k8s_delete_node0()
+{
+    CMS_LOG_INF("begin cms exec cms_node0_delete script");
+    const char* cmd = "echo 'script begin';timeout 2 python3 /opt/cantian/action/cms/cms_node0_stop.py;"
+                      "echo $?;echo 'script end\n';";
+
+    CMS_LOG_INF("proc cms exec res script. cmd=%s", cmd);
+    FILE* fp = popen(cmd, "r");
+    if (fp == NULL) {
+        CMS_LOG_WAR("popen failed, cmd=%s", cmd);
+        return;
+    }
+    char cmd_out[CMS_CMD_OUT_BUFFER_SIZE];
+    size_t size = 0;
+    size = fread(cmd_out, 1, CMS_MAX_CMD_OUT_LEN, fp);
+    (void)pclose(fp);
+
+    if (size == 0 || size >= sizeof(cmd_out)) {
+        CMS_LOG_ERR("fread failed, cmd=%s, size=%lu", cmd, size);
+        return;
+    }
+    CMS_LOG_INF("script %s, output %s", cmd, cmd_out);
+    CMS_LOG_INF("end cms exec cms_node0_delete script. cmd=%s", cmd);
+}
+
 status_t cms_start_new_voting(void)
 {
     vote_result_ctx_t *vote_result = &g_vote_ctx->vote_result;
@@ -355,6 +380,10 @@ status_t cms_start_new_voting(void)
     CMS_RETRY_IF_ERR(cms_set_vote_data(g_cms_param->node_id, CMS_VOTE_TRIGGER_ROUND,
         (char *)&g_vote_ctx->vote_data.vote_round, sizeof(uint64_t), CT_INVALID_ID64));
     CMS_LOG_INF("cms set new trigger round succeed");
+    if (0 == g_cms_param->node_id) {
+        CMS_LOG_INF("cms detect node 0 k8s status before voting");
+        cms_k8s_delete_node0();
+    }
     g_vote_ctx->vote_data.vote_time = cm_now();
     char vote_time[32];
     cms_date2str(g_vote_ctx->vote_data.vote_time, vote_time, sizeof(vote_time));
