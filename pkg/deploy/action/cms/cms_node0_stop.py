@@ -66,7 +66,11 @@ def main():
 
         kube_config_path = os.path.expanduser("~/.kube/config")
         k8s_service = KubernetesService(kube_config_path)
-        service_name = k8s_service.get_service_by_pod_name(pod_name)
+        try:
+            service_name = k8s_service.get_service_by_pod_name(pod_name)
+        except Exception:
+            LOGGER.info(f"Error getting service name.")
+            service_name = None
 
         if not service_name:
             stop_services()
