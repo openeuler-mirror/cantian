@@ -103,33 +103,33 @@ void mq_sub_client_upstream_msg_cnt(int client_id)
 
 mq_cfg_s g_mq_cfg = {0};
 mem_class_cfg_t g_mem_class_cfg[MEM_CLASS_NUM] = {
-    {4,      960},
-    {8,      780},
-    {24,     500},
-    {40,     8000},
-    {48,     9700},
-    {56,     10000},
-    {64,     20000},
-    {128,    8192},
-    {256,    20000},
-    {296,    400},
-    {312,    400},
-    {512,    400},
-    {1024,   400},
-    {2048,   400},
-    {4096,   400},
-    {8192,   400},
-    {40960,  8192},
-    {41008,  400},
-    {41144,  400},
-    {49200,  400},
-    {65536,  12000},
-    {66632,  20175},
-    {82224,  400},
-    {102400, 2000},
-    {204800, 1000},
-    {491520, 1000},
-    {8200000, 100},
+    {8,       16000},
+    {16,      16000},
+    {32,      16000},
+    {40,      16000},
+    {48,      16000},
+    {56,      16000},
+    {64,      16000},
+    {128,     16000},
+    {256,     16000},
+    {384,     8000},
+    {512,     400},
+    {1024,    400},
+    {2048,    400},
+    {4096,    400},
+    {8192,    400},
+    {12288,   1600},
+    {16384,   1200},
+    {40960,   4000},
+    {65536,   14000},
+    {66632,   20000},
+    {82224,   1000},
+    {102400,  800},
+    {204800,  800},
+    {491520,  800},
+    {1048576, 40},
+    {2097152, 100},
+    {4194304, 200},
 };
 
 uint32_t g_support_ctc_client[] = {
@@ -226,11 +226,20 @@ char tse_cpu_info_str[CPU_INFO_STR_SIZE];
 char mysql_cpu_info_str[CPU_INFO_STR_SIZE];
 
 int tse_cpu_info[SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE];
-int tse_cpu_group_num = 0;
+int g_cpu_group_num = 0;
 int mysql_cpu_info[MAX_SHM_PROC][SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE];
 int mysql_cpu_group_num[MAX_SHM_PROC];
-
 cpu_set_t g_masks[SHM_SEG_MAX_NUM];
+
+int get_cpu_group_num(void)
+{
+    return g_cpu_group_num;
+}
+
+cpu_set_t* get_cpu_masks(void)
+{
+    return g_masks;
+}
 
 static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SHM_SEG_MAX_NUM][SMALL_RECORD_SIZE])
 {
@@ -272,7 +281,7 @@ static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SH
 
 static void set_cpu_mask(void)
 {
-    for (int i = 0; i < tse_cpu_group_num; i++) {
+    for (int i = 0; i < g_cpu_group_num; i++) {
         cpu_set_t mask;
         CPU_ZERO(&mask);
         for (int j = 0; j < SMALL_RECORD_SIZE; j++) {
@@ -451,21 +460,22 @@ int create_mq_shm_file(void)
             continue;
         }
 
-        if (mq_srv_start(g_shm_segs[i], (tse_cpu_group_num == 0) ? NULL : &g_masks[i % tse_cpu_group_num]) != 0) {
+        if (mq_srv_start(g_shm_segs[i], (g_cpu_group_num == 0) ? NULL : &g_masks[i % g_cpu_group_num]) != 0) {
             return -1;
         }
     }
     return 0;
 }
 
-void init_cpu_info()
+int init_cpu_info(void)
 {
-    if (init_cpu_mask(tse_cpu_info_str, &tse_cpu_group_num, tse_cpu_info) != 0) {
-        tse_cpu_group_num = 0;
-        CT_LOG_RUN_ERR("cpu group init error!");
+    if (init_cpu_mask(tse_cpu_info_str, &g_cpu_group_num, tse_cpu_info) != 0 || g_cpu_group_num == 0) {
+        CT_LOG_RUN_ERR("g_cpu_group_num init error, g_cpu_group_num is %d", g_cpu_group_num);
+        return CT_ERROR;
     }
     init_mysql_cpu_info();
     set_cpu_mask();
+    return CT_SUCCESS;
 }
 
 int mq_srv_init(void)
@@ -1337,12 +1347,6 @@ EXTER_ATTACK int tse_mq_register_instance(dsw_message_block_t *message_block)
     return CT_SUCCESS;
 }
 
-EXTER_ATTACK int ctc_mq_update_sample_size(dsw_message_block_t *message_block)
-{
-    uint32_t *req = message_block->seg_buf[0];
-    return ctc_update_sample_size(*req);
-}
-
 struct mq_recv_msg_node {
     enum TSE_FUNC_TYPE func_type;
     int (*deal_msg)(dsw_message_block_t *message_block);
@@ -1356,7 +1360,6 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_UPDATE_JOB,                    tse_mq_update_job},
     {TSE_FUNC_TYPE_WRITE_THROUGH_ROW,             tse_mq_write_through_row},
     {TSE_FUNC_TYPE_UPDATE_ROW,                    tse_mq_update_row},
-    {CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,            ctc_mq_update_sample_size},
     {TSE_FUNC_TYPE_DELETE_ROW,                    tse_mq_delete_row},
     {TSE_FUNC_TYPE_RND_INIT,                      tse_mq_rnd_init},
     {TSE_FUNC_TYPE_RND_END,                       tse_mq_rnd_end},

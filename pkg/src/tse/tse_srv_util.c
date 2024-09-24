@@ -40,10 +40,6 @@
 #define INT24_MAX  (8388607)
 #define INT24_MIN  (-8388608)
 
-
-extern int tse_cpu_group_num;
-extern cpu_set_t g_masks[SHM_SEG_MAX_NUM];
-
 void tse_calc_max_serial_value_integer(knl_column_t *knl_column, uint64_t *limit_value)
 {
     switch (knl_column->size) {
@@ -524,16 +520,9 @@ status_t tse_get_new_session(session_t **session_ptr)
     tse_new_session_init(session);
     *session_ptr = session;
     CT_LOG_DEBUG_INF("[TSE_ALLOC_SESS]:tse_get_new_sess session_id:%u", session->knl_session.id);
-
 #ifdef WITH_DAAC
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    int hash_seed = session->knl_session.id % SHM_SEG_MAX_NUM;
-    CT_LOG_DEBUG_INF("[TSE_ALLOC_SESS]:tse_get_new_sess hash_seed_id:%d", hash_seed);
-    mask = g_masks[hash_seed % tse_cpu_group_num];
-    pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+    knl_attach_cpu_core();
 #endif
-
     return CT_SUCCESS;
 }
 
@@ -565,6 +554,7 @@ int tse_get_or_new_session(session_t **session, tianchi_handler_t *tch,
     if (need_init) {
         return init_ddl_session(*session);
     }
+    tse_set_no_use_other_sess4thd(*session);
 
     return CT_SUCCESS;
 }
@@ -1084,28 +1074,30 @@ bool check_column_field_is_null(knl_cursor_t *cursor, uint16_t col)
     return (null_bit == COL_BITS_NULL);
 }
 
-cond_pushdown_result_t update_cond_field_col(knl_cursor_t *cursor, uint16_t *cond_col, bool *col_updated)
+cond_pushdown_result_t update_cond_field_col(knl_cursor_t *cursor, tse_cond_field *field_info)
 {
-    if (*col_updated == true) {
+    if (field_info->col_updated == true || field_info->index_only_invalid_col) {
         return CPR_TRUE;
     }
     
     index_t *index = (index_t *)cursor->index;
     if (cursor->index != NULL && cursor->index_only) {
+        field_info->index_only_invalid_col = true;
         uint32 column_count = ((index_t *)cursor->index)->desc.column_count;
         if (column_count > CT_MAX_INDEX_COLUMNS) {
             CT_LOG_RUN_ERR("update_cond_field_col: column_count exceeds the max");
             return CPR_ERROR;
         }
         for (uint32_t i = 0; i < column_count; i++) {
-            if (index->desc.columns[i] == *cond_col) {
-                *cond_col = i;
+            if (index->desc.columns[i] == field_info->field_no) {
+                field_info->field_no = i;
+                field_info->index_only_invalid_col = false;
                 break;
             }
         }
     }
     
-    *col_updated = true;
+    field_info->col_updated = true;
     return CPR_TRUE;
 }
     
@@ -1337,14 +1329,17 @@ cond_pushdown_result_t check_cond_match_one_line(tse_conds *cond, knl_cursor_t *
         case TSE_LE_FUNC:
         case TSE_GE_FUNC:
         case TSE_GT_FUNC:
-            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info.field_no, &cond->field_info.col_updated));
+            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
+            TSE_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
             return compare_cond_field_value(cond, cursor);
         case TSE_ISNULL_FUNC:
         case TSE_ISNOTNULL_FUNC:
-            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info.field_no, &cond->field_info.col_updated));
+            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
+            TSE_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
             return compare_cond_field_null(cond, cursor);
         case TSE_LIKE_FUNC:
-            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info.field_no, &cond->field_info.col_updated));
+            TSE_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
+            TSE_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
             return compare_cond_field_like(cond, cursor, charset_id);
         case TSE_UNKNOWN_FUNC:
         default:

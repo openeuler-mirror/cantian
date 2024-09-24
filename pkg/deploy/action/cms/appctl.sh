@@ -508,11 +508,15 @@ function update_cms_config() {
 }
 
 function update_cms_gcc_file() {
-    echo "update the cms gcc file in share fs"
-    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]] || [[ x"${deploy_mode_backup}" == x"dbstor" ]]; then
-        return 0
+    if [[ x"${deploy_mode_backup}" == x"dbstore" ]]; then
+        echo "update the cms gcc file in share fs"
+        node_id=$(python3 "${CURRENT_PATH}"/get_config_info.py "node_id")
+        # cms非去NAS升级到cms去NAS,清空gcc_home后使用cms命令创建gcc_home
+        if [[ "${node_id}" == "0" ]];then
+            rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/gcc_home > /dev/null 2>&1
+        fi
+        su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
     fi
-    su -s /bin/bash - ${cantian_user} -c "sh ${CURRENT_PATH}/start_cms.sh -P install_cms"
 }
 
 function safety_upgrade()

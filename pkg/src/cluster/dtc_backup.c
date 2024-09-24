@@ -1631,9 +1631,8 @@ status_t dtc_rst_arch_record_archinfo(knl_session_t *session, uint32 dest_pos, c
             rst_arch_init_proc_ctx(proc_ctx, arch_ctrl);
         }
     }
-    arch_set_arch_end(session, end_pos, inst_id);
 
-    if (db_save_arch_ctrl(session, id, inst_id) != CT_SUCCESS) {
+    if (db_save_arch_ctrl(session, id, inst_id, archived_start, end_pos) != CT_SUCCESS) {
         cm_spin_unlock(&proc_ctx->record_lock);
         CM_ABORT(0, "[ARCH] ABORT INFO: save core control file failed when record archive info");
         return CT_ERROR;

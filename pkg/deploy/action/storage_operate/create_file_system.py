@@ -237,18 +237,13 @@ class CreateFS(object):
 
     def _check_vstore_id(self):
         deploy_info = json.loads(read_helper(DEPLOY_PARAM_PATH))
-        deploy_info_vstore_id = deploy_info.get("vstore_id")
         deploy_info_dbstore_fs_vstore_id = deploy_info.get("dbstore_fs_vstore_id")
-        fs_info_share_vstore_id = self.fs_info.get("storage_share_fs").get("vstoreId")
         fs_info_dbstore_fs_vstore_id = self.fs_info.get("storage_dbstore_fs").get("vstoreId")
-        if int(deploy_info_vstore_id) != int(fs_info_share_vstore_id) or \
-                int(deploy_info_dbstore_fs_vstore_id) != int(fs_info_dbstore_fs_vstore_id):
-            err_msg = "dbstore_fs_vstore_id or vstore_id of config_params.json is " \
-                      "different from file_system_info.json,details:vstore_id:(%s, %s)," \
-                      " dbstore_fs_vstore_id:(%s, %s)" % (deploy_info_vstore_id,
-                                                          deploy_info_dbstore_fs_vstore_id,
-                                                          fs_info_share_vstore_id,
-                                                          fs_info_dbstore_fs_vstore_id)
+        if int(deploy_info_dbstore_fs_vstore_id) != int(fs_info_dbstore_fs_vstore_id):
+            err_msg = "dbstore_fs_vstore_id  of config_params.json is " \
+                      "different from file_system_info.json,details:" \
+                      " dbstore_fs_vstore_id:(%s, %s)" % (fs_info_dbstore_fs_vstore_id,
+                                                          deploy_info_dbstore_fs_vstore_id)
             LOG.error(err_msg)
             raise Exception(err_msg)
 

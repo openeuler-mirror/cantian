@@ -51,8 +51,8 @@ extern "C" {
 #define STATS_HISTGRAM_MAX_SIZE 254
 #define SMALL_RECORD_SIZE 128  // 表名、库名等长度不会特别大，取128
 #define ERROR_MESSAGE_LEN 512
-#define MAX_DDL_SQL_LEN_CONTEXT (129024)  // 126kb, 预留2kb
-#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过128kb, 超过了会报错
+#define MAX_DDL_SQL_LEN_CONTEXT (63488)  //  62kb, 预留2kb
+#define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过64kb, 超过了会报错
 #define DD_BROADCAST_RECORD_LENGTH (3072)
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)
@@ -71,7 +71,7 @@ extern "C" {
 #define IS_TSE_PART(part_id) ((part_id) < (PART_CURSOR_NUM))
 #define MAX_BULK_INSERT_PART_ROWS 128
 #define SESSION_CURSOR_NUM (8192 * 2)
-#define MAX_MESSAGE_SIZE 8200000  // 共享内存最大可申请空间大小
+#define MAX_MESSAGE_SIZE 4194304  // 共享内存最大可申请空间大小
 
 // for broadcast_req.options
 #define TSE_SET_VARIABLE_PERSIST (0x1 << 8)
@@ -297,7 +297,6 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_UPDATE_JOB,
     TSE_FUNC_TYPE_WRITE_THROUGH_ROW,
     TSE_FUNC_TYPE_UPDATE_ROW,
-    CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,
     TSE_FUNC_TYPE_DELETE_ROW,
     TSE_FUNC_TYPE_RND_INIT,
     TSE_FUNC_TYPE_RND_END,
@@ -488,6 +487,7 @@ typedef struct en_tse_cond_field_t {
     bool null_value;
     uint32_t collate_id;
     bool col_updated;
+    bool index_only_invalid_col; // col in cond but not in index while select with index_only
     bool no_backslash;
 } tse_cond_field;
 
@@ -528,8 +528,6 @@ typedef struct {
     uint32_t part_id;
     uint32_t subpart_id;
 } ctc_part_t;
-
-int ctc_update_sample_size(uint32_t sample_size);
 
 /* General Control Interface */
 int srv_wait_instance_startuped(void);

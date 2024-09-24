@@ -68,26 +68,6 @@ void dbs_link_down_exit(void)
     CM_ABORT_REASONABLE(0, "[DBSTOR] All links are disconnected, the process exit.");
 }
 
-status_t knl_init_dbs_client(knl_instance_t *ctx)
-{
-    cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
-    if (!cfg->enable) {
-        CT_LOG_RUN_INF("dbstore is not enabled");
-        return CT_SUCCESS;
-    }
-    knl_session_t *session = ctx->sessions[SESSION_ID_KERNEL];
-    const char* uuid = get_config_uuid(session->kernel->id);
-    uint32 lsid = get_config_lsid(session->kernel->id);
-    cm_set_dbs_uuid_lsid(uuid, lsid);
-    if (cm_dbs_init(ctx->home, DBS_CONFIG_NAME, DBS_RUN_CANTIAND_SERVER) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("DBSTOR: init failed.");
-        return CT_ERROR;
-    }
-    dbs_global_handle()->dbs_link_down_event_reg(dbs_link_down_exit);
-    cms_set_recv_timeout();
-    return CT_SUCCESS;
-}
-
 status_t knl_startup(knl_handle_t kernel)
 {
     knl_instance_t *ctx = (knl_instance_t *)kernel;
@@ -129,6 +109,7 @@ status_t knl_startup(knl_handle_t kernel)
                 CT_LOG_RUN_INF("DBSTOR: init failed.");
                 return CT_ERROR;
             }
+            dbs_global_handle()->dbs_link_down_event_reg(dbs_link_down_exit);
             while (CT_TRUE) {
                 if (g_local_set_disaster_cluster_role) {
                     g_local_set_disaster_cluster_role = CT_FALSE;

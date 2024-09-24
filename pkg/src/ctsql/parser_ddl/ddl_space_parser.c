@@ -652,7 +652,7 @@ static status_t sql_parse_rename_clause(sql_stmt_t *stmt, word_t *word, knl_alts
 
         CT_RETURN_IFERR(sql_copy_object_name(stmt->context, word->type, (text_t *)&word->text, &def->rename_space));
         if (cm_text_equal(&def->name, &def->rename_space)) {
-            CT_THROW_ERROR(ERR_SPACE_NAME_INVALID);
+            CT_THROW_ERROR(ERR_SPACE_NAME_INVALID, "the same name already exists");
             return CT_ERROR;
         }
 

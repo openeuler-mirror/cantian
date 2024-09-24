@@ -53,6 +53,7 @@ typedef struct {
 typedef int (*create_namespace_t)(char *, NameSpaceAttr *);
 typedef int (*open_namespace_t)(char *, NameSpaceAttr *);
 typedef int (*set_term_access_mode_for_ns_t)(char *, TermAccessAttr *);
+typedef int (*dbs_ns_io_forbidden_t)(char *, bool);
 
 // dbs
 typedef int (*dbs_client_set_uuid_lsid_t)(const char *, uint32_t);
@@ -66,7 +67,7 @@ typedef int (*dbs_inst_lock_t)(uint32_t, uint32_t);
 typedef int (*dbs_inst_unlock_t)(uint32_t, uint32_t);
 typedef int (*dbs_inst_unlock_force_t)(uint32_t, uint32_t);
 typedef bool (*dbs_check_inst_heart_beat_is_normal_t)(uint32_t);
-typedef int (*dbs_file_open_root_t)(char *, object_id_t *);
+typedef int (*dbs_file_open_root_t)(char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_create_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_open_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_write_t)(object_id_t *, uint64_t, char *, uint32_t);
@@ -114,7 +115,7 @@ typedef struct st_dbs_interface {
     create_namespace_t   create_namespace;
     open_namespace_t open_namespace;
     set_term_access_mode_for_ns_t set_term_access_mode_for_ns;
-
+    dbs_ns_io_forbidden_t dbs_ns_io_forbidden;
     // dbs
     dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
     dbs_client_lib_init_t dbs_client_lib_init;

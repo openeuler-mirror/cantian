@@ -195,7 +195,7 @@ status_t cm_get_dbs_root_dir_handle(char* fs_name, object_id_t* root_handle)
     }
 
     // 先尝试打开再创建根目录
-    ret = dbs_global_handle()->dbs_file_open_root(fs_name, root_handle);
+    ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, root_handle);
     if (ret != 0) {
         CT_LOG_RUN_ERR("Failed(%d) open fs (%s) root dir.", ret, fs_name);
         return CT_ERROR;

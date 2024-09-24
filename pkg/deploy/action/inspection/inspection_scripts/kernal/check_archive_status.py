@@ -32,6 +32,7 @@ class CheckArchiveStatus(BaseItem):
         self.db_type = 0
         self.archive_ip = ""
         self.archive_fs = ""
+        self.deploy_mode = ""
 
     def check_config(self):
         values = {}
@@ -48,6 +49,13 @@ class CheckArchiveStatus(BaseItem):
         self.result.rst = ResultStatus.OK
         self.result.val = json.dumps(values)
         if not self.check_config():
+            return
+        if self.deploy_mode == "dbstor":
+            self.result.rst = ResultStatus.NG
+            values["result"] = "Deploy mode is %s, please check whether the "\
+                               "remaining capacity of the file system meets "\
+                               "the requirements by self." % self.deploy_mode
+            self.result.val = json.dumps(values)
             return
 
         cmd = "ping %s -i 1 -c 3 |grep ttl |wc -l" % self.archive_ip
@@ -118,6 +126,7 @@ if __name__ == '__main__':
         archive_object.db_type = json_data.get("db_type", 0)
         archive_object.archive_ip = json_data.get("archive_logic_ip", "")
         archive_object.archive_fs = json_data.get("storage_archive_fs", "")
+        archive_object.deploy_mode = json_data.get("deploy_mode", "")
         unit_str = re.compile("[A-z]").findall(archive_object.max_archive_size_str)[0]
         number_str = re.sub("[A-z]", "", archive_object.max_archive_size_str)
         if UNIT_CONVERSION_MAP.get(unit_str, 0) != 0:

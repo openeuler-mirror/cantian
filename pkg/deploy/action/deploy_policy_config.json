@@ -13,7 +13,7 @@
         "single_process": "0",
         "config": {
             "cantian_in_container": "0",
-            "mysql_in_container": "0",
+            "mysql_in_container": "1",
             "deploy_mode": "combined",
             "mysql_metadata_in_cantian": true
         }
@@ -39,9 +39,9 @@
     "ModeE": {
         "single_process": "1",
         "config": {
-            "cantian_in_container": "2",
+            "cantian_in_container": "1",
             "mysql_in_container": "1",
-            "deploy_mode": "dbstor",
+            "deploy_mode": "combined",
             "mysql_metadata_in_cantian": true
         }
     }
