@@ -73,6 +73,7 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreateNameSpace",                (void **)(&intf->create_namespace)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "OpenNameSpace",                  (void **)(&intf->open_namespace)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "SetTermAccessModeForNs",         (void **)(&intf->set_term_access_mode_for_ns)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsNsIoForbidden",               (void **)(&intf->dbs_ns_io_forbidden)));
 
     // dbs
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientSetUuidLsid",           (void **)(&intf->dbs_client_set_uuid_lsid)));
