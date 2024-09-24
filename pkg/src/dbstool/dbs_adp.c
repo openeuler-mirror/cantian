@@ -1766,3 +1766,37 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
     printf("Set ns forbidden success.\n");
     return ret;
 }
+
+// dbstor --dbs-link-check
+int32 dbs_link_check(int32 argc, char *argv[])
+{
+    dbs_ip_pairs *ip_pairs = (dbs_ip_pairs *)malloc(DBS_MAX_LINK_NUMS * sizeof(dbs_ip_pairs));
+    if (ip_pairs == NULL) {
+        printf("Malloc ip pairs failed.\n");
+        return CT_ERROR;
+    }
+    uint32 link_num = 0;
+    status_t ret = dbs_global_handle()->dbs_get_ip_pairs(ip_pairs, &link_num);
+    if (ret != CT_SUCCESS) {
+        free(ip_pairs);
+        printf("Dbs get ip pairs failed(%d).\n", ret);
+        return ret;
+    }
+
+    printf("%-24s %-24s %-12s\n", "local_ip", "remote_ip", "link_state");
+    uint32 link_state = 0;
+    for (uint32 i = 0; i < link_num; i++) {
+        (void)dbs_global_handle()->dbs_check_single_link(ip_pairs[i].local_ip, ip_pairs[i].remote_ip, &link_state);
+        printf("%-24s %-24s %-12u\n", ip_pairs[i].local_ip, ip_pairs[i].remote_ip, link_state);
+    }
+    printf("\nNotice:\n");
+    printf("CGW_LINK_STATE_CONNECT_OK   = 0\n");
+    printf("CGW_LINK_STATE_CONNECTING   = 1\n");
+    printf("CGW_LINK_STATE_CONNECT_FAIL = 2\n");
+    printf("CGW_LINK_STATE_AUTH_FAIL    = 3\n");
+    printf("CGW_LINK_STATE_REJECT_AUTH  = 4\n");
+    printf("CGW_LINK_STATE_OVER_SIZE    = 5\n");
+    printf("CGW_LINK_STATE_LSID_EXIT    = 6\n");
+    free(ip_pairs);
+    return CT_SUCCESS;
+}

@@ -74,6 +74,10 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "OpenNameSpace",                  (void **)(&intf->open_namespace)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "SetTermAccessModeForNs",         (void **)(&intf->set_term_access_mode_for_ns)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsNsIoForbidden",               (void **)(&intf->dbs_ns_io_forbidden)));
+    (void)dbs_load_symbol(intf->dbs_handle, "DbsGetIpPairs", (void **)(&intf->dbs_get_ip_pairs));
+    (void)dbs_load_symbol(intf->dbs_handle, "DbsCreateLink", (void **)(&intf->dbs_create_link));
+    (void)dbs_load_symbol(intf->dbs_handle, "DbsCheckSingleLink", (void **)(&intf->dbs_check_single_link));
+    cm_reset_error();
 
     // dbs
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClientSetUuidLsid",           (void **)(&intf->dbs_client_set_uuid_lsid)));
