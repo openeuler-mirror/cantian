@@ -72,7 +72,7 @@ static inline void dtc_read_init(buf_read_assist_t *ra, page_id_t page_id, latch
 }
 
 status_t dtc_read_page(knl_session_t *session, buf_read_assist_t *ra);
-status_t dtc_get_share_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count);
+status_t dtc_get_exclusive_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count);
 
 bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id);
 bool32 dtc_dls_readable(knl_session_t *session, drid_t *lock_id);

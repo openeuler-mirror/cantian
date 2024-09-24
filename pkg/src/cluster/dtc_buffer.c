@@ -231,7 +231,7 @@ status_t dtc_read_page(knl_session_t *session, buf_read_assist_t *ra)
     return dtc_buf_finish(session, ra, ctrl, &temp_stat);
 }
 
-status_t dtc_get_share_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count)
+status_t dtc_get_exclusive_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_array, buf_ctrl_t *ctrl, uint32 count)
 {
     uint32 i;
     uint8 master_id = CT_INVALID_ID8;
@@ -266,7 +266,7 @@ status_t dtc_get_share_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl_arr
     }
 
     if (valid_count > 0) {
-        (void)dcs_try_get_page_share_owner(session, ctrl_array, page_ids, count, master_id, &valid_count);
+        (void)dcs_try_get_page_exclusive_owner(session, ctrl_array, page_ids, count, master_id, &valid_count);
     }
 
     for (i = 0; i < count; i++) {
