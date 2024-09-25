@@ -1098,7 +1098,7 @@ static status_t buf_batch_load_pages(knl_session_t *session, char *read_buf, buf
     }
 
     if (DB_IS_CLUSTER(session)) {
-        if (dtc_get_share_owner_pages(session, ctrl_array, ctrl, count) != CT_SUCCESS) {
+        if (dtc_get_exclusive_owner_pages(session, ctrl_array, ctrl, count) != CT_SUCCESS) {
             cm_pop(session->stack);
             CT_LOG_RUN_ERR("[BUFFER][%u-%u][dtc get owner pages] failed", ctrl->page_id.file, ctrl->page_id.page);
             return CT_ERROR;

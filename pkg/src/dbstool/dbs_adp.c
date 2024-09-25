@@ -1748,3 +1748,21 @@ int32 dbs_set_link_timeout(int32 argc, char *argv[])
     printf("Set link timeout success.\n");
     return ret;
 }
+
+// dbstor --set-ns-forbidden <0, 1>
+int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
+{
+    if (argc != NUM_THREE) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("Usage: dbstor --set-ns-forbidden <0, 1>t\n");
+        return CT_ERROR;
+    }
+    bool isForbidden = (bool)atoi(argv[NUM_TWO]);
+    status_t ret = dbs_global_handle()->dbs_ns_io_forbidden(g_dbs_fs_info.cluster_name, isForbidden);
+    if (ret != CT_SUCCESS) {
+        printf("Set ns forbidden failed(%d).\n", ret);
+        return ret;
+    }
+    printf("Set ns forbidden success.\n");
+    return ret;
+}

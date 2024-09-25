@@ -128,6 +128,9 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--set-link-timeout", "*[PARAM]"}, dbs_set_link_timeout,
         "\tUsage: set link timeout period, restart to take effect.\n"
         "\tparams: link-timeout"},
+    {{"--set-ns-forbidden", "*[PARAM]"}, dbs_set_ns_io_forbidden,
+        "\tUsage: set ns io forbidden.\n"
+        "\tparams: <0,1>"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])

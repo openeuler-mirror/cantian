@@ -1130,7 +1130,7 @@ void dcs_process_try_ask_master_for_page(void *sess, mes_message_t * receive_msg
     drc_req_info_t req_info;
     req_info.inst_id = page_req->head.src_inst;
     req_info.inst_sid = page_req->head.src_sid;
-    req_info.req_mode = DRC_LOCK_SHARE;
+    req_info.req_mode = DRC_LOCK_EXCLUSIVE;
     req_info.curr_mode = DRC_LOCK_NULL;
     req_info.rsn = page_req->head.rsn;
     req_info.req_time = page_req->head.req_start_time;
@@ -1344,7 +1344,7 @@ void dcs_process_claim_ownership_req_batch(void *sess, mes_message_t *receive_ms
         }
 
         DRC_SET_CLAIM_INFO(&claim_info, request->head.src_inst, request->head.src_sid, request->page_ids[i], CT_FALSE,
-                           DRC_LOCK_SHARE, 0);
+                           DRC_LOCK_EXCLUSIVE, 0);
 
         dcs_claim_ownership_internal(session, &claim_info, req_version);
     }
@@ -1507,7 +1507,7 @@ static status_t dcs_try_get_page_share_owner_l(knl_session_t *session, drc_req_i
     return CT_SUCCESS;
 }
 
-status_t dcs_try_get_page_share_owner(knl_session_t *session, buf_ctrl_t **ctrl_array, page_id_t *page_ids,
+status_t dcs_try_get_page_exclusive_owner(knl_session_t *session, buf_ctrl_t **ctrl_array, page_id_t *page_ids,
                                       uint32 count, uint8 master_id, uint32 *valid_count)
 {
     drc_req_owner_result_t *result = (drc_req_owner_result_t *)cm_push(session->stack,
@@ -1542,7 +1542,7 @@ status_t dcs_try_get_page_share_owner(knl_session_t *session, buf_ctrl_t **ctrl_
         drc_req_info_t req_info;
         req_info.inst_id = DCS_SELF_INSTID(session);
         req_info.inst_sid = session->id;
-        req_info.req_mode = DRC_LOCK_SHARE;
+        req_info.req_mode = DRC_LOCK_EXCLUSIVE;
         req_info.curr_mode = DRC_LOCK_NULL;
         req_info.rsn = CT_INVALID_ID32;
         req_info.req_time = KNL_NOW(session);
@@ -1605,7 +1605,7 @@ status_t dcs_try_get_page_share_owner(knl_session_t *session, buf_ctrl_t **ctrl_
     return ret;
 }
 
-status_t dcs_claim_page_share_owners_r(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id)
+status_t dcs_claim_page_exclusive_owners_r(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id)
 {
     status_t ret;
     uint64 req_version = DRC_GET_CURR_REFORM_VERSION;
@@ -1647,18 +1647,18 @@ status_t dcs_claim_page_share_owners(knl_session_t *session, page_id_t *page_ids
             pos += iret_snprintf;
         }
     }
-    DTC_DCS_DEBUG_INF("[DCS][try to claim share page owner for pages]: %s", msg);
+    DTC_DCS_DEBUG_INF("[DCS][try to claim exclusive page owner for pages]: %s", msg);
 #endif
     if (master_id == DCS_SELF_INSTID(session)) {
         for (uint32 i = 0; i < count; i++) {
             if (IS_INVALID_PAGID(page_ids[i])) {
                 continue;
             }
-            (void)dcs_claim_ownership_l(session, page_ids[i], DRC_LOCK_SHARE, CT_FALSE, 0, req_version);
+            (void)dcs_claim_ownership_l(session, page_ids[i], DRC_LOCK_EXCLUSIVE, CT_FALSE, 0, req_version);
         }
     } else {
         knl_panic(master_id != CT_INVALID_ID8);
-        ret = dcs_claim_page_share_owners_r(session, page_ids, count, master_id);
+        ret = dcs_claim_page_exclusive_owners_r(session, page_ids, count, master_id);
     }
 
     return ret;
