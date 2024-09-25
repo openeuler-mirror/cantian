@@ -131,6 +131,7 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--set-ns-forbidden", "*[PARAM]"}, dbs_set_ns_io_forbidden,
         "\tUsage: set ns io forbidden.\n"
         "\tparams: <0,1>"},
+    {{"--dbs-link-check"}, dbs_link_check, "\tUsage: dbstor link check.\n"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])
