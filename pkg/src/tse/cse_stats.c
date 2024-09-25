@@ -43,7 +43,6 @@ io_record_event_desc_t g_tse_io_record_event_desc[TSE_FUNC_TYPE_NUMBER] = {
     {"TSE_FUNC_TYPE_CLOSE_SESSION", ""},
     {"TSE_FUNC_TYPE_WRITE_ROW", ""},
     {"TSE_FUNC_TYPE_WRITE_UPDATE_JOB", ""},
-    {"TSE_FUNC_TYPE_WRITE_THROUGH_ROW", ""},
     {"TSE_FUNC_TYPE_UPDATE_ROW", ""},
     {"TSE_FUNC_TYPE_DELETE_ROW", ""},
     {"TSE_FUNC_TYPE_RND_INIT", ""},
