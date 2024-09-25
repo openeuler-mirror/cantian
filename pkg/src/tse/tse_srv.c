@@ -761,53 +761,69 @@ EXTER_ATTACK int tse_write_row(tianchi_handler_t *tch, const record_info_t *reco
     session_t *session = tse_get_session_by_addr(tch->sess_addr);
     TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     tse_set_no_use_other_sess4thd(session);
-    knl_session_t *knl_session = &session->knl_session;
-    tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
-    TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
-    TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "insert", ERR_OPERATIONS_NOT_SUPPORT);
-    CM_SAVE_STACK(knl_session->stack);
-    cm_reset_error();
-    knl_cursor_t *cursor = tse_push_cursor(knl_session);
-    if (NULL == cursor) {
-        CT_LOG_RUN_ERR("tse_write_row: tse_push_cursor FAIL");
-        TSE_POP_CURSOR(knl_session);
-        return ERR_GENERIC_INTERNAL_ERROR;
-    }
-    CT_LOG_DEBUG_INF("tse_write_row: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
-    cursor->vnc_column = NULL;
-    cursor->action = CURSOR_ACTION_INSERT;
-    if (tse_open_cursor(knl_session, cursor, tse_context, &tch->sql_stat_start, false) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("tse_write_row: tse_open_cursor failed");
-        TSE_POP_CURSOR(knl_session);
-        return tse_get_and_reset_err();
-    }
-
-    if (IS_TSE_PART(tch->part_id)) {
-        knl_part_locate_t part_loc = { .part_no = tch->part_id, .subpart_no = tch->subpart_id };
-        knl_set_table_part(cursor, part_loc);
-    }
-
-    cursor->row = (row_head_t*)record_info->record;
-    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
-    int ret = tse_copy_cursor_row(knl_session, cursor, NULL, cursor->row, &cursor->row->size);
-    if (ret != CT_SUCCESS) {
-        CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
-        return ret;
-    }
-
-    serial_t serial = {0, false};
-    if (flag.auto_inc_used) {
-        cm_assert(entity->has_serial_col);
-        if (tse_update_serial_col(knl_session, cursor, serial_column_offset,
-                                  flag, &serial, last_insert_id) != CT_SUCCESS) {
-            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
-            ret = tse_get_and_reset_err();
-            return ret;
+    if (flag.write_through) {
+        if (knl_begin_auton_rm(session) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("ERR to begin transaction for write_through_row.");
+            return CT_ERROR;
         }
     }
+    
+    int ret = CT_SUCCESS;
+    do {
+        knl_session_t *knl_session = &session->knl_session;
+        tse_context_t *tse_context = tse_get_ctx_by_addr(tch->ctx_addr);
+        TSE_LOG_RET_VAL_IF_NUL(tse_context, ERR_INVALID_DC, "get_ha_context failed");
+        TSE_LOG_RET_NOT_SUPPORT(tch->read_only_in_ct, "insert", ERR_OPERATIONS_NOT_SUPPORT);
+        CM_SAVE_STACK(knl_session->stack);
+        cm_reset_error();
+        knl_cursor_t *cursor = tse_push_cursor(knl_session);
+        if (NULL == cursor) {
+            CT_LOG_RUN_ERR("tse_write_row: tse_push_cursor FAIL");
+            TSE_POP_CURSOR(knl_session);
+            ret = ERR_GENERIC_INTERNAL_ERROR;
+            break;
+        }
+        CT_LOG_DEBUG_INF("tse_write_row: tbl=%s, thd_id=%u", tse_context->table.str, tch->thd_id);
+        cursor->vnc_column = NULL;
+        cursor->action = CURSOR_ACTION_INSERT;
+        if (tse_open_cursor(knl_session, cursor, tse_context, &tch->sql_stat_start, false) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("tse_write_row: tse_open_cursor failed");
+            TSE_POP_CURSOR(knl_session);
+            ret = tse_get_and_reset_err();
+            break;
+        }
 
-    ret = insert_and_verify_for_write_row(knl_session, cursor, &serial, *last_insert_id, tse_context, flag);
-    CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+        if (IS_TSE_PART(tch->part_id)) {
+            knl_part_locate_t part_loc = { .part_no = tch->part_id, .subpart_no = tch->subpart_id };
+            knl_set_table_part(cursor, part_loc);
+        }
+
+        cursor->row = (row_head_t*)record_info->record;
+        dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
+        ret = tse_copy_cursor_row(knl_session, cursor, NULL, cursor->row, &cursor->row->size);
+        if (ret != CT_SUCCESS) {
+            CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+            break;
+        }
+
+        serial_t serial = {0, false};
+        if (flag.auto_inc_used) {
+            cm_assert(entity->has_serial_col);
+            if (tse_update_serial_col(knl_session, cursor, serial_column_offset,
+                                    flag, &serial, last_insert_id) != CT_SUCCESS) {
+                CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+                ret = tse_get_and_reset_err();
+                break;
+            }
+        }
+
+        ret = insert_and_verify_for_write_row(knl_session, cursor, &serial, *last_insert_id, tse_context, flag);
+        CLOSE_CURSOR_RESTORE_STACK(knl_session, cursor);
+    } while(0);
+    
+    if (flag.write_through) {
+        knl_end_auton_rm(session, ret);
+    }
     return ret;
 }
 

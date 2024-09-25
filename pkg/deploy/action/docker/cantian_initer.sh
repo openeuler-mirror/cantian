@@ -90,6 +90,12 @@ primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 VERSION_PATH="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 gcc_file="/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home/gcc_file"
+source_kube_config="/root/.kube/config"
+dest_kube_config="/opt/cantian/config/.kube/config"
+
+mkdir -p -m 755 /opt/cantian/config/.kube
+cp "$source_kube_config" "$dest_kube_config"
+chmod 555 "$dest_kube_config"
 
 if [ ${node_id} -eq 0 ]; then
     node_domain=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`

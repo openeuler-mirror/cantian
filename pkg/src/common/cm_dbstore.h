@@ -36,6 +36,8 @@ extern "C" {
 #define DBS_CONFIG_NAME_WITHOUT_SUFFIX "dbstor_config"
 #define CSS_MAX_NAME_LEN 68
 #define DBS_DIR_MAX_FILE_NUM 1024
+#define DBS_ADDR_STR_LEN 20
+#define DBS_MAX_LINK_NUMS 32
 
 typedef struct {
     uint64 offset;
@@ -47,6 +49,11 @@ typedef struct {
     uint64 end_lsn;
     uint64 real_len;
 } ulog_archive_result_t;
+
+typedef struct {
+    char local_ip[DBS_ADDR_STR_LEN];
+    char remote_ip[DBS_ADDR_STR_LEN];
+} dbs_ip_pairs;
 
 // libdbstoreClient.so
 // namespace
@@ -81,6 +88,9 @@ typedef int (*dbs_file_get_num_t)(object_id_t *, uint32_t *);
 typedef int (*dbs_file_get_list_t)(object_id_t *, void *, uint32_t *);
 typedef int (*dbs_get_file_size_t)(object_id_t *, uint64 *);
 typedef int (*dbs_ulog_archive_t)(object_id_t *, object_id_t *, ulog_archive_option_t *, ulog_archive_result_t *);
+typedef int (*dbs_get_ip_pairs_t)(dbs_ip_pairs *, uint32_t *);
+typedef int (*dbs_create_link_t)(char *, char *);
+typedef int (*dbs_check_single_link_t)(char *, char *, uint32_t *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -116,6 +126,7 @@ typedef struct st_dbs_interface {
     open_namespace_t open_namespace;
     set_term_access_mode_for_ns_t set_term_access_mode_for_ns;
     dbs_ns_io_forbidden_t dbs_ns_io_forbidden;
+
     // dbs
     dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
     dbs_client_lib_init_t dbs_client_lib_init;
@@ -142,6 +153,9 @@ typedef struct st_dbs_interface {
     dbs_file_get_list_t dbs_file_get_list;
     dbs_get_file_size_t dbs_get_file_size;
     dbs_ulog_archive_t dbs_ulog_archive;
+    dbs_get_ip_pairs_t dbs_get_ip_pairs;
+    dbs_create_link_t dbs_create_link;
+    dbs_check_single_link_t dbs_check_single_link;
 
     // pagepool
     create_pagepool_t create_pagepool;

@@ -689,29 +689,6 @@ EXTER_ATTACK int tse_mq_update_job(dsw_message_block_t *message_block)
     return req->result;
 }
 
-EXTER_ATTACK int tse_mq_write_through_row(dsw_message_block_t *message_block)
-{
-    struct write_row_request *req = message_block->seg_buf[0];
-    if (!req->flag.write_through) {
-        CT_LOG_RUN_ERR("The write_through_row detect a not write_through flag.");
-        return CT_ERROR;
-    }
-    record_info_t record_info = {req->record, req->record_len};
-    tianchi_handler_t *tch = &req->tch;
-    session_t *session = tse_get_session_by_addr(tch->sess_addr);
-    TSE_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
-    tse_set_no_use_other_sess4thd(session);
- 
-    if (knl_begin_auton_rm(session) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("ERR to begin transaction for write_through_row.");
-        return CT_ERROR;
-    }
-    req->result = tse_write_row(&req->tch, &record_info, req->serial_column_offset,
-                                &req->last_insert_id, req->flag);
-    knl_end_auton_rm(session, req->result);
-    return req->result;
-}
-
 EXTER_ATTACK int tse_mq_bulk_write(dsw_message_block_t *message_block)
 {
     struct bulk_write_request *req = message_block->seg_buf[0];
@@ -1358,7 +1335,6 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {TSE_FUNC_TYPE_CLOSE_SESSION,                 tse_mq_close_session},
     {TSE_FUNC_TYPE_WRITE_ROW,                     tse_mq_write_row},
     {TSE_FUNC_TYPE_UPDATE_JOB,                    tse_mq_update_job},
-    {TSE_FUNC_TYPE_WRITE_THROUGH_ROW,             tse_mq_write_through_row},
     {TSE_FUNC_TYPE_UPDATE_ROW,                    tse_mq_update_row},
     {TSE_FUNC_TYPE_DELETE_ROW,                    tse_mq_delete_row},
     {TSE_FUNC_TYPE_RND_INIT,                      tse_mq_rnd_init},

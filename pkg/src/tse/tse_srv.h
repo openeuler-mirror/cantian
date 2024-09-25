@@ -297,7 +297,6 @@ enum TSE_FUNC_TYPE {
     TSE_FUNC_TYPE_CLOSE_SESSION,
     TSE_FUNC_TYPE_WRITE_ROW,
     TSE_FUNC_TYPE_UPDATE_JOB,
-    TSE_FUNC_TYPE_WRITE_THROUGH_ROW,
     TSE_FUNC_TYPE_UPDATE_ROW,
     TSE_FUNC_TYPE_DELETE_ROW,
     TSE_FUNC_TYPE_RND_INIT,
@@ -550,8 +549,6 @@ int tse_write_row(tianchi_handler_t *tch, const record_info_t *record_info,
                   uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);
 int tse_update_job(update_job_info req_info);
 /* This function is for recording slow_log and general_log only. */
-int tse_write_through_row(tianchi_handler_t *tch, const record_info_t *record_info,
-                          uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag);
 int tse_bulk_write(tianchi_handler_t *tch, const record_info_t *record_info, uint64_t rec_num,
                    uint32_t *err_pos, dml_flag_t flag, ctc_part_t *part_ids);
 int tse_update_row(tianchi_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
