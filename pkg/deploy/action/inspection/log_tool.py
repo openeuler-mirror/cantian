@@ -28,7 +28,7 @@ def _get_log_file_path(project):
     if logger_dir:
         if not os.path.exists(logger_dir):
             os.makedirs(logger_dir)
-        file_stat = os.stat(os.path.basename(__file__))
+        file_stat = os.stat(os.path.abspath(__file__))
         owner_uid = file_stat.st_uid
         owner_gid = file_stat.st_gid
         os.chown(logger_dir, owner_uid, owner_gid)

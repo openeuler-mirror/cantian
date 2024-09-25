@@ -792,9 +792,6 @@ cp -fp ${CURRENT_PATH}/../config/cantian.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian.timer /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.service /etc/systemd/system/
 cp -fp ${CURRENT_PATH}/../config/cantian_logs_handler.timer /etc/systemd/system/
-if [[ "${cantian_in_container}" != "0" ]]; then
-    cp -fp ${CURRENT_PATH}/../config/cantian_initer.service /etc/systemd/system/
-fi
 
 cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action
