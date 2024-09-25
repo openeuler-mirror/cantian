@@ -800,6 +800,7 @@ cp -fp ${CURRENT_PATH}/* /opt/cantian/action > /dev/null 2>&1
 cp -rfp ${CURRENT_PATH}/inspection /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/implement /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/cantian_common /opt/cantian/action
+cp -rfp ${CURRENT_PATH}/docker /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/logic /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/storage_operate /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/utils /opt/cantian/action

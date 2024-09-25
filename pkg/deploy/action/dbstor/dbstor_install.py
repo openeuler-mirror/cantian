@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 # Perform hot backups of CantianDB100 databases.
 # Copyright © Huawei Technologies Co., Ltd. 2010-2018. All rights reserved.
-
-
+import re
 import sys
 
 sys.dont_write_bytecode = True
@@ -369,7 +368,7 @@ class DBStor:
             console_and_log(message)
             raise ValueError(message)
         elif self.cantian_in_container == "0":
-            remote_ip_list = self.dbstor_config.get('REMOTE_IP', "").strip().split(';')
+            remote_ip_list = re.split(r"[;|]", self.dbstor_config.get('REMOTE_IP', "").strip())
             link_cnt = 0
             global DBSTOR_WARN_TYPE
             for remote_ip in remote_ip_list:
