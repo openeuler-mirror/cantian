@@ -265,8 +265,11 @@ static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SH
         while (cpu_str != NULL) {
             int s = 0, e = 0;
             int num = sscanf_s(cpu_str, "%d-%d", &s, &e);
-            if (num < 2) {
-                CT_LOG_RUN_ERR("cpu configuration error, s= %d, e= %d, should be like \"0-3\": %s", s, e, cpu_str);
+            if (num == 1) {
+                e = s;
+            } else if (num != 2) {
+                CT_LOG_RUN_ERR("cpu configuration error, num = %d, s = %d, e = %d, should be like \"0-3\" or \"0\", but \"%s\"", 
+                               num, s, e, cpu_str);
                 return CT_ERROR;
             }
             for (int j = s; j <= e; j++) {
