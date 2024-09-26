@@ -144,21 +144,16 @@ int srv_wait_instance_startuped(void)
     // after creating db, db status will change to open
     CT_LOG_RUN_INF("start waiting for db to be open");
     knl_session_t *session = g_instance->kernel.sessions[SESSION_ID_KERNEL];
-    // total wait time 30*120=3600 seconds
-    int times = 30;
     // check is db is open every 120 seconds 
-    while (!DB_IS_OPEN(session) && times > 0) {
+    while (CT_TRUE) {
+        if (DB_IS_OPEN(session)) {
+            CT_LOG_RUN_INF("end waiting, db is open");
+            return CT_SUCCESS;
+        }
         cm_sleep(120000);
         CT_LOG_RUN_INF("still waiting for db to be open");
-        times -= 1;
     }
-    if (DB_IS_OPEN(session)) {
-        CT_LOG_RUN_INF("end waiting, db is open");
-        return CT_SUCCESS;
-    } else {
-        CT_LOG_RUN_ERR("db status not open and time is up");
-        return CT_ERROR;
-    }
+    return CT_SUCCESS;
 }
 
 void clean_up_mysql_inst_ctx_list(mysql_inst_info_s *inst)
