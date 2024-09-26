@@ -720,8 +720,8 @@ function post_rolldown_nodes_status() {
 
 # 滚动升级提交后强制降低版本号
 function degrade_version() {
-    target_numbers=($(echo "${back_version}" | sed -n 's/\([0-9]*\)\.B.*/\1/p'))
-    format_target="${target_numbers[@]//./ }"
+    target_numbers=($(echo "${back_version}" | sed -n 's/\([0-9]*\)\.B.*/\1/p' | sed 's/0//g'))
+    format_target="${target_numbers[@]//./ } 0"
     current_cms_version=$(su -s /bin/bash - "${cantian_user}" -c "cms version")
     if [[ "${current_cms_version}" == *"${target_numbers}"* ]];then
         logAndEchoInfo "Current cms version is ${current_cms_version}, rollback version ${target_numbers}."

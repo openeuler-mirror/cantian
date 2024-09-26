@@ -1,3 +1,4 @@
+import re
 import sys
 sys.dont_write_bytecode = True
 
@@ -246,7 +247,7 @@ def check_parameter():
     if len(db_opts.dbstor_config.get("REMOTE_IP", "").strip()) == 0:
         log_exit("The storage_vlan_ip parameter is not entered")
     else:
-        remote_ip_list = db_opts.dbstor_config.get("REMOTE_IP", "").strip().split(';')
+        remote_ip_list = re.split(r"[;|,]", db_opts.dbstor_config.get("REMOTE_IP", "").strip())
         for remote_ip in remote_ip_list:
             cmd = "ping -c 1 %s" % remote_ip.strip()
             logger.info("exec cmd: %s", cmd)
