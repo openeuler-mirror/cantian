@@ -636,6 +636,7 @@ typedef struct st_bak {
     bool32 skip_badblock; // only for datafile
     bool32 has_badblock; // for backup and restore
     uint64 rcy_lsn[CT_MAX_INSTANCES]; // record after the second ckpt
+    uint64 arch_end_lsn[CT_MAX_INSTANCES];
 
     // for restore
     bool32 restored;  // has performed restore database
