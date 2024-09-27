@@ -1010,13 +1010,13 @@ def clean_archive_dir(json_data_deploy):
                         "can not clean the archive dir %s, command: %s, output: %s" % (archive_dir, cmd_str, stderr))
         LOGGER.info("cleaned archive files.")
     else:
-        arch_clean_cmd = f"dbstor --arch-clean --fs-name={archive_fs}"
+        arch_clean_cmd = f"dbstor --delete-file --fs-name={archive_fs} --file-name=archive"
         try:
             ret_code, output, stderr = _exec_popen(arch_clean_cmd)
             if ret_code:
                 LOGGER.info(f"Failed to execute command '{arch_clean_cmd}', error: {stderr}")
             else:
-                LOGGER.info("Cleaned archive files using dbstor --arch-clean.")
+                LOGGER.info("Cleaned archive files using dbstor --delete-file.")
         except Exception as e:
             LOGGER.info(f"Exception occurred while executing command '{arch_clean_cmd}': {str(e)}")
 
