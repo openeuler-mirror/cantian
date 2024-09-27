@@ -1702,7 +1702,7 @@ static status_t dtc_rcy_load_archfile(knl_session_t *session, uint32 idx, arch_f
                                                                          ARCH_DEFAULT_DEST, point->lsn,
                                                                          rcy_node->node_id);
         if (arch_ctrl == NULL) {
-            CT_LOG_RUN_WAR("[RECOVERY] failed to get archived log for [%u-%u-%u-%llu]",
+            CT_LOG_RUN_WAR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "[RECOVERY] failed to get archived log for [%u-%u-%u-%llu]",
                            rcy_node->node_id, point->rst_id, point->asn, point->lsn);
             if (!DB_CLUSTER_NO_CMS) {
                 return CT_ERROR;
@@ -1906,13 +1906,13 @@ status_t dtc_recover_check_assign_nodeid(knl_session_t *session, uint32_t node_i
     rcy_log_point = &dtc_rcy->rcy_log_points[node_id];
     ctrl = dtc_get_ctrl(session, rcy_log_point->node_id);
 
-    CT_LOG_RUN_INF("[DTC RCY] node:%u, recovery real end with file: %u, point: %u, lfn: %llu", rcy_log_point->node_id,
+    CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "[DTC RCY] node:%u, recovery real end with file: %u, point: %u, lfn: %llu", rcy_log_point->node_id,
                    rcy_log_point->rcy_point.asn, rcy_log_point->rcy_point.block_id,
                    (uint64)rcy_log_point->rcy_point.lfn);
-    CT_LOG_RUN_INF("[DTC RCY] node:%u, current lfn: %llu, rcy point lfn: %llu, lrp point lfn: %llu",
+    CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "[DTC RCY] node:%u, current lfn: %llu, rcy point lfn: %llu, lrp point lfn: %llu",
                    rcy_log_point->node_id, (uint64)rcy_log_point->rcy_point.lfn, (uint64)ctrl->rcy_point.lfn,
                    (uint64)(uint64)ctrl->lrp_point.lfn);
-    CT_LOG_RUN_INF("[DTC RCY] node:%u, recovery real end with file: %u, read node log proc point: %u, lfn: %llu", rcy_log_point->node_id,
+    CT_LOG_RUN_INF_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, "[DTC RCY] node:%u, recovery real end with file: %u, read node log proc point: %u, lfn: %llu", rcy_log_point->node_id,
                    rcy_log_point->rcy_write_point.asn, rcy_log_point->rcy_write_point.block_id,
                    (uint64)rcy_log_point->rcy_write_point.lfn);
 
