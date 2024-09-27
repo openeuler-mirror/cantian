@@ -12,7 +12,7 @@ storage_metadata_fs=$5
 
 function delete_log_if_too_much() {
     local dir_path="$1"
-    local max_logs=5 #最大文件限制
+    local max_logs=20 #最大文件限制
     if [ ! -d "${dir_path}" ];then
         logAndEchoError "invalid log dir_path: ${dir_path}"
         exit 1
