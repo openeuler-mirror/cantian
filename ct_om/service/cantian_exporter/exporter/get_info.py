@@ -534,6 +534,10 @@ class GetNodesInfo:
         Args:
             res: 上层函数传递进来的字典类型数据，用于记录当前函数获取的上报指标
         """
+        cmd = "ps -ef | grep cms | grep server | grep start | grep -v grep | awk 'NR==1 {print $2}'"
+        err_code, pidof_cms, _ = _exec_popen(cmd)
+        if err_code or not pidof_cms:
+            return
         for exec_cmd, exec_func in self.sh_cmd.items():
             res.update(exec_func(exec_cmd))
 
