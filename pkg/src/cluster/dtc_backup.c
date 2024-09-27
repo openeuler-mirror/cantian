@@ -469,22 +469,22 @@ status_t dtc_bak_get_arch_file(knl_session_t *session, uint32 inst_id, bak_arch_
             return CT_ERROR;
         }
     }
+    bak_arch_files_t *last_arch_file = bak_get_arch_by_index(arch_file_buf, local_last_asn, *local_arch_file_asn);
+    ctx->bak.arch_end_lsn[inst_id] = last_arch_file->end_lsn;
+    CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", inst_id, ctx->bak.arch_end_lsn[inst_id]);
     return CT_SUCCESS;
 }
 
 status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
 {
-    knl_instance_t *kernel = session->kernel;
-    bak_context_t *ctx = &kernel->backup_ctx;
-    bak_t *bak = &ctx->bak;
-    bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
-    uint32 curr_asn = (uint32)ctrlinfo->dtc_rcy_point[inst_id].asn;
-    uint64 data_size  = 0;
+    bak_t *bak = &session->kernel->backup_ctx.bak;
+    uint32 curr_asn = (uint32)bak->record.ctrlinfo.dtc_rcy_point[inst_id].asn;
     int64 curr_size = 0;
-
     bak->inst_id = inst_id;
 
     if (dtc_bak_read_log_check_param(session, &curr_asn, inst_id) == CT_FALSE) {
+        bak->arch_end_lsn[inst_id] = bak->record.ctrlinfo.dtc_lrp_point[inst_id].lsn;
+        CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", inst_id, bak->arch_end_lsn[inst_id]);
         return CT_SUCCESS;
     }
     bak_arch_files_t *arch_file_buf = (bak_arch_files_t *)malloc(sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);
@@ -507,10 +507,11 @@ status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
 
     if (dtc_get_log_curr_size(session, inst_id, &curr_size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] dtc curr_size failed");
+        return CT_ERROR;
     }
-    data_size = (uint64)curr_size * (local_arch_file_asn.end_asn - local_arch_file_asn.start_asn + 1);
+    uint64 data_size = (uint64)curr_size * (local_arch_file_asn.end_asn - local_arch_file_asn.start_asn + 1);
     bak_set_progress(session, BACKUP_LOG_STAGE, data_size);
-    CT_LOG_RUN_ERR("[BACKUP] curr_size %llu.", (uint64)data_size);
+    CT_LOG_RUN_INF("[BACKUP] curr_size %llu.", (uint64)data_size);
     uint32 target_end_asn = target_arch_file_asn.end_asn;
     if (local_arch_file_asn.end_asn < target_end_asn &&
         dtc_bak_get_logfile_by_asn_file(session, arch_file_buf, local_arch_file_asn, inst_id, &target_arch_file_asn) != CT_SUCCESS) {
@@ -520,11 +521,13 @@ status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
         if (dtc_bak_get_arch_file(session, inst_id, arch_file_buf, &local_arch_file_asn) != CT_SUCCESS) {
             return CT_ERROR;
         }
+    } else {
+        bak->arch_end_lsn[inst_id] = bak->record.ctrlinfo.dtc_lrp_point[inst_id].lsn;
+        CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", inst_id, bak->arch_end_lsn[inst_id]);
     }
 
     bak_wait_paral_proc(session, CT_FALSE);
     if (bak_paral_task_enable(session)) {
-        /* parallel backup dose not enter bak_write_end, need update curr_file_index here */
         bak->curr_file_index = bak->file_count;
     }
 
@@ -542,6 +545,8 @@ status_t dtc_bak_read_logfiles_dbstor(knl_session_t *session, uint32 inst_id)
  
     bak->inst_id = inst_id;
     if (dtc_bak_read_log_check_param(session, &curr_asn, inst_id) == CT_FALSE) {
+        bak->arch_end_lsn[inst_id] = bak->record.ctrlinfo.dtc_lrp_point[inst_id].lsn;
+        CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", inst_id, bak->arch_end_lsn[inst_id]);
         return CT_SUCCESS;
     }
     bak_arch_files_t *arch_file_buf = (bak_arch_files_t *)malloc(sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);\
@@ -2408,6 +2413,8 @@ status_t bak_get_logfile_by_lsn_dbstor(knl_session_t *session, bak_arch_files_t 
             "asn %u, start lsn %llu, max_lrp_lsn %llu, inst_id %u",
             file_info.asn, file_info.start_lsn, max_lrp_lsn, inst_id);
     }
+    bak->arch_end_lsn[inst_id] = end_lsn;
+    CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", inst_id, bak->arch_end_lsn[inst_id]);
     CT_LOG_RUN_INF("[BACKUP] backup logfile from dbstor finished, end_lsn %llu, max_lrp_lsn %llu",
                    end_lsn, max_lrp_lsn);
     return CT_SUCCESS;

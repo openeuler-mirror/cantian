@@ -2895,7 +2895,10 @@ static status_t bak_read_logfiles(knl_session_t *session)
     bool32 arch_compressed = CT_FALSE;
 
     bak->inst_id = g_dtc->profile.inst_id;
+    knl_panic(bak->inst_id < CT_MAX_INSTANCES);
     if (bak_read_log_check_param(session, &curr_asn) == CT_FALSE) {
+        bak->arch_end_lsn[bak->inst_id] = bak->record.ctrlinfo.dtc_lrp_point[bak->inst_id].lsn;
+        CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", bak->inst_id, bak->arch_end_lsn[bak->inst_id]);
         return CT_SUCCESS;
     }
 
@@ -2960,6 +2963,11 @@ static status_t bak_read_logfiles(knl_session_t *session)
         /* parallel backup dose not enter bak_write_end, need update curr_file_index here */
         bak->curr_file_index = bak->file_count;
     }
+
+    uint32 rst_id = bak_get_rst_id(bak, last_asn, &(kernel->db.ctrl.core.resetlogs));
+    arch_ctrl_t *arch_ctrl = arch_get_archived_log_info(session, rst_id, last_asn, ARCH_DEFAULT_DEST, bak->inst_id);
+    bak->arch_end_lsn[bak->inst_id] = arch_ctrl->end_lsn;
+    CT_LOG_RUN_INF("[BACKUP] node %u archive log end lsn is %llu", bak->inst_id, bak->arch_end_lsn[bak->inst_id]);
     return CT_SUCCESS;
 }
 
@@ -3193,6 +3201,21 @@ void bak_update_lrp_point(knl_session_t *session)
     return;
 }
 
+status_t bak_check_arch_lsn(knl_session_t *session)
+{
+    bak_t *bak = &session->kernel->backup_ctx.bak;
+    bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
+    for (uint32 i = 0; i < g_dtc->profile.node_count; i++) {
+        if (ctrlinfo->dtc_lrp_point[i].lsn > bak->arch_end_lsn[i]) {
+            CT_LOG_RUN_ERR("[BACKUP] the node %u archive log end lsn %llu is smaller than lrp lsn %llu",
+                i, bak->arch_end_lsn[i], ctrlinfo->dtc_lrp_point[i].lsn);
+            return CT_ERROR;
+        }
+    }
+    CT_LOG_RUN_INF("[BACKUP] finish to check archive log end lsn and lrp lsn for all nodes");
+    return CT_SUCCESS;
+}
+
 void bak_read_proc(thread_t *thread)
 {
     knl_session_t *session = (knl_session_t *)thread->argument;
@@ -3258,6 +3281,11 @@ void bak_read_proc(thread_t *thread)
                 bak->failed = CT_TRUE;
                 break;
             }
+        }
+
+        if (bak_check_arch_lsn(session) != CT_SUCCESS) {
+            bak->failed = CT_TRUE;
+            break;
         }
 
         CT_LOG_RUN_INF("[BACKUP] start record backupset file");
