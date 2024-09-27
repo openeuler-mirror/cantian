@@ -55,7 +55,7 @@ extern "C" {
 #define MES_MESSAGE_TINY_SIZE (64) /* buf_id 4 + head 12 + body 48 */
 #define MES_MESSAGE_BUFFER_SIZE \
     (uint32)(SIZE_K(32) + MES_MESSAGE_TINY_SIZE) /* biggest: pcr page ack: head + ack + page */
-#define MES_128K_MESSAGE_BUFFER_SIZE (uint32)SIZE_K(128)
+#define MES_512K_MESSAGE_BUFFER_SIZE (uint32)SIZE_K(512)
 #define MES_LOGGING_INTERVAL (60000)             // ms
 #define MES_CMD_LOGGING_INTERVAL (60000)         // ms
 #define MES_GROUP_LOGGING_INTERVAL (60000)       // ms

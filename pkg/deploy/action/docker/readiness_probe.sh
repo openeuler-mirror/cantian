@@ -35,11 +35,14 @@ if [[ "$1" == "startup-check" ]]; then
 fi
 
 function handle_failure() {
-    manual_stop_count=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($5=="OFFLINE" && $1=='"${node_id}"'){print $5}}' | wc -l)
-    if [[ -f "${CMS_ENABLE}" ]] && [[ ${manual_stop_count} -eq 1 ]]; then
-        logInfo "CMS is manually stopped. Exiting."
-        exit 0
+    if [[ -n "${cms_pid}" ]]; then
+        manual_stop_count=$(su -s /bin/bash - ${cantian_user} -c "source ~/.bashrc && cms stat" | grep 'db' | awk '{if($5=="OFFLINE" && $1=='"${node_id}"'){print $5}}' | wc -l)
+        if [[ -f "${CMS_ENABLE}" ]] && [[ ${manual_stop_count} -eq 1 ]]; then
+            logInfo "CMS is manually stopped. Exiting."
+            exit 1
+        fi
     fi
+
     if [[ -f "${READINESS_FILE}" ]]; then
         python3 ${CURRENT_PATH}/delete_unready_pod.py
     fi
@@ -47,7 +50,7 @@ function handle_failure() {
 }
 
 if [[ ! -f "${READINESS_FILE}" ]]; then
-    handle_failure
+    exit 1
 fi
 
 if [[ -z "${cantiand_pid}" ]] && [[ "${run_mode}" == "cantiand_in_cluster" ]]; then

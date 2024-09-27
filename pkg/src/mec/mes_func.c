@@ -817,7 +817,7 @@ status_t mes_check_msg_head(mes_message_head_t *head)
         return CT_ERROR;
     }
 
-    if (SECUREC_UNLIKELY(head->size > MES_128K_MESSAGE_BUFFER_SIZE)) {
+    if (SECUREC_UNLIKELY(head->size > MES_512K_MESSAGE_BUFFER_SIZE)) {
         CT_THROW_ERROR_EX(ERR_MES_ILEGAL_MESSAGE, "[mes][%s] size %u is excced.", (char *)__func__, head->size);
         MES_LOG_ERR_HEAD_EX(head, "message length excced");
         return CT_ERROR;
