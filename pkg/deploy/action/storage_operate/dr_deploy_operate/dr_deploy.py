@@ -469,8 +469,7 @@ class DRDeploy(object):
             running_status = filesystem_pair_info.get("RUNNINGSTATUS")
             config_status = filesystem_pair_info.get("CONFIGSTATUS")
 
-            if (running_status == FilesystemPairRunningStatus.Normal and health_status == HealthStatus.Normal
-                    and config_status == VstorePairConfigStatus.Normal):
+            if (health_status == HealthStatus.Normal and config_status == VstorePairConfigStatus.Normal):
                 self.record_deploy_process("create_metro_vstore_pair", "success")
                 return filesystem_pair_info
 
