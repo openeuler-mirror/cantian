@@ -150,7 +150,7 @@ status_t cm_get_file_name_and_dir(const char *file_path, uint32 path_depth,
 status_t cm_dbs_open_root(char *fs_name, int32 *root_handle)
 {
     cm_dbs_map_item_s root_item = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_item.obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_item.obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -240,7 +240,7 @@ status_t cm_dbs_open_file_common(const char *name, uint32 file_type, int32 *hand
     }
 
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -351,7 +351,7 @@ status_t cm_dbs_create_file_common(const char *name, uint32 file_type, int32 *ha
         CT_LOG_RUN_ERR("[CM_DEVICE] get fs name failed, file path %s", file_path);
         return CT_ERROR;
     }
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -381,7 +381,7 @@ status_t cm_dbs_get_dir_handle(char *file_dir, uint32 dir_path_depth, object_id_
     }
     CT_LOG_RUN_INF("[CM_DEVICE] begin to open root, file dir %s, fs_name %s", file_dir, fs_name);
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -450,6 +450,10 @@ status_t cm_dbs_remove_dir(const char *name)
 
 status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name)
 {
+    if (dbs_global_handle()->dbs_file_open_root_by_vstorid == NULL) {
+        CT_LOG_RUN_ERR("dbs_file_open_root_by_vstorid is not support\n");
+        return CT_ERROR;
+    }
     char file_path[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     MEMS_RETURN_IFERR(strcpy_sp(file_path, MAX_DBS_FS_FILE_PATH_LEN, name));
     cm_remove_extra_delim(file_path, '/');
@@ -475,7 +479,7 @@ status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name)
         return CT_ERROR;
     }
     object_id_t root_obj_id = { 0 };
-    int32 ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
+    int32 ret = dbs_global_handle()->dbs_file_open_root_by_vstorid(fs_name, vstore_id, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;
@@ -744,7 +748,7 @@ bool32 cm_dbs_exist_file(const char *name, uint32 file_type)
         return CT_FALSE;
     }
     object_id_t root_obj_id = { 0 };
-    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, 0, &root_obj_id);
+    int ret = dbs_global_handle()->dbs_file_open_root(fs_name, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_FALSE;
@@ -803,6 +807,10 @@ status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num)
 
 status_t cm_dbs_query_dir_vstore_id(uint32 vstore_id, const char *name, void *file_list, uint32 *file_num)
 {
+    if (dbs_global_handle()->dbs_file_open_root_by_vstorid == NULL) {
+        CT_LOG_RUN_ERR("dbs_file_open_root_by_vstorid is not support\n");
+        return CT_ERROR;
+    }
     CT_LOG_RUN_INF("[CM_DEVICE] begin to get file list, file dir %s", name);
     char file_dir[MAX_DBS_FILE_PATH_LEN] = { 0 };
     MEMS_RETURN_IFERR(strcpy_sp(file_dir, MAX_DBS_FILE_PATH_LEN, name));
@@ -823,7 +831,7 @@ status_t cm_dbs_query_dir_vstore_id(uint32 vstore_id, const char *name, void *fi
         return CT_ERROR;
     }
     object_id_t root_obj_id = { 0 };
-    int32 ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
+    int32 ret = dbs_global_handle()->dbs_file_open_root_by_vstorid(fs_name, vstore_id, &root_obj_id);
     if (ret != 0) {
         CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
         return CT_ERROR;

@@ -74,7 +74,8 @@ typedef int (*dbs_inst_lock_t)(uint32_t, uint32_t);
 typedef int (*dbs_inst_unlock_t)(uint32_t, uint32_t);
 typedef int (*dbs_inst_unlock_force_t)(uint32_t, uint32_t);
 typedef bool (*dbs_check_inst_heart_beat_is_normal_t)(uint32_t);
-typedef int (*dbs_file_open_root_t)(char *, uint32_t, object_id_t *);
+typedef int (*dbs_file_open_root_t)(char *, object_id_t *);
+typedef int (*dbs_file_open_root_by_vstorid_t)(char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_create_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_open_t)(object_id_t *, char *, uint32_t, object_id_t *);
 typedef int (*dbs_file_write_t)(object_id_t *, uint64_t, char *, uint32_t);
@@ -140,6 +141,7 @@ typedef struct st_dbs_interface {
     dbs_inst_unlock_force_t dbs_inst_unlock_force;
     dbs_check_inst_heart_beat_is_normal_t dbs_check_inst_heart_beat_is_normal;
     dbs_file_open_root_t dbs_file_open_root;
+    dbs_file_open_root_by_vstorid_t dbs_file_open_root_by_vstorid;
     dbs_file_create_t dbs_file_create;
     dbs_file_open_t dbs_file_open;
     dbs_file_write_t dbs_file_write;

@@ -689,7 +689,9 @@ int tse_index_only_row_fill_bitmap(knl_cursor_t *cursor, uint8_t *raw_row)
     }
     CT_RETURN_IFERR(tse_check_index_column_count(index->desc.column_count));
     for (uint32_t i = 0; i < index->desc.column_count; i++) {
-        cursor->offsets[i] += 4;
+        if (index->desc.column_count > 12) {
+            cursor->offsets[i] += 4;
+        }
         column = dc_get_column(entity, index->desc.columns[i]);
         len = idx_get_col_size(column->datatype, cursor->lens[i], true);
         if (cursor->lens[i] == 0XFFFF) {
