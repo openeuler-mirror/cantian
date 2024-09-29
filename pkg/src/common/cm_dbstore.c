@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-static dbs_interface_t g_dbs_interface = { .dbs_handle = NULL, };
+static dbs_interface_t g_dbs_interface = { 0 };
 static dbs_tool_interface_t g_dbs_tool_interface = { .dbs_tool_handle = NULL };
 
 dbs_interface_t *dbs_global_handle(void)
@@ -73,10 +73,11 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreateNameSpace",                (void **)(&intf->create_namespace)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "OpenNameSpace",                  (void **)(&intf->open_namespace)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "SetTermAccessModeForNs",         (void **)(&intf->set_term_access_mode_for_ns)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsNsIoForbidden",               (void **)(&intf->dbs_ns_io_forbidden)));
+    (void)dbs_load_symbol(intf->dbs_handle, "DbsNsIoForbidden", (void **)(&intf->dbs_ns_io_forbidden));
     (void)dbs_load_symbol(intf->dbs_handle, "DbsGetIpPairs", (void **)(&intf->dbs_get_ip_pairs));
     (void)dbs_load_symbol(intf->dbs_handle, "DbsCreateLink", (void **)(&intf->dbs_create_link));
     (void)dbs_load_symbol(intf->dbs_handle, "DbsCheckSingleLink", (void **)(&intf->dbs_check_single_link));
+    (void)dbs_load_symbol(intf->dbs_handle, "DbsFileOpenRootByVstorId", (void **)(&intf->dbs_file_open_root_by_vstorid));
     cm_reset_error();
 
     // dbs

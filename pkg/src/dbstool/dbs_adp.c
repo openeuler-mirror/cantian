@@ -1338,12 +1338,17 @@ int32 append_to_file(char *directory, char *filename, char *buffer, uint32 buffe
 
 int32 get_ulog_handle(uint32 vstore_id, char *fs_name, char *path, object_id_t *ulog_obj_id)
 {
+    if (dbs_global_handle()->dbs_file_open_root_by_vstorid == NULL) {
+        printf("dbs_file_open_root_by_vstorid is not support\n");
+        return CT_ERROR;
+    }
+
     int32 ret = CT_SUCCESS;
     // 获取根目录的句柄
     object_id_t root_obj_id = { 0 };
-    ret = dbs_global_handle()->dbs_file_open_root(fs_name, vstore_id, &root_obj_id);
+    ret = dbs_global_handle()->dbs_file_open_root_by_vstorid(fs_name, vstore_id, &root_obj_id);
     if (ret != CT_SUCCESS) {
-        printf("Failed to dbs_file_open_root(%d), fs name %s\n", ret, fs_name);
+        printf("Failed to dbs_file_open_root_by_vstorid(%d), fs name %s\n", ret, fs_name);
         return ret;
     }
 
@@ -1752,6 +1757,11 @@ int32 dbs_set_link_timeout(int32 argc, char *argv[])
 // dbstor --set-ns-forbidden <0, 1>
 int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
 {
+    if (dbs_global_handle()->dbs_ns_io_forbidden == NULL) {
+        printf("dbs_ns_io_forbidden is not support\n");
+        return CT_ERROR;
+    }
+
     if (argc != NUM_THREE) {
         printf("Invalid input, arg num %d\n", argc);
         printf("Usage: dbstor --set-ns-forbidden <0, 1>t\n");
@@ -1770,6 +1780,11 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
 // dbstor --dbs-link-check
 int32 dbs_link_check(int32 argc, char *argv[])
 {
+    if (dbs_global_handle()->dbs_get_ip_pairs == NULL || dbs_global_handle()->dbs_check_single_link == NULL) {
+        printf("dbs_get_ip_pairs or dbs_check_single_link is not support\n");
+        return CT_ERROR;
+    }
+
     dbs_ip_pairs *ip_pairs = (dbs_ip_pairs *)malloc(DBS_MAX_LINK_NUMS * sizeof(dbs_ip_pairs));
     if (ip_pairs == NULL) {
         printf("Malloc ip pairs failed.\n");
