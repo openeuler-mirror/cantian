@@ -5,10 +5,10 @@ RUN useradd -m ${user} -u 5000
 WORKDIR /ctdb/cantian_install
 RUN rm -rf *
 
-COPY Cantian_24.*_RELEASE.tgz .
+COPY Cantian_2*_RELEASE.tgz .
 COPY Cantian_connector_mysql_*_RELEASE.tgz .
 
-RUN tar -zxf Cantian_24.*_RELEASE.tgz && rm -rf Cantian_24.*_RELEASE.tgz && \
+RUN tar -zxf Cantian_2*_RELEASE.tgz && rm -rf Cantian_2*_RELEASE.tgz && \
     sed -i 's/"cantian_in_container": "0"/"cantian_in_container": "1"/' cantian_connector/action/config_params_file.json && \
     cd cantian_connector/action && sh appctl.sh install config_params_file.json
 

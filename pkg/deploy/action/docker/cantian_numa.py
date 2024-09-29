@@ -11,11 +11,10 @@ sys.path.append('/ctdb/cantian_install/cantian_connector/action')
 from logic.common_func import exec_popen
 from delete_unready_pod import KubernetesService, get_pod_name_from_info
 from om_log import LOGGER as LOG
-from docker_common.file_utils import load_or_initialize_json, write_json
+from docker_common.file_utils import open_and_lock_json, write_and_unlock_json
 
 NUMA_INFO_PATH = "/root/.kube/NUMA-INFO/numa-pod.json"
 TIME_OUT = 100
-
 
 
 class CPUAllocator:
@@ -95,9 +94,12 @@ class CPUAllocator:
         numa_nodes = self.get_numa_nodes_for_cpus(cpus)
         cpuset_mems_cmd = f"echo {numa_nodes} > /sys/fs/cgroup/cpuset/cpuset.mems"
 
-        self.execute_cmd(taskset_cmd)
         self.execute_cmd(cpuset_cpu_cmd)
-        self.execute_cmd(cpuset_mems_cmd)
+        self.execute_cmd(taskset_cmd)
+        try:
+            self.execute_cmd(cpuset_mems_cmd)
+        except Exception as e:
+            LOG.error(f"Failed to execute cpuset memory command: {e}.")
 
     def get_numa_nodes_for_cpus(self, cpus):
         """
@@ -271,10 +273,7 @@ class CPUAllocator:
                 }
 
     def delete_binding_info(self, short_hostname):
-        """
-        删除包含 short_hostname 的绑核信息，并恢复对应的 CPU 到 numa_info
-        """
-        numa_data = load_or_initialize_json(NUMA_INFO_PATH)
+        numa_data, file_handle = open_and_lock_json(NUMA_INFO_PATH)
 
         keys_to_delete = [key for key in numa_data.keys() if short_hostname in key]
 
@@ -289,8 +288,7 @@ class CPUAllocator:
                 # 删除绑核信息
                 del numa_data[key]
 
-            # 更新 JSON 文件
-            write_json(NUMA_INFO_PATH, numa_data)
+            write_and_unlock_json(numa_data, file_handle)
             LOG.info(f"NUMA information updated after deletion in {NUMA_INFO_PATH}")
         else:
             LOG.info(f"No matching entry found for hostname: {short_hostname}")
@@ -332,7 +330,7 @@ def show_numa_binding_info(numa_info_path):
     查询 numa-pod.json 文件中每个 Pod 的绑核信息，并以表格形式显示。
     """
     try:
-        numa_data = load_or_initialize_json(numa_info_path)
+        numa_data, file_handle = open_and_lock_json(numa_info_path)
     except Exception as err:
         LOG.error(f"Error loading NUMA info from {numa_info_path}: {err}")
         return
@@ -398,8 +396,7 @@ def main():
         LOG.error(f"Error fetching NUMA info: {e}")
         return
 
-    # 初始化或加载 NUMA JSON 数据
-    numa_data = load_or_initialize_json(NUMA_INFO_PATH)
+    numa_data, file_handle = open_and_lock_json(NUMA_INFO_PATH)
 
     # 清理 JSON 中不再存在的 POD 信息
     hostname_pattern = r'cantian.*-node.*'
@@ -412,8 +409,7 @@ def main():
     else:
         LOG.info(f"Pod with hostname {short_hostname} not found in the cluster.")
 
-    # 更新 JSON 文件
-    write_json(NUMA_INFO_PATH, numa_data)
+    write_and_unlock_json(numa_data, file_handle)
     LOG.info("NUMA information updated successfully.")
 
 

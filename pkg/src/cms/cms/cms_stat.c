@@ -580,10 +580,10 @@ status_t cms_exec_res_script(const char* script, const char* arg, uint32 timeout
         *result = CT_SUCCESS;
     } else {
         CMS_LOG_WAR("script %s, output %s", cmd, cmd_out);
-        if (strstr(cmd_out, "124") != NULL) {
-            *result = CT_TIMEDOUT;
-        } else {
+        if (strstr(cmd_out, "RES_FAILED") != NULL) {
             *result = CT_ERROR;
+        } else if (strstr(cmd_out, "RES_MULTI") != NULL) {
+            *result = CT_EAGAIN;
         }
     }
     CMS_LOG_INF("end cms exec res script.");
@@ -886,15 +886,15 @@ status_t cms_wait_res_started(uint32 res_id, uint32 timeout_ms)
 
 status_t cms_check_res_running(uint32 res_id)
 {
-    bool32 res_running = CT_TRUE;
+    status_t res_status = CT_SUCCESS;
     uint64 res_check_count = 0;
-    while (res_running == CT_TRUE) {
+    while (res_status == CT_SUCCESS) {
         if (res_check_count > CMS_CHECK_RES_RUNING_TIMES) {
             CMS_LOG_WAR("cms check res %u is running, no need to start", res_id);
             cms_stat_reset_restart_attr(res_id);
             return CT_ERROR;
         }
-        cms_res_check(res_id, &res_running);
+        cms_res_check(res_id, &res_status);
         res_check_count++;
         cm_sleep(CMS_START_RES_RETRY_INTERNAL);
     }
@@ -1012,10 +1012,9 @@ status_t cms_res_stop(uint32 res_id, uint8 need_write_disk)
     return ret;
 }
 
-status_t cms_res_check(uint32 res_id, bool32 *res_running)
+status_t cms_res_check(uint32 res_id, status_t *res_status)
 {
     status_t ret = CT_SUCCESS;
-    status_t result;
     cms_res_t res;
 
     CT_RETURN_IFERR(cms_get_res_by_id(res_id, &res));
@@ -1027,16 +1026,14 @@ status_t cms_res_check(uint32 res_id, bool32 *res_running)
         return CT_SUCCESS;
     }
 
-    ret = cms_exec_res_script(res.script, "-check", res.check_timeout, &result);
+    ret = cms_exec_res_script(res.script, "-check", res.check_timeout, res_status);
     cm_atomic32_dec(&res_stat->checking);
 
     if (ret == CT_SUCCESS) {
-        if (result == CT_SUCCESS) {
+        if (*res_status == CT_SUCCESS) {
             CMS_LOG_TIMER("exec check script succeed, script=%s, res_id=%u", res.script, res_id);
-            *res_running = CT_TRUE;
         } else {
             CMS_LOG_TIMER("exec check script succeed, but result is failed, script=%s, res_id=%u", res.script, res_id);
-            *res_running = CT_FALSE;
         }
     } else {
         CMS_LOG_TIMER("exec check script failed, script=%s, res_id=%u", res.script, res_id);

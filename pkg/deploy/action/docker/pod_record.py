@@ -2,7 +2,7 @@
 import os
 import sys
 from datetime import datetime
-from docker_common.file_utils import load_or_initialize_csv, write_csv
+from docker_common.file_utils import open_and_lock_csv, write_and_unlock_csv
 
 sys.path.append('/ctdb/cantian_install/cantian_connector/action')
 
@@ -15,7 +15,7 @@ RESTART_THRESHOLD = 6
 
 
 def update_pod_restart_record(k8s_service, pod_name_full, pod_namespace):
-    pod_record = load_or_initialize_csv(POD_RECORD_FILE_PATH)
+    pod_record, file_handle = open_and_lock_csv(POD_RECORD_FILE_PATH)
 
     record_dict = {rows[0]: {'restart_count': int(rows[1]), 'last_restart_time': rows[2]} for rows in pod_record}
 
@@ -38,7 +38,7 @@ def update_pod_restart_record(k8s_service, pod_name_full, pod_namespace):
 
     rows_to_write = [[pod_name, data['restart_count'], data['last_restart_time']]
                      for pod_name, data in record_dict.items()]
-    write_csv(POD_RECORD_FILE_PATH, rows_to_write)
+    write_and_unlock_csv(rows_to_write, file_handle)
 
 
 def main():

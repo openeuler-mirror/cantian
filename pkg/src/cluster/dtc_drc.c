@@ -1596,7 +1596,6 @@ allocated:
 
     if (can_cvt && result->readonly_copies && req_info->req_mode == DRC_LOCK_EXCLUSIVE) {
 #ifdef DB_DEBUG_VERSION
-        knl_panic(!is_try);
         if (drc_bitmap64_exist(&result->readonly_copies, DCS_SELF_INSTID(session))) {
             CM_ASSERT(DAAC_REPLAY_NODE(session));
         }
