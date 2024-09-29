@@ -136,7 +136,7 @@ class DefaultConfigValue(object):
         "REPLAY_PRELOAD_PROCESSES": 0,
         "LOG_REPLAY_PROCESSES": 64,
         "_LOG_MAX_FILE_SIZE": "160M",
-        "_LOG_BACKUP_FILE_COUNT": 128,
+        "_LOG_BACKUP_FILE_COUNT": 6,
         "RECYCLEBIN": "FALSE",
         "LARGE_POOL_SIZE": "1G",
         "JOB_QUEUE_PROCESSES": 100,

@@ -452,6 +452,9 @@ function do_upgrade() {
     cp -rfp ${CURRENT_PATH}/../common /opt/cantian/
     rm -rf /opt/cantian/repo/*
     cp -rf ${CURRENT_PATH}/../repo /opt/cantian/
+    if [[ ${deploy_mode} == "file" ]];then
+        cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
+    fi
     chmod 400 /opt/cantian/repo/*
     logAndEchoInfo "om upgrade finished"
 

@@ -49,7 +49,7 @@ if __name__ == '__main__':
     res = CheckInstallConfig(CONFIG_PATH).get_result()
     new_config = read_install_config(NEW_DEPLOY_CONFIG)
     new_mode = new_config.get("deploy_mode", "combined")
-    if new_mode != deploy_mode:
+    if new_mode != deploy_mode and new_mode != "file":
         LOG.error("Deploy mode is different from config mode, please check.")
         sys.exit(1)
     mysql_metadata_in_cantian = deploy_config.get("mysql_metadata_in_cantian")
