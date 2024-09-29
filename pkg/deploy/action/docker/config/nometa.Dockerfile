@@ -5,11 +5,11 @@ RUN useradd -m ${user} -u 5000
 WORKDIR /ctdb/cantian_install
 RUN rm -rf *
 
-COPY Cantian_24.*_RELEASE.tgz .
+COPY Cantian_2*_RELEASE.tgz .
 COPY DBStor_Client_*_RELEASE.tgz .
 COPY mysql_release_8.0.26_*.tar.gz .
 
-RUN tar -zxf Cantian_24.*_RELEASE.tgz && rm -rf Cantian_24.*_RELEASE.tgz && \
+RUN tar -zxf Cantian_2*_RELEASE.tgz && rm -rf Cantian_2*_RELEASE.tgz && \
     cp DBStor_Client_*_RELEASE.tgz cantian_connector/repo && \
     rm -rf DBStor_Client_*_RELEASE.tgz && \
     sed -i 's/"cantian_in_container": "0"/"cantian_in_container": "1"/' cantian_connector/action/config_params.json && \
