@@ -132,7 +132,7 @@ function stop_cantian() {
 			echo "RES_SUCCESS"
 			exit 0
 		else
-			echo "RES_FAILED"
+			echo "RES_MULTI"
 			exit 1
 		fi
 	fi

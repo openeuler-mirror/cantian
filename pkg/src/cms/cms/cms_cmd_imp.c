@@ -1701,12 +1701,12 @@ status_t cms_cmd_proc_stop_res(const char* name, cms_msg_scope_t scope, uint16 t
     ret = cms_send_to_server(&req.head, &res.head, sizeof(cms_tool_msg_res_stop_res_t),
         CMS_CMSTOOL_REQUEST_TIMEOUT, err_info);
     if (ret != CT_SUCCESS) {
-        printf("%s, stop resource failed cause send ret.\n", err_info);
+        printf("%s, stop resource failed.\n", err_info);
         CMS_LOG_ERR("stop resource failed, ret result.");
         return ret;
     }
     if (res.result != CT_SUCCESS) {
-        printf("%s, stop resource failed cause res ret.\n", res.info);
+        printf("%s, stop resource failed.\n", res.info);
         CMS_LOG_ERR("stop resource failed, res result.");
         return CT_ERROR;
     }
