@@ -503,16 +503,25 @@ status_t cms_update_version(void)
         CMS_LOG_ERR("cms gcc version bigger than db version, cmp_result = %d.", cmp_result);
         return CT_ERROR;
     }
-    CM_FREE_PTR(resident_gcc);
  
     // 如果是fullstart，则更新gcc
     CT_RETURN_IFERR(cms_is_all_restart(&all_restart));
     if (!all_restart) {
         CMS_LOG_INF("cms gcc version not need update.");
+        CM_FREE_PTR(resident_gcc);
         // 更新内存gcc
         (void)cms_notify_load_gcc();
         return CT_SUCCESS;
     }
+
+    if (resident_gcc->head.ver_main != 0) {
+        CMS_LOG_INF("cms gcc version no more need update.");
+        CM_FREE_PTR(resident_gcc);
+        // 更新内存gcc
+        (void)cms_notify_load_gcc();
+        return CT_SUCCESS;
+    }
+    CM_FREE_PTR(resident_gcc);
  
     ret = cms_update_gcc_ver(cms_version.main, cms_version.major, cms_version.revision, cms_version.inner);
     if (ret != CT_SUCCESS) {
