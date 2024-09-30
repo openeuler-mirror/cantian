@@ -151,7 +151,20 @@ function update_mysql_config() {
 
         logAndEchoInfo "my.cnf updated successfully."
     else
-        logAndEchoInfo "mysql_config.json not found, skipping my.cnf update."
+        logAndEchoInfo "update my.cnf with mem_spec."
+        mysql_param=("max_connections")
+        for param_name in "${mysql_param[@]}"; do
+            param_value=$(python3 "${CURRENT_PATH}/../cantian/get_config_info.py" "${param_name}")
+            if [ "${param_value}" != "None" ]; then
+                if grep -q "^${param_name}=" "${my_cnf_file}"; then
+                    sed -i "s/^${param_name}=.*/${param_name}=${param_value}/" "${my_cnf_file}"
+                    logAndEchoInfo "Updated '${param_name}' with value '${param_value}' in my.cnf."
+                else
+                    echo -e "\n${param_name}=${param_value}" >> "${my_cnf_file}"
+                    logAndEchoInfo "Added '${param_name}' with value '${param_value}' to my.cnf."
+                fi
+            fi
+        done
     fi
 }
 

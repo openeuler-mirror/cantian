@@ -1147,6 +1147,13 @@ uint32 drc_convert_next_request(knl_session_t *session, drc_buf_res_t *buf_res, 
             CT_LOG_RUN_WAR("[DRC][%u-%u] req timedout, ignore process this request, inst_id=%u, inst_sid=%u, mode=%u",
                 page_id.file, page_id.page, converting_req->inst_id,
                 converting_req->inst_sid, converting_req->req_mode);
+            mes_message_head_t req_head;
+            req_head.src_inst = converting_req->inst_id;
+            req_head.src_sid = converting_req->inst_sid;
+            req_head.dst_inst = DRC_SELF_INST_ID;
+            req_head.dst_sid = 0;
+            req_head.rsn = converting_req->rsn;
+            mes_send_error_msg(&req_head);  // error handle
             continue;
         }
         break;

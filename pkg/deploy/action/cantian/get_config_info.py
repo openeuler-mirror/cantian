@@ -19,6 +19,7 @@ kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 
                       'TEMP_POOL_NUM', 'BUF_POOL_NUM', 'LOG_BUFFER_SIZE', 'LOG_BUFFER_COUNT',
                       'SHARED_POOL_SIZE', 'DATA_BUFFER_SIZE', 'TEMP_BUFFER_SIZE', 'SESSIONS',
                       'SHM_MEMORY_REDUCTION_RATIO', "VARIANT_MEMORY_AREA_SIZE", "DTC_RCY_PARAL_BUF_LIST_SIZE"]
+mysql_kernel_params_list = ['max_connections']
 MEM_SPEC = {
     "1": {
         "SESSIONS": "1024",
@@ -28,7 +29,8 @@ MEM_SPEC = {
         "SHARED_POOL_SIZE": "512M",
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "8",
         "SHM_MEMORY_REDUCTION_RATIO": "8",
-        "VARIANT_MEMORY_AREA_SIZE": "256M"
+        "VARIANT_MEMORY_AREA_SIZE": "256M",
+        "max_connections": "1024"
     },
     "2": {
         "SESSIONS": "2048",
@@ -38,7 +40,8 @@ MEM_SPEC = {
         "SHARED_POOL_SIZE": "1G",
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "16",
         "SHM_MEMORY_REDUCTION_RATIO": "4",
-        "VARIANT_MEMORY_AREA_SIZE": "512M"
+        "VARIANT_MEMORY_AREA_SIZE": "512M",
+        "max_connections": "2048"
     },
     "3": {
         "SESSIONS": "4096",
@@ -48,7 +51,8 @@ MEM_SPEC = {
         "SHARED_POOL_SIZE": "2G",
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "32",
         "SHM_MEMORY_REDUCTION_RATIO": "2",
-        "VARIANT_MEMORY_AREA_SIZE": "1G"
+        "VARIANT_MEMORY_AREA_SIZE": "1G",
+        "max_connections": "4096"
     }
 }
 
@@ -106,6 +110,8 @@ def get_value(param):
         return info_cantian_start.get('ever_started', "")
     if param in kernel_params_list:
         return info_cantian_config.get(param, "")
+    if param in mysql_kernel_params_list:
+        return info_cantian_config.get(param, "") 
 
     return info.get(param, "")
 
