@@ -59,18 +59,18 @@ function check_process()
 }
 
 function start_cantian() {
-  numactl_str=" "
-  set +e
-  numactl --hardware > /dev/null 2>&1
-  if [ $? -eq 0 ]; then
-    OS_ARCH=$(uname -i)
-    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-      CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
-      CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
-      numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
-    fi
-  fi
-  set -e
+	numactl_str=" "
+	set +e
+	numactl --hardware > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		OS_ARCH=$(uname -i)
+		if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+		CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
+		CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
+		numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+		fi
+	fi
+	set -e
 	if [ "${loguser}" = "root" ]; then
 		if [ ${single_mode} = "single" ];then
 			sudo -E -i -u ${dbuser} sh -c "export CANTIAND_MODE=open && export CANTIAND_HOME_DIR=${CTDB_DATA} && export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH} \
