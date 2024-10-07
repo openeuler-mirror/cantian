@@ -66,7 +66,7 @@ function prepare_cms_gcc() {
   fi
 
   if [ "${NODE_ID}" == 0 ]; then
-    if [[ ${DEPLOY_MODE} != "dbstor" && ${DEPLOY_MODE} != "combined" ]]; then
+    if [[ ${DEPLOY_MODE} != "dbstor" && ${DEPLOY_MODE} != "combined" ]] || [[ -f /opt/cantian/youmai_demo ]]; then
       rm -rf ${GCC_HOME}*
       log "zeroing ${GCC_HOME} on node ${NODE_ID}"
       dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
@@ -135,7 +135,7 @@ function wait_for_node1_in_cluster() {
     ${CMS_INSTALL_PATH}/bin/cms gccmark -check | grep -q success
   }
 
-  if [[ ${DEPLOY_MODE} != "dbstor" && ${DEPLOY_MODE} != "combined" ]]; then
+  if [[ ${DEPLOY_MODE} != "dbstor" && ${DEPLOY_MODE} != "combined" ]] || [[ -f /opt/cantian/youmai_demo ]]; then
     wait_for_success 180 is_node1_joined_cluster
   else
     wait_for_success 180 is_gcc_file_initialized
@@ -156,7 +156,7 @@ function set_cms() {
     fi
 
     ${CMS_INSTALL_PATH}/bin/cms res -add db -type db -attr "script=${CMS_INSTALL_PATH}/bin/cluster.sh"
-    if [[ ${DEPLOY_MODE} == "dbstor" || ${DEPLOY_MODE} == "combined" ]]; then
+    if [[ ${DEPLOY_MODE} == "dbstor" || ${DEPLOY_MODE} == "combined" ]] && [[ ! -f /opt/cantian/youmai_demo ]]; then
       ${CMS_INSTALL_PATH}/bin/cms gccmark -create
     fi
   elif [ ${NODE_ID} == 1 ]; then

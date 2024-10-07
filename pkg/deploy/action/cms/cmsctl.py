@@ -382,6 +382,7 @@ CMS_CONFIG = {
 }
 PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
 STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
+YOUMAI_DEMO = "/opt/cantian/youmai_demo"
 
 MES_CONFIG = {
         "_CMS_MES_SSL_SWITCH": mes_ssl_switch,
@@ -419,6 +420,8 @@ class CmsCtl(object):
     gcc_home = ""
     gcc_dir = ""
     gcc_type = "NFS" if deploy_mode == "file" else "DBS"
+    if os.path.exists(YOUMAI_DEMO):
+        gcc_type = "NFS"
     running_mode = "cantiand_in_cluster"
     install_config_file = "/root/tmp/install_ct_node0/config/deploy_param.json"
     link_type = "RDMA"
@@ -999,7 +1002,8 @@ class CmsCtl(object):
         LOGGER.info("prepare gcc home dir")
         self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
         LOGGER.info("if blocked here, please check if the network is normal")
-        if deploy_mode != "dbstor" and deploy_mode != "combined" and not os.path.exists(self.gcc_home):
+        if (deploy_mode != "dbstor" and deploy_mode != "combined" and not os.path.exists(self.gcc_home) or
+                os.path.exists(YOUMAI_DEMO) and not os.path.exists(self.gcc_home)):
             os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
             LOGGER.info("makedir for gcc_home %s" % (self.gcc_home))
 
@@ -1144,6 +1148,9 @@ class CmsCtl(object):
                 self.gcc_home = os.path.join("/", self.storage_share_fs, "gcc_home")
                 self.cms_gcc_bak = os.path.join("/", self.storage_archive_fs)
             else:
+                self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+                self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
+            if os.path.exists(YOUMAI_DEMO):
                 self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
                 self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
             self.gcc_dir = self.gcc_home
@@ -1408,7 +1415,7 @@ class CmsCtl(object):
             if cantian_in_container == "0":
                 self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
                 LOGGER.info("if blocked here, please check if the network is normal")
-            if deploy_mode != "dbstor" and deploy_mode != "combined":
+            if deploy_mode != "dbstor" and deploy_mode != "combined" or os.path.exists(YOUMAI_DEMO):
                 versions_yml = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "versions.yml")
                 gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
                 str_cmd = "rm -rf %s && rm -rf %s && rm -rf %s" % (self.gcc_home, versions_yml, gcc_backup)

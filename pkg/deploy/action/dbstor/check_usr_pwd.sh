@@ -32,6 +32,9 @@ function main()
     chmod 640 ${DBSTOOL_PATH}/conf/dbs/*
     mkdir -p /opt/cantian/dbstor/data/logs/run
     export LD_LIBRARY_PATH=/opt/cantian/image/Cantian-RUN-CENTOS-64bit/lib:/opt/cantian/dbstor/add-ons
+    if [[ -f /opt/cantian/youmai_demo ]];then
+        return
+    fi
     /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/dbstor/log/install.log
     if [[ $? -ne 0 ]];then
         cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
