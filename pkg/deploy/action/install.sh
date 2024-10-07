@@ -486,15 +486,6 @@ function mount_fs() {
         else
             mount -t nfs -o timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
             archive_result=$?
-            # nas模式才挂载share nfs
-            share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
-            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
-            share_result=$?
-            if [ ${share_result} -ne 0 ]; then
-                logAndEchoError "mount share nfs failed"
-            fi
-            chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
-            checkMountNFS ${share_result}
         fi
         if [ ${archive_result} -ne 0 ]; then
             logAndEchoError "mount archive nfs failed"
@@ -519,6 +510,17 @@ function mount_fs() {
         mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
         chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
         chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+    fi
+    if [[ x"${deploy_mode}" == x"file" ]] || [[ -f /opt/cantian/youmai_demo ]];then
+        # nas模式才挂载share nfs
+        share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
+        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
+        share_result=$?
+        if [ ${share_result} -ne 0 ]; then
+            logAndEchoError "mount share nfs failed"
+        fi
+        chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
+        checkMountNFS ${share_result}
     fi
 
     # 检查nfs是否都挂载成功
