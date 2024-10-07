@@ -88,6 +88,8 @@ function mountNfs()
         else
             logAndEchoInfo "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
+    fi
+    if [[ x"${deploy_mode}" == x"file" ]] || [[ -f /opt/cantian/youmai_demo ]];then
         mountpoint /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
           logAndEchoInfo "/mnt/dbdata/remote/share_${storage_share_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -106,7 +108,6 @@ function mountNfs()
               logAndEchoInfo "mount /mnt/dbdata/remote/share_${storage_share_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
           fi
         fi
-
     fi
 }
 

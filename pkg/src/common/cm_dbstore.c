@@ -78,6 +78,13 @@ status_t dbs_init_lib(void)
     (void)dbs_load_symbol(intf->dbs_handle, "DbsCreateLink", (void **)(&intf->dbs_create_link));
     (void)dbs_load_symbol(intf->dbs_handle, "DbsCheckSingleLink", (void **)(&intf->dbs_check_single_link));
     (void)dbs_load_symbol(intf->dbs_handle, "DbsFileOpenRootByVstorId", (void **)(&intf->dbs_file_open_root_by_vstorid));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsFileCreateByPath",            (void **)(&intf->dbs_file_create_by_path)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsFileOpenByPath",              (void **)(&intf->dbs_file_open_by_path)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsFileRename",                  (void **)(&intf->dbs_file_rename)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsFileGetNum",                  (void **)(&intf->dbs_file_get_num)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsFileGetList",                 (void **)(&intf->dbs_file_get_list)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsGetFileSize",                 (void **)(&intf->dbs_get_file_size)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsUlogArchive",                 (void **)(&intf->dbs_ulog_archive)));
     cm_reset_error();
 
     // dbs
@@ -99,13 +106,6 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRead",                    (void **)(&intf->dbs_file_read)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRemove",                  (void **)(&intf->dbs_file_remove)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsClearCmsNameSpace",           (void **)(&intf->dbs_clear_cms_name_space)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileCreateByPath",            (void **)(&intf->dbs_file_create_by_path)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileOpenByPath",              (void **)(&intf->dbs_file_open_by_path)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileRename",                  (void **)(&intf->dbs_file_rename)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileGetNum",                  (void **)(&intf->dbs_file_get_num)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsFileGetList",                 (void **)(&intf->dbs_file_get_list)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsGetFileSize",                 (void **)(&intf->dbs_get_file_size)));
-    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsUlogArchive",                 (void **)(&intf->dbs_ulog_archive)));
 
     // pagepool
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "CreatePagePool",                 (void **)(&intf->create_pagepool)));
