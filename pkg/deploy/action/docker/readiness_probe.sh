@@ -24,6 +24,10 @@ cantian_daemon_pid=$(pgrep -f cantian_daemon)
 if [[ -f /opt/cantian/stop.enable ]] || [[ x"${install_step}" != x"3" ]];then
     exit 1
 fi
+if [[ -f /opt/cantian/cms/res_disable ]];then
+    logInfo "DB is manually stopped."
+    exit 1
+fi
 
 # 启动项检查
 if [[ "$1" == "startup-check" ]]; then

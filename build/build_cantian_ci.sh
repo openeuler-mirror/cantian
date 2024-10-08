@@ -141,6 +141,7 @@ function revertPatching() {
 
 function collectMysqlTarget() {
   cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
+  cp "${MYSQL_CODE_PATH}"/daac_lib/libcantian.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
   cp "${MYSQL_SERVER_PATH}"/scripts/my.cnf "${CANTIANDB_BIN}"/cantian-connector-mysql/scripts

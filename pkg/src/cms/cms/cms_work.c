@@ -245,6 +245,35 @@ status_t cms_start_res_cluster(cms_packet_head_t* msg, char* err_info, uint32 er
     return CT_SUCCESS;
 }
 
+status_t cms_create_res_disable()
+{
+    int32 handle = CT_INVALID_HANDLE;
+    char res_disable_file[CMS_PATH_BUFFER_SIZE] = { 0 };
+    errno_t err = sprintf_s(res_disable_file, CMS_PATH_BUFFER_SIZE, "%s/%s", g_cms_param->cms_home, "res_disable");
+    PRTS_RETURN_IFERR(err);
+    if (cm_file_exist(res_disable_file) == CT_TRUE) {
+        return CT_SUCCESS;
+    }
+    if (cm_create_file(res_disable_file, O_RDWR | O_TRUNC | O_CREAT, &handle) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+status_t cms_remove_res_disable()
+{
+    char res_disable_file[CMS_PATH_BUFFER_SIZE] = { 0 };
+    errno_t err = sprintf_s(res_disable_file, CMS_PATH_BUFFER_SIZE, "%s/%s", g_cms_param->cms_home, "res_disable");
+    PRTS_RETURN_IFERR(err);
+    if (cm_file_exist(res_disable_file) != CT_TRUE) {
+        return CT_SUCCESS;
+    }
+    if (cm_remove_file(res_disable_file) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t cms_start_res_local(uint32 res_id, uint32 timeout, char* err_info)
 {
     status_t ret = CT_SUCCESS;
@@ -252,6 +281,13 @@ status_t cms_start_res_local(uint32 res_id, uint32 timeout, char* err_info)
     ret = cms_res_start(res_id, timeout);
     if (ret != CT_SUCCESS) {
         err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "start resource failed");
+        cms_securec_check(err);
+        return ret;
+    }
+
+    ret = cms_remove_res_disable();
+    if (ret != CT_SUCCESS) {
+        err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "remove res disable file failed");
         cms_securec_check(err);
         return ret;
     }
@@ -495,6 +531,13 @@ status_t cms_stop_res_local_force(uint32 res_id, char* err_info)
         cms_securec_check(err);
         return ret;
     }
+
+    ret = cms_create_res_disable();
+    if (ret != CT_SUCCESS) {
+        err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "create res disable file failed");
+        cms_securec_check(err);
+        return ret;
+    }
     CMS_LOG_INF("end cms stop res local by force.");
     return CT_SUCCESS;
 }
@@ -529,6 +572,13 @@ status_t cms_stop_res_local(uint32 res_id, char* err_info)
         } else {
             err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "stop resource failed");
         }
+        cms_securec_check(err);
+        return ret;
+    }
+
+    ret = cms_create_res_disable();
+    if (ret != CT_SUCCESS) {
+        err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "create res disable file failed");
         cms_securec_check(err);
         return ret;
     }
