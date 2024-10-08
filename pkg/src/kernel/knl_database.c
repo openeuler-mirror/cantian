@@ -2805,6 +2805,8 @@ reformerpromote:
     if (kernel->db.ctrl.core.db_role == REPL_ROLE_PRIMARY) {
         CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] db_role is invalid: %u.", kernel->db.ctrl.core.db_role);
     }
+    // step 0 stop standby archive proc
+    arch_deinit_proc_standby();
 
     // step1 wait redo replay
     db_wait_lrpl_done(session);
@@ -2822,7 +2824,6 @@ reformerpromote:
     ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL_STANDBY);
     CT_LOG_RUN_INF("[INST] [SWITCHOVER] CKPT_TRIGGER_FULL_STANDBY is done");
 
-    arch_deinit_proc_standby();
     if (arch_start_proc_primary(session) != CT_SUCCESS) {
         CM_ABORT_REASONABLE(0, "[INST] [SWITCHOVER] start primary arch failed");
     }
