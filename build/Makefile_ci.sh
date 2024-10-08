@@ -332,21 +332,13 @@ fun_pkg_mysql_lib()
 
     cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${DAAC_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${DAAC_LIB_DIR_TMP}
-
+    
+    cd ${DAAC_LIB_DIR_TMP} && rm -rf 'libzecmssrc.a'
     cd ${DAAC_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
-    cd ${DAAC_LIB_DIR_TMP} && rm -rf *.a
-    cd ${DAAC_LIB_DIR_TMP} && rm -rf tse_mysql_proxy.o
-    cd ${DAAC_LIB_DIR_TMP} && ar cru libdaac.a *
-    cd ${DAAC_LIB_DIR_TMP} && ranlib libdaac.a
+    cd ${DAAC_LIB_DIR_TMP} && rm -rf tse_mysql_proxy.o && rm -rf *.a
+    cd ${DAAC_LIB_DIR_TMP} && gcc -shared * -o libcantian.so
 
-    #删除.a里面的main函数
-    strip -N main ${DAAC_LIB_DIR_TMP}/libdaac.a
-
-    #dsw_boot.static_o中的print_version会跟mysql里面的print_version符号重复 这里需要重命名一下
-    objcopy --redefine-sym print_version=daac_print_version ${DAAC_LIB_DIR_TMP}/libdaac.a
-
-    cd ${DAAC_LIB_DIR_TMP} && ranlib libdaac.a
-    cp ${DAAC_LIB_DIR_TMP}/libdaac.a ${DAAC_LIB_DIR}
+    cp ${DAAC_LIB_DIR_TMP}/libcantian.so ${DAAC_LIB_DIR}
     rm -rf ${DAAC_LIB_DIR_TMP}/
 
     cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${DAAC_LIB_DIR}
@@ -358,10 +350,10 @@ fun_pkg_mysql_lib()
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
             cp -d /usr/lib64/libubsan.so* ${DAAC_LIB_DIR}
             cp -d /usr/lib64/libasan.so* ${DAAC_LIB_DIR}
-        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
             cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libubsan.so* ${DAAC_LIB_DIR}
             cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libasan.so* ${DAAC_LIB_DIR}
-        else
+        else 
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi
     fi
