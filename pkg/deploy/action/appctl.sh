@@ -339,6 +339,9 @@ case "$ACTION" in
         if [[ -f /opt/cantian/stop.enable ]];then
             rm -rf /opt/cantian/stop.enable
         fi
+        if [[ -f /opt/cantian/cms/res_disable ]];then
+            rm -rf /opt/cantian/cms/res_disable
+        fi
         exit $ret
         ;;
     stop)
