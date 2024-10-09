@@ -111,6 +111,7 @@ status_t cms_node_all_res_offline(uint32 node_id, bool32 *stat_changed)
     CMS_SYNC_POINT_GLOBAL_START(CMS_SET_OTHER_NODE_OFFLINE_BEFORE_INCVER_ABORT, NULL, 0);
     CMS_SYNC_POINT_GLOBAL_END;
     
+    cms_do_try_master();
     if (inc_stat_version() != CT_SUCCESS) {
         CMS_LOG_ERR("cms inc stat version fialed");
         return CT_ERROR;
