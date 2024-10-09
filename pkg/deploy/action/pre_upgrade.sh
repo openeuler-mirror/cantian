@@ -84,6 +84,7 @@ function prepare_env() {
     storage_share_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs")
     storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
     node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
+    cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
     if [[ ${node_id} == '0' ]]; then
         update_share_config
     fi
@@ -337,9 +338,9 @@ function rollup_upgrade() {
 }
 
 function version_check() {
-    local target_version=$(cat ${CURRENT_PATH}/../versions.yml | grep -oP 'Version: \K\S+')
-    local old_version=$(cat /opt/cantian/versions.yml | grep -oP 'Version: \K\S+')
-    if [[ x"${target_version}" == x"${old_version}" ]];then
+    target_version=$(cat ${CURRENT_PATH}/../versions.yml | grep -oP 'Version: \K\S+')
+    old_version=$(cat /opt/cantian/versions.yml | grep -oP 'Version: \K\S+')
+    if [[ x"${target_version}" == x"${old_version}" ]] && [[ "${cantian_in_container}" == "0" ]];then
         logAndEchoError "The target version is the same as the current version. No upgrade is required."
         exit 1
     fi
@@ -356,21 +357,24 @@ function check_upgrade_flag() {
     if [ ! -d "${upgrade_path}" ];then
         return 0
     fi
-    upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v "${target_version}" | grep -v upgrade.lock)
+    upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v upgrade.lock)
+    if [[ "${cantian_in_container}" == "0" ]];then
+        upgrade_file=$(ls "${upgrade_path}" | grep -E "^upgrade.*" | grep -v ${target_version} | grep -v upgrade.lock)
+    fi
     if [[ -n ${upgrade_file} ]];then
         logAndEchoError "The cluster is being upgraded to another version: ${upgrade_file}, current target version: ${target_version}"
-        return 1
+        exit 1
     fi
 }
 
 function main() {
     logAndEchoInfo "begin to pre_upgrade"
-    version_check
     input_params_check
     prepare_env
     # 下个版本在加上，当前提供离线升级方式
     source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
     update_local_status_file_path_by_dbstor
+    version_check
     check_upgrade_flag
     if [ ${UPGRADE_MODE} == "offline" ]; then
         offline_upgrade
