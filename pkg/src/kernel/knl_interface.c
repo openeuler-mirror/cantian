@@ -266,7 +266,7 @@ void knl_attach_cpu_core(void)
         mask = cpu_masks[(cm_get_current_thread_id() % SHM_SEG_MAX_NUM) % cpu_group_num];
     }
     if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) != 0) {
-        CT_LOG_RUN_ERR("the thread attach cpu is error!");
+        CT_LOG_RUN_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_60, "the thread attach cpu failed!");
     }
 }
 

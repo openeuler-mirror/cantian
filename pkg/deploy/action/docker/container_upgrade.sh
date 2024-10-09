@@ -222,6 +222,7 @@ function create_upgrade_flag() {
     if [ ! -f "${upgrade_flag}" ]; then
         touch ${upgrade_flag}
         chmod 600 ${upgrade_flag}
+        update_remote_status_file_path_by_dbstor ${upgrade_flag}
     fi
     
     if [ ! -f "${upgrade_lock}" ]; then

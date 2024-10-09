@@ -64,7 +64,7 @@ cp lib/zstd.h ${OPEN_SOURCE}/Zstandard/include
 cd lib/;rm -f libzstd.so libzstd.so.1
 ln -s libzstd.so.1.5.2 libzstd.so
 ln -s libzstd.so.1.5.2 libzstd.so.1
-tar -cvf libzstd.tar libzstd.so*;cp libzstd.tar libzstd.so* ${LIBRARY}/Zstandard/lib/
+tar -cvf libzstd.tar libzstd.so*;cp libzstd.tar libzstd.so* libzstd.a ${LIBRARY}/Zstandard/lib/
 mkdir -p ${LIBRARY}/Zstandard/bin;cp ${OPEN_SOURCE}/Zstandard/zstd-1.5.2/zstd ${LIBRARY}/Zstandard/bin/
 
 #protobuf 
@@ -155,7 +155,7 @@ mkdir -p ${OPEN_SOURCE}/zlib/include
 mkdir -p ${LIBRARY}/zlib/lib
 cp zconf.h zlib.h ${OPEN_SOURCE}/zlib/include
 CFLAGS='-Wall -Wtrampolines -fno-common -fvisibility=default -fstack-protector-strong -fPIC --param ssp-buffer-size=4 -D_FORTIFY_SOURCE=2 -O2 -Wl,-z,relro,-z,now,-z,noexecstack' ./configure;make -sj
-tar -cvf libz.tar libz.so*;cp libz.tar libz.so* ${LIBRARY}/zlib/lib/
+tar -cvf libz.tar libz.so*;cp libz.tar libz.so* libz.a ${LIBRARY}/zlib/lib/
 
 #huawei_secure_c
 cd ${PLATFORM}
