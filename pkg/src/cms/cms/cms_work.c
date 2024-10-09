@@ -542,29 +542,54 @@ status_t cms_stop_res_local_force(uint32 res_id, char* err_info)
     return CT_SUCCESS;
 }
 
-status_t cms_stop_res_local(uint32 res_id, char* err_info)
+status_t cms_check_res_status(uint32 res_id, char* err_info)
 {
-    CMS_LOG_INF("begin cms stop res local.");
-    status_t ret = CT_SUCCESS;
     errno_t err = EOK;
     status_t res_status = CT_SUCCESS;
-    ret = cms_res_check(res_id, &res_status);
+    status_t ret = cms_res_check(res_id, &res_status);
     if (ret != CT_SUCCESS) {
         err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "check resource failed");
         cms_securec_check(err);
         return CT_ERROR;
     }
+
     if (res_status != CT_SUCCESS) {
         if (res_status == CT_ERROR) {
-            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "resource has been already stoped");
-        } else if (res_status == CT_EAGAIN) {
-            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "resource count exceeds 1");
-        } else {
-            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "unknow error");
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "resource has already been stopped");
+            cms_securec_check(err);
+            return CT_ERROR;
         }
+        
+        if (res_status == CT_EAGAIN) {
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "More than one resource is running.");
+            cms_securec_check(err);
+            return CT_ERROR;
+        }
+
+        if (res_status == CT_TIMEDOUT) {
+            err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "Timeout while querying resource running status.");
+            cms_securec_check(err);
+            return CT_ERROR;
+        }
+
+        err = strcpy_s(err_info, CMS_INFO_BUFFER_SIZE, "Failed to query resource status due to unknown reason.");
         cms_securec_check(err);
         return CT_ERROR;
     }
+
+    return CT_SUCCESS;
+}
+
+status_t cms_stop_res_local(uint32 res_id, char* err_info)
+{
+    errno_t err = EOK;
+    status_t ret = CT_SUCCESS;
+    CMS_LOG_INF("begin cms stop res local.");
+    ret = cms_check_res_status(res_id, err_info);
+    if (ret != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
     ret = cms_res_stop(res_id, CT_TRUE);
     if (ret != CT_SUCCESS) {
         if (ret == CT_TIMEDOUT) {

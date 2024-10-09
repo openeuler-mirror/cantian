@@ -1784,7 +1784,7 @@ int32 cms_res_stop_with_node(int32 argc, char* argv[])
         }
         
         if (res_stat.cur_stat == CMS_RES_OFFLINE && res_stat.work_stat == RC_JOINING) {
-            printf("resource has been already stopped.\n");
+            printf("resource has already been stopped.\n");
             return CT_SUCCESS;
         }
     }

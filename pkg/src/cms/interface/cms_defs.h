@@ -112,6 +112,8 @@
 #define CMS_NODE_FAULT_THRESHOLD        5
 #define CMS_DISK_LOCK_FILE_REOPEN_NUM   1
 
+#define CMS_TIMEOUT_ERROR_NUMBER        "124"
+
 typedef enum en_cms_dev_type {
     CMS_DEV_TYPE_SD     = 1, // scsi device
     CMS_DEV_TYPE_FILE   = 2, // normal file
