@@ -132,6 +132,44 @@ class SwitchOver(object):
             raise Exception(err_msg)
         LOG.info("Standby start by cms command success.")
 
+    def wait_res_stop(self):
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+              "grep -v STAT | awk '{print \$1, \$3}'\"" % self.run_user
+        wait_time = 30
+        wait_time_step = 2
+        while wait_time:
+            wait_time -= wait_time_step
+            cms_stat = self.query_cluster_status(cmd)
+            if len(cms_stat) < 2:
+                err_msg = "Current cluster status is abnormal, output:%s" % cms_stat
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            online_flag = False
+            unknown_flag = False
+            for node_stat in cms_stat:
+                node_id, stat = node_stat.split(" ")
+                if stat == "ONLINE":
+                    online_flag = True
+                    continue
+                if stat == "UNKNOWN":
+                    unknown_flag = True
+            if online_flag:
+                time.sleep(wait_time_step)
+                LOG.info("waiting for cantian stop")
+                continue
+            elif unknown_flag:
+                LOG.info("waiting for io fence")
+                time.sleep(wait_time_step)
+                LOG.info("cms offline success")
+                return
+            else:
+                LOG.info("cms offline success")
+                return
+        else:
+            err_msg = "cantian stop time out"
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+
     def standby_cancel_iof(self):
         """
         recover 阵列正常状态，cantian拉起前需要用户手动执行命令进行iof
@@ -221,6 +259,7 @@ class SwitchOver(object):
         if config_role == ConfigRole.Primary and running_status == MetroDomainRunningStatus.Normal:
             self.standby_logicrep_stop()
             self.standby_cms_res_stop()
+            self.wait_res_stop()
             self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
             self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
                 self.hyper_domain_id, DomainAccess.ReadAndWrite)
@@ -389,44 +428,6 @@ class DRRecover(SwitchOver):
         if running_status == MetroDomainRunningStatus.Normal and config_role == ConfigRole.Primary:
             err_msg = "DR recover operation is not allowed in %s status." % \
                       get_status(running_status, MetroDomainRunningStatus)
-            LOG.error(err_msg)
-            raise Exception(err_msg)
-        
-    def wait_res_stop(self):
-        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
-              "grep -v STAT | awk '{print \$1, \$3}'\"" % self.run_user
-        wait_time = 30
-        wait_time_step = 2
-        while wait_time:
-            wait_time -= wait_time_step
-            cms_stat = self.query_cluster_status(cmd)
-            if len(cms_stat) < 2:
-                err_msg = "Current cluster status is abnormal, output:%s" % cms_stat
-                LOG.error(err_msg)
-                raise Exception(err_msg)
-            online_flag = False
-            unknown_flag = False
-            for node_stat in cms_stat:
-                node_id, stat = node_stat.split(" ")
-                if stat == "ONLINE":
-                    online_flag = True
-                    continue
-                if stat == "UNKNOWN":
-                    unknown_flag = True
-            if online_flag:
-                time.sleep(wait_time_step)
-                LOG.info("waiting for cantian stop")
-                continue
-            elif unknown_flag:
-                LOG.info("waiting for io fence")
-                time.sleep(wait_time_step)
-                LOG.info("cms offline success")
-                return
-            else:
-                LOG.info("cms offline success")
-                return
-        else:
-            err_msg = "cantian stop time out"
             LOG.error(err_msg)
             raise Exception(err_msg)
 
