@@ -36,6 +36,7 @@ status_t gdv_prepare_and_exec(session_t *session, text_t *sql, sql_stmt_t **sub_
 
     sql_release_resource(stmt, CT_TRUE);
     sql_release_context(stmt);
+    sql_release_sql_map(stmt);
 
     stmt->session->sender = &g_instance->sql.gdv_sender;
     stmt->status = CT_TRUE;
