@@ -31,15 +31,15 @@ wait_for_success() {
 
 	i=0
 	while ! ${success_cmd}; do
-	echo -n "."
-	sleep 1
-	i=$((i + 1))
-	if [ $i -eq ${attempts} ]; then
-		break
-	fi
+		echo -n "."
+		sleep 1
+		i=$((i + 1))
+		if [ $i -eq ${attempts} ]; then
+			exit 1
+		fi
 	done
-	echo
-	${success_cmd}
+	
+	echo ${success_cmd}
 }
 
 wait_for_node_in_cluster() {
@@ -55,7 +55,12 @@ wait_for_node_in_cluster() {
 
 wait_for_cms_start() {
 	wait_for_cms_srv_ready() {
-		cms stat -server ${NODE_ID}| grep -q "TRUE"
+		current_pid=$(pgrep -f "cms server -start" | head -n 1)
+		if [ -n "${current_pid}" ] && [ "${current_pid}" -eq "${cms_srv_pid}" ]; then
+			cms stat -server ${NODE_ID}| grep -q "TRUE"
+		else
+			exit 1
+		fi
 	}
 	wait_for_success 120 wait_for_cms_srv_ready
 }
@@ -64,12 +69,8 @@ start_cms() {
 	log "=========== start cms ${NODE_ID} ================"
 #	wait_for_node_in_cluster
 
-  nohup cms server -start >> ${STATUS_LOG} 2>&1 &
-  if [ $? -ne 0 ]
-  then
-    echo "CMS_FAILED"
-    exit 1
-  fi
+	nohup cms server -start >> ${STATUS_LOG} 2>&1 &
+	cms_srv_pid=$!
 
 	log "=========== wait for cms server start ================"
 	wait_for_cms_start
