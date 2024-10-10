@@ -37,7 +37,6 @@ add_subdirectory(tse)
 add_subdirectory(fdsa)
 add_subdirectory(ctrst)
 add_subdirectory(dbstool)
-add_subdirectory(version)
 
 if(NOT USE_OSS_BUILD)
     add_subdirectory(ctbox)
