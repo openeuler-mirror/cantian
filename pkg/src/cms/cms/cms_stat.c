@@ -576,17 +576,23 @@ status_t cms_exec_res_script(const char* script, const char* arg, uint32 timeout
     }
 
     cmd_out[size] = 0;
+    CMS_LOG_INF("end cms exec res script.");
     if (strstr(cmd_out, "RES_SUCCESS") != NULL) {
         *result = CT_SUCCESS;
-    } else {
-        CMS_LOG_WAR("script %s, output %s", cmd, cmd_out);
-        if (strstr(cmd_out, "RES_FAILED") != NULL) {
-            *result = CT_ERROR;
-        } else if (strstr(cmd_out, "RES_MULTI") != NULL) {
-            *result = CT_EAGAIN;
-        }
+        return CT_SUCCESS;
     }
-    CMS_LOG_INF("end cms exec res script.");
+
+    if (strstr(cmd_out, CMS_TIMEOUT_ERROR_NUMBER) != NULL) {
+        *result = CT_TIMEDOUT;
+        return CT_SUCCESS;
+    }
+
+    if (strstr(cmd_out, "RES_MULTI") != NULL) {
+        *result = CT_EAGAIN;
+        return CT_SUCCESS;
+    }
+
+    *result = CT_ERROR;
     return CT_SUCCESS;
 }
 
