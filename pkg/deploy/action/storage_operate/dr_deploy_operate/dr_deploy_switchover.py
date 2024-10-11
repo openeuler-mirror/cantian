@@ -132,6 +132,15 @@ class SwitchOver(object):
             raise Exception(err_msg)
         LOG.info("Standby start by cms command success.")
 
+    def query_cluster_status(self, cmd, timeout=100):
+        return_code, output, stderr = exec_popen(cmd, timeout=timeout)
+        if return_code:
+            err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+        outputs = output.split("\n")
+        return outputs
+
     def wait_res_stop(self):
         cmd = "su -s /bin/bash - %s -c \"cms stat | " \
               "grep -v STAT | awk '{print \$1, \$3}'\"" % self.run_user
@@ -294,15 +303,6 @@ class DRRecover(SwitchOver):
         super(DRRecover, self).__init__()
         self.repl_success_flag = False
         self.single_write = None
-
-    def query_cluster_status(self, cmd, timeout=100):
-        return_code, output, stderr = exec_popen(cmd, timeout=timeout)
-        if return_code:
-            err_msg = "Execute cmd[%s] failed, details:%s" % (cmd, stderr)
-            LOG.error(err_msg)
-            raise Exception(err_msg)
-        outputs = output.split("\n")
-        return outputs
 
     def check_cluster_status_for_recover(self, check_time=20):
         """
