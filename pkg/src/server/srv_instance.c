@@ -2145,6 +2145,12 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
             CT_LOG_RUN_ERR("Failed to initialize SIGSEGV func in raft mode");
         }
     }
+
+    if (sigcap_handle_reg() != CT_SUCCESS) {
+        srv_instance_destroy();
+        CT_LOG_RUN_ERR("Failed to initialize SIGSEGV func");
+        return CT_ERROR;
+    }
 #endif
 
     CT_LOG_RUN_INF("instance started, memory usage(%lu)", cm_print_memory_usage());
