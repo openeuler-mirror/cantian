@@ -37,6 +37,9 @@
 #define DBS_CONFIG_MAX_PARAM 256
 #define DBS_CLUSTER_UUID_LEN 37
 #define DBS_DIR_MAX_FILE_NUM 1024
+#define DBS_GCC_BACKUP_INTERVAL_TIME 1000
+#define DBS_FILE_BLOCK_SIZE 512
+#define UPPER_ALIGN(size, align_size) (((size) + (align_size) - 1) & (~((align_size) - 1)))
 
 #define CMS_HEAD_ATTRS_NAME "#GCC_HEAD#\nMETA_VER,NODE_COUNT,DATA_VER,CHECKSUM\n"
 #define CMS_NODE_ATTRS_NAME "#GCC_NODE#\nNODE_ID,NAME,IP,PORT\n"
@@ -44,6 +47,7 @@
 #define CMS_RESGRP_ATTRS_NAME "#RES_GRP #\nGROUP_ID,NAME\n"
 #define CMS_RES_ATTRS_NAME "#GCC_RES #\nRES_ID,NAME,GROUP_ID,TYPE,LEVEL,AUTO_START,START_TIMEOUT,STOP_TIMEOUT," \
                             "CHECK_TIMEOUT,HB_TIMEOUT,CHECK_INTERVAL,RESTART_TIMES,SCRIPT\n"
+#define CMS_ATTRS_END_NAME "#END_MARK#\n"
 
 static status_t cms_export_gcc_head(int32 file)
 {
@@ -188,20 +192,30 @@ static status_t cms_export_res_attrs(int32 file)
     return CT_SUCCESS;
 }
 
-static status_t cms_export_gcc_head_dbs(object_id_t* file_handle, uint64* offset)
+status_t cms_export_cpy2buf(char *dst_buf, uint64 offset, char *src_buf, uint32 length)
+{
+    if (offset + length >= CMS_MAX_EXP_FILE_SIZE) {
+        CMS_LOG_ERR("invalid export attrs length.");
+        return CT_ERROR;
+    }
+    errno_t ret = memcpy_sp(dst_buf + offset, length, src_buf, length);
+    if (ret != EOK) {
+        CMS_LOG_ERR("memcpy_sp failed, info %s, ret %d, errno %d", src_buf, ret, errno);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+static status_t cms_export_gcc_head_dbs(uint64* offset, char* attrs_buf)
 {
     errno_t ret;
     const cms_gcc_t* gcc;
     const cms_gcc_head_t* gcc_head;
     uint32 length = strlen(CMS_HEAD_ATTRS_NAME);
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { 0 };
-
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, CMS_HEAD_ATTRS_NAME, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_HEAD_ATTRS_NAME, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
-
     *offset += length;
     gcc = cms_get_read_gcc();
     gcc_head = &gcc->head;
@@ -216,11 +230,9 @@ static status_t cms_export_gcc_head_dbs(object_id_t* file_handle, uint64* offset
         gcc_head->meta_ver, gcc_head->node_count, gcc_head->data_ver, gcc_head->cheksum);
     cms_release_gcc(&gcc);
     PRTS_RETURN_IFERR(ret);
-    length = strlen(buf);
 
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, (char *)buf, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    length = strlen(buf);
+    if (cms_export_cpy2buf(attrs_buf, *offset, buf, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -228,17 +240,14 @@ static status_t cms_export_gcc_head_dbs(object_id_t* file_handle, uint64* offset
     return CT_SUCCESS;
 }
 
-static status_t cms_export_node_attrs_dbs(object_id_t* file_handle, uint64* offset)
+static status_t cms_export_node_attrs_dbs(uint64* offset, char* attrs_buf)
 {
     errno_t ret;
     const cms_gcc_t* gcc;
     const cms_node_def_t* node_def;
     uint32 length = strlen(CMS_NODE_ATTRS_NAME);
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { 0 };
-
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, CMS_NODE_ATTRS_NAME, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_NODE_ATTRS_NAME, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -260,10 +269,7 @@ static status_t cms_export_node_attrs_dbs(object_id_t* file_handle, uint64* offs
         PRTS_RETURN_IFERR(ret);
 
         length = strlen(buf);
-
-        ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, (char *)buf, length);
-        if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+        if (cms_export_cpy2buf(attrs_buf, *offset, buf, length) != CT_SUCCESS) {
             return CT_ERROR;
         }
 
@@ -273,17 +279,14 @@ static status_t cms_export_node_attrs_dbs(object_id_t* file_handle, uint64* offs
     return CT_SUCCESS;
 }
 
-status_t cms_export_votedisk_attrs_dbs(object_id_t* file_handle, uint64* offset)
+status_t cms_export_votedisk_attrs_dbs(uint64* offset, char* attrs_buf)
 {
     errno_t ret;
     const cms_gcc_t* gcc;
     const cms_votedisk_t* votedisk;
     uint32 length = strlen(CMS_VOTEDISK_ATTRS_NAME);
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { 0 };
-
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, CMS_VOTEDISK_ATTRS_NAME, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_VOTEDISK_ATTRS_NAME, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -303,10 +306,7 @@ status_t cms_export_votedisk_attrs_dbs(object_id_t* file_handle, uint64* offset)
         PRTS_RETURN_IFERR(ret);
 
         length = strlen(buf);
-
-        ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, (char *)buf, length);
-        if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+        if (cms_export_cpy2buf(attrs_buf, *offset, buf, length) != CT_SUCCESS) {
             return CT_ERROR;
         }
 
@@ -316,17 +316,14 @@ status_t cms_export_votedisk_attrs_dbs(object_id_t* file_handle, uint64* offset)
     return CT_SUCCESS;
 }
 
-static status_t cms_export_resgrp_attrs_dbs(object_id_t* file_handle, uint64* offset)
+static status_t cms_export_resgrp_attrs_dbs(uint64* offset, char* attrs_buf)
 {
     errno_t ret;
     const cms_gcc_t* gcc;
     const cms_resgrp_t* resgrp;
     uint32 length = strlen(CMS_RESGRP_ATTRS_NAME);
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { 0 };
-
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, CMS_RESGRP_ATTRS_NAME, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_RESGRP_ATTRS_NAME, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -347,10 +344,7 @@ static status_t cms_export_resgrp_attrs_dbs(object_id_t* file_handle, uint64* of
         PRTS_RETURN_IFERR(ret);
 
         length = strlen(buf);
-
-        ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, (char *)buf, length);
-        if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+        if (cms_export_cpy2buf(attrs_buf, *offset, buf, length) != CT_SUCCESS) {
             return CT_ERROR;
         }
 
@@ -360,17 +354,14 @@ static status_t cms_export_resgrp_attrs_dbs(object_id_t* file_handle, uint64* of
     return CT_SUCCESS;
 }
 
-static status_t cms_export_res_attrs_dbs(object_id_t* file_handle, uint64* offset)
+static status_t cms_export_res_attrs_dbs(uint64* offset, char* attrs_buf)
 {
     errno_t ret;
     const cms_gcc_t* gcc;
     const cms_res_t* res;
     uint32 length = strlen(CMS_RES_ATTRS_NAME);
     char buf[CMS_EXP_ROW_BUFFER_SIZE] = { 0 };
-
-    ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, CMS_RES_ATTRS_NAME, length);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_RES_ATTRS_NAME, length) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -394,10 +385,7 @@ static status_t cms_export_res_attrs_dbs(object_id_t* file_handle, uint64* offse
         PRTS_RETURN_IFERR(ret);
 
         length = strlen(buf);
-        
-        ret = dbs_global_handle()->dbs_file_write(file_handle, *offset, (char *)buf, length);
-        if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("write file by dbstor failed, ret %d", ret);
+        if (cms_export_cpy2buf(attrs_buf, *offset, buf, length) != CT_SUCCESS) {
             return CT_ERROR;
         }
 
@@ -448,8 +436,53 @@ status_t cms_export_gcc(const char* path)
         return CT_ERROR;
     }
 
+    CT_RETURN_IFERR(cm_write_file(file, CMS_ATTRS_END_NAME, (int)strlen(CMS_ATTRS_END_NAME)));
     cm_close_file(file);
     return CT_SUCCESS;
+}
+
+status_t cms_export_write_dbs(object_id_t* file_handle, uint64* offset, char* attrs_buf)
+{
+    uint32 length = strlen(CMS_ATTRS_END_NAME);
+    if (cms_export_cpy2buf(attrs_buf, *offset, CMS_ATTRS_END_NAME, length) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    *offset += length;
+
+    uint64 aligned_offset = UPPER_ALIGN(*offset, DBS_FILE_BLOCK_SIZE);
+    int32 write_ret = dbs_global_handle()->dbs_file_write(file_handle, 0, attrs_buf, aligned_offset);
+    if (write_ret != 0) {
+        CMS_LOG_ERR("dbs write offset:%llu len:%llu failed, ret %d.", *offset, aligned_offset, write_ret);
+        return CT_ERROR;
+    }
+
+    CMS_LOG_INF("finish to export cms attrs, real size %llu, aligned size: %llu", *offset, aligned_offset);
+    return CT_SUCCESS;
+}
+
+status_t cms_alloc_attrs_buf(char **attrs_buf)
+{
+    char *buf = (char *)malloc(CMS_MAX_EXP_FILE_SIZE);
+    if (buf == NULL) {
+        CMS_LOG_ERR("malloc attrs buf failed");
+        return CT_ERROR;
+    }
+    errno_t ret = memset_s(buf, CMS_MAX_EXP_FILE_SIZE, ' ', CMS_MAX_EXP_FILE_SIZE);
+    if (ret != EOK) {
+        CMS_LOG_ERR("memset attrs buf failed");
+        return CT_ERROR;
+    }
+    *attrs_buf = buf;
+    return CT_SUCCESS;
+}
+
+void cms_release_attrs_buf(char **attrs_buf)
+{
+    if (attrs_buf != NULL && *attrs_buf != NULL) {
+        free(*attrs_buf);
+        *attrs_buf = NULL;
+    }
+    return;
 }
 
 status_t cms_export_gcc_dbs(const char* path)
@@ -457,33 +490,43 @@ status_t cms_export_gcc_dbs(const char* path)
     object_id_t file_handle = { 0 };
     CT_RETURN_IFERR(cms_load_gcc());
     uint64 offset = 0;
-    
-    if (cm_get_dbs_last_file_handle(path, &file_handle)) {
-        CMS_LOG_ERR("Failed to get gcc backup dir handle %s", path);
+    char *attrs_buf = NULL;
+    if (cms_alloc_attrs_buf(&attrs_buf) != CT_SUCCESS) {
         return CT_ERROR;
     }
-    
-    if (cms_export_gcc_head_dbs(&file_handle, &offset) != CT_SUCCESS) {
-        CMS_LOG_ERR("export gcc head attributes by dbstor error");
-        return CT_ERROR;
-    }
-    if (cms_export_node_attrs_dbs(&file_handle, &offset) != CT_SUCCESS) {
-        CMS_LOG_ERR("export node attributes by dbstor error");
-        return CT_ERROR;
-    }
-    if (cms_export_votedisk_attrs_dbs(&file_handle, &offset) != CT_SUCCESS) {
-        CMS_LOG_ERR("export votedisk attributes by dbstor error");
-        return CT_ERROR;
-    }
-    if (cms_export_resgrp_attrs_dbs(&file_handle, &offset) != CT_SUCCESS) {
-        CMS_LOG_ERR("export resource group attributes by dbstor error");
-        return CT_ERROR;
-    }
-    if (cms_export_res_attrs_dbs(&file_handle, &offset) != CT_SUCCESS) {
-        CMS_LOG_ERR("export resource attributes by dbstor error");
-        return CT_ERROR;
-    }
+    do {
+        if (cm_get_dbs_last_file_handle(path, &file_handle)) {
+            CMS_LOG_ERR("Failed to get gcc backup dir handle %s", path);
+            break;
+        }
+        if (cms_export_gcc_head_dbs(&offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("export gcc head attributes by dbstor error");
+            break;
+        }
+        if (cms_export_node_attrs_dbs(&offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("export node attributes by dbstor error");
+            break;
+        }
+        if (cms_export_votedisk_attrs_dbs(&offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("export votedisk attributes by dbstor error");
+            break;
+        }
+        if (cms_export_resgrp_attrs_dbs(&offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("export resource group attributes by dbstor error");
+            break;
+        }
+        if (cms_export_res_attrs_dbs(&offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("export resource attributes by dbstor error");
+            break;
+        }
 
+        if (cms_export_write_dbs(&file_handle, &offset, attrs_buf) != CT_SUCCESS) {
+            CMS_LOG_ERR("write resource attributes error");
+            break;
+        }
+    } while (CT_FALSE);
+
+    cms_release_attrs_buf(&attrs_buf);
     return CT_SUCCESS;
 }
 
@@ -587,7 +630,7 @@ status_t cms_remove_old_files(char* dirname, char *prefix)
     uint32 prefix_len = strlen(prefix);
 
     if (chdir(dirname) == -1) {
-        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
+        CMS_LOG_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
         return CT_ERROR;
     }
 
@@ -640,7 +683,7 @@ status_t get_time_from_filename(char* file_name, time_t* tv_usec, char *prefix)
                         strlen(file_name) - strlen(prefix) -1);
         MEMS_RETURN_IFERR(ret);
     } else {
-        CT_LOG_RUN_ERR("gcc backup file with wrong suffix, file name %s, suffix %s", file_name, suffix);
+        CMS_LOG_ERR("gcc backup file with wrong suffix, file name %s, suffix %s", file_name, suffix);
         return CT_ERROR;
     }
 
@@ -650,13 +693,13 @@ status_t get_time_from_filename(char* file_name, time_t* tv_usec, char *prefix)
 status_t cms_get_file_list_dbs(char *dirname, void *file_list, object_id_t *gcc_backup_file_handle, uint32_t *file_num)
 {
     if (cm_get_dbs_last_dir_handle(dirname, gcc_backup_file_handle) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("Failed to get gcc backup dir handle");
+        CMS_LOG_ERR("Failed to get gcc backup dir handle");
         return CT_ERROR;
     }
 
     int32 ret = dbs_global_handle()->dbs_file_get_list(gcc_backup_file_handle, file_list, file_num);
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("Failed to get gcc backup file list, ret %d, file dir %s", ret, dirname);
+        CMS_LOG_ERR("Failed to get gcc backup file list, ret %d, file dir %s", ret, dirname);
         return CT_ERROR;
     }
 
@@ -676,7 +719,7 @@ status_t cms_remove_oldest_dbs(object_id_t *handle, char **names, char *name, ti
     }
 
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("Failed to remove file, ret %d", ret);
+        CMS_LOG_ERR("Failed to remove file, ret %d", ret);
         return CT_ERROR;
     }
 
@@ -687,14 +730,14 @@ status_t cms_remove_old_files_dbs(char *dirname, char *prefix)
 {
     void *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info));
     if (file_list == NULL) {
-        CT_LOG_RUN_ERR("malloc arch file list array failed");
+        CMS_LOG_ERR("malloc arch file list array failed");
         return CT_ERROR;
     }
 
     errno_t mem_ret = memset_sp(file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM,
                                 0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
     if (mem_ret != EOK) {
-        CT_LOG_RUN_ERR("memset arch file list array failed");
+        CMS_LOG_ERR("memset arch file list array failed");
         free(file_list);
         return CT_ERROR;
     }
@@ -717,7 +760,7 @@ status_t cms_remove_old_files_dbs(char *dirname, char *prefix)
         }
 
         if (get_time_from_filename(file_name, &tv_usec, prefix) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("Failed to get backup time from filename, file_name %s, prefix %s", file_name, prefix);
+            CMS_LOG_ERR("Failed to get backup time from filename, file_name %s, prefix %s", file_name, prefix);
             continue;
         }
 
@@ -729,7 +772,7 @@ status_t cms_remove_old_files_dbs(char *dirname, char *prefix)
         }
 
         if (cms_remove_oldest_dbs(&gcc_backup_file_handle, file_names, file_name, times, tv_usec) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("Failed to remove oldest backup file, file name %s", file_name);
+            CMS_LOG_ERR("Failed to remove oldest backup file, file name %s", file_name);
             free(file_list);
             return CT_ERROR;
         }
@@ -747,7 +790,7 @@ status_t cms_keep_recent_files_remote(const char *bak_path, char *prefix)
     char buffer[CMS_FILE_NAME_BUFFER_SIZE] = { 0 };
     char *cwdir = getcwd(buffer, CMS_FILE_NAME_BUFFER_SIZE);
     if (cwdir == NULL) {
-        CT_LOG_RUN_ERR("get current work directory failed, error code %d.", errno);
+        CMS_LOG_ERR("get current work directory failed, error code %d.", errno);
         return CT_ERROR;
     }
 
@@ -758,12 +801,12 @@ status_t cms_keep_recent_files_remote(const char *bak_path, char *prefix)
     }
 
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("Failed to remove old backup file, ret %d, file dir %s, prefix %s", ret, bak_path, prefix);
+        CMS_LOG_ERR("Failed to remove old backup file, ret %d, file dir %s, prefix %s", ret, bak_path, prefix);
         return CT_ERROR;
     }
     
     if (chdir(cwdir) == -1) {
-        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
+        CMS_LOG_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -778,19 +821,19 @@ status_t cms_keep_recent_files_local(const char *bak_path, char *prefix)
     char buffer[CMS_FILE_NAME_BUFFER_SIZE];
     char *cwdir = getcwd(buffer, CMS_FILE_NAME_BUFFER_SIZE);
     if (cwdir == NULL) {
-        CT_LOG_RUN_ERR("get current work directory failed, error code %d.", errno);
+        CMS_LOG_ERR("get current work directory failed, error code %d.", errno);
         return CT_ERROR;
     }
 
     if (chdir(dirname) == -1) {
-        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
+        CMS_LOG_ERR("change current work directory to %s failed, error code %d.", dirname, errno);
         return CT_ERROR;
     }
 
     cms_remove_old_files(dirname, prefix);
     
     if (chdir(cwdir) == -1) {
-        CT_LOG_RUN_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
+        CMS_LOG_ERR("change current work directory to %s failed, error code %d.", cwdir, errno);
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -887,8 +930,7 @@ status_t cms_backup_gcc_remote(date_t bak_time, const char *bak_type)
     }
 
     if (cms_create_gcc_backup_files_remote(bak_time, bak_type, g_cms_param->cms_gcc_bak) != CT_SUCCESS) {
-        CMS_LOG_ERR("cms backup gcc in remote disk failed");
-        return CT_ERROR;
+        CMS_LOG_WAR("cms backup gcc in remote disk failed");
     }
     g_cms_inst->gcc_auto_bak.latest_bak = bak_time;
     return cms_keep_recent_files_remote(g_cms_param->cms_gcc_bak, "auto");
@@ -897,8 +939,7 @@ status_t cms_backup_gcc_remote(date_t bak_time, const char *bak_type)
 status_t cms_backup_gcc_local(date_t bak_time, const char *bak_type)
 {
     if (cms_create_gcc_backup_files_local(bak_time, bak_type, g_cms_param->cms_home) != CT_SUCCESS) {
-        CMS_LOG_ERR("cms backup gcc in local disk failed");
-        return CT_ERROR;
+        CMS_LOG_WAR("cms backup gcc in local disk failed");
     }
     g_cms_inst->gcc_auto_bak.latest_bak = bak_time;
     return cms_keep_recent_files_local(g_cms_param->cms_home, "auto");
@@ -926,6 +967,10 @@ status_t cms_backup_gcc_auto(void)
 void cms_gcc_backup_entry(thread_t * thread)
 {
     while (!thread->closed) {
+        if (g_cms_inst->server_loop != CT_TRUE) {
+            cm_sleep(DBS_GCC_BACKUP_INTERVAL_TIME);
+            continue;
+        }
         date_t now_time = cm_now();
         if (g_cms_inst->gcc_auto_bak.is_backuping == CT_FALSE ||
             now_time - g_cms_inst->gcc_auto_bak.latest_bak >= CMS_GCC_BACKUP_INTERVAL) {
@@ -936,6 +981,6 @@ void cms_gcc_backup_entry(thread_t * thread)
                 g_cms_inst->gcc_auto_bak.is_backuping = CT_TRUE;
             }
         }
-        cm_sleep(1000);
+        cm_sleep(DBS_GCC_BACKUP_INTERVAL_TIME);
     }
 }

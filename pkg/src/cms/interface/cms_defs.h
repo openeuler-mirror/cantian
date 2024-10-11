@@ -77,6 +77,7 @@
 
 #define CMS_EXP_ROW_BUFFER_SIZE         1024
 #define CMS_MAX_IMP_FILE_SIZE           SIZE_M(4)
+#define CMS_MAX_EXP_FILE_SIZE           SIZE_M(1)
 #define CMS_IMP_HEAD_ATTR_NUM           4
 #define CMS_IMP_NODE_ATTR_NUM           4
 #define CMS_IMP_VOIEDISK_ATTR_NUM       1
