@@ -39,6 +39,7 @@ extern "C" {
 #define CMS_GCC_RES_GRP_MAGIC    (*((uint64*)"RES_GRP "))
 #define CMS_GCC_VOTEDISK_MAGIC   (*((uint64*)"VOTEDISK"))
 #define CMS_GCC_UPGRADE_MAGIC    (*((uint64*)"UPGRADE"))
+#define CMS_GCC_END_MARK_MAGIC   (*((uint64*)"END_MARK"))
 
 #define CMS_GCC_DIR_NAME         "gcc_home"
 

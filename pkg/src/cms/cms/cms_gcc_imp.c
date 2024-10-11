@@ -840,6 +840,10 @@ static status_t cms_import_gcc_parse_text(cms_gcc_t *gcc, char *buf, uint32 buf_
             CT_SRC_THROW_ERROR(loc, ERR_CMS_GCC_IMPORT, "gcc object title is invalid");
             return CT_ERROR;
         }
+        if (magic == CMS_GCC_END_MARK_MAGIC) {
+            CMS_LOG_INF("finish to parse gcc export file");
+            break;
+        }
 
         cm_ltrim_text(&text);
         if (text.len == 0) {
