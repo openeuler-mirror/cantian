@@ -144,13 +144,14 @@ int srv_wait_instance_startuped(void)
     // after creating db, db status will change to open
     CT_LOG_RUN_INF("start waiting for db to be open");
     knl_session_t *session = g_instance->kernel.sessions[SESSION_ID_KERNEL];
-    // check is db is open every 120 seconds 
+    // check is db is open every 10 seconds 
     while (CT_TRUE) {
         if (DB_IS_OPEN(session)) {
+            cm_sleep(2000); // wait for smon_set_dc_completed
             CT_LOG_RUN_INF("end waiting, db is open");
             return CT_SUCCESS;
         }
-        cm_sleep(120000);
+        cm_sleep(10000);
         CT_LOG_RUN_INF("still waiting for db to be open");
     }
     return CT_SUCCESS;
