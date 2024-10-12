@@ -888,6 +888,11 @@ status_t arch_read_from_src(arch_read_file_src_info_t *read_file_src_info,
             CT_LOG_RUN_INF("[ARCH] file oversize(%llu), left(%lld), last(%llu)", *file_offset, left_size, last_lsn);
             break;
         }
+        if (proc_ctx->read_thread.closed) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_RUN_INF("[ARCH] read thread already closed");
+            break;
+        }
     } while (left_size > 0 && !proc_ctx->write_failed);
     *out_last_lsn = last_lsn;
     return CT_SUCCESS;
@@ -992,6 +997,11 @@ status_t arch_copy_file(arch_read_file_src_info_t *read_file_src_info, arch_proc
         if (proc_ctx->last_archived_log_record.offset >= proc_ctx->session->kernel->arch_ctx.arch_file_size) {
             CT_LOG_RUN_INF("[ARCH] file oversize(%llu), left(%lld), last(%llu)",
                            proc_ctx->last_archived_log_record.offset, left_size, last_lsn);
+            break;
+        }
+        if (proc_ctx->read_thread.closed) {
+            proc_ctx->redo_log_filesize = 0;
+            CT_LOG_RUN_INF("[ARCH] read thread already closed");
             break;
         }
     } while (left_size > 0);

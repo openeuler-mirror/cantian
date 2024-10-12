@@ -4053,7 +4053,7 @@ static void stats_get_index_height(knl_session_t *session, index_t *idx, stats_i
     }
 }
 
-static void stats_estimate_total_idx_stats(stats_index_t *stats_idx)
+static void stats_estimate_total_idx_stats(index_t *idx, stats_index_t *stats_idx, cbo_stats_index_t *cbo_index)
 {
     stats_idx->sample_size = stats_idx->info.keys;
 
@@ -4067,6 +4067,12 @@ static void stats_estimate_total_idx_stats(stats_index_t *stats_idx)
         stats_idx->info.distinct_keys = stats_estimate_ndv(stats_idx->info.distinct_keys,
             stats_idx->info.keys, stats_idx->sample_ratio);
 
+        if (cbo_index != NULL) {
+            for (uint32 i = 0; i < idx->desc.column_count; i++) {
+                cbo_index->distinct_keys_arr[i] = stats_estimate_ndv(cbo_index->distinct_keys_arr[i], 
+                    stats_idx->info.keys, stats_idx->sample_ratio);
+            }
+        }
         stats_idx->info.keys = (uint32)(stats_idx->info.keys / stats_idx->sample_ratio);
         stats_idx->info.keys_total_size = (uint64)(stats_idx->info.keys_total_size / stats_idx->sample_ratio);
         stats_idx->clus_factor = (uint32)(stats_idx->clus_factor / stats_idx->sample_ratio);
@@ -4135,7 +4141,7 @@ static status_t stats_gather_key_info(knl_session_t *session, index_t *idx, stat
 
     stats_get_index_height(session, idx, stats_idx, table_stats);
 
-    stats_estimate_total_idx_stats(stats_idx);
+    stats_estimate_total_idx_stats(idx, stats_idx, cbo_index);
 
     mtrl_close_cursor(ctx, cursor);
     CM_RESTORE_STACK(session->stack);
