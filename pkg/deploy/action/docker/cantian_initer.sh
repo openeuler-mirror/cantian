@@ -114,6 +114,21 @@ function update_mysql_config() {
     local mysql_config_file="${INIT_CONFIG_PATH}/mysql_config.json"
     local my_cnf_file="/opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf"
 
+    logAndEchoInfo "update my.cnf with mem_spec."
+    mysql_param=("max_connections")
+    for param_name in "${mysql_param[@]}"; do
+        param_value=$(python3 "${CURRENT_PATH}/../cantian/get_config_info.py" "${param_name}")
+        if [ "${param_value}" != "None" ]; then
+            if grep -q "^${param_name}=" "${my_cnf_file}"; then
+                sed -i "s/^${param_name}=.*/${param_name}=${param_value}/" "${my_cnf_file}"
+                logAndEchoInfo "Updated '${param_name}' with value '${param_value}' in my.cnf."
+            else
+                echo -e "\n${param_name}=${param_value}" >> "${my_cnf_file}"
+                logAndEchoInfo "Added '${param_name}' with value '${param_value}' to my.cnf."
+            fi
+        fi
+    done    
+    
     if [ -f "${mysql_config_file}" ]; then
         logAndEchoInfo "mysql_config.json found, updating my.cnf..."
 
@@ -140,8 +155,13 @@ function update_mysql_config() {
             else
                 # 处理普通键值对
                 if grep -q "^${key}=" "${my_cnf_file}"; then
-                    sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
-                    logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
+                    SPEC_NUM=$(grep "^${key}=" | cut -d= -f2)
+                    if [[ "${value}" -lt "${SPEC_NUM}" ]]; then
+                        sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
+                        logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
+                    else
+                        logAndEchoInfo "'${key}' up to limit."
+                    fi
                 else
                     echo -e "\n${key}=${value}" >> "${my_cnf_file}"
                     logAndEchoInfo "Added '${key}' with value '${value}' to my.cnf."
@@ -150,21 +170,6 @@ function update_mysql_config() {
         done < <(jq -r 'to_entries|map("\(.key)=\(.value|tostring)")|.[]' "${mysql_config_file}")
 
         logAndEchoInfo "my.cnf updated successfully."
-    else
-        logAndEchoInfo "update my.cnf with mem_spec."
-        mysql_param=("max_connections")
-        for param_name in "${mysql_param[@]}"; do
-            param_value=$(python3 "${CURRENT_PATH}/../cantian/get_config_info.py" "${param_name}")
-            if [ "${param_value}" != "None" ]; then
-                if grep -q "^${param_name}=" "${my_cnf_file}"; then
-                    sed -i "s/^${param_name}=.*/${param_name}=${param_value}/" "${my_cnf_file}"
-                    logAndEchoInfo "Updated '${param_name}' with value '${param_value}' in my.cnf."
-                else
-                    echo -e "\n${param_name}=${param_value}" >> "${my_cnf_file}"
-                    logAndEchoInfo "Added '${param_name}' with value '${param_value}' to my.cnf."
-                fi
-            fi
-        done
     fi
 }
 
