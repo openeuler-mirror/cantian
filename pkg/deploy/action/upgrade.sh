@@ -324,6 +324,16 @@ function update_config() {
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=KMC_KEY_FILES --value='(/opt/cantian/common/config/primary_keystore_bak.ks, /opt/cantian/common/config/standby_keystore_bak.ks)'"
 }
 
+function update_numa_config() {
+    OS_ARCH=$(uname -i)
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        su -s /bin/bash - "${cantian_user}" -c "python3 ${CURRENT_PATH}/cantian/set_numa_config.py 'update_numa'"
+        su -s /bin/bash - "${cantian_user}" -c "python3 ${CURRENT_PATH}/cantian/set_numa_config.py 'update_dbstor'"
+        su -s /bin/bash - "${cantian_user}" -c "python3 ${CURRENT_PATH}/cantian/set_numa_config.py 'update_cantian'"
+        logAndEchoInfo "numa_config.json updated successfully."
+    fi
+}
+
 function install_dbstore(){
     local arrch=$(uname -p)
     local dbstor_path="${CURRENT_PATH}"/../repo
@@ -478,6 +488,7 @@ function do_upgrade() {
     # 更新配置文件
     update_user_env
     update_config
+    update_numa_config
     local certificate_dir="/opt/cantian/common/config/certificates"
     local certificate_remote_dir="/mnt/dbdata/remote/share_${storage_share_fs}/certificates/node${node_id}"
     if [[ -d "${certificate_remote_dir}" ]];then

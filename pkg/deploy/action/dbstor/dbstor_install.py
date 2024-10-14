@@ -27,6 +27,8 @@ try:
     from configparser import ConfigParser
     from kmc_adapter import CApiWrapper
     from init_unify_config import ConfigTool
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cantian"))
+    from set_numa_config import update_dbstor_config_file, update_numa_config
 
     DBSTORE_LOG_PATH = "/opt/cantian/dbstor"
     LOG_PATH = "/opt/cantian/dbstor/log"
@@ -651,9 +653,9 @@ class DBStor:
             deploy_mode = json_data.get("deploy_mode")
         if deploy_mode == "dbstor" or deploy_mode == "combined":
             configTool = ConfigTool()
+            update_numa_config()
+            update_dbstor_config_file()
             configTool.create_unify_dbstor_config()
-
-    
      
     def cp_ini_to_client_test(self):
         self.dbstor_conf_file

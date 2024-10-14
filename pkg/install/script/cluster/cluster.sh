@@ -37,6 +37,13 @@ function usage()
 	echo "      $0 -inc_exit_num node_id"
 }
 
+function update_numa_config() {
+    python3 /opt/cantian/action/cantian/set_numa_config.py "update_numa"
+    python3 /opt/cantian/action/cantian/set_numa_config.py "update_dbstor"
+    python3 /opt/cantian/action/cantian/set_numa_config.py "update_cantian"
+    echo "numa_config.json updated successfully."
+}
+
 function check_process()
 {
 	res_count=`ps -u ${dbuser} | grep ${process_to_check} |grep -vE '(grep|defunct)' |wc -l`
@@ -65,9 +72,9 @@ function start_cantian() {
 	if [ $? -eq 0 ]; then
 		OS_ARCH=$(uname -i)
 		if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-		CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
-		CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
-		numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+			update_numa_config
+			result_str=`python3 /opt/cantian/action/cantian/get_config_info.py "CANTIAN_NUMA_CPU_INFO"`
+			numactl_str="numactl -C ${result_str} "
 		fi
 	fi
 	set -e

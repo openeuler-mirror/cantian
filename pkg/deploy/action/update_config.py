@@ -119,7 +119,13 @@ def update_dbstore_conf(action, key, value=None):
     file_list = [
         "/mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/dbstor_config.ini",
         "/opt/cantian/dbstor/conf/dbs/dbstor_config.ini",
+        "/opt/cantian/dbstor/conf/dbs/dbstor_config_tool_1.ini",
+        "/opt/cantian/dbstor/conf/dbs/dbstor_config_tool_2.ini",
+        "/opt/cantian/dbstor/conf/dbs/dbstor_config_tool_3.ini",
         "/opt/cantian/dbstor/tools/dbstor_config.ini",
+        "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config_tool_1.ini",
+        "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config_tool_2.ini",
+        "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config_tool_3.ini",
         "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config.ini"
     ]
     opt_dbstore_config = "/opt/cantian/dbstor/tools/dbstor_config.ini"

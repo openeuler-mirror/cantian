@@ -10,6 +10,7 @@ PKG_DIR = os.path.abspath(os.path.join(INSTALL_SCPRIT_DIR, "../.."))
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 CANTIAN_CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "action", "cantian", "cantian_config.json")
 CANTIAN_CONFIG_PARAMS_FILE_BACKUP = "/opt/cantian/backup/files/cantian/cantian_config.json"
+NUMA_CONFIG_FILE = "/opt/cantian/cantian/cfg/numa_config.json"
 CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_status.json")
 CANTIAN_START_CONFIG_FILE = os.path.join(PKG_DIR, "config", "container_conf", "init_conf", "start_config.json")
 CANTIAN_MEM_SPEC_FILE = os.path.join(PKG_DIR, "config", "container_conf", "init_conf", "mem_spec")
@@ -20,6 +21,7 @@ kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 
                       'SHARED_POOL_SIZE', 'DATA_BUFFER_SIZE', 'TEMP_BUFFER_SIZE', 'SESSIONS',
                       'SHM_MEMORY_REDUCTION_RATIO', "VARIANT_MEMORY_AREA_SIZE", "DTC_RCY_PARAL_BUF_LIST_SIZE"]
 mysql_kernel_params_list = ['max_connections']
+numa_params_list = ["CANTIAN_NUMA_CPU_INFO", "MYSQL_NUMA_CPU_INFO"]
 MEM_SPEC = {
     "0": {
         "SESSIONS": "512",
@@ -96,6 +98,10 @@ if os.path.exists(CANTIAN_MEM_SPEC_FILE):
         mem_spec = f.read()
     info_cantian_config = MEM_SPEC.get(mem_spec, "1")
 
+if os.path.exists(NUMA_CONFIG_FILE):
+    with open(NUMA_CONFIG_FILE, "r", encoding="utf-8") as f:
+        numa_config = json.loads(f.read())
+
 with open(ENV_FILE, "r", encoding="utf-8") as f:
     env_config = f.readlines()
 
@@ -123,6 +129,8 @@ def get_value(param):
         return info_cantian_start.get('db_create_status', "")
     if param == 'CANTIAN_EVER_START':
         return info_cantian_start.get('ever_started', "")
+    if param in numa_params_list:
+        return numa_config.get(param, "")
     if param in kernel_params_list:
         return info_cantian_config.get(param, "")
     if param in mysql_kernel_params_list:

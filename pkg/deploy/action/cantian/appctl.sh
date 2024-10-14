@@ -662,6 +662,16 @@ function check_and_create_cantian_home()
 
 }
 
+function update_numa_config() {
+    OS_ARCH=$(uname -i)
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        python3 ${CURRENT_PATH}/set_numa_config.py "update_numa"
+        python3 ${CURRENT_PATH}/set_numa_config.py "update_dbstor"
+        python3 ${CURRENT_PATH}/set_numa_config.py "update_cantian"
+        echo "numa_config.json updated successfully."
+    fi
+}
+
 check_and_create_cantian_home
 
 ##################################### main #####################################
@@ -682,6 +692,7 @@ function main_deploy() {
     case "$ACTION" in
         start)
             create_cgroup_path
+            update_numa_config
             do_deploy ${START_NAME} ${INSTALL_TYPE}
             if [[ $? -ne 0 ]]; then
                 exit 1

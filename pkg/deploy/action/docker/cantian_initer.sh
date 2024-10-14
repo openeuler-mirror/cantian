@@ -173,6 +173,20 @@ function update_mysql_config() {
     fi
 }
 
+function update_numa_config() {
+    OS_ARCH=$(uname -i)
+    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+        logAndEchoInfo "Begin to update numa config"
+
+        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "init_config"
+        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_numa"
+        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_dbstor"
+        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_cantian"
+
+        logAndEchoInfo "numa_config.json updated successfully."
+    fi
+}
+
 function wait_config_done() {
     current_domain=$1
     # 等待pod网络配置完成
@@ -413,7 +427,8 @@ function start_mysqld() {
 }
 
 function init_start() {
-    # 非去nas在这里init_container
+
+    # 使用共享文件在这里init_container
     if [ x"${deploy_mode}" != x"dbstor" ]; then
         sh ${SCRIPT_PATH}/appctl.sh init_container
         if [ $? -ne 0 ]; then
@@ -487,6 +502,7 @@ function execute_cantian_numa() {
         echo "Error occurred in cantian-numa execution."
         return 0
     fi
+    update_numa_config
 
      logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
@@ -509,11 +525,11 @@ function main() {
     check_container_context
     prepare_kmc_conf
     prepare_certificate
+    execute_cantian_numa
     init_container
     mount_fs
     check_init_status
     init_start
-    execute_cantian_numa
     process_logs
 }
 
