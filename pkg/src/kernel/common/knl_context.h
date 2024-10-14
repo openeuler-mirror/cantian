@@ -308,6 +308,7 @@ typedef struct st_knl_attr {
     uint32 rcy_node_read_buf_size;
     uint32 dtc_rcy_paral_buf_list_size;
     bool32 drc_in_reformer_mode;
+    uint32 res_recycle_ratio;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name

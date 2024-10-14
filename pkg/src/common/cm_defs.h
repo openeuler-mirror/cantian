@@ -1573,6 +1573,9 @@ static inline bool32 cm_is_odd(int32 val)
 #define CT_MQ_MAX_QUEUE_NUM (uint32)64
 #define CT_MQ_MIN_QUEUE_NUM (uint32)1
 
+#define CT_MAX_RES_RECYCLE_RATIO (uint32)95
+#define CT_MIN_RES_RECYCLE_RATIO (uint32)50
+
 #define CT_CTC_MAX_INST_NUM (uint32)64
 #define CT_CTC_MIN_INST_NUM (uint32)1
 
