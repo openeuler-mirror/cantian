@@ -874,6 +874,9 @@ class DRDeploy(object):
                 health_status = ulog_fs_pair_info[0].get("HEALTHSTATUS")
                 hyper_domain_id = ulog_fs_pair_info[0].get("DOMAINID")
                 vstore_pair_id = ulog_fs_pair_info[0].get("VSTOREPAIRID")
+                self.record_disaster_recovery_info("ulog_fs_pair_id", ulog_fs_pair_id)
+                self.record_disaster_recovery_info("hyper_domain_id", hyper_domain_id)
+                self.record_disaster_recovery_info("vstore_pair_id", vstore_pair_id)
                 if running_status == FilesystemPairRunningStatus.Paused:
                     self.record_deploy_process("sync_metro_fs_pair",
                                                get_status(running_status, FilesystemPairRunningStatus))
@@ -885,9 +888,6 @@ class DRDeploy(object):
                     LOG.info("Hyper metro filesystem[%s] pair ready", dbstore_fs_name)
                     self.record_deploy_process("sync_metro_fs_pair", "success")
                     ulog_fs_pair_ready_flag = True
-                    self.record_disaster_recovery_info("ulog_fs_pair_id", ulog_fs_pair_id)
-                    self.record_disaster_recovery_info("hyper_domain_id", hyper_domain_id)
-                    self.record_disaster_recovery_info("vstore_pair_id", vstore_pair_id)
         return ulog_fs_pair_info, ulog_fs_pair_ready_flag
 
     def standby_check_page_fs_pair_ready(self, page_fs_pair_ready_flag):
@@ -909,6 +909,7 @@ class DRDeploy(object):
                 page_fs_pair_id = page_fs_pair_info[0].get("ID")
                 secres_access = page_fs_pair_info[0].get("SECRESACCESS")
                 running_status = page_fs_pair_info[0].get("RUNNINGSTATUS")
+                self.record_disaster_recovery_info("page_fs_pair_id", page_fs_pair_id)
                 remote_replication_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
                     page_fs_pair_id)
                 replication_progress = remote_replication_pair_info.get("REPLICATIONPROGRESS")
@@ -917,7 +918,6 @@ class DRDeploy(object):
                     LOG.info("Remote replication pair[%s] ready.", dbstore_page_fs_name)
                     self.record_deploy_process("sync_rep_page_fs_pair", "success")
                     page_fs_pair_ready_flag = True
-                    self.record_disaster_recovery_info("page_fs_pair_id", page_fs_pair_id)
         return page_fs_pair_info, page_fs_pair_ready_flag
 
     def standby_check_metadata_fs_pair_ready(self, metadata_fs_ready_flag):
