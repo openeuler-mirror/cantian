@@ -386,6 +386,7 @@ class DRDeployCommon(object):
         LOG.info("Success to create hyper metro filesystem pair.")
         return rsp_data
 
+    @retry(retry_times=3, wait_times=20, log=LOG, task="modify_hyper_metro_filesystem_pair_sync_speed")
     def modify_hyper_metro_filesystem_pair_sync_speed(self, vstore_pair_id: str, speed: int) -> None:
         """
         修改同步速度
