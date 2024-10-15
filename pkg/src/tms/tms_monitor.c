@@ -247,7 +247,7 @@ void tms_check_monitor_time_result(void)
             monitor->monitor_print_num = monitor->monitor_print_num << TMS_MONITOR_PRINT_POW;
         }
         
-        if (monitor->monitor_is_running && cm_now() > monitor->monitor_start_time + 600 * TMS_MONITOR_HZ) {
+        if (monitor->monitor_is_running && cm_now() > monitor->monitor_start_time + TMS_MONITOR_ABORT_TIMEOUT * TMS_MONITOR_HZ) {
             tms_monitor_trig_calltrace(monitor);
             char now_str[32], start_str[32];
             tms_date2str(cm_now(), now_str, sizeof(now_str));
