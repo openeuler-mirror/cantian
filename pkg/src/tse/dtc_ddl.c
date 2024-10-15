@@ -340,6 +340,7 @@ void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg)
 
 void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_invalid_dd_req_t *req = (msg_invalid_dd_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -371,5 +372,6 @@ void dtc_proc_msg_tse_invalidate_dd_req(void *sess, mes_message_t *msg)
         CT_LOG_RUN_ERR("[TSE_INVALID_DD]: mes_send_data failed, conn_id=%u, tse_instance_id=%u", req->tch.thd_id, req->tch.inst_id);
     }
  
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
