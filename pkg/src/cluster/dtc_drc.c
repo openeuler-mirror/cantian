@@ -1240,9 +1240,13 @@ status_t drc_keep_requester_wait(page_id_t pagid, drc_req_info_t *req_info, drc_
     *converting = CT_FALSE;
 
     if (converting_req->inst_id == CT_INVALID_ID8) {
-        if (is_try && (buf_res->claimed_owner != req_info->inst_id)) { /* only prefetch for page of granted or already
-                                                                          owner */
-            return CT_SUCCESS;
+        if (is_try) {
+            // only prefetch for page of granted, or already owner and without any readonly copies.
+            if (buf_res->claimed_owner != req_info->inst_id || buf_res->readonly_copies != 0) {
+                DTC_DRC_DEBUG_INF("Skip prefetch. claimed_owner: %u, inst_id: %u, readonly_copies: %llu",
+                    buf_res->claimed_owner, req_info->inst_id, buf_res->readonly_copies);
+                return CT_SUCCESS;
+            }
         }
 
         knl_panic(buf_res->convert_q.count == 0);
