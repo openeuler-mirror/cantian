@@ -384,6 +384,12 @@ void drc_part_init(uint8 *inst_id_array, uint8 inst_num, drc_part_mngr_t *part_m
     part_mngr->inited = CT_TRUE;
 }
 
+static inline uint32 drc_get_recycle_limits(uint32 item_num)
+{
+    // 100 represents the percentage base, used to convert res_recycle_ratio from percentage to actual ratio
+    return MAX(item_num * (100 - g_instance->kernel.attr.res_recycle_ratio) / 100, DRC_RECYCLE_MIN_NUM);
+}
+
 #define DRC_RES_RECYCLE_SLEEP_TIME (2)
 void drc_res_recycle_proc(thread_t *thread)
 {
@@ -392,11 +398,6 @@ void drc_res_recycle_proc(thread_t *thread)
     uint32 buf_res_idx;
     drc_global_res_t *g_buf_res = &(ctx->global_buf_res);
     drc_res_pool_t *pool = &g_buf_res->res_map.res_pool;
-    bool32 recycle_limits = MAX(pool->item_num / DRC_RECYCLE_RATIO_16, DRC_RECYCLE_MIN_NUM);
-    if (g_instance->kernel.attr.data_buf_size >= DRC_RECYCLE_BUFER_SIZE_CON)
-    {
-        recycle_limits = MAX(pool->item_num / DRC_RECYCLE_RATIO_4, DRC_RECYCLE_MIN_NUM);
-    }
 
     cm_set_thread_name("drc_buf_res_recycle");
     CT_LOG_RUN_INF("drc buf res recycle thread started");
@@ -414,7 +415,7 @@ void drc_res_recycle_proc(thread_t *thread)
             session->status = SESSION_ACTIVE;
         }
 
-        if (pool->item_num - pool->used_num >= recycle_limits) {
+        if (pool->item_num - pool->used_num >= drc_get_recycle_limits(pool->item_num)) {
             cm_sleep(10);
             continue;
         }

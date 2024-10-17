@@ -47,8 +47,6 @@ extern "C" {
 #define DRC_FILE_EXTENT_PAGE_NUM(ctx)  (DRC_FILE_EXTENT_SIZE / (ctx)->kernel->attr.page_size)
 #define DRC_RECYCLE_BUFER_SIZE_CON SIZE_G(128) // 128G
 #define DRC_RECYCLE_MIN_NUM 8192
-#define DRC_RECYCLE_RATIO_16 16
-#define DRC_RECYCLE_RATIO_4 4
 #define DRC_IN_REFORMER_MODE_RELEASE_VERSION {24, 6, 0, 4}
 
 //lock item structures
