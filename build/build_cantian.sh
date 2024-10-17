@@ -109,7 +109,7 @@ function revertPatching() {
 }
 
 function collectMysqlTarget() {
-  cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
+  #cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
 }
@@ -125,7 +125,8 @@ function buildMysql() {
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
 
   sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
+  mkdir -p /usr/local/mysql/lib/plugin/
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so /usr/local/mysql/lib/plugin/ha_ctc_nmeta.so
 
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
@@ -137,7 +138,7 @@ function buildMysql() {
   cd "${CURRENT_PATH}"
   sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
   revertPatching
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so /usr/local/mysql/lib/plugin/ha_ctc_meta.so
   collectMysqlTarget
 }
 
