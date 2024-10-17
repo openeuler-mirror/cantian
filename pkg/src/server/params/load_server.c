@@ -985,6 +985,7 @@ status_t srv_load_server_params(void)
 
     CT_RETURN_IFERR(srv_get_param_bool32("CLUSTER_NO_CMS", &g_cluster_no_cms));
     CT_RETURN_IFERR(srv_get_param_bool32("DRC_IN_REFORMER_MODE", &g_instance->kernel.attr.drc_in_reformer_mode));
+    CT_RETURN_IFERR(srv_get_param_uint32("RES_RECYCLE_RATIO", &g_instance->kernel.attr.res_recycle_ratio));
     return CT_SUCCESS;
 }
 

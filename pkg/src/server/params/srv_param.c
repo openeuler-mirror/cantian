@@ -1150,6 +1150,9 @@ config_item_t g_parameters[] = {
       PARAM_CLUSTER_NO_CMS, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL },
     { "DRC_IN_REFORMER_MODE", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_DRC_IN_REFORMER_MODE, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL},
+    { "RES_RECYCLE_RATIO", CT_TRUE, ATTR_NONE, "50", NULL, NULL, "-", "[50, 95]", "CT_TYPE_INTEGER", NULL,
+      PARAM_RES_RECYCLE_RATIO, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_res_recycle_ratio,
+      sql_notify_als_res_recycle_ratio, NULL, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)
