@@ -487,6 +487,8 @@ func_make_mysql_debug()
       make install
   fi
   cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64
+  cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/local/mysql/lib
+
   echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
   cd -
 }
@@ -536,6 +538,7 @@ func_make_mysql_release()
       make install
   fi
   cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64
+  cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/local/mysql/lib
   echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
   cd -
 }
