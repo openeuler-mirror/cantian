@@ -281,7 +281,7 @@ status_t dtc_get_exclusive_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl
     }
 
     if (valid_count > 0) {
-        (void)dcs_claim_page_share_owners(session, page_ids, count, master_id);
+        (void)dcs_claim_page_exclusive_owners(session, page_ids, count, master_id);
     }
     cm_pop(session->stack);
     return CT_SUCCESS;

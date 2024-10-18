@@ -506,8 +506,9 @@ static inline status_t dcs_ask_master4page_r(knl_session_t *session, buf_ctrl_t 
     return ret;
 }
 
-static status_t dcs_try_get_page_share_owner_r(knl_session_t *session, page_id_t *page_ids, uint32 count,
-                                               uint32 master_id, drc_req_owner_result_t *result)
+static status_t dcs_try_get_page_exclusive_owner_r(knl_session_t *session, page_id_t *page_ids, 
+                                                   uint32 count, uint32 master_id,
+                                                   drc_req_owner_result_t *result)
 {
     msg_page_req_batch_t page_req;
     mes_init_send_head(&page_req.head, MES_CMD_TRY_ASK_MASTER, sizeof(msg_page_req_batch_t), CT_INVALID_ID32,
@@ -1114,7 +1115,7 @@ void dcs_process_ask_master_for_page(void *sess, mes_message_t * receive_msg)
     }
 }
 
-static status_t dcs_try_get_page_share_owner_l(knl_session_t *session, drc_req_info_t *req_info, page_id_t *page_ids,
+static status_t dcs_try_get_page_exclusive_owner_l(knl_session_t *session, drc_req_info_t *req_info, page_id_t *page_ids,
                                                uint32 count, drc_req_owner_result_t *result);
 void dcs_process_try_ask_master_for_page(void *sess, mes_message_t * receive_msg)
 {
@@ -1140,7 +1141,7 @@ void dcs_process_try_ask_master_for_page(void *sess, mes_message_t * receive_msg
         owner_ack.result[i].type = DRC_REQ_OWNER_INVALID;
     }
 
-    (void)dcs_try_get_page_share_owner_l(session, &req_info, page_req->page_ids, page_req->count, owner_ack.result);
+    (void)dcs_try_get_page_exclusive_owner_l(session, &req_info, page_req->page_ids, page_req->count, owner_ack.result);
     owner_ack.count = page_req->count;
 #ifdef DB_DEBUG_VERSION
     char msg[SIZE_K(2)] = { 0 };
@@ -1489,8 +1490,9 @@ status_t dcs_request_page(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t pa
                                    session->stat->wait_time[DCS_REQ_MASTER4PAGE_3WAY];
 }
 
-static status_t dcs_try_get_page_share_owner_l(knl_session_t *session, drc_req_info_t *req_info, page_id_t *page_ids,
-                                               uint32 count, drc_req_owner_result_t *result)
+static status_t dcs_try_get_page_exclusive_owner_l(knl_session_t *session, drc_req_info_t *req_info,
+                                                   page_id_t *page_ids, uint32 count,
+                                                   drc_req_owner_result_t *result)
 {
     for (uint32 i = 0; i < count; i++) {
         if (IS_INVALID_PAGID(page_ids[i])) {
@@ -1548,10 +1550,10 @@ status_t dcs_try_get_page_exclusive_owner(knl_session_t *session, buf_ctrl_t **c
         req_info.req_time = KNL_NOW(session);
         req_info.req_version = DRC_GET_CURR_REFORM_VERSION;
         req_info.lsn = 0;
-        ret = dcs_try_get_page_share_owner_l(session, &req_info, page_ids, count, result);
+        ret = dcs_try_get_page_exclusive_owner_l(session, &req_info, page_ids, count, result);
     } else {
         knl_panic(master_id != CT_INVALID_ID8);
-        ret = dcs_try_get_page_share_owner_r(session, page_ids, count, master_id, result);
+        ret = dcs_try_get_page_exclusive_owner_r(session, page_ids, count, master_id, result);
     }
 
 #ifdef DB_DEBUG_VERSION
@@ -1628,7 +1630,7 @@ status_t dcs_claim_page_exclusive_owners_r(knl_session_t *session, page_id_t *pa
     return ret;
 }
 
-status_t dcs_claim_page_share_owners(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id)
+status_t dcs_claim_page_exclusive_owners(knl_session_t *session, page_id_t *page_ids, uint32 count, uint8 master_id)
 {
     status_t ret = CT_SUCCESS;
     uint64 req_version = DRC_GET_CURR_REFORM_VERSION;
