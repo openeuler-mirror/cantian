@@ -26,7 +26,7 @@ try:
     import json
     import sys
     import collections
-    from datetime import datetime, timezone
+    from datetime import datetime
     from get_config_info import get_value
     from cantian_funclib import CommonValue, SingleNodeConfig, ClusterNode0Config, \
         ClusterNode1Config, DefaultConfigValue
@@ -87,7 +87,6 @@ MYSQL_BIN_DIR = "/opt/cantian/mysql/install/mysql"
 MYSQL_DATA_DIR = ""
 MYSQL_LOG_FILE = ""
 DEPLOY_MODE = ""
-MYSQLD_INSTALL_LOG_FILE = "/opt/cantian/mysql/log/install.log"
 
 g_opts = Options()
 CheckPathsInfo = collections.namedtuple('CheckPathsInfo', ['path_len', 'path_type_in', 'a_ascii',
@@ -2477,19 +2476,14 @@ class Installer:
             g_opts.mysql_config_file_path, g_opts.log_file)
         install_log_file = self.status_log
         if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_IN_CLUSTER, CANTIAND_WITH_MYSQL_ST]:
-            install_log_file = MYSQLD_INSTALL_LOG_FILE
+            log_home = self.cantiand_configs["LOG_HOME"]
+            install_log_file = os.path.join(log_home, "run", "cantiand.rlog")
             if not mysql_init:
                 cmd = "echo -e '%s' | sh %s -P cantiand -M %s -T %s -C %s -R >> %s 2>&1" % (
                     g_opts.db_passwd, INSTALL_SCRIPT, start_mode, g_opts.running_mode.lower(),
                     g_opts.mysql_config_file_path, g_opts.log_file)
-            now_time = datetime.now(timezone.utc)
-            begin_time = str(now_time).replace(" ", "T").strip("+00:00")
-            begin_time_cmd = ("echo 'current time:' >> %s && echo '%s' >> %s" 
-                            % (install_log_file, begin_time, install_log_file))
-            status, stdout, stderr = _exec_popen(begin_time_cmd)
-            if status != 0:
-                output = stdout + stderr
-                raise Exception("Can not write start begin time to install log file, output: %s" % output)
+            now_time = datetime.now()
+            begin_time = str(now_time).split(".")[0]
         else:
             begin_time = None
 
@@ -2539,7 +2533,7 @@ class Installer:
         else:
             return output
 
-    def init_some_condition(self, status_success, status_log, begin_time_source):
+    def init_some_condition(self, status_success, status_log, begin_time):
         start_time = 300
         tem_log_info = ""
         for i in range(0, start_time):
@@ -2562,17 +2556,11 @@ class Installer:
                 is_instance_started = False
                 is_instance_failed = False
                 if g_opts.running_mode.lower() in [CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST,
-                                               CANTIAND_WITH_MYSQL_IN_CLUSTER]:
-                    begin_time = begin_time_source.split(".")[0]
-                    succ_pattern_1 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}).*?\n.*?\ninstance started'
-                    fail_pattern_1 = (r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2})'
-                                      r'.*?\n.*?\ninstance startup failed')
-                    succ_pattern_2 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}).*?\ninstance started'
-                    fail_pattern_2 = r'(\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}).*?\ninstance startup failed'
-                    succ_timestamps = re.findall(succ_pattern_1, all_the_text)
-                    succ_timestamps += re.findall(succ_pattern_2, all_the_text)
-                    fail_timestamps = re.findall(fail_pattern_1, all_the_text)
-                    fail_timestamps += re.findall(fail_pattern_2, all_the_text)
+                                               CANTIAND_WITH_MYSQL_IN_CLUSTER] :
+                    succ_pattern = re.compile(r'.{10}(\d{4}\-\d{2}\-\d{2} \d{2}\:\d{2}\:\d{2}).*?instance started.*?', re.IGNORECASE)
+                    fail_pattern = re.compile(r'.{10}(\d{4}\-\d{2}\-\d{2} \d{2}\:\d{2}\:\d{2}).*?instance startup failed.*?', re.IGNORECASE)
+                    succ_timestamps = re.findall(succ_pattern, all_the_text)
+                    fail_timestamps = re.findall(fail_pattern, all_the_text)
                     is_instance_started = len(succ_timestamps) != 0 and max(succ_timestamps) >= begin_time
                     is_instance_failed = len(fail_timestamps) != 0 and max(fail_timestamps) >= begin_time
                 else:
