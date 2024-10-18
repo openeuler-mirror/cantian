@@ -998,6 +998,7 @@ status_t cms_tool_get_res_stat_list(uint32 res_id, cms_tool_res_stat_list_t* res
     char err_info[CMS_INFO_BUFFER_SIZE] = {0};
     req.head.msg_size = sizeof(cms_tool_msg_req_get_res_stat_t);
     req.head.msg_type = CMS_TOOL_MSG_REQ_GET_RES_STAT;
+    req.head.msg_seq = cms_uds_cli_get_msg_seq();
     req.head.msg_version = CMS_MSG_VERSION;
     req.res_id = res_id;
 
@@ -1014,7 +1015,10 @@ status_t cms_tool_get_res_stat_list(uint32 res_id, cms_tool_res_stat_list_t* res
     }
 
     errno_t err = memcpy_s(res_list, sizeof(cms_tool_res_stat_list_t), &res.stat, sizeof(cms_tool_res_stat_list_t));
-    MEMS_RETURN_IFERR(err);
+    if (err != EOK) {
+        CMS_LOG_ERR("memcpy failed, errno %d", errno);
+        return CT_ERROR;
+    }
 
     CT_LOG_DEBUG_INF("get res stat succ, inst count %d", res_list->inst_count);
     return CT_SUCCESS;
@@ -1026,6 +1030,7 @@ status_t cms_tool_get_gcc_info(cms_tool_msg_res_get_gcc_t* res)
     char err_info[CMS_INFO_BUFFER_SIZE] = {0};
     req.head.msg_size = sizeof(cms_tool_msg_req_get_gcc_t);
     req.head.msg_type = CMS_TOOL_MSG_REQ_GET_GCC_INFO;
+    req.head.msg_seq = cms_uds_cli_get_msg_seq();
     req.head.msg_version = CMS_MSG_VERSION;
 
     status_t ret = cms_send_to_server(&req.head, &res->head, sizeof(cms_tool_msg_res_get_gcc_t),
@@ -1093,7 +1098,7 @@ int32 cms_stat_cluster(int32 argc, char* argv[])
     cms_res_stat_t res_stat;
     if (cms_load_gcc() != CT_SUCCESS) {
         printf("cms load gcc failed.\n");
-        return CT_SUCCESS;
+        return CT_ERROR;
     }
     CT_RETURN_IFERR(cms_instance_init());
 
@@ -1345,6 +1350,7 @@ status_t cms_stat_server_from_server(uint16 sp_node_id)
     cms_tool_msg_res_get_srv_stat_t res = {0};
     char err_info[CMS_INFO_BUFFER_SIZE] = {0};
     req.head.msg_type = CMS_TOOL_MSG_REQ_GET_SRV_STAT;
+    req.head.msg_seq = cms_uds_cli_get_msg_seq();
     req.head.msg_size = sizeof(cms_tool_msg_req_get_srv_stat_t);
     req.head.msg_version = CMS_MSG_VERSION;
 
@@ -1394,6 +1400,7 @@ int32 cms_stat_server(int32 argc, char* argv[])
     CT_RETURN_IFERR(cms_load_gcc());
     const cms_gcc_t* gcc = cms_get_read_gcc();
     req.head.msg_type = CMS_TOOL_MSG_REQ_GET_SRV_STAT;
+    req.head.msg_seq = cms_uds_cli_get_msg_seq();
     req.head.msg_size = sizeof(cms_tool_msg_req_get_srv_stat_t);
     req.head.msg_version = CMS_MSG_VERSION;
 

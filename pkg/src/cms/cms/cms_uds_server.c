@@ -352,6 +352,10 @@ status_t cms_uds_srv_recv_msg(socket_t sock, char* msg_buf, uint32 msg_len, bool
     }
 
     cms_packet_head_t* head = (cms_packet_head_t*)msg_buf;
+    if (cms_uds_set_session_seq(head) != CT_SUCCESS) {
+        CMS_LOG_ERR("set session seq failed");
+        return CT_ERROR;
+    }
     biqueue_node_t* node = cms_que_alloc_node_ex((char*)head, head->msg_size);
     if (node == NULL) {
         CMS_LOG_ERR("cms que alloc node failed");
@@ -501,7 +505,7 @@ status_t cms_uds_srv_send_proc(void)
     cms_packet_head_t* msg = (cms_packet_head_t*)cms_que_node_data(node);
     CMS_LOG_DEBUG_INF("get one msg to send, msg type %u, msg seq %llu, src msg seq %llu",
         msg->msg_type, msg->msg_seq, msg->src_msg_seq);
-    ret = cms_stat_get_uds(msg->uds_sid, &uds_sock);
+    ret = cms_stat_get_uds(msg->uds_sid, &uds_sock, msg->msg_type, msg->src_msg_seq);
     if (ret != CT_SUCCESS || uds_sock == CMS_IO_INVALID_SOCKET) {
         CMS_LOG_ERR("get connected uds sock failed %d, sock %d, sessionId %llu, msg type %u, msg seq %llu, "
             "src msg seq %llu", ret, uds_sock, msg->uds_sid, msg->msg_type, msg->msg_seq, msg->src_msg_seq);
@@ -560,7 +564,7 @@ status_t cms_uds_srv_send(cms_packet_head_t* msg, int32 timeout_ms)
     CT_LOG_DEBUG_INF("get one msg to send, msg type %u, msg seq %llu, src msg seq %llu",
         msg->msg_type, msg->msg_seq, msg->src_msg_seq);
 
-    ret = cms_stat_get_uds(msg->uds_sid, &uds_sock);
+    ret = cms_stat_get_uds(msg->uds_sid, &uds_sock, msg->msg_type, msg->src_msg_seq);
     if (ret != CT_SUCCESS || uds_sock == CMS_IO_INVALID_SOCKET) {
         CMS_LOG_ERR("get connected uds sock failed, ret %d, sock %d, msg type %u, msg seq %llu, src msg seq %llu",
             ret, uds_sock, msg->msg_type, msg->msg_seq, msg->src_msg_seq);
