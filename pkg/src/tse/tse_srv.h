@@ -53,7 +53,7 @@ extern "C" {
 #define ERROR_MESSAGE_LEN 512
 #define MAX_DDL_SQL_LEN_CONTEXT (63488)  //  62kb, 预留2kb
 #define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过64kb, 超过了会报错
-#define DD_BROADCAST_RECORD_LENGTH (3072)
+#define DD_BROADCAST_RECORD_LENGTH (20560)
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)
 #define MAX_KEY_COLUMNS (uint32_t)16  // cantian限制复合索引最大支持字段不超过16
