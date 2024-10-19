@@ -83,6 +83,7 @@ static void dtc_tse_ddl_msg_struct_not_match(mes_message_head_t *req_head, mes_c
 
 void tse_deal_repeat_msg(mes_message_head_t *req_head, mes_command_t mes_cmd, knl_session_t *session)
 {
+    void *prev = knl_get_curr_sess();
     msg_ddl_rsp_t rsp = {0};
 
     rsp.err_code = cm_atomic32_get(&g_tse_msg_result_arr[req_head->src_inst].err_code);
@@ -96,6 +97,7 @@ void tse_deal_repeat_msg(mes_message_head_t *req_head, mes_command_t mes_cmd, kn
     if (mes_send_data(&rsp) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[TSE_MES]: Response repeat message failed, mes_cmd=%d, src_sid=%u", mes_cmd, req_head->src_sid);
     }
+    knl_set_curr_sess2tls(prev);
 }
 
 bool is_exist_repeat_msg(mes_message_head_t *req_head, knl_session_t *session,
@@ -120,6 +122,7 @@ bool is_exist_repeat_msg(mes_message_head_t *req_head, knl_session_t *session,
 
 void dtc_proc_msg_tse_lock_table_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_prepare_ddl_req_t *req = (msg_prepare_ddl_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -159,11 +162,13 @@ void dtc_proc_msg_tse_lock_table_req(void *sess, mes_message_t *msg)
                        req->lock_info.table_name, req->tch.thd_id, req->tch.inst_id);
     }
 
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
 
 void dtc_proc_msg_tse_execute_ddl_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_execute_ddl_req_t *req = (msg_execute_ddl_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -209,11 +214,13 @@ void dtc_proc_msg_tse_execute_ddl_req(void *sess, mes_message_t *msg)
                                                       req->broadcast_req.sql_str, sizeof(req->broadcast_req.sql_str)));
     }
 
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
 
 void dtc_proc_msg_tse_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_execute_ddl_req_t *req = (msg_execute_ddl_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -254,11 +261,13 @@ void dtc_proc_msg_tse_execute_rewrite_open_conn_req(void *sess, mes_message_t *m
                                                       req->broadcast_req.sql_str, sizeof(req->broadcast_req.sql_str)));
     }
 
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
 
 void dtc_proc_msg_tse_commit_ddl_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_commit_ddl_req_t *req = (msg_commit_ddl_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -293,11 +302,13 @@ void dtc_proc_msg_tse_commit_ddl_req(void *sess, mes_message_t *msg)
                        req->tch.thd_id, req->tch.inst_id);
     }
 
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
 
 void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg)
 {
+    void *prev = knl_get_curr_sess();
     msg_close_connection_req_t *req = (msg_close_connection_req_t *)msg->buffer;
     msg_ddl_rsp_t rsp = {0};
     knl_session_t *session = (knl_session_t *)sess;
@@ -335,6 +346,7 @@ void dtc_proc_msg_tse_close_mysql_conn_req(void *sess, mes_message_t *msg)
                        req->head.src_sid, req->thd_id, req->mysql_inst_id, req->msg_num);
     }
 
+    knl_set_curr_sess2tls(prev);
     mes_release_message_buf(msg->buffer);
 }
 
