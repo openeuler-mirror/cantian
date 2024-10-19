@@ -242,7 +242,6 @@ static status_t mes_ssl_inner_accept(cs_pipe_t *pipe)
     mes_message_t msg;
     bool32 ready;
     mes_channel_t *channel;
-    char msg_buf[MES_512K_MESSAGE_BUFFER_SIZE];
 
     status_t err = cs_ssl_accept(g_mes.mes_ctx.recv_ctx, pipe);
     if (err == CT_ERROR) {
@@ -250,23 +249,32 @@ static status_t mes_ssl_inner_accept(cs_pipe_t *pipe)
         return CT_ERROR;
     }
 
+    char *msg_buf = (char *)malloc(MES_512K_MESSAGE_BUFFER_SIZE);
+    if (msg_buf == NULL) {
+        CT_LOG_RUN_ERR("[mes] malloc failed.");
+        return CT_ERROR;
+    }
     MES_MESSAGE_ATTACH(&msg, msg_buf);
 
     if (cs_wait(pipe, CS_WAIT_FOR_READ, CT_CONNECT_TIMEOUT, &ready) != CT_SUCCESS) {
+        cm_free(msg_buf);
         CT_LOG_RUN_ERR("[mes]: wait failed.");
         return CT_ERROR;
     }
 
     if (mes_read_message(pipe, &msg) != CT_SUCCESS) {
+        cm_free(msg_buf);
         CT_LOG_RUN_ERR("[mes]: read message failed.");
         return CT_ERROR;
     }
 
     if (msg.head->cmd != (uint8)MES_CMD_CONNECT) {
+        cm_free(msg_buf);
         CT_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "when building connection type %u", msg.head->cmd);
         return CT_ERROR;
     }
     if (msg.head->src_sid >= g_mes.profile.channel_num) {
+        cm_free(msg_buf);
         CT_THROW_ERROR_EX(ERR_MES_ILEGAL_MESSAGE, "when building connection src_sid invalid %u", msg.head->src_sid);
         return CT_ERROR;
     }
@@ -288,6 +296,7 @@ static status_t mes_ssl_inner_accept(cs_pipe_t *pipe)
         channel->id, channel->send_pipe.link.ssl.tcp.sock, channel->send_pipe.link.ssl.tcp.closed,
         channel->recv_pipe.link.ssl.tcp.sock, channel->recv_pipe.link.ssl.tcp.closed);
 
+    cm_free(msg_buf);
     return CT_SUCCESS;
 }
 
@@ -296,30 +305,38 @@ static status_t mes_accept(cs_pipe_t *pipe)
     mes_message_t msg;
     bool32 ready;
     mes_channel_t *channel;
-    char msg_buf[MES_512K_MESSAGE_BUFFER_SIZE];
 
     if (mes_init_pipe(pipe) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[mes]: init pipe failed.");
         return CT_ERROR;
     }
 
+    char *msg_buf = (char *)malloc(MES_512K_MESSAGE_BUFFER_SIZE);
+    if (msg_buf == NULL) {
+        CT_LOG_RUN_ERR("[mes] malloc failed.");
+        return CT_ERROR;
+    }
     MES_MESSAGE_ATTACH(&msg, msg_buf);
 
     if (cs_wait(pipe, CS_WAIT_FOR_READ, CT_CONNECT_TIMEOUT, &ready) != CT_SUCCESS) {
+        cm_free(msg_buf);
         CT_LOG_RUN_ERR("[mes]: wait failed.");
         return CT_ERROR;
     }
 
     if (mes_read_message(pipe, &msg) != CT_SUCCESS) {
+        cm_free(msg_buf);
         CT_LOG_RUN_ERR("[mes]: read message failed.");
         return CT_ERROR;
     }
 
     if (msg.head->cmd != (uint8)MES_CMD_CONNECT) {
+        cm_free(msg_buf);
         CT_THROW_ERROR_EX(ERR_MES_INVALID_CMD, "when building connection type %u", msg.head->cmd);
         return CT_ERROR;
     }
     if (msg.head->src_sid >= g_mes.profile.channel_num) {
+        cm_free(msg_buf);
         CT_THROW_ERROR_EX(ERR_MES_ILEGAL_MESSAGE, "when building connection src_sid invalid %u", msg.head->src_sid);
         return CT_ERROR;
     }
@@ -339,6 +356,7 @@ static status_t mes_accept(cs_pipe_t *pipe)
         channel->id, channel->send_pipe.link.tcp.sock, channel->send_pipe.link.tcp.closed,
         channel->recv_pipe.link.tcp.sock, channel->recv_pipe.link.tcp.closed);
 
+    cm_free(msg_buf);
     return CT_SUCCESS;
 }
 

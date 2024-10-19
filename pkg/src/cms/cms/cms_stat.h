@@ -47,6 +47,7 @@ typedef struct st_cms_res_session {
     thread_lock_t       uds_lock;
     socket_t            uds_sock;
     cms_cli_type_t      type;
+    uint64              msg_seq;
 }cms_res_session_t;
 
 typedef struct st_cms_packet_aync_write_t {
@@ -327,7 +328,7 @@ status_t cms_get_res_start_lock(uint32 res_id);
 void cms_release_res_start_lock(uint32 res_id);
 void try_lock_start_lock(void);
 uint32 cms_online_res_count(uint32 res_id, iofence_type_t iofence_type);
-status_t cms_stat_get_uds(uint64 session_id, socket_t *uds_sock);
+status_t cms_stat_get_uds(uint64 session_id, socket_t *uds_sock, uint8 msg_type, uint64 src_msg_seq);
 status_t cms_server_stat(uint32 node_id, bool32* cms_online);
 status_t cms_get_node_view(uint64* cms_online_bitmap);
 status_t cms_check_res_running(uint32 res_id);
@@ -336,6 +337,8 @@ status_t cms_init_mes_channel_version(void);
 status_t cms_get_mes_channel_version(uint64* version);
 status_t cms_get_cluster_res_list_4tool(uint32 res_id, cms_tool_res_stat_list_t *res_list);
 status_t cms_get_gcc_info_4tool(cms_tool_msg_res_get_gcc_t* gcc_info);
+bool32 cms_cli_is_tool(uint8 msg_type);
+status_t cms_uds_set_session_seq(cms_packet_head_t* head);
 #ifdef __cplusplus
 }
 #endif
