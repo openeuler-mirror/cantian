@@ -274,7 +274,7 @@ status_t cm_get_gcc_file_handle()
 EXTER_ATTACK int32 main(int32 argc, char *argv[])
 {
     int32 cmd_count = sizeof(g_cms_cmd_defs) / sizeof(cms_cmd_def_t);
-    int64 begain = cm_now();
+    int64 begin = cm_now();
     cms_cmd_def_t* cmd_def = NULL;
     int32 i = 0;
     for (; i < cmd_count; i++) {
@@ -319,7 +319,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     if (cmd_def->cmd_pro_func == cms_stat_cluster) {
         CT_LOG_RUN_INF("cms stat time statistic, parse cmd: %lld(us), load param: %lld(us) init logs: %lld(us) "
                        "load param step cost(us):[%lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld, %lld].",
-                       parse_end - begain, load_end - parse_end, init_end - load_end,
+                       parse_end - begin, load_end - parse_end, init_end - load_end,
                        time_stamp[CM_DIGITAL_0], time_stamp[CM_DIGITAL_1], time_stamp[CM_DIGITAL_2],
                        time_stamp[CM_DIGITAL_3], time_stamp[CM_DIGITAL_4], time_stamp[CM_DIGITAL_5],
                        time_stamp[CM_DIGITAL_6], time_stamp[CM_DIGITAL_7], time_stamp[CM_DIGITAL_8],

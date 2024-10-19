@@ -1279,6 +1279,7 @@ void cms_tool_detect_offline(uint32 session_id)
     if (g_res_session[session_id].uds_sock != CMS_IO_INVALID_SOCKET) {
         cms_socket_close(g_res_session[session_id].uds_sock);
         g_res_session[session_id].uds_sock = CMS_IO_INVALID_SOCKET;
+        g_res_session[session_id].msg_seq = CMS_IO_INVALID_MSG_SEQ;
         g_tool_session_count--;
     }
     cm_thread_unlock(&g_session_lock);
@@ -1571,14 +1572,49 @@ status_t cms_tool_connect(socket_t sock, cms_cli_msg_req_conn_t *req, cms_cli_ms
     return CT_ERROR;
 }
 
-status_t cms_stat_get_uds(uint64 session_id, socket_t *uds_sock)
+void cms_stat_get_uds_lock(uint64 session_id, uint8 msg_type)
+{
+    if (cms_cli_is_tool(msg_type)) {
+        cm_thread_lock(&g_session_lock);
+    } else {
+        cm_thread_lock(&g_res_session[session_id].uds_lock);
+    }
+    return;
+}
+
+void cms_stat_get_uds_unlock(uint64 session_id, uint8 msg_type)
+{
+    if (cms_cli_is_tool(msg_type)) {
+        cm_thread_unlock(&g_session_lock);
+    } else {
+        cm_thread_unlock(&g_res_session[session_id].uds_lock);
+    }
+    return;
+}
+
+status_t cms_stat_get_uds(uint64 session_id, socket_t *uds_sock, uint8 msg_type, uint64 src_msg_seq)
 {
     if (session_id >= CMS_MAX_UDS_SESSION_COUNT) {
         return CT_ERROR;
     }
-    cm_thread_lock(&g_res_session[session_id].uds_lock);
+
+    cms_stat_get_uds_lock(session_id, msg_type);
+    uint64 session_msg_seq = g_res_session[session_id].msg_seq;
+    if (cms_cli_is_tool(msg_type)) {
+        if (src_msg_seq != session_msg_seq) {
+            CMS_LOG_WAR("invalid src msg_seq %llu, session msg seq is %llu", src_msg_seq, session_msg_seq);
+            cms_stat_get_uds_unlock(session_id, msg_type);
+            return CT_ERROR;
+        }
+    }
+    if (g_res_session[session_id].uds_sock == CMS_IO_INVALID_SOCKET) {
+        cms_stat_get_uds_unlock(session_id, msg_type);
+        CMS_LOG_WAR("invalid session uds sock");
+        return CT_ERROR;
+    }
+
     *uds_sock = g_res_session[session_id].uds_sock;
-    cm_thread_unlock(&g_res_session[session_id].uds_lock);
+    cms_stat_get_uds_unlock(session_id, msg_type);
     return CT_SUCCESS;
 }
 
@@ -2430,4 +2466,42 @@ status_t cms_get_gcc_info_4tool(cms_tool_msg_res_get_gcc_t* gcc_info)
     gcc_info->node_count = node_count;
     cms_release_gcc(&gcc);
     return CT_SUCCESS;
+}
+
+status_t cms_uds_set_session_seq(cms_packet_head_t* head)
+{
+    if (!cms_cli_is_tool(head->msg_type)) {
+        return CT_SUCCESS;
+    }
+
+    uint64 sid = head->uds_sid;
+    if (sid < CMS_MAX_RESOURCE_COUNT || sid >= CMS_MAX_UDS_SESSION_COUNT) {
+        CMS_LOG_ERR("invalid session id %llu", sid);
+        return CT_ERROR;
+    }
+
+    cm_thread_lock(&g_session_lock);
+    socket_t sock = g_res_session[sid].uds_sock;
+    uint64 msg_seq = g_res_session[sid].msg_seq;
+    if (sock == CMS_IO_INVALID_SOCKET) {
+        cm_thread_unlock(&g_session_lock);
+        CMS_LOG_ERR("invalid session uds_sock %d", sock);
+        return CT_ERROR;
+    }
+
+    if (msg_seq != CMS_IO_INVALID_MSG_SEQ) {
+        cm_thread_unlock(&g_session_lock);
+        CMS_LOG_ERR("session is dealing with last msg %llu, uds sock %d", msg_seq, sock);
+        return CT_ERROR;
+    }
+
+    g_res_session[sid].msg_seq = head->msg_seq;
+    cm_thread_unlock(&g_session_lock);
+    CMS_LOG_INF("set session id %llu, sock %d, msg seq %llu", sid, sock, head->msg_seq);
+    return CT_SUCCESS;
+}
+
+bool32 cms_cli_is_tool(uint8 msg_type)
+{
+   return msg_type >= CMS_TOOL_MSG_REQ_ADD_NODE && msg_type <= CMS_TOOL_MSG_RES_RES_LIST;
 }

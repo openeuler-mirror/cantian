@@ -322,7 +322,6 @@ status_t cms_uds_cli_request_sync(cms_packet_head_t *req, cms_packet_head_t *res
         CT_LOG_RUN_ERR("memcpy_s failed, err %d, errno %d[%s], msg type %u, msg size %u, msg seq %llu, "
             "msg src seq %llu, session id %llu", err, errno, strerror(errno), msg->msg_type,
             msg->msg_size, msg->msg_seq, msg->src_msg_seq, msg->uds_sid);
-        CM_FREE_PTR(res);
         cm_thread_unlock(&g_cli_req_map_lock);
         return CT_ERROR;
     }
@@ -422,6 +421,7 @@ static status_t cms_uds_cli_exec_conn_req(socket_t uds_sock, cms_cli_msg_res_con
             ret, uds_sock, req.head.msg_type, req.head.msg_seq, req.is_retry_conn);
         return CT_ERROR;
     }
+    CT_LOG_RUN_INF("recv conn res head succ, uds sock %d, session id %llu", uds_sock, res->session_id);
     if (req.cli_type != CMS_CLI_TOOL) {
         CT_LOG_RUN_INF("recv conn res succ, uds sock %d, req msg type %u, req msg seq %llu, res msg type %u, "
             "res msg seq %llu, res msg src req %llu, is retry %d",
@@ -440,7 +440,7 @@ status_t cms_uds_cli_check_server_online(void)
     errno_t err = EOK;
     char CMS_TOOL_RES_TYPE[CMS_MAX_RES_TYPE_LEN] = "TOOL";
     cms_uds_cli_info_t cms_uds_cli_info = { CMS_TOOL_RES_TYPE, CMS_TOOL_INST_ID, CT_FALSE, CMS_CLI_TOOL };
-    CT_LOG_RUN_INF("cms uds cli check server online begain.");
+    CT_LOG_RUN_INF("cms uds cli check server online begin.");
     err = sprintf_s(uds_server_path, sizeof(uds_server_path), "%s/" CMS_UDS_PATH "_%d", g_cli_cms_home,
         (int32)g_cli_node_id);
     PRTS_RETURN_IFERR(err);
@@ -473,7 +473,7 @@ status_t cms_uds_cli_get_server_master_id(uint64* inst_id)
     errno_t err = EOK;
     char CMS_TOOL_RES_TYPE[CMS_MAX_RES_TYPE_LEN] = "TOOL";
     cms_uds_cli_info_t cms_uds_cli_info = { CMS_TOOL_RES_TYPE, CMS_TOOL_INST_ID, CT_FALSE, CMS_CLI_TOOL };
-    CT_LOG_RUN_INF("cms_uds_cli_get_server_master_id begain.");
+    CT_LOG_RUN_INF("cms_uds_cli_get_server_master_id begin.");
     err = sprintf_s(uds_server_path, sizeof(uds_server_path), "%s/" CMS_UDS_PATH "_%d", g_cli_cms_home,
         (int32)g_cli_node_id);
     PRTS_RETURN_IFERR(err);
