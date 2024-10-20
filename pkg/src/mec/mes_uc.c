@@ -104,6 +104,7 @@ static mes_interface_t g_mes_interface = { .uc_handle = NULL};
 thread_t g_mes_channel_check_thread;
 uint64 g_channel_reconn_bits;
 cm_thread_cond_t g_reconn_thread_cond;
+cm_thread_cond_t g_uc_io_finish_cond;
 
 mes_interface_t *mes_global_handle(void)
 {
@@ -809,6 +810,11 @@ int32_t create_link_callback(u32 uiDstlsId, dpuc_qlink_event qlinkEvent, dpuc_pl
 int32_t link_state_change_callback(u32 uiDstlsId, dpuc_link_state_event_t qlinkEvent, dpuc_plane_type_e planeType,
     void *param)
 {
+    if ((qlinkEvent == DPUC_LINK_EVENT_IO_FINISH)) {
+        cm_release_cond_signal(&g_uc_io_finish_cond);
+        return DP_OK;
+    }
+    
     if ((qlinkEvent != DPUC_LINK_STATE_EVENT_SUBHEALTH_ORIGIN) &&
         (qlinkEvent != DPUC_LINK_STATE_EVENT_SUBHEALTH_CLEAR)) {
         CT_LOG_RUN_WAR("link state change, qlinkEvent (%d), dst lsid (0x%x)", qlinkEvent, uiDstlsId);
@@ -1193,6 +1199,22 @@ void mes_uc_disconnect(uint32 inst_id)
         CT_LOG_RUN_ERR("inst_id out of range CT_MAX_INSTANCES.");
         return;
     }
+    mes_uc_disconnect_async(inst_id);
+    uint32 lsid = g_mes.profile.inst_lsid[inst_id];
+    if (cm_wait_cond(&g_uc_io_finish_cond, MES_DISCONNECT_TIMEOUT)) {
+        CT_LOG_RUN_INF("mes uc disconnect sync dst_lsid 0x%x finish.", lsid);
+        return;
+    }
+    CT_LOG_RUN_WAR("mes uc disconnect sync dst_lsid 0x%x timeout %d ms.", lsid, MES_DISCONNECT_TIMEOUT);
+}
+
+// asysnc disconnect
+void mes_uc_disconnect_async(uint32 inst_id)
+{
+    if (inst_id >= CT_MAX_INSTANCES) {
+        CT_LOG_RUN_ERR("inst_id out of range CT_MAX_INSTANCES.");
+        return;
+    }
     g_mes_uc_channel_status[inst_id].is_allow_msg_transfer = CT_FALSE;
     uint32 lsid = g_mes.profile.inst_lsid[inst_id];
     int32_t ret = DP_ERROR;
@@ -1206,12 +1228,6 @@ void mes_uc_disconnect(uint32 inst_id)
     conn->uc_channel_state = MES_CHANNEL_CLOSED;
     cm_thread_unlock(&conn->lock);
     CT_LOG_RUN_INF("Disconnect dst_lsid 0x%x success.", lsid);
-}
-
-// asysnc disconnect
-void mes_uc_disconnect_async(uint32 inst_id)
-{
-    mes_uc_disconnect(inst_id);
 }
 
 // check inst_id is or not connect
@@ -1338,6 +1354,7 @@ status_t mes_init_uc(void)
     
     // 开启线程，监听链路变化，重新解析域名
     cm_init_cond(&g_reconn_thread_cond);
+    cm_init_cond(&g_uc_io_finish_cond);
     g_channel_reconn_bits = 0;
     if (cm_create_thread(mes_channel_check_thread, 0, NULL, &g_mes_channel_check_thread) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("mes create channel check thread failed.");

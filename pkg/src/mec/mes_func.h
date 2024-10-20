@@ -44,6 +44,7 @@ extern "C" {
 #endif
 
 #define MES_CONNECT_TIMEOUT (5000)  // mill-seconds
+#define MES_DISCONNECT_TIMEOUT (2000)    // ms
 #define MES_BROADCAST_ALL_INST (0xFFFFFFFFFFFFFFFF)
 
 #define MES_INSTANCE_ID(id) (uint8)((id) >> 8)
@@ -307,6 +308,8 @@ typedef void (*mes_disconnect_t)(uint32 inst_id);
 
 typedef void (*mes_async_disconnect_t)(uint32 inst_id);
 
+typedef void (*mes_reconnect_t)(uint32 inst_id);
+
 typedef status_t (*mes_send_data_t)(const void *msg_data);
 
 typedef status_t (*mes_send_bufflist_t)(mes_bufflist_t *buff_list);
@@ -501,6 +504,7 @@ void mes_init_stat(void);
 status_t mes_connect(uint32 inst_id, char *ip, uint16 port);
 bool32 mes_connection_ready(uint32 inst_id);
 status_t mes_disconnect(uint32 inst_id, bool32 isSync);  // FALSE means async, only dtc abort process need now
+status_t mes_reconnect(uint32 inst_id);
 void mes_wakeup_rooms(void);
 
 status_t mes_cms_send_data(const void *msg_data);
