@@ -91,15 +91,8 @@ class CPUAllocator:
         taskset_cmd = f"taskset -cp {cpu_range} {pid}"
         cpuset_cpu_cmd = f"echo {cpu_range} > /sys/fs/cgroup/cpuset/cpuset.cpus"
 
-        numa_nodes = self.get_numa_nodes_for_cpus(cpus)
-        cpuset_mems_cmd = f"echo {numa_nodes} > /sys/fs/cgroup/cpuset/cpuset.mems"
-
         self.execute_cmd(cpuset_cpu_cmd)
         self.execute_cmd(taskset_cmd)
-        try:
-            self.execute_cmd(cpuset_mems_cmd)
-        except Exception as e:
-            LOG.error(f"Failed to execute cpuset memory command: {e}.")
 
     def get_numa_nodes_for_cpus(self, cpus):
         """
