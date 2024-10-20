@@ -32,6 +32,7 @@
 #include "cms_mes.h"
 #include "cms_cmd_imp.h"
 #include "cms_log.h"
+#include "mes_func.h"
 
 static vote_ctx_t g_vote_context;
 static vote_ctx_t *g_vote_ctx = &g_vote_context;
@@ -437,6 +438,7 @@ static status_t detect_new_vote_round(void)
             if (detect_vote_round == (g_vote_ctx->vote_data.vote_round + 1)) {
                 g_vote_ctx->detect_vote_round = detect_vote_round;
                 CMS_LOG_INF("cms detect new vote_round(%llu) in node(%u)", detect_vote_round, i);
+                (void)mes_reconnect(i);
                 return CT_SUCCESS;
             }
             CMS_LOG_ERR("cms missed vote, detect node %u vote round %llu, local node vote round %llu", i,

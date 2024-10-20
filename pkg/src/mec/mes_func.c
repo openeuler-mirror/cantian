@@ -360,6 +360,39 @@ void mes_wakeup_rooms(void)
     CT_LOG_RUN_WAR("[mes] finish wakeup all rooms.");
 }
 
+status_t mes_reconnect(uint32 inst_id)
+{
+    mes_conn_t *conn;
+
+    if (inst_id >= CT_MAX_INSTANCES || inst_id == g_mes.profile.inst_id) {
+        CT_THROW_ERROR_EX(ERR_MES_PARAMETER, "[mes]: mes_reconnect: inst_id %u is illegal.", inst_id);
+        return CT_ERROR;
+    }
+    bool32 need_disconnect = CT_TRUE;
+
+    conn = &g_mes.mes_ctx.conn_arr[inst_id];
+    if (!g_mes.mes_ctx.conn_arr[inst_id].is_connect) {
+        cm_thread_unlock(&conn->lock);
+        CT_LOG_RUN_INF("[mes] target node %u is not connect, no need disconnect.", inst_id);
+        need_disconnect = CT_FALSE;
+    }
+
+    if (need_disconnect) {
+        MES_DISCONNECT(inst_id);
+    }
+
+    CT_LOG_RUN_INF("[mes] mes reconnect to inst_id(%u), ip_addrs[%s], port[%u].",
+                   inst_id, g_mes.profile.inst_arr[inst_id].ip, g_mes.profile.inst_arr[inst_id].port);
+
+    if (MES_CONNECT(inst_id) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[mes] conncect to instance %u failed.", inst_id);
+    }
+
+    g_mes.mes_ctx.conn_arr[inst_id].is_connect = CT_TRUE;
+    CT_LOG_RUN_INF("[mes] success reconnect node %u.", inst_id);
+    return CT_SUCCESS;
+}
+
 status_t mes_disconnect(uint32 inst_id, bool32 isSync)
 {
     mes_conn_t *conn;
