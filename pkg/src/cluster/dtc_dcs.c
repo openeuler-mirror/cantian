@@ -2159,11 +2159,12 @@ status_t dcs_invalidate_readonly_copy(knl_session_t *session, page_id_t page_id,
 {
     knl_begin_session_wait(session, DCS_INVLDT_READONLY_REQ, CT_TRUE);
     uint64 invld_insts = readonly_copies;
-    if (exception >= CT_MAX_INSTANCES) {
-        CT_LOG_RUN_ERR("invalid inst id(%u)", exception);
-        return CT_ERROR;
-    }
+
     if (exception != CT_INVALID_ID8) {
+        if (exception >= CT_MAX_INSTANCES) {
+            CT_LOG_RUN_ERR("invalid inst id(%u)", exception);
+            return CT_ERROR;
+        }
         drc_bitmap64_clear(&invld_insts, exception);
     }
 
