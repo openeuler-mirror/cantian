@@ -471,6 +471,7 @@ status_t cms_init_stat(void)
         cm_init_thread_lock(&g_res_session[i].lock);
         cm_init_thread_lock(&g_res_session[i].uds_lock);
         g_res_session[i].uds_sock = CMS_IO_INVALID_SOCKET;
+        g_res_session[i].msg_seq = CMS_IO_INVALID_MSG_SEQ;
     }
     return CT_SUCCESS;
 }
@@ -1552,6 +1553,7 @@ status_t cms_tool_connect(socket_t sock, cms_cli_msg_req_conn_t *req, cms_cli_ms
     for (int32 i = CMS_MAX_RESOURCE_COUNT; i < CMS_MAX_UDS_SESSION_COUNT; i++) {
         if (g_res_session[i].uds_sock == CMS_IO_INVALID_SOCKET) {
             g_res_session[i].uds_sock = sock;
+            g_res_session[i].msg_seq = CMS_IO_INVALID_MSG_SEQ;
             g_res_session[i].type = CMS_CLI_TOOL;
             res->head.msg_size = sizeof(cms_cli_msg_res_conn_t);
             res->head.msg_type = CMS_CLI_MSG_RES_CONNECT;
