@@ -21,6 +21,18 @@ kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 
                       'SHM_MEMORY_REDUCTION_RATIO', "VARIANT_MEMORY_AREA_SIZE", "DTC_RCY_PARAL_BUF_LIST_SIZE"]
 mysql_kernel_params_list = ['max_connections']
 MEM_SPEC = {
+    "0": {
+        "SESSIONS": "512",
+        "TEMP_BUFFER_SIZE": "1G",
+        "LARGE_POOL_SIZE": "256M",
+        "DATA_BUFFER_SIZE": "8G",
+        "SHARED_POOL_SIZE": "512M",
+        "DTC_RCY_PARAL_BUF_LIST_SIZE": "8",
+        "SHM_MEMORY_REDUCTION_RATIO": "8",
+        "VARIANT_MEMORY_AREA_SIZE": "256M",
+        "CR_POOL_SIZE": "256M",
+        "max_connections": "128"
+    },
     "1": {
         "SESSIONS": "1024",
         "TEMP_BUFFER_SIZE": "2G",
@@ -30,6 +42,7 @@ MEM_SPEC = {
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "8",
         "SHM_MEMORY_REDUCTION_RATIO": "8",
         "VARIANT_MEMORY_AREA_SIZE": "256M",
+        "CR_POOL_SIZE": "512M",
         "max_connections": "1024"
     },
     "2": {
@@ -41,6 +54,7 @@ MEM_SPEC = {
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "16",
         "SHM_MEMORY_REDUCTION_RATIO": "4",
         "VARIANT_MEMORY_AREA_SIZE": "512M",
+        "CR_POOL_SIZE": "1G",
         "max_connections": "2048"
     },
     "3": {
@@ -52,6 +66,7 @@ MEM_SPEC = {
         "DTC_RCY_PARAL_BUF_LIST_SIZE": "32",
         "SHM_MEMORY_REDUCTION_RATIO": "2",
         "VARIANT_MEMORY_AREA_SIZE": "1G",
+        "CR_POOL_SIZE": "2G",
         "max_connections": "4096"
     }
 }
