@@ -349,8 +349,7 @@ class DRDeploy(object):
         """
         读取配置文件，获取双活域id，查询当前双活域：
             1）未获取到ID表示当前全新创建，执行创建双活域操作
-                 a. 查询远端设备信息，获取远端设备名称、esn、远端设备id
-                 b. 生成双活域名称，命名规则CantianDomain_cluster_id_random_seed
+               查询远端设备信息，获取远端设备名称、esn、远端设备id
             2）获取到ID，查询当前双活域状态，状态不正常报错
         :return:
         """
@@ -360,18 +359,30 @@ class DRDeploy(object):
         remote_dev_name = self.dr_deploy_info.get("remote_dev_name")
         remote_dev_esn = self.dr_deploy_info.get("remote_dev_esn")
         remote_device_id = self.dr_deploy_info.get("remote_device_id")
-        random_seed = LSIDGenerate.generate_random_seed()
-        domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
+        domain_name = self.dr_deploy_info.get("domain_name")
         if hyper_domain_id is None:
             domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(
                 remote_dev_name, remote_dev_esn, remote_device_id, domain_name)
         else:
             domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(hyper_domain_id)
+            if not domain_info:
+                domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(
+                    remote_dev_name, remote_dev_esn, remote_device_id, domain_name)     
+            else:
+                exist_domain_name = domain_info.get("NAME")
+                if exist_domain_name == domain_name:
+                    err_msg = "Hyper metro domain [name:%s] is unmatched with config parmas [name:%s], " \
+                              "please check, details: %s" % (exist_domain_name, domain_name, domain_info)
+                    LOG.error(err_msg)
+                    self.record_deploy_process("create_metro_domain", "failed", code=-1, description=err_msg)
+                    raise Exception(err_msg)
+
         if not domain_info:
-            domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(
-                remote_dev_name, remote_dev_esn, remote_device_id, domain_name)
+            LOG.error("Hyper metro domain[%s] create failed" % domain_name)
+            self.record_deploy_process("create_metro_domain", "failed", code=-1, description=err_msg)
+            raise Exception(err_msg)
+        
         running_status = domain_info.get("RUNNINGSTATUS")
-        domain_name = domain_info.get("NAME")
         if running_status == MetroDomainRunningStatus.Invalid:
             err_msg = "Hyper metro domain[%s] status is invalid" % domain_name
             LOG.error(err_msg)
@@ -395,19 +406,34 @@ class DRDeploy(object):
 
         remote_vstore_id = self.dr_deploy_info.get("remote_dbstore_fs_vstore_id")
         local_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
+        vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
+        domain_name = self.dr_deploy_info.get("domain_name")
         domain_id = domain_info.get("ID")
-        vstore_pair_infos = self.dr_deploy_opt.query_hyper_metro_vstore_pair_info()
-
-        for exist_vstore_pair_info in vstore_pair_infos:
-            exist_remote_vstoreid = exist_vstore_pair_info.get("REMOTEVSTOREID")
-            exist_local_vstoreid = exist_vstore_pair_info.get("LOCALVSTOREID")
-            if exist_local_vstoreid == local_vstore_id and remote_vstore_id == exist_remote_vstoreid:
-                vstore_pair_id = exist_vstore_pair_info.get("ID")
-
+       
         if vstore_pair_id is None:
             vstore_pair_info = self.dr_deploy_opt.create_hyper_metro_vstore_pair(
                 domain_id, local_vstore_id, remote_vstore_id)
-            vstore_pair_id = vstore_pair_info.get("ID")
+        else:
+            vstore_pair_info = self.dr_deploy_opt.query_hyper_metro_vstore_pair_info(vstore_pair_id)
+            if not vstore_pair_info:
+                vstore_pair_info = self.dr_deploy_opt.create_hyper_metro_vstore_pair(
+                    domain_id, local_vstore_id, remote_vstore_id)
+            else:
+                exist_remote_vstoreid = vstore_pair_info.get("REMOTEVSTOREID")
+                exist_local_vstoreid = vstore_pair_info.get("LOCALVSTOREID")
+                exist_domain_id = vstore_pair_info.get("DOMAINID")
+                if exist_local_vstoreid != local_vstore_id or remote_vstore_id != exist_remote_vstoreid or \
+                    exist_domain_id != domain_id:
+                    err_msg = "The vstore pair [id:%s] is unmatched with config params, please check, details: %s" % \
+                              (vstore_pair_id, vstore_pair_info)
+                    LOG.error(err_msg)
+                    self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+                    raise Exception(err_msg)
+        if not vstore_pair_info:
+            LOG.error("The metro vstore pair create failed")
+            self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+            raise Exception(err_msg)
+        vstore_pair_id = vstore_pair_info.get("ID")
 
         tmp_time = 0
         while tmp_time < TOTAL_CHECK_DURATION:
@@ -435,29 +461,56 @@ class DRDeploy(object):
 
     def do_create_hyper_metro_filesystem_pair(self, vstore_pair_info: dict) -> dict:
         """
-        创建文件系统双活
+        创建文件系统双活，默认一个文件系统只有一个双活
         :param vstore_pair_info: 双活租户pair信息
         :return:
         """
         self.record_deploy_process("create_metro_fs_pair", "start")
         vstore_pair_id = vstore_pair_info.get("ID")
+        hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
         remote_pool_id = self.dr_deploy_info.get("remote_pool_id")
         dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
-        storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
-        dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
-                                                                               dbstore_fs_vstore_id)
-        self.record_deploy_process("create_metro_fs_pair", "running")
-        dbstore_fs_id = dbstore_fs_info.get("ID")
-        filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
-        if filesystem_pair_info is None:
-            filesystem_pair_task_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
-                filesystem_id=dbstore_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
-            task_id = filesystem_pair_task_info.get("taskId")
+        filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
+        if filesystem_pair_id is None:
+            storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
+            dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
+                dbstore_fs_vstore_id)
             self.record_deploy_process("create_metro_fs_pair", "running")
-            self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
-        self.record_deploy_process("create_metro_fs_pair", "success")
-        filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
-        filesystem_pair_id = filesystem_pair_infos[0].get("ID")
+            dbstore_fs_id = dbstore_fs_info.get("ID")
+            filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+            if filesystem_pair_infos is None:
+                filesystem_pair_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
+                    filesystem_id=dbstore_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
+                task_id = filesystem_pair_info.get("taskId")
+                self.record_deploy_process("create_metro_fs_pair", "running")
+                self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
+            else:
+                filesystem_pair_info = filesystem_pair_infos[0]
+        else:
+            filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
+                pair_id=filesystem_pair_id)
+            if filesystem_pair_info is None:
+                filesystem_pair_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
+                    filesystem_id=dbstore_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
+                task_id = filesystem_pair_info.get("taskId")
+                self.record_deploy_process("create_metro_fs_pair", "running")
+                self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
+            else:
+                exist_domain_id = filesystem_pair_info[0].get("DOMAINID")
+                if exist_domain_id != hyper_domain_id:
+                    err_msg = "The HyperMetro domain [id:%s] of filesystem pair is unmatched with config " \
+                              "params [id:%s], please check, details: %s" % \
+                              (exist_domain_id, hyper_domain_id, filesystem_pair_info)
+                    LOG.error(err_msg)
+                    self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
+                    raise Exception(err_msg)
+
+        if not filesystem_pair_info:
+            LOG.error("The metro filesystem pair create failed")
+            self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
+            raise Exception(err_msg)
+        filesystem_pair_id = filesystem_pair_info.get("ID")
+
         tmp_time = 0
         health_status = None
         running_status = None
@@ -470,7 +523,7 @@ class DRDeploy(object):
             config_status = filesystem_pair_info.get("CONFIGSTATUS")
 
             if (health_status == HealthStatus.Normal and config_status == VstorePairConfigStatus.Normal):
-                self.record_deploy_process("create_metro_vstore_pair", "success")
+                self.record_deploy_process("create_metro_fs_pair", "success")
                 return filesystem_pair_info
 
             time.sleep(10)
@@ -483,7 +536,7 @@ class DRDeploy(object):
                    get_status(config_status, VstorePairConfigStatus),
                    filesystem_pair_info)
         LOG.error(err_msg)
-        self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+        self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
         raise Exception(err_msg)
 
     def do_sync_hyper_metro_filesystem_pair(self, pair_id: str) -> bool:

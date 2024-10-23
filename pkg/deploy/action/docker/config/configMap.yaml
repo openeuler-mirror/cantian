@@ -38,7 +38,7 @@ data:
           "dm_user": "",
           "esn": "",
           "pool_id": "",
-          "dbstore_fs_vstore_id": ""
+          "dbstore_fs_vstore_id": "0"
         }
       }
     }
@@ -84,7 +84,7 @@ data:
           "dm_user": "",
           "esn": "",
           "pool_id": "",
-          "dbstore_fs_vstore_id": ""
+          "dbstore_fs_vstore_id": "0"
         }
       }
     }

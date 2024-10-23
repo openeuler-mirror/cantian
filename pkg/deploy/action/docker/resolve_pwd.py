@@ -8,6 +8,7 @@ from kmc_adapter import CApiWrapper
 
 NEW_MARK = "/"
 
+
 def _exec_popen(cmd, values=None):
     """
     subprocess.Popen in python2 and 3.
@@ -38,6 +39,7 @@ def _exec_popen(cmd, values=None):
 
     return pobj.returncode, stdout, stderr
 
+
 def resolve_kmc_pwd(encrypt_pwd):
     primary_keystore = "/opt/cantian/common/config/primary_keystore_bak.ks"
     standby_keystore = "/opt/cantian/common/config/standby_keystore_bak.ks"
@@ -47,12 +49,11 @@ def resolve_kmc_pwd(encrypt_pwd):
         passwd = kmc_adapter.decrypt(encrypt_pwd)
     except Exception as error:
         raise Exception("Failed to decrypt password of user [sys]. Error: %s" % str(error)) from error
-    
     split_env = os.environ['LD_LIBRARY_PATH'].split(":")
     filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
     os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
-    
     return passwd
+
 
 def resolve_check_cert_pwd(encrypt_pwd):
     passwd = resolve_kmc_pwd(encrypt_pwd)
@@ -62,7 +63,8 @@ def resolve_check_cert_pwd(encrypt_pwd):
     stderr.replace(passwd, "****")
     if ret_code:
         raise Exception("Cert file or passwd check failed. output:%s" % str(stderr))
-    
+
+
 def kmc_to_ctencrypt_pwd(encrypt_pwd):
     passwd = resolve_kmc_pwd(encrypt_pwd)
     cmd = f"source ~/.bashrc && echo -e \"{passwd}\\n{passwd}\" | ctencrypt -e PBKDF2 | awk -F 'Cipher:' '{{print $2}}'"
@@ -72,6 +74,7 @@ def kmc_to_ctencrypt_pwd(encrypt_pwd):
     if ret_code:
         raise Exception("failed to get _SYS_PASSWORD by ctencrypt. output:%s" % str(stderr))
     return stdout
+
 
 def run_upgrade_modify_sys_tables_ctsql(encrypt_pwd):
     sql_file_path = input()
@@ -106,7 +109,7 @@ if __name__ == "__main__":
     options = {
         "resolve_check_cert_pwd": resolve_check_cert_pwd,
         "kmc_to_ctencrypt_pwd": kmc_to_ctencrypt_pwd,
-        "run_upgrade_modify_sys_tables_ctsql": run_upgrade_modify_sys_tables_ctsql
+        "run_upgrade_modify_sys_tables_ctsql": run_upgrade_modify_sys_tables_ctsql,
+        "resolve_kmc_pwd": resolve_kmc_pwd
     }
     print(options.get(action)(encrypt_pwd.strip()))
-    

@@ -22,6 +22,10 @@ HEALTHY_FILE="/opt/cantian/healthy"
 READINESS_FILE="/opt/cantian/readiness"
 CMS_CONTAINER_FLAG="/opt/cantian/cms/cfg/container_flag"
 SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
+DORADO_CONF_PATH="${CURRENT_PATH}/../../config/container_conf/dorado_conf"
+DM_USER="DMUser"
+DM_PWD="DMPwd"
+
 
 source ${CURRENT_PATH}/../log4sh.sh
 
@@ -412,6 +416,62 @@ function start_mysqld() {
     logAndEchoInfo "start mysqld success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
+function dr_deploy() {
+    dm_user_file="${DORADO_CONF_PATH}/${DM_USER}"
+    dm_password_file="${DORADO_CONF_PATH}/${DM_PWD}"
+
+    if [ ! -f "${dm_user_file}" ] || [ ! -f "${dm_password_file}" ]; then
+        logAndEchoError "DM User or password file not found."
+        exit_with_log
+    fi
+
+    dm_user=$(cat "${dm_user_file}")
+    dm_password=$(cat "${dm_password_file}")
+
+    role=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.role")
+    if [ "${role}" == "active" ]; then
+        expected_dm_user=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.active.dm_user")
+    elif [ "${role}" == "standby" ]; then
+        expected_dm_user=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.standby.dm_user")
+    else
+        logAndEchoError "Unknown DM role value: ${role}"
+        exit_with_log
+    fi
+
+    if [ "${dm_user}" != "${expected_dm_user}" ]; then
+        logAndEchoError "DM Username does not match. Expected ${expected_dm_user}, but found ${dm_user}."
+        exit_with_log
+    fi
+
+    ld_path_src=${LD_LIBRARY_PATH}
+    export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
+    password_tmp=$(python3 -B "${CURRENT_PATH}/resolve_pwd.py" "resolve_kmc_pwd" "${dm_password}")
+    if [ $? -ne 0 ]; then
+        logAndEchoError "Failed to decrypt the  DM password."
+        exit_with_log
+    fi
+    password=$(eval echo ${password_tmp})
+    if [ -z "${password}" ]; then
+        logAndEchoError "Failed to get dm password"
+        exit_with_log
+    fi
+    export LD_LIBRARY_PATH=${ld_path_src}
+    echo -e "${password}" | sh ${SCRIPT_PATH}/appctl.sh dr_operate pre_check ${role} --conf=/opt/cantian/config/deploy_param.json
+    if [ $? -ne 0 ]; then
+        logAndEchoError "dr_operate pre_check failed."
+        exit_with_log
+    fi
+    logAndEchoInfo "dr_operate pre_check succeeded."
+
+    # 执行 dr_deploy 命令
+    echo -e "${password}\n" | sh ${SCRIPT_PATH}/appctl.sh dr_operate deploy ${role} --mysql_cmd='mysql' --mysql_user=root
+    if [ $? -ne 0 ]; then
+        logAndEchoError "dr_deploy failed."
+        exit_with_log
+    fi
+    logAndEchoInfo "dr_deploy succeeded."
+}
+
 function init_start() {
     # 非去nas在这里init_container
     if [ x"${deploy_mode}" != x"dbstor" ]; then
@@ -440,10 +500,25 @@ function init_start() {
         exit_with_log
     fi
 
-    # Cantian启动
-    sh ${SCRIPT_PATH}/appctl.sh start
-    if [ $? -ne 0 ]; then
-        exit_with_log
+    role=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.role")
+    dr_setup=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.dr_setup")
+    if [[ X"${dr_setup}" == X"False" ]]; then   
+        # Cantian启动
+        sh ${SCRIPT_PATH}/appctl.sh start
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
+    else
+        if [[ X"${role}" == X"active" ]];then
+            # Cantian启动
+            sh ${SCRIPT_PATH}/appctl.sh start
+            if [ $? -ne 0 ]; then
+                exit_with_log
+            fi
+        fi
+        # 容灾搭建
+        logAndEchoInfo "dr_setup is True, executing dr_deploy tasks."
+        dr_deploy
     fi
 
     set_version_file
