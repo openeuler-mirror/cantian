@@ -1017,7 +1017,6 @@ void tse_sql_str_remove_escape_chars(char *str, size_t len)
 
 char* sql_without_plaintext_password(bool contains_plaintext_password, char* sql_str, size_t sql_str_len)
 {
-    CM_ASSERT(sql_str_len != 0);
     tse_sql_str_remove_escape_chars(sql_str, sql_str_len);
     return contains_plaintext_password ? "(contains plaintext password)" : sql_str;
 }
