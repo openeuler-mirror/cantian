@@ -1576,6 +1576,9 @@ static inline bool32 cm_is_odd(int32 val)
 #define CT_MAX_RES_RECYCLE_RATIO (uint32)95
 #define CT_MIN_RES_RECYCLE_RATIO (uint32)50
 
+#define CT_MAX_CREATE_INDEX_PARALLELISM (uint32)10
+#define CT_MIN_CREATE_INDEX_PARALLELISM (uint32)0
+
 #define CT_CTC_MAX_INST_NUM (uint32)64
 #define CT_CTC_MIN_INST_NUM (uint32)1
 

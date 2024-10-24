@@ -441,6 +441,7 @@ typedef enum en_param_global {
     PARAM_CLUSTER_NO_CMS,
     PARAM_DRC_IN_REFORMER_MODE,
     PARAM_RES_RECYCLE_RATIO,
+    PARAM_CREATE_INDEX_PARALLELISM,
     PARAM_CEIL,
 } param_global_t;
 

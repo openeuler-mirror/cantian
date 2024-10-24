@@ -7328,7 +7328,7 @@ status_t db_create_index(knl_session_t *session, knl_index_def_t *def, knl_dicti
 
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
-
+    def->parallelism = def->parallelism == 0 ? g_instance->kernel.attr.create_index_parallelism : def->parallelism;
     if (dc->type == DICT_TYPE_TEMP_TABLE_SESSION || dc->type == DICT_TYPE_TEMP_TABLE_TRANS) {
         if (CT_SUCCESS != temp_db_fill_index(session, cursor, &index, def->parallelism)) {
             CM_RESTORE_STACK(session->stack);

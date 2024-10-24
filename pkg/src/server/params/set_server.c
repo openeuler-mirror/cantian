@@ -837,6 +837,11 @@ status_t sql_notify_als_res_recycle_ratio(void *se, void *item, char *value)
     return cm_str2uint32(value, &g_instance->kernel.attr.res_recycle_ratio);
 }
 
+status_t sql_notify_als_create_index_parallelism(void *se, void *item, char *value)
+{
+    return cm_str2uint32(value, &g_instance->kernel.attr.create_index_parallelism);
+}
+
 status_t sql_notify_als_compatible_mysql(void *se, void *item, char *value)
 {
     uint32 val;
