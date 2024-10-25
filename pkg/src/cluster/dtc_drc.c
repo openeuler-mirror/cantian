@@ -7020,6 +7020,12 @@ uint8 drc_get_remaster_status(void)
     return part_mngr->remaster_status;
 }
 
+void drc_close_remaster_proc()
+{
+    drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
+    cm_close_thread(&remaster_mngr->remaster_thread);
+}
+
 void drc_get_res_num(drc_res_type_e type, uint32 *used_num, uint32 *item_num)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;

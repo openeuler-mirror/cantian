@@ -179,6 +179,7 @@ static status_t close_read_log_proc(thread_t *read_log_thread, knl_session_t *se
     }
     reset_read_buffer();
     g_knl_callback.release_knl_session(session);
+    cm_close_thread(read_log_thread);
     CT_LOG_RUN_INF("[DTC RCY] finish close read log proc");
     return CT_SUCCESS;
 }
@@ -3110,6 +3111,13 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
     return;
 }
 
+static void dtc_close_analyze_proc()
+{
+    for (uint32 i = 0; i < PARAL_ANALYZE_THREAD_NUM; i++) {
+        cm_close_thread(&g_analyze_paral_mgr.thread[i]);
+    }
+}
+
 static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
@@ -3241,6 +3249,7 @@ static status_t dtc_rcy_analyze_batches_paral(knl_session_t *session)
     while (cm_atomic32_get(&g_analyze_paral_mgr.running_thread_num) > 0) {
         cm_sleep(1);
     }
+    dtc_close_analyze_proc();
     dtc_rcy_free_list_in_analyze_paral(g_analyze_paral_mgr.buf_list, prarl_buf_list_size);
     session->canceled = dtc_rcy->canceled ? CT_TRUE : CT_FALSE;
 

@@ -258,6 +258,7 @@ status_t dtc_partial_recovery(instance_list_t *recover_list)
                        ((knl_session_t *)g_rc_ctx->session)->kernel->lsn, g_rc_ctx->status);
         CM_ABORT(0, "[RC] DTC RCY failed");
     }
+    cm_close_thread(&DTC_RCY_CONTEXT->thread);
     return CT_SUCCESS;
 }
 
@@ -474,6 +475,7 @@ status_t rc_master_start_remaster(reform_detail_t *detail)
         CT_LOG_RUN_ERR("[RC][partial restart] remaster failed");
         return CT_ERROR;
     }
+    drc_close_remaster_proc();
     RC_STEP_END(detail->remaster_elapsed, RC_STEP_FINISH);
     CT_LOG_RUN_INF("[RC][partial restart] finish remaster, g_rc_ctx->status=%u", g_rc_ctx->status);
     return CT_SUCCESS;
