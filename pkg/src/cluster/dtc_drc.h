@@ -743,6 +743,7 @@ status_t drc_remaster_step_migrate(knl_session_t *session, reform_info_t *reform
 status_t drc_remaster_migrate_clean_res_owner(knl_session_t *session, reform_info_t *reform_info);
 status_t drc_remaster_wait_migrate_finish(uint64 timeout);
 status_t drc_remaster_migrate(knl_session_t *session);
+void drc_close_remaster_proc();
 
 //return statistics info for drc
 void drc_stat_converting_page_count(uint32 *cnt);
