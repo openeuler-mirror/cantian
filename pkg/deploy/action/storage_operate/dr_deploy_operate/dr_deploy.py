@@ -87,6 +87,7 @@ class DRDeploy(object):
         self.page_fs_pair_id = None
         self.meta_fs_pair_id = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         self.record_progress_file = LOCAL_PROCESS_RECORD_FILE
         self.mysql_user = None
         self.mysql_cmd = None
@@ -370,23 +371,21 @@ class DRDeploy(object):
                     remote_dev_name, remote_dev_esn, remote_device_id, domain_name)     
             else:
                 exist_domain_name = domain_info.get("NAME")
-                if exist_domain_name == domain_name:
+                if exist_domain_name != domain_name:
                     err_msg = "Hyper metro domain [name:%s] is unmatched with config parmas [name:%s], " \
                               "please check, details: %s" % (exist_domain_name, domain_name, domain_info)
                     LOG.error(err_msg)
-                    self.record_deploy_process("create_metro_domain", "failed", code=-1, description=err_msg)
                     raise Exception(err_msg)
 
         if not domain_info:
-            LOG.error("Hyper metro domain[%s] create failed" % domain_name)
-            self.record_deploy_process("create_metro_domain", "failed", code=-1, description=err_msg)
+            err_msg = "Hyper metro domain[%s] create failed" % domain_name
+            LOG.error(err_msg)
             raise Exception(err_msg)
         
         running_status = domain_info.get("RUNNINGSTATUS")
         if running_status == MetroDomainRunningStatus.Invalid:
             err_msg = "Hyper metro domain[%s] status is invalid" % domain_name
             LOG.error(err_msg)
-            self.record_deploy_process("create_metro_domain", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
         self.record_deploy_process("create_metro_domain", "success")
         return domain_info
@@ -398,16 +397,12 @@ class DRDeploy(object):
         :return:
         """
         self.record_deploy_process("create_metro_vstore_pair", "start")
-        vstore_pair_id = None
-        vstore_pair_info = None
         health_status = None
         running_status = None
-        config_status = None
 
         remote_vstore_id = self.dr_deploy_info.get("remote_dbstore_fs_vstore_id")
         local_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
-        domain_name = self.dr_deploy_info.get("domain_name")
         domain_id = domain_info.get("ID")
        
         if vstore_pair_id is None:
@@ -427,11 +422,10 @@ class DRDeploy(object):
                     err_msg = "The vstore pair [id:%s] is unmatched with config params, please check, details: %s" % \
                               (vstore_pair_id, vstore_pair_info)
                     LOG.error(err_msg)
-                    self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
                     raise Exception(err_msg)
         if not vstore_pair_info:
-            LOG.error("The metro vstore pair create failed")
-            self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
+            err_msg = "The metro vstore pair create failed"
+            LOG.error(err_msg)
             raise Exception(err_msg)
         vstore_pair_id = vstore_pair_info.get("ID")
 
@@ -456,7 +450,6 @@ class DRDeploy(object):
                    get_status(running_status, VstorePairRunningStatus),
                    vstore_pair_info)
         LOG.error(err_msg)
-        self.record_deploy_process("create_metro_vstore_pair", "failed", code=-1, description=err_msg)
         raise Exception(err_msg)
 
     def do_create_hyper_metro_filesystem_pair(self, vstore_pair_info: dict) -> dict:
@@ -471,6 +464,7 @@ class DRDeploy(object):
         remote_pool_id = self.dr_deploy_info.get("remote_pool_id")
         dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
+        dbstore_fs_id = None
         if filesystem_pair_id is None:
             storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
             dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
@@ -496,18 +490,17 @@ class DRDeploy(object):
                 self.record_deploy_process("create_metro_fs_pair", "running")
                 self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
             else:
-                exist_domain_id = filesystem_pair_info[0].get("DOMAINID")
+                exist_domain_id = filesystem_pair_info.get("DOMAINID")
                 if exist_domain_id != hyper_domain_id:
                     err_msg = "The HyperMetro domain [id:%s] of filesystem pair is unmatched with config " \
                               "params [id:%s], please check, details: %s" % \
                               (exist_domain_id, hyper_domain_id, filesystem_pair_info)
                     LOG.error(err_msg)
-                    self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
                     raise Exception(err_msg)
 
+        filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)[0]
         if not filesystem_pair_info:
-            LOG.error("The metro filesystem pair create failed")
-            self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
+            err_msg = "The metro filesystem pair create failed"
             raise Exception(err_msg)
         filesystem_pair_id = filesystem_pair_info.get("ID")
 
@@ -536,7 +529,6 @@ class DRDeploy(object):
                    get_status(config_status, VstorePairConfigStatus),
                    filesystem_pair_info)
         LOG.error(err_msg)
-        self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=err_msg)
         raise Exception(err_msg)
 
     def do_sync_hyper_metro_filesystem_pair(self, pair_id: str) -> bool:
@@ -792,7 +784,7 @@ class DRDeploy(object):
         :return:
         """
         self.record_deploy_process("cantian_disaster_recovery_status", "start")
-        node_id = self.dr_deploy_info.get("node_id")
+        node_id = self.deploy_params.get("node_id")
         cms_cmd = "su -s /bin/bash - %s -c 'source ~/.bashrc " \
                   "&& cms stat | awk \"{print \$1, \$9}\"'" % self.run_user
         return_code, output, stderr = exec_popen(cms_cmd)
@@ -1049,10 +1041,11 @@ class DRDeploy(object):
         :return:
         """
         LOG.info("Start to install cantian engine.")
-        node_id = self.dr_deploy_info.get("node_id")
+        if self.dr_deploy_info.get("cantian_in_container") == "1":
+            return True
+        node_id = self.deploy_params.get("node_id")
         if self.check_install_status(node_id, "start"):
             return True
-        node_id = self.dr_deploy_info.get("node_id")
         if not self.check_install_status(node_id, "install"):
             ctl_file_path = os.path.join(CURRENT_PATH, "../../")
             dbstor_user = input()
@@ -1080,6 +1073,8 @@ class DRDeploy(object):
         return True
 
     def do_install_mysql(self):
+        if self.dr_deploy_info.get("cantian_in_container") == "1":
+            return True
         # 判断是否是单进程，单进程要安装mysql
         install_json_path = os.path.join(CURRENT_PATH, "../../cantian/install_config.json")
         install_json_data = read_json_config(install_json_path)
@@ -1095,7 +1090,7 @@ class DRDeploy(object):
 
     def standby_do_start(self):
         LOG.info("Start to start cantian engine.")
-        node_id = self.dr_deploy_info.get("node_id")
+        node_id = self.deploy_params.get("node_id")
         self.do_start(node_id)
         LOG.info("Start cantian engine success.")
 
@@ -1158,8 +1153,16 @@ class DRDeploy(object):
             if return_code:
                 err_msg = f"Execution of chown command failed, output: {output}, stderr: {stderr}"
                 LOG.error(err_msg)
+                self.record_deploy_process("dr_deploy", "failed", code=-1, description=err_msg)
                 raise Exception(err_msg)
-
+            dbstor_del_command = (
+                f'su -s /bin/bash - "{RUN_USER}" -c \''
+                f'dbstor --delete-file --fs-name="{self.share_fs}" '
+                f'--file-name="dr_deploy_param.json"\''
+            )
+            LOG.info(f"Executing command: {dbstor_del_command}")
+            return_code, output, stderr = exec_popen(dbstor_del_command, timeout=100)
+            
             # 切换到指定用户并执行 dbstor 命令
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
@@ -1167,19 +1170,23 @@ class DRDeploy(object):
                 f'--source-dir="{dr_deploy_param_path}" '
                 f'--file-name="dr_deploy_param.json"\''
             )
-
             LOG.info(f"Executing command: {dbstor_command}")
             return_code, output, stderr = exec_popen(dbstor_command, timeout=100)
 
             if return_code:
                 err_msg = f"Execution of dbstor command failed, output: {output}, stderr: {stderr}"
                 LOG.error(err_msg)
+                self.record_deploy_process("dr_deploy", "failed", code=-1, description=err_msg)
                 raise Exception(err_msg)
 
             LOG.info(f"Successfully executed: {dbstor_command}")
         else:
             share_path = f"/mnt/dbdata/remote/metadata_{self.metadata_fs}"
             try:
+                config_path = share_path + "/dr_deploy_param.json"
+                if os.path.exists(config_path):
+                    # 删除文件
+                    os.remove(config_path)
                 shutil.copy(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), share_path)
             except Exception as _err:
                 LOG.info(f"copy dr_deploy_param failed")
@@ -1203,6 +1210,7 @@ class DRDeploy(object):
         if not self.mysql_cmd or not self.mysql_user:
             err_msg = "Mysql_pwd or mysql_user is None, please check."
             LOG.error(err_msg)
+            self.record_deploy_process("dr_deploy", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
         self.mysql_pwd = input()
         self.record_deploy_process("dr_deploy", "start")
@@ -1316,9 +1324,11 @@ class DRDeploy(object):
                     self.active_execute()
                 else:
                     self.standby_execute()
-            except:
+            except Exception as err:
                 if self.backup_lock_shell is not None:
                     self.do_unlock_instance_for_backup()
+                LOG.error("Dr deploy execute failed, traceback:%s", traceback.format_exc())
+                raise err
             finally:
                 self.dr_deploy_opt.storage_opt.logout()
             # 安装部署完成后记录加密密码到配置文件

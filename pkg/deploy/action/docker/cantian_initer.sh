@@ -461,15 +461,109 @@ function dr_deploy() {
         logAndEchoError "dr_operate pre_check failed."
         exit_with_log
     fi
-    logAndEchoInfo "dr_operate pre_check succeeded."
 
+    logAndEchoInfo "dr_operate pre_check succeeded."
+    if [[ x"${role}" == x"active" && X"${node_id}" != X"0" ]];then
+        logAndEchoInfo "dr_deploy succeeded."
+        return 0
+    fi
     # 执行 dr_deploy 命令
     echo -e "${password}\n" | sh ${SCRIPT_PATH}/appctl.sh dr_operate deploy ${role} --mysql_cmd='mysql' --mysql_user=root
     if [ $? -ne 0 ]; then
         logAndEchoError "dr_deploy failed."
         exit_with_log
     fi
+    check_dr_deploy_process_completed
+
     logAndEchoInfo "dr_deploy succeeded."
+}
+
+function check_dr_deploy_process_completed() {
+    # 10 分钟时间内搭建
+    max_iterations=300
+    count=1
+    last_status=""
+
+    while [ $count -le $max_iterations ]; do
+        sleep 2
+        result=$(jq -r '.data.dr_deploy' ${CONFIG_PATH}/dr_process_record.json)
+        all_status=$(jq -r '.data | to_entries[] | select(.value != "success" and .value != "default") | .key + ": " + .value' ${CONFIG_PATH}/dr_process_record.json)
+
+        case "${result}" in
+            *"success"*)
+                logAndEchoInfo "executing dr_deploy success."
+                return 0
+                ;;
+            *"failed"*)
+                logAndEchoInfo "executing dr_deploy failed."
+                exit_with_log
+                ;;
+            *"running"*)
+                if [ -n "$all_status" ]; then
+                    first_status=$(echo "$all_status" | head -n 1)
+                    if [ "${first_status}" != "${last_status}" ]; then
+                        logAndEchoInfo "dr_deploy ${first_status}"
+                        last_status="${first_status}"
+                    fi
+                fi
+                ;;
+            *)
+                logAndEchoInfo "Unexpected status for dr_deploy."
+                exit_with_log
+                ;;
+        esac
+        ((count=count+1))
+    done
+
+    logAndEchoInfo "Timeout reached without success."
+    return 1
+}
+
+function start_cantian_with_dr_deploy() {
+    role=$1
+    if [ x"${deploy_mode}" == x"dbstor" ]; then
+        dr_config_file=$(su -s /bin/bash - "${cantian_user}" \
+            -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "dr_deploy_param.json" | wc -l)
+    else
+        dr_config_file=$(ls -l "/mnt/dbdata/remote/metadata_${storage_metadata_fs}" | grep "dr_deploy_param.json" | wc -l)
+    fi
+    if [[ ${dr_config_file} -gt 0 ]];then
+        # Cantian启动
+        sh ${SCRIPT_PATH}/appctl.sh start
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
+        # 安装并拉起MySQL,单进程不执行
+        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+            start_mysqld
+        fi
+        chown -R ${deploy_user}:${deploy_group} ${OPT_CONFIG_PATH}
+        if [ x"${deploy_mode}" == x"dbstor" ]; then
+            su -s /bin/bash - "${cantian_user}" \
+                -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ \
+                --target-dir=${OPT_CONFIG_PATH} --file-name=dr_deploy_param.json"
+        else
+            cp "/mnt/dbdata/remote/metadata_${storage_metadata_fs}/dr_deploy_param.json" ${OPT_CONFIG_PATH}
+        fi
+
+        logAndEchoInfo "dr_deploy Already executed."
+        return 0
+    else
+        if [[ X"${role}" == X"active" ]];then
+            # Cantian启动
+            sh ${SCRIPT_PATH}/appctl.sh start
+            if [ $? -ne 0 ]; then
+                exit_with_log
+            fi
+            # 安装并拉起MySQL,单进程不执行
+            if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+                start_mysqld
+            fi
+        fi
+        logAndEchoInfo "dr_setup is True, executing dr_deploy tasks."
+        dr_deploy
+    fi
+
 }
 
 function init_start() {
@@ -508,25 +602,17 @@ function init_start() {
         if [ $? -ne 0 ]; then
             exit_with_log
         fi
-    else
-        if [[ X"${role}" == X"active" ]];then
-            # Cantian启动
-            sh ${SCRIPT_PATH}/appctl.sh start
-            if [ $? -ne 0 ]; then
-                exit_with_log
-            fi
+        # 安装并拉起MySQL,单进程不执行
+        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+            start_mysqld
         fi
+
+    else
         # 容灾搭建
-        logAndEchoInfo "dr_setup is True, executing dr_deploy tasks."
-        dr_deploy
+        start_cantian_with_dr_deploy ${role}
     fi
 
     set_version_file
-
-    # 安装并拉起MySQL,单进程不执行
-    if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
-        start_mysqld
-    fi
 
     # 创建就绪探针
     touch ${READINESS_FILE}
@@ -557,7 +643,8 @@ function execute_cantian_numa() {
     ln -sf /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py /usr/local/bin/cantian-numa
     chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
 
-    /usr/local/bin/cantian-numa
+    python3 /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
+    # /usr/local/bin/cantian-numa
     if [ $? -ne 0 ]; then
         echo "Error occurred in cantian-numa execution."
         return 0

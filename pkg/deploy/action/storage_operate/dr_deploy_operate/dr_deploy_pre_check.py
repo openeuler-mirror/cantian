@@ -43,6 +43,9 @@ class DRDeployPreCheck(object):
         self.remote_operate = None
         self.run_user = get_env_info("cantian_user")
         self.domain_name = None
+        self.hyper_domain_id = None
+        self.vstore_pair_id = None
+        self.ulog_fs_pair_id = None
 
     @staticmethod
     def clean_env():
@@ -87,8 +90,12 @@ class DRDeployPreCheck(object):
         """
         err_msg = []
         node_id = self.deploy_params.get("node_id")
-        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
-              "grep -v NODE_ID | awk '{if(\$1==%s){print \$3,\$6,\$9}}'\"" % (self.run_user, node_id)
+        if node_id == "0":
+            cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+                "grep -v NODE_ID | awk '{if(\$1==%s){print \$3,\$6,\$9}}'\"" % (self.run_user, node_id)
+        else:
+            cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+                "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\"" % (self.run_user)
         return_code, output, stderr = exec_popen(cmd)
         if return_code == 1:
             err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
@@ -238,6 +245,9 @@ class DRDeployPreCheck(object):
         err_msg = []
         if self.site == "standby":
             return err_msg
+        node_id = self.deploy_params.get("node_id")
+        if node_id != "0":
+            return err_msg
         LOG.info("Check standby filesystem nums start.")
         metadata_fs_name = self.local_conf_params.get("storage_metadata_fs")
         dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
@@ -247,6 +257,14 @@ class DRDeployPreCheck(object):
             dbstore_page_fs = RepFileSystemNameRule.NamePrefix + dbstore_page_fs + name_suffix
         if name_suffix and not metadata_in_cantian:
             metadata_fs_name = RepFileSystemNameRule.NamePrefix + metadata_fs_name + name_suffix
+        if self.ulog_fs_pair_id is None:
+            dbstore_fs = self.local_conf_params.get("storage_dbstore_fs")
+            remote_fs_vstore_id = self.remote_conf_params.get("dbstore_fs_vstore_id")
+            remote_ulog_fs_info = self.remote_operate.\
+                                      query_remote_filesystem_info(fs_name=dbstore_fs, vstore_id=remote_fs_vstore_id)
+            if remote_ulog_fs_info:
+                err_msg.append("Standby dbstore filesystem[%s] exist, filesystem id[%s]." %
+                        (dbstore_fs, remote_ulog_fs_info.get("ID")))
         remote_metadata_fs_info = self.remote_operate.\
             query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
         remote_dbstore_page_fs_info = self.remote_operate.\
@@ -299,13 +317,12 @@ class DRDeployPreCheck(object):
         dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
         metadata_fs = self.local_conf_params.get("storage_metadata_fs")
         metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
-        cluster_id = self.local_conf_params.get("cluster_id")
         dbstore_fs_info = self.storage_opt.query_filesystem_info(dbstore_fs, dbstore_fs_vstore_id)
         dbstore_fs_id = dbstore_fs_info.get("ID")
-        dbstore_fs_info = self.storage_opt.query_filesystem_info(dbstore_page_fs)
-        dbstore_fs_info = self.storage_opt.query_filesystem_info(metadata_fs)
-        metadata_fs_id = dbstore_fs_info.get("ID")
-        page_fs_id = dbstore_fs_info.get("ID")
+        dbstore_page_fs_info = self.storage_opt.query_filesystem_info(dbstore_page_fs)
+        metadata_fs_info = self.storage_opt.query_filesystem_info(metadata_fs)
+        metadata_fs_id = metadata_fs_info.get("ID")
+        page_fs_id = dbstore_page_fs_info.get("ID")
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
         domain_name = self.local_conf_params.get("domain_name", "")
         if domain_name == "":
@@ -465,6 +482,7 @@ class DRDeployPreCheck(object):
                                                                 self.local_conf_params[
                                                                     "mysql_metadata_in_cantian"] + name_suffix
         self.local_conf_params.update(dr_params)
+        del self.local_conf_params["node_id"]
         write_json_config(DR_DEPLOY_PARAM_FILE, self.local_conf_params)
 
     def init_opt(self):
@@ -559,6 +577,12 @@ class DRDeployPreCheck(object):
         check_result = []
         if self.site == "active":
             return check_result
+        if not os.path.exists(DEPLOY_PARAM_FILE):
+            _err_msg = "Deploy param file[%s] is not exists, " \
+                      "please check cantian is deployed." % DEPLOY_PARAM_FILE
+            LOG.error(_err_msg)
+            raise Exception(_err_msg)
+        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         pre_install = PreInstall(install_model="override", config_path=self.conf)
         if pre_install.check_main() == 1:
             check_result.append("Params check failed")
@@ -593,7 +617,7 @@ class DRDeployPreCheck(object):
         :return:
         """
         check_result = []
-        if self.site == "active":
+        if self.site == "active" or self.deploy_params.get("cantian_in_container") == "1":
             return check_result
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"
