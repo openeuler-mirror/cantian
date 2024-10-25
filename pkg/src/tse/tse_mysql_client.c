@@ -33,7 +33,6 @@ int mysql_execute_ddl_sql(uint32_t thd_id, tse_ddl_broadcast_request *broadcast_
     size_t len = strlen(broadcast_req->sql_str);
     if (len == 0) {
         CT_LOG_RUN_ERR("[TSE_DDL]:sql_str length is invalid");
-        return CT_ERROR;
     }
     int ret = tse_ddl_execute_update(thd_id, broadcast_req, allow_fail);
     return ret;
