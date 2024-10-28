@@ -154,6 +154,7 @@ void dc_convert_table_desc(knl_cursor_t *cursor, knl_table_desc_t *desc)
 
     desc->seg_scn = desc->org_scn;
     desc->compress_algo = COMPRESS_NONE;
+    desc->instant_cols = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_INSTANT_COLS);
 }
 
 status_t dc_convert_view_desc(knl_session_t *session, knl_cursor_t *cursor, knl_view_t *view, dc_entity_t *entity)
@@ -349,6 +350,7 @@ status_t dc_convert_column(knl_session_t *session, knl_cursor_t *cursor, dc_enti
         }
     }
     dc_fetch_prec_and_scale(cursor, column);
+    column->is_instant = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_COLUMN_COL_IS_INSTANT);
     column->nullable = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_COLUMN_COL_NULLABLE);
     column->flags = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_COLUMN_COL_FLAGS);
 

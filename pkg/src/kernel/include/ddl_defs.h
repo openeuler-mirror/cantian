@@ -394,6 +394,7 @@ typedef struct st_knl_column_def {
     text_t comment;
     void *table;
     uint16 collate_id;
+    bool32 is_instant;
     uint8 mysql_ori_datatype;
 } knl_column_def_t;
 
@@ -449,6 +450,7 @@ typedef struct st_knl_altable_def {
     uint8 is_for_create_db;
     uint8 is_mysql_copy;
     uint8 contains_vircol;
+    uint8 is_instant;
 } knl_altable_def_t;
 
 typedef struct st_loginfo_base_rec {

@@ -59,6 +59,7 @@ typedef enum en_sys_table_column {
     SYS_TABLE_COL_OBJID = 24,
     SYS_TABLE_COL_VERSION = 25,
     SYS_TABLE_COL_FLAG = 26,
+    SYS_TABLE_COL_INSTANT_COLS = 27,
 
     SYS_TABLE_COLUMN_COUNT,   // systable column count, must be the last in the struct.
 } sys_table_column_t;
@@ -93,6 +94,7 @@ typedef enum en_sys_column_column {
     SYS_COLUMN_COL_HIGH_VALUE = 14,
     SYS_COLUMN_COL_HISTOGRAM = 15,
     SYS_COLUMN_COL_OPTIONS = 16,
+    SYS_COLUMN_COL_IS_INSTANT = 17,
 
     SYS_COLUMN_COLUMN_COUNT,    // systable column count, must be the last in the struct.
 } sys_column_column_t;

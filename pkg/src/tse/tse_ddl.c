@@ -1326,7 +1326,8 @@ status_t tse_fill_column_info(session_t *session, sql_stmt_t *stmt, knl_column_d
                               const TcDb__TseDDLColumnDef *def, ddl_ctrl_t *ddl_ctrl)
 {
     proto_str2text(def->name, &column->name);
-    column->datatype = get_ct_type_from_tse_ddl_type(def->datatype->datatype, def->is_unsigned);
+    column->datatype = get_ct_type_from_tse_ddl_type(def->datatype->datatype,
+                                                     def->is_unsigned);
     column->mysql_ori_datatype = def->datatype->mysql_ori_datatype;
 
     if (column->mysql_ori_datatype == MYSQL_TYPE_ENUM || column->mysql_ori_datatype == MYSQL_TYPE_SET ||
@@ -1685,6 +1686,11 @@ int fill_tse_partition_info(sql_stmt_t *stmt, TcDb__TseDDLCreateTableDef *req, k
         CT_RETURN_IFERR(tse_sql_part_parse_partition(stmt, obj_def, req->partition_def->part_table_list[i]));
     }
     return CT_SUCCESS;
+}
+
+static bool is_instant(const TcDb__TseDDLAlterTableDef *req)
+{
+    return req->handler_trivial_ctx;
 }
 
 int fill_tse_alter_fk_info(sql_stmt_t *stmt, TcDb__TseDDLAlterTableDef *req, knl_altable_def_t *def)
@@ -2500,7 +2506,11 @@ static int tse_fill_add_column(session_t *session, sql_stmt_t *stmt, knl_altable
         CT_RETURN_IFERR(cm_galist_new(&def->column_defs, sizeof(knl_alt_column_prop_t), (void **)&column_def));
         column = &column_def->new_column;
         column->table = (void *)def;
-        int ret = tse_fill_column_info(session, stmt, column, req->create_list[i], ddl_ctrl);
+        int ret = CT_SUCCESS;
+        ret = tse_fill_column_info(session, stmt, column, req->create_list[i], ddl_ctrl);  // 填充列信息
+        if (is_instant(req)) {
+            column->is_instant = 1;
+        }
         if (ret != CT_SUCCESS) {
             return ret;
         }
@@ -2916,6 +2926,7 @@ static int tse_alter_table_atomic_impl(TcDb__TseDDLAlterTableDef *req, ddl_ctrl_
     SYNC_POINT_GLOBAL_END;
 
     tse_init_ddl_def_node(def_node, ALTER_DEF, (pointer_t *)start_def, tse_context->dc);
+    start_def->is_instant = is_instant(req);
     tse_ddl_def_list_insert(&stmt->ddl_def_list, def_node);
 
     cm_reset_error();
