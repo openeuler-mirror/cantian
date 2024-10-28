@@ -44,6 +44,7 @@ typedef struct st_knl_column {
     bool32 nullable;        // null or not null
     uint32 flags;           // hidden, deleted, compressed...
     text_t default_text;    // raw expr text
+    bool32 is_instant;      // instant column
     void *lob;
 
     void *default_expr;         // deserialized default expr

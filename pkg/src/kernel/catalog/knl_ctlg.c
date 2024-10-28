@@ -65,6 +65,7 @@ knl_column_t g_sys_table_columns[] = {
     { 24, "OBJ#",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
     { 25, "VERSION",      0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
     { 26, "FLAG",         0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
+    { 27, "INSTANT_COLS", 0, SYS_TABLE_ID, CT_TYPE_INTEGER,   sizeof(uint32),  0,                         0, CT_TRUE,  0, { NULL, 0 } },
 };
 
 knl_column_t g_sys_column_columns[] = {
@@ -86,6 +87,7 @@ knl_column_t g_sys_column_columns[] = {
     { 14, "HIGH_VALUE",   0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_MIN_VALUE_SIZE,     0, 0, CT_TRUE,  0, { NULL, 0 } },
     { 15, "HISTOGRAM",    0, SYS_COLUMN_ID, CT_TYPE_VARCHAR, CT_MAX_NAME_LEN,           0, 0, CT_TRUE,  0, { NULL, 0 } },
     { 16, "OPTIONS",      0, SYS_COLUMN_ID, CT_TYPE_RAW,     CT_SYS_OPT_LEN,            0, 0, CT_TRUE,  0, { NULL, 0 } },
+    { 17, "IS_INSTANT",   0, SYS_COLUMN_ID, CT_TYPE_INTEGER, sizeof(uint32),            0, 0, CT_FALSE,  0, { NULL, 0 } },
 };
 
 knl_column_t g_sys_index_columns[] = {
@@ -241,6 +243,7 @@ status_t db_write_systable(knl_session_t *session, knl_cursor_t *cursor, knl_tab
     (void)row_put_int32(&ra, desc->oid);           // object id
     (void)row_put_int32(&ra, desc->version);       // table version
     (void)row_put_int32(&ra, desc->flags);
+    (void)row_put_int32(&ra, desc->instant_cols);  // number of columns before instant column
 
     if (IS_CORE_SYS_TABLE(desc->uid, desc->id)) {
         return TABLE_ACCESSOR(cursor)->do_insert(session, cursor);
@@ -404,6 +407,7 @@ static void db_make_syscolumn_row(knl_session_t *session, knl_cursor_t *cursor, 
                         &(column->mysql_unsigned), sizeof(uint8));
         (void)row_put_bin(&ra, &bin);
     }
+    (void)(row_put_int32(&ra, column->is_instant));
 }
 
 status_t db_write_syscolumn(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column)

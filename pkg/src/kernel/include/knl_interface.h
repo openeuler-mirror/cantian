@@ -211,6 +211,7 @@ typedef struct st_knl_table_desc {
 #endif
     uint32 estimate_len;             // estimate row length according to definition
     uint32 version;
+    uint32 instant_cols;              // Number of non-virtual columns before first instant column
     int32 csf_dec_rowlen;             // estimate csf row decrease length according to definition
     uint8 compress_algo;
 } knl_table_desc_t;

@@ -162,6 +162,7 @@ message TseDDLAlterTableDef {
   uint32 hash_coalesce_count = 18;
   int64 systimestamp = 19;
   int32 tz_offset_UTC = 20;
+  int32 handler_trivial_ctx = 21;
 }
 
 message TseDDLTruncateTableDef {

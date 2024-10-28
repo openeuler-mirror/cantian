@@ -429,6 +429,7 @@ static void db_init_column_flg(knl_column_def_t *def, knl_column_t *column)
             COLUMN_SET_NOCHARACTER(column);
         }
     }
+    column->is_instant = def->is_instant;
 
     if (!def->is_default_null) {
         COLUMN_RESET_DEFAULT_NULL(column);
@@ -8740,12 +8741,14 @@ static status_t db_update_table_desc(knl_session_t *session, knl_table_desc_t *d
 
     column_count = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_TABLE_COL_COLS) +
                    (change_column_count ? (is_add ? 1 : (-1)) : 0);
-    row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), 2);
+    row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), 3);
     (void)row_put_int64(&ra, db_inc_scn(session));
     (void)row_put_int32(&ra, column_count);
-    cursor->update_info.count = 2;
+    (void)row_put_int32(&ra, desc->instant_cols);
+    cursor->update_info.count = 3;
     cursor->update_info.columns[0] = SYS_TABLE_COL_CHG_SCN;
     cursor->update_info.columns[1] = SYS_TABLE_COL_COLS;
+    cursor->update_info.columns[2] = SYS_TABLE_COL_INSTANT_COLS;
     cm_decode_row(cursor->update_info.data, cursor->update_info.offsets, cursor->update_info.lens, &size);
 
     if (knl_internal_update(session, cursor) != CT_SUCCESS) {
@@ -9845,6 +9848,10 @@ status_t db_altable_add_column(knl_session_t *session, knl_dictionary_t *dc, voi
         entity = DC_ENTITY(&new_dc);
         cursor = knl_push_cursor(session);
 
+        if(def->is_instant && table->desc.instant_cols == 0) {
+            table->desc.instant_cols = knl_get_column_count(new_dc.handle);
+        }
+
         column.name = (char *)cm_push(session->stack, CT_NAME_BUFFER_SIZE);
         db_convert_column_def(&column, table->desc.uid, table->desc.id, new_column, NULL, entity->column_count);
 
@@ -9901,7 +9908,7 @@ status_t db_altable_add_column(knl_session_t *session, knl_dictionary_t *dc, voi
         CM_RESTORE_STACK(session->stack);
     }
 
-    if (update_default) {
+    if (update_default && table->desc.instant_cols == 0) {
         if (db_set_column_default(session, stmt, dc) != CT_SUCCESS) {
             return CT_ERROR;
         }

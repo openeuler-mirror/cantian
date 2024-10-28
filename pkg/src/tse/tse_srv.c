@@ -1048,6 +1048,101 @@ static void tse_fetch_cursor_rowid_pos_value(knl_session_t *knl_session, knl_cur
     cursor->ssn = knl_session->ssn;
 }
 
+static status_t tse_set_default_value(knl_session_t *session, row_assist_t *ra, knl_column_t *column)
+{
+    status_t status;
+    if (column->default_text.len == 0) {
+        if (!column->nullable) {
+            CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, column->name);
+            return CT_ERROR;
+        }
+
+        row_put_null(ra);
+        return CT_SUCCESS;
+    }
+
+    switch (column->datatype) {
+        case CT_TYPE_BOOLEAN: {
+            bool32 value = column->default_text.str == "true" ? 1 : 0;
+            return row_put_bool(ra, &value);
+        }
+
+        case CT_TYPE_UINT32: {
+            uint32 value = (uint32)strtoul(column->default_text.str, NULL, 10);
+            return row_put_uint32(ra, value);
+        }
+
+        case CT_TYPE_INTEGER: {
+            int32 value = (int32)strtol(column->default_text.str, NULL, 10);
+            return row_put_int32(ra, value);
+        }
+
+        case CT_TYPE_UINT64: {
+            uint64 value64 = strtoull(column->default_text.str, NULL, 10);
+            return row_put_uint64(ra, value64);
+        }
+
+        case CT_TYPE_BIGINT: {
+            int64 value64 = strtoll(column->default_text.str, NULL, 10);
+            return row_put_int64(ra, value64);
+        }
+
+        case CT_TYPE_REAL: {
+            double value = strtod(column->default_text.str, NULL);
+            return row_put_real(ra, value);
+        }
+
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING: {
+            CM_SAVE_STACK(session->stack);
+            status = row_put_text(ra, column->default_text.str);
+            CM_RESTORE_STACK(session->stack);
+            return status;
+        }
+
+        case CT_TYPE_BINARY:
+        case CT_TYPE_RAW:
+        default: {
+            /* save variant */
+            CM_SAVE_STACK(session->stack);
+            status = row_put_bin(ra, column->default_text.str);
+            CM_RESTORE_STACK(session->stack);
+            return status;
+        }
+    }
+}
+
+static status_t tse_set_instant_column_info(knl_session_t *session, knl_cursor_t *cursor, uint8_t *records)
+{
+    table_t *table = (table_t *)cursor->table;
+    if (table->desc.instant_cols == 0) {
+        return CT_SUCCESS;
+    }
+    knl_column_t *column = NULL;
+    uint32 col_count = knl_get_column_count(cursor->dc_entity);
+    dc_entity_t *entity = (dc_entity_t *)cursor->dc_entity;
+    bool32 is_csf = knl_is_table_csf(entity, cursor->part_loc);
+    uint32 i;
+    uint32 valid_size = 8;  // size of row_head_t
+    row_head_t *record_head = (row_head_t *)records;
+    for (i = 0; i < record_head->column_count; i++) {
+        column = knl_get_column(cursor->dc_entity, i);
+        valid_size += column->size;
+    }
+    row_assist_t ra;
+    record_head->size = valid_size;
+    cm_attach_row(&ra, record_head);
+    ra.max_size = CT_MAX_ROW_SIZE;
+    ra.col_id = i;
+    for (i = record_head->column_count; i < col_count; i++) {
+        column = knl_get_column(cursor->dc_entity, i);
+        tse_set_default_value(session, &ra, column);
+    }
+    record_head->column_count = col_count;
+    return CT_SUCCESS;
+}
+
 int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, uint8_t *records, uint16 *size)
 {
     int ret = CT_SUCCESS;
@@ -1070,6 +1165,11 @@ int tse_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, uint8
             ret = tse_copy_cursor_row(knl_session, cursor, cursor->row, records, size);
             if (ret != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("tse_fetch_and_filter: tse_copy_cursor_row FAIL");
+                return ret;
+            }
+            ret = tse_set_instant_column_info(knl_session, cursor, records);    
+            if (ret != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("tse_fetch_and_filter: set_instant_column_info FAIL");
                 return ret;
             }
             break;
