@@ -39,7 +39,7 @@ def get_value(param):
     value = info
     try:
         for key in keys:
-            value = value[key]
+            value = value.get(key)
         return value
     except (KeyError, TypeError):
         return ""

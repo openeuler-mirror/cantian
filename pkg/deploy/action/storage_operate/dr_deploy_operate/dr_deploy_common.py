@@ -236,7 +236,7 @@ class DRDeployCommon(object):
         data = {
             "vstoreId": vstore_id
         }
-        res = self.rest_client.normal_request(url, "get")
+        res = self.rest_client.normal_request(url, data=data, method="get")
         err_msg = "Failed to query hyper metro file system pair count info"
         rsp_data = StorageInf.result_parse(err_msg, res)
         return rsp_data

@@ -6,7 +6,6 @@ PKG_PATH=${CURRENT_PATH}/../..
 CONFIG_PATH=${CURRENT_PATH}/../../config
 OPT_CONFIG_PATH="/opt/cantian/config"
 INIT_CONFIG_PATH=${CONFIG_PATH}/container_conf/init_conf
-DORADO_CONFIG_PATH=${CONFIG_PATH}/container_conf/dorado_conf
 KMC_CONFIG_PATH=${CONFIG_PATH}/container_conf/kmc_conf
 CERT_CONFIG_PATH=${CONFIG_PATH}/container_conf/cert_conf
 CERT_PASS="certPass"
@@ -21,11 +20,6 @@ USER_FILE="${LOGICREP_HOME}/create_user.json"
 HEALTHY_FILE="/opt/cantian/healthy"
 READINESS_FILE="/opt/cantian/readiness"
 CMS_CONTAINER_FLAG="/opt/cantian/cms/cfg/container_flag"
-SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
-DORADO_CONF_PATH="${CURRENT_PATH}/../../config/container_conf/dorado_conf"
-DM_USER="DMUser"
-DM_PWD="DMPwd"
-
 
 source ${CURRENT_PATH}/../log4sh.sh
 
@@ -402,7 +396,6 @@ function set_version_file() {
     fi
 }
 
-
 function start_mysqld() {
     logAndEchoInfo "Begin to start mysqld. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     su -s /bin/bash - ${deploy_user} -c "python3 -B \
@@ -416,127 +409,21 @@ function start_mysqld() {
     logAndEchoInfo "start mysqld success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
-function dr_deploy() {
-    dm_user_file="${DORADO_CONF_PATH}/${DM_USER}"
-    dm_password_file="${DORADO_CONF_PATH}/${DM_PWD}"
-
-    if [ ! -f "${dm_user_file}" ] || [ ! -f "${dm_password_file}" ]; then
-        logAndEchoError "DM User or password file not found."
-        exit_with_log
-    fi
-
-    dm_user=$(cat "${dm_user_file}")
-    dm_password=$(cat "${dm_password_file}")
-
-    role=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.role")
-    if [ "${role}" == "active" ]; then
-        expected_dm_user=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.active.dm_user")
-    elif [ "${role}" == "standby" ]; then
-        expected_dm_user=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.standby.dm_user")
-    else
-        logAndEchoError "Unknown DM role value: ${role}"
-        exit_with_log
-    fi
-
-    if [ "${dm_user}" != "${expected_dm_user}" ]; then
-        logAndEchoError "DM Username does not match. Expected ${expected_dm_user}, but found ${dm_user}."
-        exit_with_log
-    fi
-
-    ld_path_src=${LD_LIBRARY_PATH}
-    export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH}
-    password_tmp=$(python3 -B "${CURRENT_PATH}/resolve_pwd.py" "resolve_kmc_pwd" "${dm_password}")
-    if [ $? -ne 0 ]; then
-        logAndEchoError "Failed to decrypt the  DM password."
-        exit_with_log
-    fi
-    password=$(eval echo ${password_tmp})
-    if [ -z "${password}" ]; then
-        logAndEchoError "Failed to get dm password"
-        exit_with_log
-    fi
-    export LD_LIBRARY_PATH=${ld_path_src}
-    echo -e "${password}" | sh ${SCRIPT_PATH}/appctl.sh dr_operate pre_check ${role} --conf=/opt/cantian/config/deploy_param.json
-    if [ $? -ne 0 ]; then
-        logAndEchoError "dr_operate pre_check failed."
-        exit_with_log
-    fi
-
-    logAndEchoInfo "dr_operate pre_check succeeded."
-    if [[ x"${role}" == x"active" && X"${node_id}" != X"0" ]];then
-        logAndEchoInfo "dr_deploy succeeded."
-        return 0
-    fi
-    # 执行 dr_deploy 命令
-    echo -e "${password}\n" | sh ${SCRIPT_PATH}/appctl.sh dr_operate deploy ${role} --mysql_cmd='mysql' --mysql_user=root
-    if [ $? -ne 0 ]; then
-        logAndEchoError "dr_deploy failed."
-        exit_with_log
-    fi
-    check_dr_deploy_process_completed
-
-    logAndEchoInfo "dr_deploy succeeded."
-}
-
-function check_dr_deploy_process_completed() {
-    # 10 分钟时间内搭建
-    max_iterations=300
-    count=1
-    last_status=""
-
-    while [ $count -le $max_iterations ]; do
-        sleep 2
-        result=$(jq -r '.data.dr_deploy' ${CONFIG_PATH}/dr_process_record.json)
-        all_status=$(jq -r '.data | to_entries[] | select(.value != "success" and .value != "default") | .key + ": " + .value' ${CONFIG_PATH}/dr_process_record.json)
-
-        case "${result}" in
-            *"success"*)
-                logAndEchoInfo "executing dr_deploy success."
-                return 0
-                ;;
-            *"failed"*)
-                logAndEchoInfo "executing dr_deploy failed."
-                exit_with_log
-                ;;
-            *"running"*)
-                if [ -n "$all_status" ]; then
-                    first_status=$(echo "$all_status" | head -n 1)
-                    if [ "${first_status}" != "${last_status}" ]; then
-                        logAndEchoInfo "dr_deploy ${first_status}"
-                        last_status="${first_status}"
-                    fi
-                fi
-                ;;
-            *)
-                logAndEchoInfo "Unexpected status for dr_deploy."
-                exit_with_log
-                ;;
-        esac
-        ((count=count+1))
-    done
-
-    logAndEchoInfo "Timeout reached without success."
-    return 1
-}
-
 function start_cantian_with_dr_deploy() {
-    role=$1
+    ln -s /ctdb/cantian_install/cantian_connector/action/docker/dr_deploy.sh /usr/local/bin/dr-deploy
+    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/dr_deploy.sh
+
+    role=$(python3 "${CURRENT_PATH}"/get_config_info.py "dr_deploy.role")
+    password=$(sh "${CURRENT_PATH}"/dr_deploy.sh "get_dm_password")
+
     if [ x"${deploy_mode}" == x"dbstor" ]; then
         dr_config_file=$(su -s /bin/bash - "${cantian_user}" \
             -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "dr_deploy_param.json" | wc -l)
     else
         dr_config_file=$(ls -l "/mnt/dbdata/remote/metadata_${storage_metadata_fs}" | grep "dr_deploy_param.json" | wc -l)
     fi
-    if [[ ${dr_config_file} -gt 0 ]];then
-        # Cantian启动
-        sh ${SCRIPT_PATH}/appctl.sh start
-        if [ $? -ne 0 ]; then
-            exit_with_log
-        fi
-        # 安装并拉起MySQL,单进程不执行
-        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
-            start_mysqld
-        fi
+
+    if [[ ${dr_config_file} -gt 0 ]]; then
         chown -R ${deploy_user}:${deploy_group} ${OPT_CONFIG_PATH}
         if [ x"${deploy_mode}" == x"dbstor" ]; then
             su -s /bin/bash - "${cantian_user}" \
@@ -545,25 +432,40 @@ function start_cantian_with_dr_deploy() {
         else
             cp "/mnt/dbdata/remote/metadata_${storage_metadata_fs}/dr_deploy_param.json" ${OPT_CONFIG_PATH}
         fi
+        cp ${OPT_CONFIG_PATH}/dr_deploy_param.json ${CONFIG_PATH}
 
-        logAndEchoInfo "dr_deploy Already executed."
-        return 0
+        echo -e "${password}" | sh "${SCRIPT_PATH}"/appctl.sh dr_operate progress_query --action=check --display=table 2>&1 | grep -E "^\-|^\|"
+
+        dr_status=$(jq -r '.dr_status' ${CONFIG_PATH}/dr_status.json)
+
+        if [[ "${dr_status}" != "Normal" ]]; then
+            logAndEchoWarn "DR status is Abnormal. If you need, please enter the container and manually execute the Dr_deploy process."
+        fi
+
+        sh "${SCRIPT_PATH}"/appctl.sh start
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
+        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+            start_mysqld
+        fi
     else
-        if [[ X"${role}" == X"active" ]];then
+        if [[ X"${role}" == X"active" ]]; then
             # Cantian启动
-            sh ${SCRIPT_PATH}/appctl.sh start
+            sh "${SCRIPT_PATH}"/appctl.sh start
             if [ $? -ne 0 ]; then
                 exit_with_log
             fi
-            # 安装并拉起MySQL,单进程不执行
             if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
                 start_mysqld
             fi
         fi
         logAndEchoInfo "dr_setup is True, executing dr_deploy tasks."
-        dr_deploy
+        sh "${CURRENT_PATH}"/dr_deploy.sh
     fi
 
+    logAndEchoInfo "dr_deploy Already executed."
+    return 0
 }
 
 function init_start() {
@@ -594,9 +496,20 @@ function init_start() {
         exit_with_log
     fi
 
-    role=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.role")
     dr_setup=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.dr_setup")
-    if [[ X"${dr_setup}" == X"False" ]]; then   
+    if [[ X"${dr_setup}" == X"True" ]]; then   
+        # 容灾搭建
+        start_cantian_with_dr_deploy
+    else
+        password=$(sh "${CURRENT_PATH}"/dr_deploy.sh "get_dm_password")
+        echo -e "${password}" | sh "${SCRIPT_PATH}"/appctl.sh dr_operate progress_query --action=check --display=table 2>&1 | grep -E "^\-|^\|"
+
+        dr_status=$(jq -r '.dr_status' ${CONFIG_PATH}/dr_status.json)
+
+        if [[ "${dr_status}" == "Normal" ]]; then
+            logAndEchoError "DR status is Normal. but dr_deploy=>dr_setup is False, please check config file."
+            exit_with_log
+        fi
         # Cantian启动
         sh ${SCRIPT_PATH}/appctl.sh start
         if [ $? -ne 0 ]; then
@@ -607,9 +520,6 @@ function init_start() {
             start_mysqld
         fi
 
-    else
-        # 容灾搭建
-        start_cantian_with_dr_deploy ${role}
     fi
 
     set_version_file

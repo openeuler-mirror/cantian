@@ -46,6 +46,8 @@ class DRDeployPreCheck(object):
         self.hyper_domain_id = None
         self.vstore_pair_id = None
         self.ulog_fs_pair_id = None
+        self.page_fs_pair_id = None
+        self.meta_fs_pair_id = None
 
     @staticmethod
     def clean_env():
@@ -90,27 +92,18 @@ class DRDeployPreCheck(object):
         """
         err_msg = []
         node_id = self.deploy_params.get("node_id")
-        if node_id == "0":
-            cmd = "su -s /bin/bash - %s -c \"cms stat | " \
-                "grep -v NODE_ID | awk '{if(\$1==%s){print \$3,\$6,\$9}}'\"" % (self.run_user, node_id)
-        else:
-            cmd = "su -s /bin/bash - %s -c \"cms stat | " \
-                "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\"" % (self.run_user)
+        cmd = "su -s /bin/bash - %s -c \"cms stat | " \
+            "grep -v NODE_ID | awk '{if(\$1==%s){print \$3,\$6,\$9}}'\"" % (self.run_user, node_id)
         return_code, output, stderr = exec_popen(cmd)
         if return_code == 1:
             err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
         else:
             cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
-            reformer_status = False
             for index, item in enumerate(cms_stat):
                 if item[0].strip(" ") != "ONLINE":
                     err_msg.append("Node[%s] status is not ONLINE." % index)
                 if item[1] != "1":
                     err_msg.append("Node[%s] status is not normal." % index)
-                if item[2] == "REFORMER":
-                    reformer_status = True
-            if not reformer_status:
-                err_msg.append("Current cluster reformer status is not normal.")
         return err_msg
 
     def check_storage_system_info(self) -> list:
@@ -261,20 +254,24 @@ class DRDeployPreCheck(object):
             dbstore_fs = self.local_conf_params.get("storage_dbstore_fs")
             remote_fs_vstore_id = self.remote_conf_params.get("dbstore_fs_vstore_id")
             remote_ulog_fs_info = self.remote_operate.\
-                                      query_remote_filesystem_info(fs_name=dbstore_fs, vstore_id=remote_fs_vstore_id)
+                query_remote_filesystem_info(fs_name=dbstore_fs, vstore_id=remote_fs_vstore_id)
             if remote_ulog_fs_info:
                 err_msg.append("Standby dbstore filesystem[%s] exist, filesystem id[%s]." %
-                        (dbstore_fs, remote_ulog_fs_info.get("ID")))
-        remote_metadata_fs_info = self.remote_operate.\
-            query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
-        remote_dbstore_page_fs_info = self.remote_operate.\
-            query_remote_filesystem_info(fs_name=dbstore_page_fs, vstore_id="0")
-        if remote_dbstore_page_fs_info:
-            err_msg.append("Standby dbstore page filesystem[%s] exist, filesystem id[%s]." %
-                        (dbstore_page_fs, remote_dbstore_page_fs_info.get("ID")))
-        if remote_metadata_fs_info and not metadata_in_cantian:
-            err_msg.append("Standby metadata filesystem[%s] exist, filesystem id[%s]." %
-                           (metadata_fs_name, remote_metadata_fs_info.get("ID")))
+                    (dbstore_fs, remote_ulog_fs_info.get("ID")))
+
+        if self.page_fs_pair_id is None:
+            remote_dbstore_page_fs_info = self.remote_operate.\
+                query_remote_filesystem_info(fs_name=dbstore_page_fs, vstore_id="0")
+            if remote_dbstore_page_fs_info:
+                err_msg.append("Standby dbstore page filesystem[%s] exist, filesystem id[%s]." %
+                    (dbstore_page_fs, remote_dbstore_page_fs_info.get("ID")))
+    
+        if self.meta_fs_pair_id is None:
+            remote_metadata_fs_info = self.remote_operate.\
+                query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
+            if remote_metadata_fs_info and not metadata_in_cantian:
+                err_msg.append("Standby metadata filesystem[%s] exist, filesystem id[%s]." %
+                    (metadata_fs_name, remote_metadata_fs_info.get("ID")))
         LOG.info("Check standby filesystem nums success.")
         return err_msg
 
@@ -349,7 +346,11 @@ class DRDeployPreCheck(object):
             err_msg.append("The number of HyperMetro domains has reached the upper limit %s." % DOMAIN_LIMITS)
         page_pair_info = self.deploy_operate.query_remote_replication_pair_info(page_fs_id)
         if page_pair_info:
-            err_msg.append("Filesystem[%s] replication pair is exist." % dbstore_page_fs)
+            if len(page_pair_info) == 1 and page_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                self.page_fs_pair_id = page_pair_info[0].get("ID")
+            else:
+                _err_msg = "Filesystem[%s] replication pair is exist, details: %s" % (dbstore_page_fs, page_pair_info)
+                err_msg.append(_err_msg)
         vstore_pair_infos = self.deploy_operate.query_hyper_metro_vstore_pair_info()
         for vstore_pair_info in vstore_pair_infos:
             exist_remote_vstoreid = vstore_pair_info.get("REMOTEVSTOREID")
@@ -363,6 +364,11 @@ class DRDeployPreCheck(object):
                                "but domain name[%s] matching failed." % (dbstore_fs_vstore_id, domain_name)
                     err_msg.append(_err_msg)
                 break
+        else:
+            system_count = self.remote_operate.query_remote_storage_vstore_filesystem_num(remote_dbstore_fs_vstore_id)
+            if system_count and system_count.get("COUNT") != "0":
+                err_msg.append("Standby vstore[%s] exist filesystems, count[%s]"
+                            % (remote_dbstore_fs_vstore_id, system_count.get("COUNT")))
         
         ulog_pair_info = self.deploy_operate.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
         if ulog_pair_info:
@@ -379,7 +385,10 @@ class DRDeployPreCheck(object):
         if metadata_in_cantian and deploy_mode != "dbstor":
             meta_pair_info = self.deploy_operate.query_remote_replication_pair_info(metadata_fs_id)
             if meta_pair_info:
-                err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
+                if len(meta_pair_info) == 1 and meta_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                    self.meta_fs_pair_id = meta_pair_info[0].get("ID")
+                else:
+                    err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
 
         LOG.info("Check disaster status success.")
         return err_msg

@@ -464,13 +464,11 @@ class DRDeploy(object):
         remote_pool_id = self.dr_deploy_info.get("remote_pool_id")
         dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
-        dbstore_fs_id = None
+        storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
+        dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
+            dbstore_fs_vstore_id)
+        dbstore_fs_id = dbstore_fs_info.get("ID")
         if filesystem_pair_id is None:
-            storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
-            dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
-                dbstore_fs_vstore_id)
-            self.record_deploy_process("create_metro_fs_pair", "running")
-            dbstore_fs_id = dbstore_fs_info.get("ID")
             filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
             if filesystem_pair_infos is None:
                 filesystem_pair_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
@@ -478,8 +476,6 @@ class DRDeploy(object):
                 task_id = filesystem_pair_info.get("taskId")
                 self.record_deploy_process("create_metro_fs_pair", "running")
                 self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
-            else:
-                filesystem_pair_info = filesystem_pair_infos[0]
         else:
             filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
                 pair_id=filesystem_pair_id)
@@ -497,12 +493,12 @@ class DRDeploy(object):
                               (exist_domain_id, hyper_domain_id, filesystem_pair_info)
                     LOG.error(err_msg)
                     raise Exception(err_msg)
+        filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
 
-        filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)[0]
-        if not filesystem_pair_info:
-            err_msg = "The metro filesystem pair create failed"
+        if len(filesystem_pair_infos) != 1:
+            err_msg = "The metro filesystem pair create failed, Details: %s" % filesystem_pair_infos
             raise Exception(err_msg)
-        filesystem_pair_id = filesystem_pair_info.get("ID")
+        filesystem_pair_id = filesystem_pair_infos[0].get("ID")
 
         tmp_time = 0
         health_status = None
@@ -515,7 +511,7 @@ class DRDeploy(object):
             running_status = filesystem_pair_info.get("RUNNINGSTATUS")
             config_status = filesystem_pair_info.get("CONFIGSTATUS")
 
-            if (health_status == HealthStatus.Normal and config_status == VstorePairConfigStatus.Normal):
+            if health_status == HealthStatus.Normal and config_status == VstorePairConfigStatus.Normal:
                 self.record_deploy_process("create_metro_fs_pair", "success")
                 return filesystem_pair_info
 
@@ -1074,7 +1070,7 @@ class DRDeploy(object):
 
     def do_install_mysql(self):
         if self.dr_deploy_info.get("cantian_in_container") == "1":
-            return True
+            return
         # 判断是否是单进程，单进程要安装mysql
         install_json_path = os.path.join(CURRENT_PATH, "../../cantian/install_config.json")
         install_json_data = read_json_config(install_json_path)
@@ -1183,7 +1179,7 @@ class DRDeploy(object):
         else:
             share_path = f"/mnt/dbdata/remote/metadata_{self.metadata_fs}"
             try:
-                config_path = share_path + "/dr_deploy_param.json"
+                config_path = os.path.join(share_path, "dr_deploy_param.json")
                 if os.path.exists(config_path):
                     # 删除文件
                     os.remove(config_path)
@@ -1325,6 +1321,7 @@ class DRDeploy(object):
                 else:
                     self.standby_execute()
             except Exception as err:
+                self.record_deploy_process("dr_deploy", "failed", code=-1, description=str(err))
                 if self.backup_lock_shell is not None:
                     self.do_unlock_instance_for_backup()
                 LOG.error("Dr deploy execute failed, traceback:%s", traceback.format_exc())

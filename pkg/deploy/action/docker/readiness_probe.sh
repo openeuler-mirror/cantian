@@ -90,6 +90,10 @@ fi
 
 if [[ -z "${cantian_daemon_pid}" ]]; then
     logInfo "Cantian daemon not found. Attempting to start."
+    if [[ -f /opt/cantian/stop.enable ]];then
+        logInfo "Cantian daemon not found. because to stop."
+        exit 1
+    fi
     /bin/bash /opt/cantian/common/script/cantian_service.sh start
     cantian_daemon_pid=$(pgrep -f cantian_daemon)
     if [[ -z "${cantian_daemon_pid}" ]]; then
