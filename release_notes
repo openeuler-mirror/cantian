@@ -1,0 +1,284 @@
+    !1174 双节点set global opt枚举类型失败
+    !1172 fix(reform)：释放reform中创建的临时线程
+    !1165 修改log level
+    !1162 修改异常情况防护位置
+    !1160 添加30G规格
+    !1156 优化首页《README》描述、刷新《安装指南 》安装MySQL的后续操作、更正《编译指南》的部分内容的拼写。
+    !1157 初始化cms uds session的msg seq
+    !1143 uc重新建链时，等待断链完成
+    !1153 取消容器numa内存亲和性
+    !1151 drop database 失效问题修改
+    !1150 set knl_set_curr_sess2tls
+    !1149 1、修复cms uds消息处理线程使用session复用问题 2、修改cms存在的一些代码bug
+    !1146 修复预读卡死问题
+    !1144 增加DD_BROADCAST_RECORD_LENGTH
+    !1145 单进程cantian取消SIGALRM信号捕获
+    !1142 单进程拉起参天时，从cantiand.rlog中读取start信息
+    !1140 容器内存校验修改
+    !1139 回退remove mysql
+    !1137 cantian打包去掉ha_ctc
+    !1127 添加RES_RECYCLE_RATIO参数
+    !1132 解决单进程session复用导致mes消息丢失问题
+    !1129 增加TMS超时时间至1200秒
+    !1128 容灾搭建修改速率概率失败
+    !1121 多租场景下，mysql参数max_connection自定义，防呆处理
+    !1122 单进程mysql初始化偶发性失败
+    !1120 解决show index 时Cardinality差距较大
+    !1101 修改主备切换时读写进程退出逻辑
+    !1118 cms备份gcc信息适配dbstor接口512字节大小对齐写
+    !1116 移动query_cluster_status到父类
+    !1103 修改cms停止res时的报错信息
+    !1117 修复单进程信号量和堆栈捕获
+    !1114 switch_over过程等待cms完成stop cantian
+    !1113 脚本优化
+    !1111 回退独立出包
+    Revert "!1104 cantian独立出包"
+    !1107 触发reform前，唤醒线程选举reformer
+    !1105 升级时预检查version问题修改
+    !1109 物理机主干编译inflateEnd Undefined
+    !1108 修复多租场景下线程绑定cpu频繁报错
+    !1104 cantian独立出包
+    !1102 cantian独立出包
+    !1096 cantian独立出包
+    !1099 容器场景cms停止db时不发生漂移
+    !1098 cantian适配阵列630版本
+    !1084 三方nas升级适配
+    !1091 多租场景下，mysql参数max_connection合入mem_spec中
+    !1086 增加converting req超时返错
+    !1039 cms重复stop resource的错误提示不直观
+    !1089 fix generated columns no stats
+    !1080 文件锁优化
+    !1088 删除panic
+    !1065 修改dbs接口，适配旧版本DBStor
+    !1085 对fix cursor index_only offsets的增补修改
+    !1082 fix cursor index_only offsets
+    !1068 优化readme
+    !996 MES最大单个消息增大至512K
+    Merge pull request !996 from qinyudongfang/quadruple_mes_size
+    !1078 修复注入网络故障cms拉不起来的问题
+    !1077 日志限频
+    !1070 fix cpu str
+    !1074 fix get stats
+    !1073 修改卸载参天时，清理归档文件命令
+    !1069 备份时检查归档结束lsn和lrp lsn
+    !1059 安装部署拷贝docker目录
+    !1060 修改mysql等待db open的最大时长
+    !1061 单进程适配写 general log 和 slow log
+    !1050 cms 节点0投票前查询pod是否被k8s纳管
+    !1047 修复1节点被踢问题
+    !1056 dbstor工具集成链路检查功能
+    !1055 容灾搭建取消iof
+    !1026 generated columns no stats
+    !1045 提供命令禁止io访问
+    !1043 预读赋予锁从S锁改成X锁
+    !1042 fix log session
+    !1040 使用root用户执行巡检时修改日志权限，防止误操作
+    !1041 修改套餐
+    !1037 单进程shutdown导致core
+    !1036 fix DDL length
+    !1028 UC建链后，mes重新建链
+    !1030 单双进程下库名过长error信息不一致问题
+    !1034 修改适配层句柄哈希表最大规格
+    !1022 多租情况下修改rcy buffer大小
+    !1024 归档适配单进程shutdown
+    !1023 fix index only select
+    !958 单进程性能提升-内核刷盘线程绑定cpu
+    !1016 revert sample_size
+    !1019 combined模式离线升级适配
+    !1017 容器相关代码重构优化
+    !1015 增加ulog fs非系统租户根句柄打开
+    !1014 容灾和升级场景适配套餐
+    !1012 压缩备份文件缓存同步
+    !1008 集成dbstor命令设置网络超时时间
+    !1000 容器适配第三方存储nas
+    !1011 重拉场景等待远端域名解析成功
+    !1010 修复创库失败，新增校验使用dbstor时是否增加’-’前缀
+    !1007 巡检日志收集
+    !724 删除定位日志
+    !1005 升级前检查失败
+    !1003 修改归档保存ctrl信息的流程
+    !1002 增加升级拦截；修改升级路径
+    !1001 无存活cantian，cms仍正常进行iofence
+    !999 更新版本号
+    !997 fix shm size
+    !994 修改套餐默认值；容器stop后不检查
+    !992 回退版本号
+    !987 更新版本号
+    !988 修复容灾场景mode模式错误
+    !984 取消selinux检查，修改iptables过滤端口协议类型
+    !983 【共享内存】分片使用情况统计
+    !977 cantian容器绑核
+    !982 去NAS容灾场景适配
+    !981 移除cantian符号表（适配CI）
+    !967 创建unique key约束失败时错误信息增加key内容字段
+    !964 移除cantian符号表
+    !978 入湖适配改名
+    !971 移除REFORM_LIST_FAIL状态
+    !974 解决构建出错
+    !966 【多租】重拉时检查cluser name是否存在
+    !962 my.conf配置修改
+    !968 cantian安装时正则匹配精度修改，匹配到秒
+    !965 容器化正常修改NAMESPACE
+    !944 适配LLT
+    !960 单进程mysqld编译debug包设置宏DAAC_READ_WRITE
+    !951 修改参天mode的配置名
+    !937 修复CTSQL显示STATISTICS_SAMPLE_SIZE不正确的问题
+    !948 remove free cursor
+    !930 重新合入
+    !919 去NAS物理机升级
+    !933 TMS模块检测到线程异常时打core
+    !945 修改txn req超时时间
+    !927 解决多租容器deploy_policy不生效
+    !929 加固reform重入流程：确保一轮reform失败时，stop reform执行后再触发下一轮reform
+    !936 full ckpt中添加clean write list逻辑
+    !931 去nas容灾拆除
+    !932 cluster.sh脚本numactl命令检查错误重定向
+    !916 modify function to the character set comparison method
+    !893 单进程性能优化
+    !926 单进程性能提升-规避dbstore占用CPU
+    !851 mysql 对接自动统计开关
+    !922 单进程去nas容灾搭建
+    !920 多租configMap配置文件添加deploy_policy参数
+    !915 fix bug
+    !913 去nas适配容灾
+    !912 回退
+    !907 单进程 reserve 卸载安装
+    !908 去除gcc_home上级cluser_name_cms目录
+    !891 mysql日志位置修改（还原）
+    !902 容器多组去NAS适配升级
+    !895 去nas适配容灾
+    !904 fix bug
+    !903 gcc备份适配容器化去NAS场景
+    !901 去NAS模式不支持元数据非归一
+    !897 日志限频
+    !900 去NAS场景cluster_id防呆
+    !899 cantian24.9同步到master
+    !889 CMS去NAS，文件初始化
+    !896 cms命令执行完退出时对dbstor日志刷盘
+    !894 cantian24.9同步到master
+    !892 优化ps操作
+    !890 修改变量类型，防止主线程拿不到最新值
+    !882 更新《安装指南》和首页README
+    !888 增加CMS server 创线程日志
+    !884 修改log level
+    !885 Dbstor参数检查优化
+    !879 去nas安装部署完全去挂载
+    !886 cantian24.9同步到master
+    !872 dbstor命令优化
+    !878 单进程支持容灾
+    !870 修复索引统计时索引取不准导致core问题
+    !883 修复ctsql使用parallel参数并行创建索引时dc失效
+    !839 回放过程中释放rcy page list
+    !881 cantian24.9同步到master
+    !876 调整了gcc备份的路径
+    !859 MySQL增加ctc_sample_size系统变量
+    !875 容器拉起方式修改
+    !874 add histgram view
+    !877 cantian24.9同步到master
+    !871 修改文件读偏移
+    !861 解决备端掉电重启后，主备端数据不同步问题
+    !868 dbstor命令新增
+    !869 cantian24.9同步到master
+    !792 CMS去NAS
+    !867 revert add version stats
+    !866  物理部署参天SHM_MEMORY_REDUCTION_RATIO参数invalid
+    !779 small table sample ratio 100%
+    !817 dstool支持log, page导出
+    !865 修复归档去NAS模式bug
+    !864 cantian24.9同步到master
+    !852 共享内存oom
+    !863 单进程升级适配
+    !860 cantian24.9同步到master
+    !857 修改套餐默认为归一
+    !847 备份恢复归档适配去NAS
+    !831 heap traversal map for collecting statistics
+    !855 修改同步速度
+    !856 cantian24.9同步到master
+    !833 add histgram string
+    !844 多租手动用cms停止参天，不重拉pod
+    !843 修复并发创建索引core问题，并修改maxtrans为可配置项，默认为2，可配范围[2，128]，默认值为2，建议值在32以下
+    !854 cantian24.9同步到master
+    !853 修改TEMP_BUFFER_SIZE
+    !802 新增drc资源集中模式
+    !824 提交 24.06文档
+    !834 脚本修改适配单进程重拉
+    !850 cantian24.9同步到master
+    !849 卸载时，不再备份dbstor日志
+    !842 单进程适配多租升级
+    !836 单进程适配巡检
+    !841 释放remaster的临时线程
+    !837 cantian24.9同步到master
+    !835 添加直方图定位日志
+    !801 多租适配去nas
+    !832 cantian24.9同步到master
+    !830 门禁适配
+    !828 多租环境容器mysql max_connection修改，cantiand.ini增加参数
+    !829 cantian24.9同步到master
+    !804 RTO优化
+    !822 sample empty table
+    !823 门禁适配
+    !813 坏块修复读取最新ctrl文件
+    !826 cantian24.9同步到master
+    !825 修改变量类型
+    !815 修复备升主卡住的问题
+    !820 修改脚本保证单进程计算云拉起
+    !816 扩大dc pool
+    !818 cantian24.9同步到master
+    !807 单进程适配
+    !8 单进程适配
+    !793 重构cms脚本&支持单进程
+    !790 单进程安装部署适配
+    !810 删除num_buckets
+    !811 cantian24.9同步到master
+    !803 修复索引统计时索引取不准导致core问题
+    !796 修复参天参数问题
+    !808 cantian24.9同步到master
+    !798 pod重启添加备份日志
+    !799 alter string compare
+    !785 对接MySQL的bit类型
+    !800 cantian24.9同步到master
+    !795 直方图信息获取降频，以提高性能
+    !797 cantian24.9同步到master
+    !787 删除total_rows字段
+    !791 cantian24.9同步到master
+    !788 修复ctsql create tablespace导致cantian abort的问题
+    !786 cantian24.9同步到master
+    !781 dbstool基础框架
+    !784 cantian24.9同步到master
+    !780 去nas配置文件适配，添加参数项
+    !603 坏块修复工具
+    !783 修复并发创建索引如法申请itl问题
+    !782 cantian24.9同步到master
+    !777 DDL执行时，ckpt不推点的逻辑
+    !775 cantian24.6同步到master
+    !773 修改加锁使用python版本
+    !772 fix
+    !771 unlock不能提前return
+    !770 修复异常情况时mysql进程未正常关闭现象
+    !769 cantian24.6同步到master
+    !768 回退自动统计修改
+    !767 Remove Panic
+    !766 性能优化：减少获取deposit id的加锁频次
+    !765 cantian24.6合并到master
+    !763 srv_mq.c中信息打印过多
+    !764 cantian24.6同步到master
+    !762 日志回收添加重试
+    !761 调整shm大小以适配预取buf
+    !755 cantian24.6同步到master
+    !760 修复PITR中删库、创库场景导致page pcn不连续的问题
+    !759 开启自动统计
+    !758 auto cbo sampling rate
+    !743 修复ddl时load entity
+    !754 日志频次控制
+    !753 修复备份加DDL锁存在间隙问题
+    !746 添加备份锁
+    !752 修复性能下降
+    !750 paral_mgr初始化默认值
+    !749 DTS2024052219690 自动统计缺少信息
+    !742 cantian24.6同步到master
+    !739 Edit Build.sh
+    !741 DDL和自动统计并发
+
+    dev stats:
+    - 466 files changed, 43335 insertions(+), 67384 deletions(-)
+    - contributors：Duanshaohua,Jiachen1018,LiuChunmiao,LiuJiaLin,Rango,Xiang Xueming,bolano,chenhongchao,eric,fuxiaofeng,hewenxun,hezijian,hezijian1111,hguo0021,hwx,jaylen,jiang_tiancheng,lijiachen,lishengdi,liuzifeng,loufangyue,lqhsww,lx8023,lx8023ljj,openeuler-ci-bot3,qicahng added,qichang,qinyudongfang,qiuyang19960521,wangbowen,wangwei added,wenxun888,xicoding0249,xinl,xyzzx,yangcan_cq80,yuanyazhi,zhangxuan_hw,珞珈山的猫,齐
