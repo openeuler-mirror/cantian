@@ -151,6 +151,7 @@ class DefaultConfigValue(object):
         "ENABLE_IDX_KEY_LEN_CHECK": "FALSE",
         "EMPTY_STRING_AS_NULL": "FALSE",
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
+        "CT_CLUSTER_STRICT_CHECK": "TRUE",
         "MYSQL_DEPLOY_GROUP_ID": "5000"
     }
     
@@ -253,6 +254,7 @@ class DefaultConfigValue(object):
         "ENABLE_IDX_KEY_LEN_CHECK": "FALSE",
         "EMPTY_STRING_AS_NULL": "FALSE",
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
+        "CT_CLUSTER_STRICT_CHECK": "TRUE",
         "MYSQL_DEPLOY_GROUP_ID": "5000"
     }
 

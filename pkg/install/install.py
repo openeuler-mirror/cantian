@@ -1581,7 +1581,9 @@ class Installer:
             self.cantiandConfigs["LOG_HOME"] = os.path.join(self.data, "log")
         if len(self.cantiandConfigs["SHARED_PATH"]) == 0:
             self.cantiandConfigs["SHARED_PATH"] = os.path.join(self.data, "data")
-
+        self.cantiandConfigs["CT_CLUSTER_STRICT_CHECK"] = self.cantiandConfigs["CT_CLUSTER_STRICT_CHECK"].upper()
+        if self.cantiandConfigs["CT_CLUSTER_STRICT_CHECK"] not in ["TRUE", "FALSE"]:
+            self.cantiandConfigs["CT_CLUSTER_STRICT_CHECK"] = "TRUE"
         self.cantiandConfigs["MYSQL_DEPLOY_GROUP_ID"] = grp.getgrnam(g_opts.os_group).gr_gid
         self.addConfigForGss()
         self.gcc_home = self.cmsConfigs["GCC_HOME"]
