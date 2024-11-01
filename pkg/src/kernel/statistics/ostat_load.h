@@ -27,7 +27,7 @@
 
 #include "knl_context.h"
 #include "knl_table.h"
-#include "../../tse/tse_srv.h"
+#include "../../ctc/ctc_srv.h"
 
 #ifdef __cplusplus
 extern "C" {

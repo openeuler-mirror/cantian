@@ -30,7 +30,7 @@
 #include "dtc_context.h"
 #include "dtc_dls.h"
 #include "srv_mq.h"
-#include "tse_inst.h"
+#include "ctc_inst.h"
 #include "knl_temp.h"
 #include "cm_io_record.h"
 #include "cm_kmc.h"

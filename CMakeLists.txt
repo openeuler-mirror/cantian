@@ -90,7 +90,7 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/pkg/src/extproc"
         "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/include"
         "${PROJECT_SOURCE_DIR}/pkg/src/mec"
-        "${PROJECT_SOURCE_DIR}/pkg/src/tse"
+        "${PROJECT_SOURCE_DIR}/pkg/src/ctc"
         "${PROJECT_SOURCE_DIR}/library/xnet/include"
         "${PROJECT_SOURCE_DIR}/library/xnet/include/vos_win/vos"
         "${PROJECT_SOURCE_DIR}/library/xnet/include/infrastructure"

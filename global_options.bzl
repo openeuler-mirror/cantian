@@ -82,7 +82,7 @@ GLOBAL_COPTS = [
     # "-Ipkg/src/ztrst",    # maybe redundant include path
     # "-Ipkg/src/gbp",    # maybe redundant include path
     # "-Ipkg/src/mec",    # maybe redundant include path
-    # "-Ipkg/src/tse",    # maybe redundant include path
+    # "-Ipkg/src/ctc",    # maybe redundant include path
     # "-Ilibrary/xnet/include",    # maybe redundant include path
     # "-Ilibrary/dbstor/include/dbstor",    # maybe redundant include path
     # "-Ilibrary/dbstor/include/kmc",    # maybe redundant include path

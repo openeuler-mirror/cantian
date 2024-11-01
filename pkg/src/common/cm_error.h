@@ -1136,7 +1136,7 @@ typedef enum en_errno {
     // The max error number defined in g_error_desc[]
     ERR_ERRNO_CEIL = 3999,
 
-    // SHM and TSE
+    // SHM and CTC
     ERR_SEM_FAULT = 4000,
     ERR_BATCH_DATA_HANDLE_FAILED = 4001,
     ERR_SHM_SEND_MSG_FAILED = 4002,

@@ -63,18 +63,18 @@ function change_shm_size() {
 }
 
 function gen_lcov_report() {
-  cd ${CTC_CODE_PATH}/bld_debug/storage/tianchi/CMakeFiles/ctc.dir
+  cd ${CTC_CODE_PATH}/bld_debug/storage/ctc/CMakeFiles/ctc.dir
   if ls *.gcda >/dev/null 2>&1; then
     echo "------------- GENERATING LCOV FILES -------------"
     lcov -d . -c -o mysqltest-lcov.info --rc lcov_branch_coverage=1
-    lcov --extract mysqltest-lcov.info '*tianchi*' -o mysqltest-tianchi-lcov.info --rc lcov_branch_coverage=1
-    lcov --remove mysqltest-tianchi-lcov.info '*tianchi/protobuf/*' -o mysqltest-tianchi-final-lcov.info --rc lcov_branch_coverage=1
-    genhtml --branch-coverage mysqltest-tianchi-final-lcov.info -o MysqlTestLcovReport
+    lcov --extract mysqltest-lcov.info '*ctc*' -o mysqltest-ctc-lcov.info --rc lcov_branch_coverage=1
+    lcov --remove mysqltest-ctc-lcov.info '*ctc/protobuf/*' -o mysqltest-ctc-final-lcov.info --rc lcov_branch_coverage=1
+    genhtml --branch-coverage mysqltest-ctc-final-lcov.info -o MysqlTestLcovReport
 
     if [ ! -d "$MYSQL_LCOV_OUT_PATH" ]; then
       mkdir -p ${MYSQL_LCOV_OUT_PATH}
     fi
-    cp -arf ${CTC_CODE_PATH}/bld_debug/storage/tianchi/CMakeFiles/ctc.dir/MysqlTestLcovReport ${MYSQL_LCOV_OUT_PATH}
+    cp -arf ${CTC_CODE_PATH}/bld_debug/storage/ctc/CMakeFiles/ctc.dir/MysqlTestLcovReport ${MYSQL_LCOV_OUT_PATH}
   else
     echo "Generate gcda failed. Please check if Mysql-test process exit successfully. "
     return 1

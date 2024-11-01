@@ -393,8 +393,8 @@ static void srv_init_new_session(cs_pipe_t *pipe, session_t *session)
     cm_oamap_init_mem(&session->cursor_map);
     cm_oamap_init(&session->cursor_map, 0, cm_oamap_ptr_compare);
     session->total_cursor_num = 0;
-    session->tse_inst_id = CT_INFINITE32;
-    session->tse_thd_id = CT_INFINITE32;
+    session->ctc_inst_id = CT_INFINITE32;
+    session->ctc_thd_id = CT_INFINITE32;
     session->query_id = CT_INVALID_INT64;
 
     CT_INIT_SPIN_LOCK(session->dbg_ctl_lock);
@@ -1689,7 +1689,7 @@ void get_session_min_local_scn(knl_session_t *knl_sess, knl_scn_t *local_scn)
 
     cm_spin_lock(&sess->sess_lock, NULL);
 
-    if (sess->is_tse && (sess->total_cursor_num > 0 || sess->total_cursor_num_stack > 0)) {
+    if (sess->is_ctc && (sess->total_cursor_num > 0 || sess->total_cursor_num_stack > 0)) {
         if (!CT_INVALID_SCN(knl_sess->query_scn)) {
             min_local_scn = MIN(knl_sess->query_scn, min_local_scn);
         }

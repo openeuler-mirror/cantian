@@ -6687,7 +6687,7 @@ knl_dynview_t g_dynamic_views[] = {
     /* ADD NEW VIEW HERE... */
     /* ATENTION PLEASE: DYN_VIEW_SELF MUST BE THE LAST. */
     { DYN_VIEW_IO_STAT_RECORD, vw_describe_stat },
-    { DYN_VIEW_TSE_IO_STAT_RECORD, vw_describe_stat},
+    { DYN_VIEW_CTC_IO_STAT_RECORD, vw_describe_stat},
     { DYN_VIEW_REFORM_STAT, vw_describe_stat },
     { DYN_VIEW_REFORM_DETAIL, vw_describe_stat},
     { DYN_VIEW_PARAL_REPLAY_STAT, vw_describe_stat },

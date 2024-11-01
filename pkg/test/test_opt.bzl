@@ -43,7 +43,7 @@ TEST_COPTS = [
     "-Iplatform/huawei_security/include",
     "-Ipkg/src/protocol",
     "-Ipkg/src/cms/interface",
-    "-Ipkg/src/tse",
+    "-Ipkg/src/ctc",
     "-Ipkg/src/driver/gsc",
     "-Ilibrary/xnet/include",
     "-Ilibrary/dbstor/include/dbstor",

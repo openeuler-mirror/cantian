@@ -12,7 +12,7 @@ ROOT_PATH=$(cd ${DIR_PATH}/../../;pwd)
 REGRESS_PATH=${ROOT_PATH}/pkg/test/ct_regress
 MYSQL_PATH=/home/regress/cantian-connector-mysql
 MYSQL_USER_PATH=/usr/local/mysql
-MYSQL_LCOV_PATH=${MYSQL_PATH}/bld_debug/storage/tianchi/CMakeFiles/ctc.dir
+MYSQL_LCOV_PATH=${MYSQL_PATH}/bld_debug/storage/ctc/CMakeFiles/ctc.dir
 
 function help() {
     echo ""
@@ -146,8 +146,8 @@ function gen_lcov_report() {
 
     find ${MYSQL_LCOV_PATH}/ -name "*.gcno" | xargs touch
     lcov --capture --directory ${MYSQL_LCOV_PATH}/ --rc lcov_branch_coverage=1 --output-file "${mysql_coverage_info}"
-    lcov --extract "${mysql_coverage_info}" '*tianchi*' -o "${ctc_coverage_info}" --rc lcov_branch_coverage=1
-    lcov --remove "${ctc_coverage_info}" '*tianchi/protobuf/*' -o "${ctc_coverage_info}" --rc lcov_branch_coverage=1
+    lcov --extract "${mysql_coverage_info}" '*ctc*' -o "${ctc_coverage_info}" --rc lcov_branch_coverage=1
+    lcov --remove "${ctc_coverage_info}" '*ctc/protobuf/*' -o "${ctc_coverage_info}" --rc lcov_branch_coverage=1
     lcov -l --rc lcov_branch_coverage=1 "${ctc_coverage_info}" > "${ctc_coverage_report}"
     genhtml --branch-coverage "${ctc_coverage_info}" -o "${ctc_coverage_package}"
 

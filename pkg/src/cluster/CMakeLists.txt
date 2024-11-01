@@ -1,7 +1,7 @@
 include_directories(
 	"${CANTIANDB_SRC}/rc"
 	"${CANTIANDB_SRC}/mec"
-    "${CANTIANDB_SRC}/tse"
+    "${CANTIANDB_SRC}/ctc"
 	"${CANTIANDB_SRC}/kernel/common"
 	"${CANTIANDB_SRC}/cms/interface"
 	"${CANTIANDB_SRC}/tms"

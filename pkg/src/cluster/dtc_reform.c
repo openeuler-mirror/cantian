@@ -35,7 +35,7 @@
 #include "cm_malloc.h"
 #include "knl_ckpt.h"
 #include "dtc_dcs.h"
-#include "tse_srv_util.h"
+#include "ctc_srv_util.h"
 #include "rc_reform.h"
 #include "dtc_backup.h"
 #include "repl_log_replay.h"
@@ -203,7 +203,7 @@ static void accumulate_recovery_stat(void)
     stat->accum_rcy_times++;
 }
 
-void rc_release_tse_resources(reform_info_t * info)
+void rc_release_ctc_resources(reform_info_t * info)
 {
     uint8  inst_id;
     switch (info->role)  {
@@ -962,7 +962,7 @@ status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
         return CT_ERROR;
     }
 
-    rc_release_tse_resources(&g_rc_ctx->info);
+    rc_release_ctc_resources(&g_rc_ctx->info);
 
     /* checkpoint and update log point after reform_open, in order for dtc_get_txn_info to move on and release ctrl */
     /* latch */
