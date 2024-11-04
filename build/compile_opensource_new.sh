@@ -158,6 +158,7 @@ CFLAGS='-Wall -Wtrampolines -fno-common -fvisibility=default -fstack-protector-s
 tar -cvf libz.tar libz.so*;cp libz.tar libz.so* ${LIBRARY}/zlib/lib/
 
 #huawei_secure_c
+cp ${OPEN_SOURCE}/platform/huawei_secure_c.zip ${PLATFORM}
 cd ${PLATFORM}
 unzip -o huawei_secure_c.zip
 rm -rf HuaweiSecureC
@@ -169,3 +170,23 @@ mkdir -p ${PLATFORM}/huawei_security/include
 mkdir -p ${LIBRARY}/huawei_security/lib
 cp ${PLATFORM}/HuaweiSecureC/lib/* ${LIBRARY}/huawei_security/lib/
 cp ${PLATFORM}/HuaweiSecureC/include/* ${PLATFORM}/huawei_security/include/
+
+#gtest
+cd ${OPEN_SOURCE}/googletest
+mkdir -p ${OPEN_SOURCE}/googletest/build
+cd  ${OPEN_SOURCE}/googletest/build
+cmake -DBUILD_SHARED_LIBS=ON ..
+make
+mkdir -p ${LIBRARY}/googletest/lib/
+cp ${OPEN_SOURCE}/googletest/build/googlemock/*.so ${LIBRARY}/googletest/lib/
+cp ${OPEN_SOURCE}/googletest/build/googlemock/gtest/*.so ${LIBRARY}/googletest/lib/
+
+
+#mockcpp
+cd ${OPEN_SOURCE}/mockcpp
+mkdir -p ${OPEN_SOURCE}/mockcpp/build
+cd ${OPEN_SOURCE}/mockcpp/build
+cmake ..
+make
+mkdir -p ${LIBRARY}/mockcpp/lib/
+cp ${OPEN_SOURCE}/mockcpp/build/src/libmockcpp.a ${LIBRARY}/mockcpp/lib/
