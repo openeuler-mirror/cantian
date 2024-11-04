@@ -1078,6 +1078,23 @@ status_t sql_verify_als_res_recycle_ratio(void *se, void *lex, void *def)
     return CT_SUCCESS;
 }
 
+status_t sql_verify_als_create_index_parallelism(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (num < CT_MIN_CREATE_INDEX_PARALLELISM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "CREATE_INDEX_PARALLELISM", (int64)CT_MIN_CREATE_INDEX_PARALLELISM);
+        return CT_ERROR;
+    }
+    if (num > CT_MAX_CREATE_INDEX_PARALLELISM) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CREATE_INDEX_PARALLELISM", (int64)CT_MAX_CREATE_INDEX_PARALLELISM);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t sql_verify_als_ctc_inst_num(void *se, void *lex, void *def)
 {
     uint32 num;

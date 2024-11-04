@@ -1153,6 +1153,9 @@ config_item_t g_parameters[] = {
     { "RES_RECYCLE_RATIO", CT_TRUE, ATTR_NONE, "50", NULL, NULL, "-", "[50, 95]", "CT_TYPE_INTEGER", NULL,
       PARAM_RES_RECYCLE_RATIO, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_res_recycle_ratio,
       sql_notify_als_res_recycle_ratio, NULL, NULL },
+    { "CREATE_INDEX_PARALLELISM", CT_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0, 10]", "CT_TYPE_INTEGER", NULL,
+      PARAM_CREATE_INDEX_PARALLELISM, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_create_index_parallelism,
+      sql_notify_als_create_index_parallelism, NULL, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)

@@ -48,6 +48,7 @@ status_t sql_verify_als_mq_queue_num(void *se, void *lex, void *def);
 
 status_t sql_verify_als_mq_thd_cool_time(void *se, void *lex, void *def);
 status_t sql_verify_als_res_recycle_ratio(void *se, void *lex, void *def);
+status_t sql_verify_als_create_index_parallelism(void *se, void *lex, void *def);
 status_t sql_verify_als_cpu_inf_str(void *se, void *lex, void *def);
 status_t sql_verify_als_ctc_inst_num(void *se, void *lex, void *def);
 
