@@ -144,6 +144,7 @@ status_t sql_notify_als_gdv_sess_tmout(void *se, void *item, char *value);
 status_t sql_notify_als_deadlock_detect_interval(void *se, void *item, char *value);
 status_t sql_notify_als_auto_undo_retention(void *se, void *item, char *value);
 status_t sql_notify_als_res_recycle_ratio(void *se, void *item, char *value);
+status_t sql_notify_als_create_index_parallelism(void *se, void *item, char *value);
 status_t sql_verify_als_mes_task_ratio(void *se, void *lex, void *def);
 #ifdef __cplusplus
 }
