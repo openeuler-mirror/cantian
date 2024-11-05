@@ -1777,9 +1777,10 @@ status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info_t *pages, ui
 
             ret = drc_get_edp_info(page_id, &edp_info);
             if (ret != CT_SUCCESS) {
-                CT_LOG_DEBUG_INF("[CKPT][%u-%u][master process failed to get edp info", page_id.file, page_id.page);
-                --idx_end;
-                SWAP(edp_page_info_t, pages[idx_start], pages[idx_end]);
+                msg->edp_pages[msg->count++] = pages[idx_start];
+                idx_start++;
+                CT_LOG_DEBUG_INF("[CKPT][%u-%u][master process failed to get edp info, buf res already recycled.",
+                                 page_id.file, page_id.page);
                 continue;
             }
 
