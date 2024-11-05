@@ -43,7 +43,7 @@
 #include "dtc_reform.h"
 #include "dtc_smon.h"
 #include "dtc_ddl.h"
-#include "tse_ddl_broadcast.h"
+#include "ctc_ddl_broadcast.h"
 #include "cm_io_record.h"
 #include "tms_monitor.h"
 #define DTC_BUFFER_POOL_NUM      (4)
@@ -353,24 +353,24 @@ status_t dtc_register_proc(void)
         dtc_register_proc_func(MES_CMD_SEND_PAGE_INFO, drc_process_send_page_info, CT_TRUE, "send page info"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_SEND_PAGE_INFO_ACK, drc_process_remaster_recovery_task_ack,
                                              CT_FALSE, "send page info ack"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_REQ, dtc_proc_msg_tse_lock_table_req, CT_TRUE,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_REQ, dtc_proc_msg_ctc_lock_table_req, CT_TRUE,
     "MES_CMD_PREPARE_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_RSP,
-    tse_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_PREPARE_DDL_RSP"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_REQ, dtc_proc_msg_tse_execute_ddl_req, CT_TRUE,
+    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_PREPARE_DDL_RSP"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_REQ, dtc_proc_msg_ctc_execute_ddl_req, CT_TRUE,
     "MES_CMD_EXECUTE_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_RSP,
-    tse_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_EXECUTE_DDL_RSP"));
+    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_EXECUTE_DDL_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_REWRITE_OPEN_CONN_REQ,
-    dtc_proc_msg_tse_execute_rewrite_open_conn_req, CT_TRUE, "MES_CMD_REWRITE_OPEN_CONN_REQ"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_REWRITE_OPEN_CONN_RSP, tse_process_broadcast_ack_ex, CT_FALSE,
+    dtc_proc_msg_ctc_execute_rewrite_open_conn_req, CT_TRUE, "MES_CMD_REWRITE_OPEN_CONN_REQ"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_REWRITE_OPEN_CONN_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
     "MES_CMD_REWRITE_OPEN_CONN_RSP"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_REQ, dtc_proc_msg_tse_commit_ddl_req, CT_TRUE,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_REQ, dtc_proc_msg_ctc_commit_ddl_req, CT_TRUE,
     "MES_CMD_COMMIT_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_RSP,
-    tse_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_COMMIT_DDL_RSP"));
+    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_COMMIT_DDL_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_BROADCAST_INVALIDATE_DC, dtc_process_broadcast_data, CT_TRUE,
                                              "broadcast invalidate dc"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_REQ, dtc_proc_msg_tse_invalidate_dd_req, CT_TRUE,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_REQ, dtc_proc_msg_ctc_invalidate_dd_req, CT_TRUE,
                                              "MES_CMD_INVALID_DD_REQ"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_RSP, tse_process_broadcast_ack_ex, CT_FALSE,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
                                              "MES_CMD_INVALID_DD_RSP"));
     knl_securec_check(
         dtc_register_proc_func(MES_CMD_RECOVERY_LOCK_RES, drc_process_recovery_lock_res, CT_TRUE, "send page info"));
@@ -382,9 +382,9 @@ status_t dtc_register_proc(void)
                                              CT_TRUE, "dtc process recovery set ack"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_SEND_RCY_SET_ERR_ACK,
         dtc_process_rcy_set_err_ack, CT_TRUE, "dtc process recovery set error ack"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_CLOSE_MYSQL_CONNECTION_REQ, dtc_proc_msg_tse_close_mysql_conn_req,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_CLOSE_MYSQL_CONNECTION_REQ, dtc_proc_msg_ctc_close_mysql_conn_req,
                                              CT_TRUE, "close mysql connection request"));
-    knl_securec_check(dtc_register_proc_func(MES_CMD_CLOSE_MYSQL_CONNECTION_RSP, tse_process_broadcast_ack_ex, CT_FALSE,
+    knl_securec_check(dtc_register_proc_func(MES_CMD_CLOSE_MYSQL_CONNECTION_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
                                              "close mysql connection response"));
 #ifdef DB_DEBUG_VERSION
     knl_securec_check(dtc_register_proc_func(MES_CMD_SYNCPOINT_ABORT, dtc_proc_syncpoint_msg,

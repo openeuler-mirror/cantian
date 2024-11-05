@@ -31,7 +31,7 @@ make_lcov_report()
     lcov -l --rc lcov_branch_coverage=1 "total.info" > "total.report" 
     lcov --remove total.info '*/build_dependence/*' -o total.info --rc lcov_branch_coverage=1
     lcov --remove total.info '*/open_source/*' -o total.info --rc lcov_branch_coverage=1
-    lcov --remove total.info '*/pkg/src/tse/protobuf/*' -o total.info --rc lcov_branch_coverage=1
+    lcov --remove total.info '*/pkg/src/ctc/protobuf/*' -o total.info --rc lcov_branch_coverage=1
     lcov --remove total.info '*/pkg/test/cantian_fuzz_test/*' -o total.info --rc lcov_branch_coverage=1
     genhtml --rc lcov_branch_coverage=1 total.info -o ${LLT_REPORT_PATH}
 }

@@ -4229,7 +4229,7 @@ class Installer:
             try:
                 with open(MYSQL_LOG_FILE) as file_hanlde:
                     log_data = "".join(file_hanlde.readlines())
-                if log_data.find("ready for connections") != -1 and log_data.find("tse reg instance success") != -1:
+                if log_data.find("ready for connections") != -1 and log_data.find("ctc reg instance success") != -1:
                     log("succeed to start mysqld", True)
                     return True
             except Exception as exerr:

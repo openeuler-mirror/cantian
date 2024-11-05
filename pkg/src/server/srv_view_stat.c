@@ -1138,15 +1138,15 @@ static status_t io_record_fetch(row_assist_t *ra, io_record_detail_t detail, knl
     return CT_SUCCESS;
 }
 
-status_t vw_tse_io_fetch(knl_handle_t session, knl_cursor_t *cursor)
+status_t vw_ctc_io_fetch(knl_handle_t session, knl_cursor_t *cursor)
 {
     uint64 id = cursor->rowid.vmid;
     while (CT_TRUE) {
-        if (id >= TSE_FUNC_TYPE_NUMBER) {
+        if (id >= CTC_FUNC_TYPE_NUMBER) {
             cursor->eof = CT_TRUE;
             return CT_SUCCESS;
         }
-        if (g_tse_io_record_event_wait[id].detail.start == 0) {
+        if (g_ctc_io_record_event_wait[id].detail.start == 0) {
             cursor->rowid.vmid++;
             id = cursor->rowid.vmid;
             continue;
@@ -1156,9 +1156,9 @@ status_t vw_tse_io_fetch(knl_handle_t session, knl_cursor_t *cursor)
     row_assist_t ra;
     row_init(&ra, (char *)cursor->row, CT_MAX_ROW_SIZE, IO_STAT_RECORD_COLS);
     CT_RETURN_IFERR(row_put_int32(&ra, (int32)id));
-    CT_RETURN_IFERR(row_put_str(&ra, g_tse_io_record_event_desc[id].name));
+    CT_RETURN_IFERR(row_put_str(&ra, g_ctc_io_record_event_desc[id].name));
 
-    io_record_detail_t detail = g_tse_io_record_event_wait[id].detail;
+    io_record_detail_t detail = g_ctc_io_record_event_wait[id].detail;
     return io_record_fetch(&ra, detail, cursor);
 }
 
@@ -3055,8 +3055,8 @@ VW_DECL dv_memstat = { "SYS", "DV_MEM_STATS", MEMSTAT_COLS, g_memstat_columns, v
 VW_DECL dv_sysstat = { "SYS", "DV_SYS_STATS", SYSSTAT_COLS, g_sysstat_columns, vw_sysstat_open, vw_sysstat_fetch };
 VW_DECL dv_io_stat_record = { "SYS",          "DV_IO_STAT_RECORD",    IO_STAT_RECORD_COLS, g_io_stat_record_columns,
                               vw_common_open, vw_io_stat_record_fetch };
-VW_DECL dv_tse_io_stat_record = {
-    "SYS", "DV_TSE_IO_STAT_RECORD", IO_STAT_RECORD_COLS, g_io_stat_record_columns, vw_common_open, vw_tse_io_fetch
+VW_DECL dv_ctc_io_stat_record = {
+    "SYS", "DV_CTC_IO_STAT_RECORD", IO_STAT_RECORD_COLS, g_io_stat_record_columns, vw_common_open, vw_ctc_io_fetch
 };
 VW_DECL dv_rfstat = { "SYS", "DV_REFORM_STATS", RFSTAT_COLS, g_rfstat_columns, vw_rfstat_open, vw_rfstat_fetch };
 VW_DECL dv_rfdetail = {
@@ -3153,8 +3153,8 @@ dynview_desc_t *vw_describe_stat(uint32 id)
         case DYN_VIEW_IO_STAT_RECORD:
             return &dv_io_stat_record;
 
-        case DYN_VIEW_TSE_IO_STAT_RECORD:
-            return &dv_tse_io_stat_record;
+        case DYN_VIEW_CTC_IO_STAT_RECORD:
+            return &dv_ctc_io_stat_record;
 
         case DYN_VIEW_REFORM_STAT:
             return &dv_rfstat;

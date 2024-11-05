@@ -61,7 +61,7 @@
 #include "dtc_dls.h"
 #include "dtc_database.h"
 #include "srv_mq.h"
-#include "tse_ddl_broadcast.h"
+#include "ctc_ddl_broadcast.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -2452,7 +2452,7 @@ bool32 srv_is_kernel_reserve_session(session_type_e type)
 void ct_singlep_shutdown()
 {
     session_t *session = NULL;
-    (void)tse_get_new_session(&session);
+    (void)ctc_get_new_session(&session);
     CM_ASSERT(session != NULL);
     srv_shutdown(session, SHUTDOWN_MODE_IMMEDIATE);
     cm_close_timer(g_timer());

@@ -715,7 +715,7 @@ static inline bool32 buf_res_has_readonly_copies(drc_buf_res_t *buf_res, uint32 
 
 static inline bool32 buf_res_is_recyclable(drc_buf_res_t *buf_res, uint32 inst_id)
 {
-    return ((buf_res->converting.req_info.inst_id == CT_INVALID_ID8) && (buf_res->edp_map == 0));
+    return (buf_res->converting.req_info.inst_id == CT_INVALID_ID8 && buf_res->claimed_owner != CT_INVALID_ID8);
 }
 
 void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, page_id_t page_id, uint64 req_version)
@@ -732,18 +732,17 @@ void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, pa
     }
     drc_res_bucket_t *bucket = drc_get_buf_map_bucket(&g_buf_res->res_map, page_id.file, page_id.page);
     uint32 idx = CT_INVALID_ID32;
-    status_t ret;
     uint32 part_id = drc_page_partid(page_id);
     cm_spin_lock(&g_buf_res->res_part_stat_lock[part_id], NULL);
     cm_spin_lock(&bucket->lock, NULL);
     // if reforming, stop recycle
     SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_MASTER_OTHER_ABORT, (int32 *)session, 0);
     SYNC_POINT_GLOBAL_END;
-    if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
+    if (drc_remaster_in_progress()) {
         cm_spin_unlock(&bucket->lock);
         cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
-        CT_LOG_RUN_ERR("[DRC][%u-%u]reforming, buf res recycle failed, req_version=%llu, cur_version=%llu",
-            page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
+        CT_LOG_RUN_WAR("[DRC][%u-%u]reforming, buf res recycle failed, req_version=%llu, cur_version=%llu",
+                       page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         return;
     }
 
@@ -755,42 +754,43 @@ void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, pa
             DTC_DRC_DEBUG_INF("[DRC][%u-%u] buf_res is being recycled, return", page_id.file, page_id.page);
             return;
         }
-
-        /* no new request after recycle message from the same node. */
-        if (buf_res->converting.req_info.req_time < time) {
-            if (buf_res_is_recyclable(buf_res, inst_id)) {
-                buf_res->pending = DRC_RES_PENDING_ACTION;
-                if (buf_res_has_readonly_copies(buf_res, buf_res->claimed_owner)) {
-                    cm_spin_unlock(&bucket->lock);
-                    cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
-                    ret = dcs_invalidate_readonly_copy(session, page_id, buf_res->readonly_copies, inst_id,
-                                                       req_version);
-                    if (ret == CT_SUCCESS) {
-                        ret = dcs_invalidate_page_owner(session, buf_res->page_id, buf_res->claimed_owner, req_version);
-                    }
-                    cm_spin_lock(&g_buf_res->res_part_stat_lock[part_id], NULL);
-                    cm_spin_lock(&bucket->lock, NULL);
-                    // find again, for remaster code quality reinforcement
-                    if (drc_res_map_lookup(&g_buf_res->res_map, bucket, (char *)&page_id) == NULL) {
-                        CT_LOG_RUN_WAR("[DRC]buf_res[%u-%u]: has been recycled.", page_id.file, page_id.page);
-                        cm_spin_unlock(&bucket->lock);
-                        cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
-                        return;
-                    }
-                    if (ret != CT_SUCCESS) {
-                        CT_LOG_RUN_ERR("[DRC][%u-%u]: failed to invalidate, ignore recycle this buf_res",
-                                       page_id.file, page_id.page);
-                        buf_res->pending = DRC_RES_INVALID_ACTION;
-                        cm_spin_unlock(&bucket->lock);
-                        cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
-                        return;
-                    }
-                    buf_res->readonly_copies = 0;
-                }
-                idx = buf_res->idx;
-                buf_res->pending = DRC_RES_INVALID_ACTION;
-                drc_clean_page_owner_internal(g_buf_res, buf_res, bucket);
+        /* new request after recycle message from the same node. */
+        if (buf_res->converting.req_info.req_time >= time) {
+            cm_spin_unlock(&bucket->lock);
+            cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+            return;
+        }
+        
+        if (buf_res_is_recyclable(buf_res, inst_id)) {
+            buf_res->pending = DRC_RES_PENDING_ACTION;
+            cm_spin_unlock(&bucket->lock);
+            cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+            status_t ret = dcs_invalidate_readonly_copy(session, page_id, buf_res->readonly_copies, inst_id,
+                                                        req_version);
+            if (ret == CT_SUCCESS) {
+                ret = dcs_invalidate_page_owner(session, buf_res->page_id, buf_res->claimed_owner, req_version);
             }
+            cm_spin_lock(&g_buf_res->res_part_stat_lock[part_id], NULL);
+            cm_spin_lock(&bucket->lock, NULL);
+            // find again, for remaster code quality reinforcement
+            if (drc_res_map_lookup(&g_buf_res->res_map, bucket, (char *)&page_id) == NULL) {
+                CT_LOG_RUN_WAR("[DRC]buf_res[%u-%u]: has been recycled.", page_id.file, page_id.page);
+                cm_spin_unlock(&bucket->lock);
+                cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+                return;
+            }
+            if (ret != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[DRC][%u-%u]: failed to invalidate, ignore recycle this buf_res", page_id.file,
+                               page_id.page);
+                buf_res->pending = DRC_RES_INVALID_ACTION;
+                cm_spin_unlock(&bucket->lock);
+                cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+                return;
+            }
+            buf_res->readonly_copies = 0;
+            idx = buf_res->idx;
+            buf_res->pending = DRC_RES_INVALID_ACTION;
+            drc_clean_page_owner_internal(g_buf_res, buf_res, bucket);
         }
     }
     cm_spin_unlock(&bucket->lock);
@@ -854,6 +854,8 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         if (!buf_res_is_recyclable(buf_res, buf_res->claimed_owner)) {
             continue;
         }
+
+        page_id = buf_res->page_id;
         uint32 part_id = drc_page_partid(page_id);
         drc_res_bucket_t *bucket = drc_get_buf_map_bucket(&ctx->global_buf_res.res_map, buf_res->page_id.file,
                                                           buf_res->page_id.page);
@@ -875,8 +877,8 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         uint64 req_version = DRC_GET_CURR_REFORM_VERSION;
         SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_ITEM_OTHER_ABORT, (int32 *)session, 0);
         SYNC_POINT_GLOBAL_END;
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, buf_res->page_id)) {
-            CT_LOG_RUN_ERR("[DRC][%u-%u]: reforming, recycle buf res failed",
+        if (drc_remaster_in_progress()) {
+            CT_LOG_RUN_WAR("[DRC][%u-%u]: in remaster, recycle buf res failed",
                 buf_res->page_id.file, buf_res->page_id.page);
             cm_spin_unlock(&bucket->lock);
             cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
@@ -886,7 +888,6 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         buf_res->pending = DRC_RES_PENDING_ACTION;
         readonly_copies = buf_res->readonly_copies;
         owner = buf_res->claimed_owner;
-        page_id = buf_res->page_id;
         cm_spin_unlock(&bucket->lock);
         cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
         ret = dcs_invalidate_readonly_copy(session, buf_res->page_id, buf_res->readonly_copies, buf_res->claimed_owner,
@@ -907,8 +908,8 @@ uint32 drc_recycle_items(knl_session_t *session, bool32 is_batch)
         // if reforming, stop recycle buf res
         SYNC_POINT_GLOBAL_START(CANTIAN_DCS_RECYCLE_ITEM_PENDING_OTHER_ABORT, (int32 *)session, 0);
         SYNC_POINT_GLOBAL_END;
-        if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, buf_res->page_id)) {
-            CT_LOG_RUN_ERR("[DRC][%u-%u]: reforming, recycle buf res failed",
+        if (drc_remaster_in_progress()) {
+            CT_LOG_RUN_WAR("[DRC][%u-%u]: reforming, recycle buf res failed",
                 buf_res->page_id.file, buf_res->page_id.page);
             buf_res->pending = DRC_RES_INVALID_ACTION;
             cm_spin_unlock(&bucket->lock);
@@ -7348,4 +7349,46 @@ void drc_unlock_bucket_and_stat(drc_res_bucket_t *bucket, spinlock_t *res_part_s
 {
     cm_spin_unlock(&bucket->lock);
     cm_spin_unlock(res_part_stat_lock);
+}
+
+void drc_invalidate_datafile_buf_res(knl_session_t *session, uint32 file_id)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_global_res_t *g_buf_res = &(ctx->global_buf_res);
+    drc_res_pool_t *pool = &g_buf_res->res_map.res_pool;
+    uint32 hwm = pool->item_num;
+
+    for (uint32 i = 0; i < hwm; ++i) {
+        cm_spin_lock(&pool->lock, NULL);
+        drc_buf_res_t *buf_res = (drc_buf_res_t *)DRC_GET_RES_ADDR_BY_ID(pool, i);
+        cm_spin_unlock(&pool->lock);
+
+        page_id_t page_id = buf_res->page_id;
+        uint32 part_id = drc_page_partid(page_id);
+        drc_res_bucket_t *bucket = drc_get_buf_map_bucket(&ctx->global_buf_res.res_map, page_id.file, page_id.page);
+        cm_spin_lock(&g_buf_res->res_part_stat_lock[part_id], NULL);
+        cm_spin_lock(&bucket->lock, NULL);
+
+        if (buf_res->page_id.file != file_id || buf_res->pending == DRC_RES_PENDING_ACTION || !buf_res->is_used) {
+            cm_spin_unlock(&bucket->lock);
+            cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+            continue;
+        }
+
+        knl_panic(buf_res_is_recyclable(buf_res, buf_res->claimed_owner));
+
+        if (drc_remaster_in_progress()) {
+            CT_LOG_RUN_WAR("[DRC][%u-%u]: reforming, stop invalidate buf res", buf_res->page_id.file,
+                           buf_res->page_id.page);
+            cm_spin_unlock(&bucket->lock);
+            cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+            break;
+        }
+
+        drc_clean_page_owner_internal(g_buf_res, buf_res, bucket);
+        cm_spin_unlock(&bucket->lock);
+        cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+
+        drc_res_pool_free_item(&g_buf_res->res_map.res_pool, i);
+    }
 }

@@ -376,7 +376,7 @@ bool32 rc_get_check_inst_alive(uint32_t inst_id);
 bool32 rc_detect_reform_triggered(void);
 bool32 rc_cluster_stat_changed(void);
 status_t rc_mes_send_data_with_retry(const char *msg, uint64 interval, uint64 retry_time);
-void rc_release_tse_resources(reform_info_t *info);
+void rc_release_ctc_resources(reform_info_t *info);
 reform_mode_t rc_get_change_mode(void);
 void rc_current_stat_step_forward(void);
 bool32 reform_mutex_timed_lock(mes_mutex_t *mutex, uint32 timeout);

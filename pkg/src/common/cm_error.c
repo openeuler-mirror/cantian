@@ -1099,7 +1099,7 @@ const char *g_error_desc[] = {
     [ERR_CM_READ_DISK] = "read disk failed, errno %d",
     [ERR_CM_WRITE_DISK] = "write disk failed, errno %d",
 
-    // SHM and TSE
+    // SHM and CTC
     [ERR_SEM_FAULT] = "shm sem error",
     [ERR_BATCH_DATA_HANDLE_FAILED] = "shm handle batch data error",
     [ERR_SHM_SEND_MSG_FAILED] = "shm send message error",

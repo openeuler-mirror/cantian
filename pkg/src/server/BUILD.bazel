@@ -336,7 +336,7 @@ cc_library (
         "-Ipkg/src/ztrst",
         "-Ipkg/src/gbp",
         "-Ipkg/src/mec",
-        "-Ipkg/src/tse",
+        "-Ipkg/src/ctc",
     ] + COMMON_COPTS,
     linkopts = COMMON_LINKOPTS,
     deps =  [

@@ -66,13 +66,13 @@ else
     export CPU_CORES_NUM=16
 fi
 
-WITH_TSE_STORAGE_ENGINE=1
+WITH_CTC_STORAGE_ENGINE=1
 if [ "${branch}" == "develop_616_finale" ]; then
     branch=develop_616_finale_dbstore
 fi
 
 if [ "${BUILD_MYSQL_SO}" == "YES" ]; then
-  WITH_TSE_STORAGE_ENGINE=0
+  WITH_CTC_STORAGE_ENGINE=0
 fi
 
 echo ${CANTIANDB_HOME}
@@ -335,7 +335,7 @@ fun_pkg_mysql_lib()
 
     cd ${DAAC_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
     cd ${DAAC_LIB_DIR_TMP} && rm -rf *.a
-    cd ${DAAC_LIB_DIR_TMP} && rm -rf tse_mysql_proxy.o
+    cd ${DAAC_LIB_DIR_TMP} && rm -rf ctc_mysql_proxy.o
     cd ${DAAC_LIB_DIR_TMP} && ar cru libdaac.a *
     cd ${DAAC_LIB_DIR_TMP} && ranlib libdaac.a
 
@@ -350,7 +350,7 @@ fun_pkg_mysql_lib()
     rm -rf ${DAAC_LIB_DIR_TMP}/
 
     cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${DAAC_LIB_DIR}
-    cd ${CANTIANDB_HOME}/../build/pkg/src/tse/CMakeFiles/zectc.dir/message_queue/ && ar cr libmessage_queue.a *.o && cp libmessage_queue.a ${DAAC_LIB_DIR}
+    cd ${CANTIANDB_HOME}/../build/pkg/src/ctc/CMakeFiles/zectc.dir/message_queue/ && ar cr libmessage_queue.a *.o && cp libmessage_queue.a ${DAAC_LIB_DIR}
 
     cp -d ${CANTIANDB_HOME}/../library/pcre/lib/libpcre2-8.so* ${DAAC_LIB_DIR}
     cp -d ${CANTIANDB_HOME}/../output/lib/*.so ${DAAC_LIB_DIR}
@@ -441,20 +441,20 @@ func_make_mysql_debug()
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
-      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     elif [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
-      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     else
-      cmake .. -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
+      cmake .. -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
+    cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
   fi
 
   MYSQL_BUILD_TYPE="debug"
 
   if [ -f ${MYSQL_BINARY_CODE_PATH}/mysql_${MYSQL_BUILD_TYPE}_${OS_ARCH}_${MYSQL_COMMIT_ID}.tar.gz ]; then
-      cd  ${MYSQL_CODE_PATH}/bld_debug/storage/tianchi && make -j${CPU_CORES_NUM} && make install
+      cd  ${MYSQL_CODE_PATH}/bld_debug/storage/ctc && make -j${CPU_CORES_NUM} && make install
       cd ${MYSQL_BINARY_CODE_PATH} && tar -xzf mysql_${MYSQL_BUILD_TYPE}_${OS_ARCH}_${MYSQL_COMMIT_ID}.tar.gz -C /usr/local/
       echo "mysql binary code untar succeed"
       chmod +x /usr/local/mysql/bin/*
@@ -487,15 +487,15 @@ func_make_mysql_release()
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
     else
-        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     else
-        cmake .. -DWITH_DAAC=1 -DWITH_TSE_STORAGE_ENGINE=${WITH_TSE_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     fi
     
   fi
@@ -503,7 +503,7 @@ func_make_mysql_release()
 
   MYSQL_BUILD_TYPE="release"
   if [ -f ${MYSQL_BINARY_CODE_PATH}/mysql_${MYSQL_BUILD_TYPE}_${OS_ARCH}_${MYSQL_COMMIT_ID}.tar.gz ]; then
-      cd  ${MYSQL_CODE_PATH}/bld_debug/storage/tianchi && make -j${CPU_CORES_NUM} && make install
+      cd  ${MYSQL_CODE_PATH}/bld_debug/storage/ctc && make -j${CPU_CORES_NUM} && make install
       cd ${MYSQL_BINARY_CODE_PATH} && tar -xzf mysql_${MYSQL_BUILD_TYPE}_${OS_ARCH}_${MYSQL_COMMIT_ID}.tar.gz -C /usr/local/
       echo "mysql binary code untar succeed"
       chmod +x /usr/local/mysql/bin/*

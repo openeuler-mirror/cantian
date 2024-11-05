@@ -83,7 +83,7 @@
 #include "dtc_database.h"
 #include "dtc_backup.h"
 #include "dtc_dcs.h"
-#include "tse_ddl_list.h"
+#include "ctc_ddl_list.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -7786,7 +7786,7 @@ status_t knl_internal_drop_table_handle_ref(knl_handle_t session, knl_drop_def_t
 
 void knl_drop_table_after_commit4mysql(knl_handle_t session, void *node, knl_drop_def_t *def)
 {
-    tse_ddl_dc_array_t *dc_node = (tse_ddl_dc_array_t *)node;
+    ctc_ddl_dc_array_t *dc_node = (ctc_ddl_dc_array_t *)node;
     knl_dictionary_t *dc = &(dc_node->dc);
     knl_session_t *se = (knl_session_t *)session;
     core_ctrl_t *core = &se->kernel->db.ctrl.core;
@@ -7802,7 +7802,7 @@ void knl_drop_table_after_commit4mysql(knl_handle_t session, void *node, knl_dro
 
 void knl_free_entry_after_commit4mysql(knl_handle_t session, void *node)
 {
-    tse_ddl_dc_array_t *dc_node = (tse_ddl_dc_array_t *)node;
+    ctc_ddl_dc_array_t *dc_node = (ctc_ddl_dc_array_t *)node;
     knl_dictionary_t *dc = &(dc_node->dc);
     knl_session_t *se = (knl_session_t *)session;
 
@@ -11017,7 +11017,7 @@ status_t knl_analyze_table(knl_handle_t session, knl_analyze_tab_def_t *def)
     }
 
     if (def->part_name.len > 0 ||
-       (((session_t *)session)->is_tse && (def->part_no != CT_INVALID_ID32))) {
+       (((session_t *)session)->is_ctc && (def->part_no != CT_INVALID_ID32))) {
         ret = db_analyze_table_part(se, def, CT_FALSE);
     } else {
         ret = db_analyze_table(se, def, CT_FALSE);
@@ -15385,7 +15385,7 @@ status_t knl_fill_fk_name_from_sys4mysql(knl_handle_t se, char *fk_name, uint32_
                      sizeof(uint32), IX_COL_SYS_CONSDEF001_TABLE_ID);
 
     if (knl_fetch(knl_session, cursor) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[tse_fill_fk_name_from_sys]: knl_fetch failed.");
+        CT_LOG_RUN_ERR("[ctc_fill_fk_name_from_sys]: knl_fetch failed.");
         CM_RESTORE_STACK(knl_session->stack);
         return CT_ERROR;
     }

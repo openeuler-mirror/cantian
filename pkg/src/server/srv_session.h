@@ -51,7 +51,7 @@
 #include "cms_interface.h"
 #include "cm_hash.h"
 #include "cm_hashmap.h"
-#include "tse_list.h"
+#include "ctc_list.h"
 #ifdef Z_SHARDING
 #include "shd_connpool.h"
 #include "shd_comm.h"
@@ -195,16 +195,16 @@ typedef struct st_cbo_param {
     uint32 cbo_index_cost_adj;
 } cbo_param_t;
 
-typedef struct st_tse_context {
-    tse_list_node_t node; // 该成员必须放在第一个位置
-    uint32_t tse_magic_num;
+typedef struct st_ctc_context {
+    ctc_list_node_t node; // 该成员必须放在第一个位置
+    uint32_t ctc_magic_num;
     text_t user;
     text_t table;
     knl_dictionary_t *dc;
     uint8 dup_key_slot;   // for on duplicate key update
     rowid_t conflict_rid; // for on duplicate key update
-    uint32_t tse_inst_id;
-} tse_context_t;
+    uint32_t ctc_inst_id;
+} ctc_context_t;
 typedef struct st_session {
     knl_session_t knl_session; // need to be first!
     spinlock_t kill_lock;
@@ -317,10 +317,10 @@ typedef struct st_session {
     bool32 stmt_valid;                // for gdv
     date_t gdv_last_time;             // for gdv
     cms_res_status_list_t res_status; // for gdv
-    bool32 is_tse;
-    uint32_t tse_inst_id;
-    uint32_t tse_thd_id;
-    uint32_t tse_magic_num;
+    bool32 is_ctc;
+    uint32_t ctc_inst_id;
+    uint32_t ctc_thd_id;
+    uint32_t ctc_magic_num;
     int64_t query_id;
     uint16_t total_cursor_num;
     uint16_t total_cursor_num_stack;

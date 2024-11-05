@@ -52,7 +52,7 @@ function create_network()
     
     set -x
     docker network rm ${network_name}
-    docker network create -d bridge --subnet 192.168.86.111/16 ${network_name}
+    docker network create -d bridge --subnet 192.168.0.0/16 ${network_name}
     set +x
 }
 

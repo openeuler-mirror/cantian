@@ -57,7 +57,7 @@ COMMON_COPTS = GLOBAL_COPTS + [
     "-Ipkg/src/sql/verifier",
     "-Ipkg/src/sql/json",
     "-Ipkg/src/cms/interface",
-    "-Ipkg/src/tse",
+    "-Ipkg/src/ctc",
     "-Ipkg/src/rc",
     "-Ipkg/src/server/params",
 ]
@@ -100,7 +100,7 @@ cc_library (
         "//pkg/src/sql:verifier",
         "//pkg/src/sql:json",
         "//pkg/src/cms:interface_hdrs",
-        "//pkg/src/tse:tse_hdrs",
+        "//pkg/src/ctc:ctc_hdrs",
         "//pkg/src/server:params",
         "//pkg/src/rc:rc_hdrs",
         "//:open_source/lz4/include",
