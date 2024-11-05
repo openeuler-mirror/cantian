@@ -2246,7 +2246,7 @@ status_t sql_notify_io_record(void *se, void *item, char *value)
 {
     bool32 open_record = (bool32)value[0];
     if (g_cm_io_record_open == CT_FALSE && open_record == CT_TRUE) {
-        tse_record_io_state_reset();
+        ctc_record_io_state_reset();
     }
     set_iorecord_status(open_record);
     return sql_notify_als_bool(se, item, value);

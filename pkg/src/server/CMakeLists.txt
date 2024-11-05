@@ -3,7 +3,7 @@ include_directories(
 	"${CANTIANDB_SRC}/cluster"
 	"${CANTIANDB_SRC}/rc"
 	"${CANTIANDB_SRC}/zenfs"
-    "${CANTIANDB_SRC}/tse"
+    "${CANTIANDB_SRC}/ctc"
 	"${CANTIANDB_SRC}/ctsql/gdv"
     "${CANTIANDB_SRC}/upgrade_check"
     "${CANTIANDB_SRC}/fdsa"

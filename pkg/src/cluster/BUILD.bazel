@@ -63,7 +63,7 @@ COMMON_COPTS = GLOBAL_COPTS + [
     "-Ipkg/src/kernel/tablespace",
     "-Ipkg/src/kernel/xact",
     "-Ipkg/src/mec",
-    "-Ipkg/src/tse",
+    "-Ipkg/src/ctc",
     "-Ipkg/src/upgrade_check",
     "-Ipkg/src/tms",
     "-Ipkg/src/fdsa",
@@ -154,7 +154,7 @@ cc_library (
         "-ftest-coverage",] + COMMON_LINKOPTS,
     deps = [
         "//pkg/src/rc:zerc",
-        "//pkg/src/tse:zectc",
+        "//pkg/src/ctc:zectc",
         "//pkg/src/tms:zetms",
         "//pkg/src/fdsa:zefdsa",
     ],
