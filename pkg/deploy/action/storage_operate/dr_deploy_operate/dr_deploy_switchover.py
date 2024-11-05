@@ -14,7 +14,7 @@ from get_config_info import get_env_info
 RUN_USER = get_env_info("cantian_user")
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
-DEPLOY_PARAMS_CONFIG = os.path.join(CURRENT_PATH, "/opt/cantian/config/deploy_param.json")
+DEPLOY_PARAMS_CONFIG = os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")
 LOGICREP_APPCTL_FILE = os.path.join(CURRENT_PATH, "../../logicrep/appctl.sh")
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '\

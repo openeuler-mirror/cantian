@@ -323,7 +323,7 @@ class DRDeployPreCheck(object):
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
         domain_name = self.local_conf_params.get("domain_name", "")
         if domain_name == "":
-            err_msg.append("deploy_param.json")
+            err_msg.append(f"deploy_param.json parameter[{domain_name}] error.")
         domain_exist = False
         for domain_info in domain_infos:
             if domain_info.get("NAME") == domain_name:
@@ -586,12 +586,6 @@ class DRDeployPreCheck(object):
         check_result = []
         if self.site == "active":
             return check_result
-        if not os.path.exists(DEPLOY_PARAM_FILE):
-            _err_msg = "Deploy param file[%s] is not exists, " \
-                      "please check cantian is deployed." % DEPLOY_PARAM_FILE
-            LOG.error(_err_msg)
-            raise Exception(_err_msg)
-        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         pre_install = PreInstall(install_model="override", config_path=self.conf)
         if pre_install.check_main() == 1:
             check_result.append("Params check failed")
@@ -626,7 +620,8 @@ class DRDeployPreCheck(object):
         :return:
         """
         check_result = []
-        if self.site == "active" or self.deploy_params.get("cantian_in_container") == "1":
+        conf_params = read_json_config(self.conf)
+        if self.site == "active" or conf_params.get("cantian_in_container") == "1":
             return check_result
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"

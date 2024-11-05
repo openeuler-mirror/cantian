@@ -31,6 +31,7 @@ RUN_USER = get_env_info("cantian_user")
 USER_GROUP = get_env_info("cantian_group")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
+DEFAULT_PARAM_FILE = os.path.join(CURRENT_PATH, "../../config_params.json")
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 LOCAL_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 FULL_CHECK_POINT_CMD = 'echo -e "alter system checkpoint global;" | '\
@@ -87,7 +88,10 @@ class DRDeploy(object):
         self.page_fs_pair_id = None
         self.meta_fs_pair_id = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
-        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
+        if self.dr_deploy_info.get("cantian_in_container") == "1":
+            self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
+        else:
+            self.deploy_params = read_json_config(DEFAULT_PARAM_FILE)
         self.record_progress_file = LOCAL_PROCESS_RECORD_FILE
         self.mysql_user = None
         self.mysql_cmd = None
