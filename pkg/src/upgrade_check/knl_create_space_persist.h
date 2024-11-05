@@ -38,10 +38,10 @@ typedef struct st_rd_create_datafile {
     uint32 type;
 } rd_create_datafile_t;
 
-typedef struct st_rd_create_datafile_daac {
+typedef struct st_rd_create_datafile_cantian {
     uint32 op_type;
     rd_create_datafile_t datafile;
-} rd_create_datafile_daac_t;
+} rd_create_datafile_cantian_t;
 
 typedef struct st_rd_extend_undo {
     uint16 old_undo_segments;
@@ -54,10 +54,10 @@ typedef struct st_rd_update_head {
     uint16 file_no;   // sequence number in tablespace
 } rd_update_head_t;
 
-typedef struct st_rd_create_space_daac {
+typedef struct st_rd_create_space_cantian {
     uint32 op_type;
     rd_create_space_t space;
-} rd_create_space_daac_t;
+} rd_create_space_cantian_t;
 
 #pragma pack()
 #ifdef __cplusplus

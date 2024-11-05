@@ -2,7 +2,7 @@
 
 DIR_PATH=$(dirname $0)
 HOME_PATH=$(cd ${DIR_PATH}/../../../../;pwd)
-CTDB_CODE_PATH=${HOME_PATH}/daac
+CTDB_CODE_PATH=${HOME_PATH}/cantian
 LLT_REPORT_PATH=${CTDB_CODE_PATH}/lcov_output
 GTEST_RESULT_PATH=${CTDB_CODE_PATH}/gtest_result
 GTEST_REPORT_PATH=${CTDB_CODE_PATH}/gtest_output

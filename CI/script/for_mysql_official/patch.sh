@@ -38,7 +38,7 @@ cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/mf_connector_init.sh "${MF_CONNECTOR_MOUN
 
 rm -rf "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 mkdir "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
-cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/daac_lib/* "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
+cp -arf "${MF_CONNECTOR_ROOT}"/cantian-connector-mysql/cantian_lib/* "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 cp -arf "${MYSQL_OFFICIAL_DIR}"/docker/internals/install_cantian_lib.sh "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 
 # install_mysql.sh still used this dir

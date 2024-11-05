@@ -3,8 +3,8 @@ set -x
 DIR_PATH=$(cd `dirname $0`;pwd)
 CURRENT_CODE_PATH=$(cd ${DIR_PATH}/../../../;pwd)
 if [ "${WORKSPACE}" != "" ]; then
-  ln -s ${WORKSPACE}/daac/ /home/regress
-  sed -i 's/CantianKernel/daac/g' ${CURRENT_CODE_PATH}/CI/CMC/CantianKernel_opensource_dependency.xml
+  ln -s ${WORKSPACE}/cantian/ /home/regress
+  sed -i 's/CantianKernel/cantian/g' ${CURRENT_CODE_PATH}/CI/CMC/CantianKernel_opensource_dependency.xml
 fi
 CTDB_CODE_PATH="/home/jenkins/agent/workspace/multiarch/openeuler/aarch64/cantian/cantian"
 USER="jenkins"
@@ -66,7 +66,7 @@ function linkCodeToHome() {
   fi
 
   local code_home=$(dirname $(realpath ${BASH_SOURCE[0]}))/../../../..
-  ln -s ${code_home}/daac ${CTDB_CODE_PATH}
+  ln -s ${code_home}/cantian ${CTDB_CODE_PATH}
   ln -s ${code_home}/cantian_om ${CTDB_CODE_PATH}/../cantian_om
   echo "link code to home success"
 }

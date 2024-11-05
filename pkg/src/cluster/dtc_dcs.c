@@ -794,7 +794,7 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
     knl_panic(!ctrl->is_readonly);
     if (ctrl->is_dirty || ctrl->is_marked) {
         knl_begin_session_wait(session, DCS_TRANSFER_PAGE_FLUSHLOG, CT_TRUE);
-        if (DAAC_NEED_FLUSH_LOG(session, ctrl)) {
+        if (CANTIAN_NEED_FLUSH_LOG(session, ctrl)) {
             if (log_flush(session, NULL, NULL, NULL) != CT_SUCCESS) {
                 CM_ABORT(0, "[DTC DCS][%u-%u]: ABORT INFO: flush redo log failed", page_req->page_id.file, page_req->page_id.page);
             }
@@ -1701,7 +1701,7 @@ void dcs_clean_edp_pages_local(knl_session_t *session, edp_page_info_t *pages, u
         return;
     }
 
-    knl_panic(!DAAC_CKPT_SESSION(session));
+    knl_panic(!CANTIAN_CKPT_SESSION(session));
     ckpt_clean_edp_group_t* group = &ctx->local_edp_clean_group;
     CT_LOG_DEBUG_INF("[CKPT] local prepare to clean (%d) edp flag", page_count);
 
@@ -1760,7 +1760,7 @@ status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info_t *pages, ui
             continue;
         }
 
-        if (i == DCS_SELF_INSTID(session) && DAAC_CKPT_SESSION(session)) {
+        if (i == DCS_SELF_INSTID(session) && CANTIAN_CKPT_SESSION(session)) {
             // current node is page owner
             continue;
         }
@@ -1783,7 +1783,7 @@ status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info_t *pages, ui
                 continue;
             }
 
-            if (MES_IS_INST_SEND(edp_info.edp_map, DCS_SELF_INSTID(session)) && DAAC_CKPT_SESSION(session)) {
+            if (MES_IS_INST_SEND(edp_info.edp_map, DCS_SELF_INSTID(session)) && CANTIAN_CKPT_SESSION(session)) {
                 CT_LOG_DEBUG_INF(
                     "[CKPT][%u-%u][master process ignore request to clean edp flag, owner transfer to other node",
                     page_id.file, page_id.page);
@@ -1817,7 +1817,7 @@ status_t dcs_master_clean_edp(knl_session_t *session, edp_page_info_t *pages, ui
             continue;
         }
 
-        if ((i == DCS_SELF_INSTID(session)) && !DAAC_CKPT_SESSION(session)) {
+        if ((i == DCS_SELF_INSTID(session)) && !CANTIAN_CKPT_SESSION(session)) {
             dcs_clean_edp_pages_local(session, msg->edp_pages, msg->count);
             continue;
         }
@@ -2318,7 +2318,7 @@ void dcs_process_ddl_broadcast(void *sess, mes_message_t * msg)
     knl_panic(session->page_stack.depth == 0);
     knl_panic(session->dirty_count == 0);
     knl_panic(session->changed_count == 0);
-    knl_panic(DAAC_REPLAY_NODE(session));
+    knl_panic(CANTIAN_REPLAY_NODE(session));
 }
 
 static void dcs_init_pcr_request(knl_session_t *session, cr_cursor_t *cursor, cr_type_t type, msg_pcr_request_t *request)

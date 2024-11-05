@@ -109,7 +109,7 @@ void rd_spc_create_space_internal(knl_session_t *session, rd_create_space_t *red
 
     SPACE_SET_ONLINE(space);
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when create tablespace");
     }
     cm_spin_unlock(&session->kernel->db.replay_logic_lock);
@@ -154,7 +154,7 @@ static bool32 rd_spc_remove_space_precheck(knl_session_t *session, rd_remove_spa
         CT_LOG_RUN_ERR("[SPACE] replay remove space %u failed, forbid to drop database system space", redo->space_id);
         return CT_FALSE;
     }
-    if (DAAC_REPLAY_NODE(session) && SPACE_IS_ONLINE(space) &&
+    if (CANTIAN_REPLAY_NODE(session) && SPACE_IS_ONLINE(space) &&
         spc_check_default_tablespace(session, space) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[SPACE] replay remove space %u failed, it's the default tablespace for user", redo->space_id);
         return CT_FALSE;
@@ -217,7 +217,7 @@ void rd_spc_remove_space_internal(knl_session_t *session, rd_remove_space_t *red
         }
         spc_wait_data_buffer(session, space);
         CT_LOG_RUN_INF("logic to remove space id is %d.", space_id);
-        if (spc_remove_space(session, space, redo->options, CT_FALSE) != CT_SUCCESS && DAAC_REPLAY_NODE(session)) {
+        if (spc_remove_space(session, space, redo->options, CT_FALSE) != CT_SUCCESS && CANTIAN_REPLAY_NODE(session)) {
             if (!space->ctrl->used) {
                 session->kernel->db.ctrl.core.space_count--;
             }
@@ -228,7 +228,7 @@ void rd_spc_remove_space_internal(knl_session_t *session, rd_remove_space_t *red
 
     (void)spc_try_inactive_swap_encrypt(session);
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file");
     }
 
@@ -255,7 +255,7 @@ static void update_spc_ctrl(knl_session_t *session, rd_create_datafile_t *redo, 
         space->ctrl->file_hwm++;
     }
 
-    if (!DAAC_REPLAY_NODE(session) && (CT_SUCCESS != db_save_space_ctrl(session, space->ctrl->id))) {
+    if (!CANTIAN_REPLAY_NODE(session) && (CT_SUCCESS != db_save_space_ctrl(session, space->ctrl->id))) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file");
     }
 }
@@ -298,7 +298,7 @@ void rd_spc_create_datafile_internal(knl_session_t *session, rd_create_datafile_
             }
             return;
         }
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             if (df->ctrl->size != redo->size) {
                 CT_LOG_RUN_ERR("replay create df %s failed, df size not match ", redo->name);
                 return;
@@ -367,7 +367,7 @@ void rd_spc_create_datafile_internal(knl_session_t *session, rd_create_datafile_
     ret = strncpy_s(df->ctrl->name, CT_FILE_NAME_BUFFER_SIZE, redo->name, name_len);
     knl_securec_check(ret);
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         if (cm_exist_device(df->ctrl->type, df->ctrl->name) || cm_exist_device(df->ctrl->type, old_name)) {
             if (need_rename) {
                 knl_panic_log(!cm_exist_device(df->ctrl->type, df->ctrl->name),
@@ -410,7 +410,7 @@ void rd_spc_create_datafile_internal(knl_session_t *session, rd_create_datafile_
         }
     }
 
-    if (!DAAC_REPLAY_NODE(session) && spc_init_datafile_head(session, df) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && spc_init_datafile_head(session, df) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save control file for datafile %s", df->ctrl->name);
     }
 
@@ -420,7 +420,7 @@ void rd_spc_create_datafile_internal(knl_session_t *session, rd_create_datafile_
 
     db->ctrl.core.device_count++;
 
-    if (!DAAC_REPLAY_NODE(session) && (CT_SUCCESS != db_save_datafile_ctrl(session, df->ctrl->id))) {
+    if (!CANTIAN_REPLAY_NODE(session) && (CT_SUCCESS != db_save_datafile_ctrl(session, df->ctrl->id))) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file");
     }
 
@@ -428,7 +428,7 @@ void rd_spc_create_datafile_internal(knl_session_t *session, rd_create_datafile_
 
     /* backup sapce ctrl info after datafile is created */
     if (db->ctrl.core.db_role != REPL_ROLE_PRIMARY) {
-        if (!DAAC_REPLAY_NODE(session) && ctrl_backup_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+        if (!CANTIAN_REPLAY_NODE(session) && ctrl_backup_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to backup space ctrl info");
         }
     }
@@ -525,7 +525,7 @@ void rd_ckpt_trigger(knl_session_t *session, bool32 wait, ckpt_mode_t mode)
 static void rd_spc_remove_datafile_(knl_session_t *session, datafile_t *df, space_t *space, rd_remove_datafile_t *redo)
 {
     database_t *db = &session->kernel->db;
-    if (!DAAC_REPLAY_NODE(session) && !DB_IS_PRIMARY(&(session->kernel->db))) {
+    if (!CANTIAN_REPLAY_NODE(session) && !DB_IS_PRIMARY(&(session->kernel->db))) {
         ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
     }
 
@@ -534,17 +534,17 @@ static void rd_spc_remove_datafile_(knl_session_t *session, datafile_t *df, spac
         db->ctrl.core.device_count--;
     }
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole space control file when rd_remove datafile");
     }
 
     DATAFILE_UNSET_ONLINE(df);
     df->ctrl->used = CT_FALSE;
-    if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save datafile control file when offline datafile");
     }
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         spc_remove_datafile_device(session, df);
     }
 
@@ -565,7 +565,7 @@ void rd_spc_remove_datafile_interanal(knl_session_t *session, rd_remove_datafile
         return;
     }
 
-    if (!session->log_diag && !DAAC_REPLAY_NODE(session) && !DB_IS_PRIMARY(&(session->kernel->db))) {
+    if (!session->log_diag && !CANTIAN_REPLAY_NODE(session) && !DB_IS_PRIMARY(&(session->kernel->db))) {
         rd_ckpt_trigger(session, CT_TRUE, CKPT_TRIGGER_FULL);
     }
 
@@ -586,7 +586,7 @@ void rd_spc_remove_datafile_interanal(knl_session_t *session, rd_remove_datafile
             head->hwms[redo->file_no] = 0;
         }
     } else {
-        if (!DAAC_REPLAY_NODE(session)) {  // todo: how does head->hwm changes? how does this resident page changes?
+        if (!CANTIAN_REPLAY_NODE(session)) {  // todo: how does head->hwm changes? how does this resident page changes?
             head->datafile_count--;
             head->hwms[redo->file_no] = 0;
         }
@@ -602,7 +602,7 @@ void rd_spc_remove_datafile_interanal(knl_session_t *session, rd_remove_datafile
     }
 
     if (!session->log_diag) {
-        if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
+        if (!CANTIAN_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file when rd_remove datafile");
         }
 
@@ -657,7 +657,7 @@ void rd_spc_update_head(knl_session_t *session, log_entry_t *log)
         return; // do not modify ctrl files when repair page use ztrst tool
     }
 
-    if (!DAAC_REPLAY_NODE(session) && !session->log_diag &&
+    if (!CANTIAN_REPLAY_NODE(session) && !session->log_diag &&
         (CT_SUCCESS != db_save_space_ctrl(session, space->ctrl->id))) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file");
     }
@@ -751,7 +751,7 @@ void rd_spc_set_autoextend_internal(knl_session_t *session, rd_set_space_autoext
         df->ctrl->auto_extend_size = redo->auto_extend_size;
         df->ctrl->auto_extend_maxsize = redo->auto_extend_maxsize;
 
-        if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
+        if (!CANTIAN_REPLAY_NODE(session) && db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole ctrl files");
         }
     }
@@ -785,7 +785,7 @@ void rd_spc_set_flag_internal(knl_session_t *session, rd_set_space_flag_t *redo)
 
     space->ctrl->flag = redo->flags;
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole ctrl files");
     }
 }
@@ -826,7 +826,7 @@ void rd_spc_rename_space_internal(knl_session_t *session, rd_rename_space_t *red
     ret = strncpy_s(space->ctrl->name, CT_NAME_BUFFER_SIZE, redo->name, name_len);
     knl_securec_check(ret);
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_space_ctrl(session, space->ctrl->id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole ctrl files");
     }
 }
@@ -926,7 +926,7 @@ void rd_spc_extend_datafile_internal(knl_session_t *session, rd_extend_datafile_
     }
 
     if (df->ctrl->size < redo->size) {
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             df->ctrl->size = redo->size;
         } else {
             if (*handle == -1) {
@@ -1009,7 +1009,7 @@ void rd_spc_truncate_datafile_internal(knl_session_t *session, rd_truncate_dataf
     }
 
     if (df->ctrl->size > redo->size) {
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             df->ctrl->size = redo->size;
         } else {
             if (*handle == -1) {
@@ -1042,29 +1042,29 @@ void rd_spc_truncate_datafile(knl_session_t *session, log_entry_t *log)
     rd_spc_truncate_datafile_internal(session, redo);
 }
 
-void rd_spc_extend_datafile_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_extend_datafile_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         return;
     }
-    if (log->size != CM_ALIGN4(sizeof(rd_extend_datafile_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_extend_datafile_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay extend datafile, log size %u is wrong", log->size);
         return;
     }
-    rd_extend_datafile_daac_t *redo = (rd_extend_datafile_daac_t *)log->data;
+    rd_extend_datafile_cantian_t *redo = (rd_extend_datafile_cantian_t *)log->data;
     rd_spc_extend_datafile_internal(session, &redo->datafile);
 }
 
-void rd_spc_truncate_datafile_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_truncate_datafile_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         return;
     }
-    if (log->size != CM_ALIGN4(sizeof(rd_truncate_datafile_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_truncate_datafile_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay truncate datafile, log size %u is wrong", log->size);
         return;
     }
-    rd_truncate_datafile_daac_t *redo = (rd_truncate_datafile_daac_t *)log->data;
+    rd_truncate_datafile_cantian_t *redo = (rd_truncate_datafile_cantian_t *)log->data;
     rd_spc_truncate_datafile_internal(session, &redo->datafile);
 }
 
@@ -1090,16 +1090,16 @@ void print_spc_truncate_datafile(log_entry_t *log)
     print_spc_truncate_datafile_internal(redo);
 }
 
-void print_spc_extend_datafile_daac(log_entry_t *log)
+void print_spc_extend_datafile_cantian(log_entry_t *log)
 {
-    rd_extend_datafile_daac_t *daac_redo = (rd_extend_datafile_daac_t *)log->data;
-    print_spc_extend_datafile_internal(&daac_redo->datafile);
+    rd_extend_datafile_cantian_t *cantian_redo = (rd_extend_datafile_cantian_t *)log->data;
+    print_spc_extend_datafile_internal(&cantian_redo->datafile);
 }
 
-void print_spc_truncate_datafile_daac(log_entry_t *log)
+void print_spc_truncate_datafile_cantian(log_entry_t *log)
 {
-    rd_truncate_datafile_daac_t *daac_redo = (rd_truncate_datafile_daac_t *)log->data;
-    print_spc_truncate_datafile_internal(&daac_redo->datafile);
+    rd_truncate_datafile_cantian_t *cantian_redo = (rd_truncate_datafile_cantian_t *)log->data;
+    print_spc_truncate_datafile_internal(&cantian_redo->datafile);
 }
 static status_t spc_check_datafile(knl_session_t *session, rd_set_df_autoextend_t *redo)
 {
@@ -1128,7 +1128,7 @@ void rd_spc_change_autoextend_internal(knl_session_t *session, rd_set_df_autoext
     df->ctrl->auto_extend_size = redo->auto_extend_size;
     df->ctrl->auto_extend_maxsize = redo->auto_extend_maxsize;
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         if (db_save_datafile_ctrl(session, df->ctrl->id) != CT_SUCCESS) {
             CM_ABORT(0, "[SPACE] ABORT INFO: failed to save whole control file");
         }
@@ -1141,13 +1141,13 @@ void rd_spc_change_autoextend(knl_session_t *session, log_entry_t *log)
     rd_spc_change_autoextend_internal(session, redo);
 }
 
-void rd_spc_change_autoextend_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_change_autoextend_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_set_df_autoextend_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_set_df_autoextend_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("[SPACE] no need to replay change auto_extend, log size %u is wrong", log->size);
         return;
     }
-    rd_set_df_autoextend_daac_t *redo = (rd_set_df_autoextend_daac_t *)log->data;
+    rd_set_df_autoextend_cantian_t *redo = (rd_set_df_autoextend_cantian_t *)log->data;
     if (redo->rd.id >= CT_MAX_DATA_FILES) {
         CT_LOG_RUN_ERR("[SPACE] no need to replay change auto_extend, invalid datafile id %u", redo->rd.id);
         return;
@@ -1173,9 +1173,9 @@ void print_spc_change_autoextend(log_entry_t *log)
     print_spc_change_autoextend_internal(redo);
 }
 
-void print_spc_change_autoextend_daac(log_entry_t *log)
+void print_spc_change_autoextend_cantian(log_entry_t *log)
 {
-    rd_set_df_autoextend_daac_t *redo = (rd_set_df_autoextend_daac_t *)log->data;
+    rd_set_df_autoextend_cantian_t *redo = (rd_set_df_autoextend_cantian_t *)log->data;
     print_spc_change_autoextend_internal(&redo->rd);
 }
 
@@ -1410,13 +1410,13 @@ static bool32 rd_spc_create_space_check_type(knl_session_t *session, rd_create_s
     return CT_TRUE;
 }
 
-void rd_spc_create_space_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_create_space_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_create_space_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_create_space_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay create space, log size %u is wrong", log->size);
         return;
     }
-    rd_create_space_daac_t *redo = (rd_create_space_daac_t *)log->data;
+    rd_create_space_cantian_t *redo = (rd_create_space_cantian_t *)log->data;
     redo->space.name[CT_NAME_BUFFER_SIZE  - 1] = 0;
     if (redo->space.space_id >= CT_MAX_SPACES || redo->space.extent_size <= 0) {
         CT_LOG_RUN_ERR("replay create spc %s fail, invalid spc id %u or extent size %u",
@@ -1441,25 +1441,25 @@ void rd_spc_create_space_daac(knl_session_t *session, log_entry_t *log)
     rd_spc_create_space_internal(session, &redo->space);
 }
 
-void print_spc_create_space_daac(log_entry_t *log)
+void print_spc_create_space_cantian(log_entry_t *log)
 {
-    rd_create_space_daac_t *redo = (rd_create_space_daac_t *)log->data;
+    rd_create_space_cantian_t *redo = (rd_create_space_cantian_t *)log->data;
     print_spc_create_space_internal(&redo->space);
 }
 
-void print_spc_remove_space_daac(log_entry_t *log)
+void print_spc_remove_space_cantian(log_entry_t *log)
 {
-    rd_remove_space_daac_t *redo = (rd_remove_space_daac_t *)log->data;
+    rd_remove_space_cantian_t *redo = (rd_remove_space_cantian_t *)log->data;
     print_spc_remove_space_internal(&redo->space);
 }
 
-void rd_spc_remove_space_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_remove_space_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_remove_space_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_remove_space_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay remove space, log size %u is wrong", log->size);
         return;
     }
-    rd_remove_space_daac_t *redo = (rd_remove_space_daac_t *)log->data;
+    rd_remove_space_cantian_t *redo = (rd_remove_space_cantian_t *)log->data;
     if (redo->space.space_id >= CT_MAX_SPACES) {
         CT_LOG_RUN_ERR("replay remove space fail, space id %u is invalid", redo->space.space_id);
         return;
@@ -1467,13 +1467,13 @@ void rd_spc_remove_space_daac(knl_session_t *session, log_entry_t *log)
     rd_spc_remove_space_internal(session, &redo->space);
 }
 
-void rd_spc_create_datafile_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_create_datafile_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_create_datafile_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_create_datafile_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay create datafile, log size %u is wrong", log->size);
         return;
     }
-    rd_create_datafile_daac_t *redo = (rd_create_datafile_daac_t *)log->data;
+    rd_create_datafile_cantian_t *redo = (rd_create_datafile_cantian_t *)log->data;
     redo->datafile.name[CT_FILE_NAME_BUFFER_SIZE - 1] = 0;
     if (redo->datafile.space_id >= CT_MAX_SPACES || redo->datafile.id >= CT_MAX_DATA_FILES ||
         redo->datafile.type > DEV_TYPE_PGPOOL) {
@@ -1510,7 +1510,7 @@ void rd_spc_create_datafile_daac(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (DAAC_REPLAY_NODE(session) && !cm_exist_device(redo->datafile.type, redo->datafile.name)) {
+    if (CANTIAN_REPLAY_NODE(session) && !cm_exist_device(redo->datafile.type, redo->datafile.name)) {
         CT_LOG_RUN_ERR("replay create df %s failed, df device not exist when sync ddl", redo->datafile.name);
         return;
     }
@@ -1532,19 +1532,19 @@ void rd_spc_create_datafile_daac(knl_session_t *session, log_entry_t *log)
     }
 }
 
-void print_spc_create_datafile_daac(log_entry_t *log)
+void print_spc_create_datafile_cantian(log_entry_t *log)
 {
-    rd_create_datafile_daac_t *redo = (rd_create_datafile_daac_t *)log->data;
+    rd_create_datafile_cantian_t *redo = (rd_create_datafile_cantian_t *)log->data;
     print_spc_create_datafile_internal(&redo->datafile);
 }
 
-void rd_spc_remove_datafile_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_remove_datafile_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_remove_datafile_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_remove_datafile_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("no need to replay remove datafile, log size %u is wrong", log->size);
         return;
     }
-    rd_remove_datafile_daac_t *redo = (rd_remove_datafile_daac_t *)log->data;
+    rd_remove_datafile_cantian_t *redo = (rd_remove_datafile_cantian_t *)log->data;
     if (redo->datafile.space_id >= CT_MAX_SPACES || redo->datafile.id >= CT_MAX_DATA_FILES) {
         CT_LOG_RUN_ERR("replay remove datafile %u in space %u failed, space id or df id is invalid",
                        redo->datafile.id, redo->datafile.space_id);
@@ -1562,10 +1562,10 @@ void rd_spc_remove_datafile_daac(knl_session_t *session, log_entry_t *log)
     buf_leave_page(session, CT_FALSE);
 }
 
-void print_spc_remove_datafile_daac(log_entry_t *log)
+void print_spc_remove_datafile_cantian(log_entry_t *log)
 {
-    rd_remove_datafile_daac_t *daac_redo = (rd_remove_datafile_daac_t *)log->data;
-    print_spc_remove_datafile_internal(&daac_redo->datafile);
+    rd_remove_datafile_cantian_t *cantian_redo = (rd_remove_datafile_cantian_t *)log->data;
+    print_spc_remove_datafile_internal(&cantian_redo->datafile);
 }
 
 static status_t check_datafile_autoextend(knl_session_t *session, rd_set_space_autoextend_t *redo)
@@ -1588,13 +1588,13 @@ static status_t check_datafile_autoextend(knl_session_t *session, rd_set_space_a
     return CT_SUCCESS;
 }
 
-void rd_spc_set_autoextend_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_set_autoextend_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_set_space_autoextend_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_set_space_autoextend_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("[DC] no need to replay auto extend, log size %u is wrong", log->size);
         return;
     }
-    rd_set_space_autoextend_daac_t *redo = (rd_set_space_autoextend_daac_t *)log->data;
+    rd_set_space_autoextend_cantian_t *redo = (rd_set_space_autoextend_cantian_t *)log->data;
     if (redo->rd.space_id >= CT_MAX_SPACES) {
         CT_LOG_RUN_ERR("[DC] no need to replay auto extend, invalid space id %u", redo->rd.space_id);
         return;
@@ -1608,19 +1608,19 @@ void rd_spc_set_autoextend_daac(knl_session_t *session, log_entry_t *log)
     rd_spc_set_autoextend_internal(session, &redo->rd);
 }
 
-void print_spc_set_autoextend_daac(log_entry_t *log)
+void print_spc_set_autoextend_cantian(log_entry_t *log)
 {
-    rd_set_space_autoextend_daac_t *rd = (rd_set_space_autoextend_daac_t *)log->data;
+    rd_set_space_autoextend_cantian_t *rd = (rd_set_space_autoextend_cantian_t *)log->data;
     print_spc_set_autoextend_internal(&rd->rd);
 }
 
-void rd_spc_rename_space_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_rename_space_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_rename_space_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_rename_space_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("[DC] no need to replay rename space, log size %u is wrong", log->size);
         return;
     }
-    rd_rename_space_daac_t *redo = (rd_rename_space_daac_t *)log->data;
+    rd_rename_space_cantian_t *redo = (rd_rename_space_cantian_t *)log->data;
     if (redo->rd.space_id >= CT_MAX_SPACES) {
         CT_LOG_RUN_ERR("[DC] no need to replay rename space, invalid space id %u", redo->rd.space_id);
         return;
@@ -1628,19 +1628,19 @@ void rd_spc_rename_space_daac(knl_session_t *session, log_entry_t *log)
     rd_spc_rename_space_internal(session, &redo->rd);
 }
 
-void print_spc_rename_space_daac(log_entry_t *log)
+void print_spc_rename_space_cantian(log_entry_t *log)
 {
-    rd_rename_space_daac_t *rd = (rd_rename_space_daac_t *)log->data;
+    rd_rename_space_cantian_t *rd = (rd_rename_space_cantian_t *)log->data;
     print_spc_rename_space_internal(&rd->rd);
 }
 
-void rd_spc_set_flag_daac(knl_session_t *session, log_entry_t *log)
+void rd_spc_set_flag_cantian(knl_session_t *session, log_entry_t *log)
 {
-    if (log->size != CM_ALIGN4(sizeof(rd_set_space_flag_daac_t)) + LOG_ENTRY_SIZE) {
+    if (log->size != CM_ALIGN4(sizeof(rd_set_space_flag_cantian_t)) + LOG_ENTRY_SIZE) {
         CT_LOG_RUN_ERR("[DC] no need to replay set flag, log size %u is wrong", log->size);
         return;
     }
-    rd_set_space_flag_daac_t *redo = (rd_set_space_flag_daac_t *)log->data;
+    rd_set_space_flag_cantian_t *redo = (rd_set_space_flag_cantian_t *)log->data;
     if (redo->rd.space_id >= CT_MAX_SPACES) {
         CT_LOG_RUN_ERR("[DC] no need to replay set flag, invalid space id %u", redo->rd.space_id);
         return;
@@ -1648,9 +1648,9 @@ void rd_spc_set_flag_daac(knl_session_t *session, log_entry_t *log)
     rd_spc_set_flag_internal(session, &redo->rd);
 }
 
-void print_spc_set_flag_daac(log_entry_t *log)
+void print_spc_set_flag_cantian(log_entry_t *log)
 {
-    rd_set_space_flag_daac_t *rd = (rd_set_space_flag_daac_t *)log->data;
+    rd_set_space_flag_cantian_t *rd = (rd_set_space_flag_cantian_t *)log->data;
     print_spc_set_flag_internal(&rd->rd);
 }
 

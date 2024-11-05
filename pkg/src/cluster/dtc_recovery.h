@@ -313,12 +313,12 @@ log_batch_t* dtc_rcy_get_curr_batch(dtc_rcy_context_t *dtc_rcy, uint32 idx, uint
 extern dtc_rcy_replay_paral_node_t g_replay_paral_mgr;
 #define DTC_RCY_CONTEXT                         (&g_dtc->dtc_rcy_ctx)
 
-#define DAAC_FULL_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && (DTC_RCY_CONTEXT->full_recovery))
-#define DAAC_PART_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && !(DTC_RCY_CONTEXT->full_recovery))
-#define DAAC_FULL_RECOVER_SESSION(session)      ((session)->dtc_session_type == DTC_FULL_RCY || (session)->dtc_session_type == DTC_FULL_RCY_PARAL)
-#define DAAC_PARTIAL_RECOVER_SESSION(session) \
+#define CANTIAN_FULL_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && (DTC_RCY_CONTEXT->full_recovery))
+#define CANTIAN_PART_RECOVERY(session)             ((DTC_RCY_CONTEXT)->in_progress && !(DTC_RCY_CONTEXT->full_recovery))
+#define CANTIAN_FULL_RECOVER_SESSION(session)      ((session)->dtc_session_type == DTC_FULL_RCY || (session)->dtc_session_type == DTC_FULL_RCY_PARAL)
+#define CANTIAN_PARTIAL_RECOVER_SESSION(session) \
     ((session)->dtc_session_type == DTC_PART_RCY || (session)->dtc_session_type == DTC_PART_RCY_PARAL)
-#define DAAC_SESSION_IN_RECOVERY(session)       (DAAC_FULL_RECOVER_SESSION(session) || DAAC_PARTIAL_RECOVER_SESSION(session))
+#define CANTIAN_SESSION_IN_RECOVERY(session)       (CANTIAN_FULL_RECOVER_SESSION(session) || CANTIAN_PARTIAL_RECOVER_SESSION(session))
 
 #ifdef __cplusplus
 }

@@ -363,7 +363,7 @@ void rd_alter_add_logfile(knl_session_t *session, log_entry_t *log)
     int32 size;
     logfile_set_t *logfile_set = MY_LOGFILE_SET(session);
 
-    knl_panic(!DB_IS_CLUSTER(session)); /* redesign in daac for alter add/delete log */
+    knl_panic(!DB_IS_CLUSTER(session)); /* redesign in cantian for alter add/delete log */
 
     err = memset_sp(dev_name_str, CT_FILE_NAME_BUFFER_SIZE, 0, CT_FILE_NAME_BUFFER_SIZE);
     knl_securec_check(err);

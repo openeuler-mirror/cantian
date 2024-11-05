@@ -3000,7 +3000,7 @@ bool32 is_min_batch_lsn(uint64 batch_lsn, knl_scn_t *batch_scn, bool32 *has_batc
 
 void dtc_update_standby_cluster_scn(knl_session_t *session, uint32 idx)
 {
-    if (DB_IS_PRIMARY(&session->kernel->db) || DAAC_PART_RECOVERY(session)) {
+    if (DB_IS_PRIMARY(&session->kernel->db) || CANTIAN_PART_RECOVERY(session)) {
         return;
     }
     knl_scn_t batch_scn = 0;

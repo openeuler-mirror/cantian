@@ -1429,7 +1429,7 @@ status_t ctrl_backup_space_ctrl(knl_session_t *session, uint32 space_id)
     knl_instance_t *kernel = session->kernel;
     database_t *db = &kernel->db;
 
-    knl_panic(!DAAC_REPLAY_NODE(session));
+    knl_panic(!CANTIAN_REPLAY_NODE(session));
 
     if (DB_ATTR_CLUSTER(session) && CTRL_LOG_BACKUP_LEVEL(session) != CTRLLOG_BACKUP_LEVEL_NONE &&
         cm_dbs_is_enable_dbs() == CT_TRUE) {

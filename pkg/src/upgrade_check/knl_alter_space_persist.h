@@ -46,20 +46,20 @@ typedef struct st_rd_rename_space {
     char name[CT_NAME_BUFFER_SIZE];
 } rd_rename_space_t;
 
-typedef struct st_rd_set_space_autoextend_daac {
+typedef struct st_rd_set_space_autoextend_cantian {
     uint32 op_type;
     rd_set_space_autoextend_t rd;
-} rd_set_space_autoextend_daac_t;
+} rd_set_space_autoextend_cantian_t;
 
-typedef struct st_rd_set_space_flag_daac {
+typedef struct st_rd_set_space_flag_cantian {
     uint32 op_type;
     rd_set_space_flag_t rd;
-} rd_set_space_flag_daac_t;
+} rd_set_space_flag_cantian_t;
 
-typedef struct st_rd_rename_space_daac {
+typedef struct st_rd_rename_space_cantian {
     uint32 op_type;
     rd_rename_space_t rd;
-} rd_rename_space_daac_t;
+} rd_rename_space_cantian_t;
 
 #pragma pack()
 #ifdef __cplusplus

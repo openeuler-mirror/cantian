@@ -241,10 +241,10 @@ status_t spc_extend_datafile(knl_session_t *session, datafile_t *df, int32 *hand
     df->ctrl->size += size;  // max datafile size is 8T
     cm_spin_unlock(&session->kernel->db.ctrl_lock);
 
-    rd_extend_datafile_daac_t daac_redo;
+    rd_extend_datafile_cantian_t cantian_redo;
     if (need_redo) {
-        rd_extend_datafile_t *redo = &daac_redo.datafile;
-        daac_redo.op_type = RD_SPC_EXTEND_DATAFILE_DAAC;
+        rd_extend_datafile_t *redo = &cantian_redo.datafile;
+        cantian_redo.op_type = RD_SPC_EXTEND_DATAFILE_CANTIAN;
         redo->id = df->ctrl->id;
         redo->size = df->ctrl->size;
         log_put(session, RD_SPC_EXTEND_DATAFILE, redo, sizeof(rd_extend_datafile_t), LOG_ENTRY_FLAG_NONE);
@@ -269,15 +269,15 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
     df->ctrl->size += size;  // max datafile size is 8T
     cm_spin_unlock(&session->kernel->db.ctrl_lock);
 
-    rd_extend_datafile_daac_t daac_redo;
+    rd_extend_datafile_cantian_t cantian_redo;
     if (need_redo) {
-        rd_extend_datafile_t *redo = &daac_redo.datafile;
-        daac_redo.op_type = RD_SPC_EXTEND_DATAFILE_DAAC;
+        rd_extend_datafile_t *redo = &cantian_redo.datafile;
+        cantian_redo.op_type = RD_SPC_EXTEND_DATAFILE_CANTIAN;
         redo->id = df->ctrl->id;
         redo->size = df->ctrl->size;
         log_put(session, RD_SPC_EXTEND_DATAFILE, redo, sizeof(rd_extend_datafile_t), LOG_ENTRY_FLAG_NONE);
-        if (DB_IS_CLUSTER(session) && !DAAC_REPLAY_NODE(session)) {
-            log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_extend_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
+        if (DB_IS_CLUSTER(session) && !CANTIAN_REPLAY_NODE(session)) {
+            log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_extend_datafile_cantian_t), LOG_ENTRY_FLAG_NONE);
         }
     }
 
@@ -340,8 +340,8 @@ status_t spc_extend_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *
 
 status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *handle, int64 keep_size, bool32 need_redo)
 {
-    rd_truncate_datafile_daac_t daac_redo;
-    rd_truncate_datafile_t *redo = &daac_redo.datafile;
+    rd_truncate_datafile_cantian_t cantian_redo;
+    rd_truncate_datafile_t *redo = &cantian_redo.datafile;
 
     if (*handle == -1) {
         if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
@@ -353,7 +353,7 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
     /* Change the size first to prevent system failure */
     df->ctrl->size = keep_size;
 
-    daac_redo.op_type = RD_SPC_TRUNCATE_DATAFILE_DAAC;
+    cantian_redo.op_type = RD_SPC_TRUNCATE_DATAFILE_CANTIAN;
     redo->id = df->ctrl->id;
     redo->size = df->ctrl->size;
 
@@ -375,8 +375,8 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
         CM_ABORT(0, "[SPACE] failed to save whole control file when truncate datafile");
     }
 
-    if (DB_IS_CLUSTER(session) && !DAAC_REPLAY_NODE(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_truncate_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
+    if (DB_IS_CLUSTER(session) && !CANTIAN_REPLAY_NODE(session)) {
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_truncate_datafile_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_DATAFILE_BEFORE_SYNC_ABORT, NULL, 0);
@@ -387,8 +387,8 @@ status_t spc_truncate_datafile(knl_session_t *session, datafile_t *df, int32 *ha
 status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32 *handle, int64 keep_size,
                                    bool32 need_redo)
 {
-    rd_truncate_datafile_daac_t daac_redo;
-    rd_truncate_datafile_t *redo = &daac_redo.datafile;
+    rd_truncate_datafile_cantian_t cantian_redo;
+    rd_truncate_datafile_t *redo = &cantian_redo.datafile;
 
     if (*handle == -1) {
         if (spc_open_datafile(session, df, handle) != CT_SUCCESS) {
@@ -402,7 +402,7 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
 
     log_atomic_op_begin(session);
 
-    daac_redo.op_type = RD_SPC_TRUNCATE_DATAFILE_DAAC;
+    cantian_redo.op_type = RD_SPC_TRUNCATE_DATAFILE_CANTIAN;
     redo->id = df->ctrl->id;
     redo->size = df->ctrl->size;
 
@@ -410,8 +410,8 @@ status_t spc_truncate_datafile_ddl(knl_session_t *session, datafile_t *df, int32
         log_put(session, RD_SPC_TRUNCATE_DATAFILE, redo, sizeof(rd_truncate_datafile_t), LOG_ENTRY_FLAG_NONE);
     }
 
-    if (DB_IS_CLUSTER(session) && !DAAC_REPLAY_NODE(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_truncate_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
+    if (DB_IS_CLUSTER(session) && !CANTIAN_REPLAY_NODE(session)) {
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_truncate_datafile_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     log_atomic_op_end(session);
@@ -571,7 +571,7 @@ void spc_invalidate_datafile(knl_session_t *session, datafile_t *df, bool32 ckpt
         // remove the device watch on remote node
         (void)dtc_remove_df_watch(session, df->ctrl->id);
 
-        if (CT_DROP_DATAFILE_FORMAT_NAME_LEN(name_len) < CT_FILE_NAME_BUFFER_SIZE - 1 && !DAAC_REPLAY_NODE(session)) {
+        if (CT_DROP_DATAFILE_FORMAT_NAME_LEN(name_len) < CT_FILE_NAME_BUFFER_SIZE - 1 && !CANTIAN_REPLAY_NODE(session)) {
             ret = sprintf_s(delete_name, CT_FILE_NAME_BUFFER_SIZE, "%s.delete", df->ctrl->name);
             knl_securec_check_ss(ret);
             if (cm_rename_device(df->ctrl->type, df->ctrl->name, delete_name) != CT_SUCCESS) {
@@ -1474,8 +1474,8 @@ status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_dataf
     text_t *name = NULL;
     uint32 id = CT_INVALID_ID32;
     datafile_t *df = NULL;
-    rd_set_df_autoextend_daac_t daac_redo;
-    rd_set_df_autoextend_t *redo = &daac_redo.rd;
+    rd_set_df_autoextend_cantian_t cantian_redo;
+    rd_set_df_autoextend_t *redo = &cantian_redo.rd;
     space_t *space = NULL;
 
     if (session->kernel->db.status < DB_STATUS_OPEN) {
@@ -1498,7 +1498,7 @@ status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_dataf
         log_atomic_op_begin(session);
         spc_set_datafile_autoextend(session, df, &def->autoextend);
 
-        daac_redo.op_type = RD_SPC_CHANGE_AUTOEXTEND_DAAC;
+        cantian_redo.op_type = RD_SPC_CHANGE_AUTOEXTEND_CANTIAN;
         redo->id = df->ctrl->id;
         redo->auto_extend = DATAFILE_IS_AUTO_EXTEND(df);
         redo->auto_extend_size = df->ctrl->auto_extend_size;
@@ -1507,7 +1507,7 @@ status_t spc_alter_datafile_autoextend(knl_session_t *session, knl_alterdb_dataf
         log_put(session, RD_LOGIC_OPERATION, redo, sizeof(rd_set_df_autoextend_t), LOG_ENTRY_FLAG_NONE);
 
         if (DB_IS_CLUSTER(session)) {
-            log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_set_df_autoextend_daac_t), LOG_ENTRY_FLAG_NONE);
+            log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_set_df_autoextend_cantian_t), LOG_ENTRY_FLAG_NONE);
         }
         log_atomic_op_end(session);
 

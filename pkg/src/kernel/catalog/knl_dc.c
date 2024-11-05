@@ -1984,7 +1984,7 @@ void dc_free_broken_entry(knl_session_t *session, uint32 uid, uint32 eid)
 
     entry = DC_GET_ENTRY(user, eid);
     if (entry == NULL) {
-        if (DB_IS_PRIMARY(&session->kernel->db) && !DAAC_REPLAY_NODE(session)) {
+        if (DB_IS_PRIMARY(&session->kernel->db) && !CANTIAN_REPLAY_NODE(session)) {
             knl_panic_log(0, "current DB is primary.");
         }
         CT_LOG_RUN_INF("[DC] no need to replay drop synonym, synonym %u doesn't exists\n", eid);
@@ -2705,7 +2705,7 @@ heap_t *dc_get_heap_by_entity(knl_session_t *session, knl_part_locate_t part_loc
     }
 
     if (DB_IS_CLUSTER(session) && part_loc.part_no == CT_INVALID_ID32) {
-        knl_panic(DAAC_REPLAY_NODE(session));
+        knl_panic(CANTIAN_REPLAY_NODE(session));
         return &table->heap;  /* rd_heap_create_entry for serial, its value is stored in table->heap, not in table part. */
     }
     if (part_loc.part_no == CT_INVALID_ID32 || part_loc.part_no == CT_INVALID_ID24) {

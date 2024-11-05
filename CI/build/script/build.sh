@@ -9,9 +9,9 @@ BUILD_MODE=${BUILD_MODE:-"multiple"}
 BUILD_MYSQL_SO=${BUILD_MYSQL_SO:-"YES"}
 if [ "${WORKSPACE}" != "" ]; then
     HOME_PATH=${WORKSPACE}
-    CTDB_CODE_PATH=${HOME_PATH}/daac
+    CTDB_CODE_PATH=${HOME_PATH}/cantian
     MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql/mysql-source
-    sed  -i 's/CantianKernel/daac/g' ${CTDB_CODE_PATH}/CI/CMC/mysql_server_ctc_dependency.xml
+    sed  -i 's/CantianKernel/cantian/g' ${CTDB_CODE_PATH}/CI/CMC/mysql_server_ctc_dependency.xml
     #cantian-connector-mysql门禁使用的py脚本写死路径，需要增加一个软链接
     ln -s ${CTDB_CODE_PATH} /home/regress/CantianKernel
  
@@ -33,8 +33,8 @@ MYSQL_TARGET_PATH=${BUILD_TARGET_PATH}/cantian-connector-mysql
 MYSQL_BINARY_CODE_PATH=${CTDB_CODE_PATH}/library/mysql_pkg
 XNET_LIB_PATH=${CTDB_CODE_PATH}/library/xnet/lib
 BOOST_PATH=/tools/boost_1_73_0
-DAAC_LIB_DIR=${CTDB_CODE_PATH}/daac_lib
-DAAC_SECURITY_LIB_PATH=${CTDB_CODE_PATH}/library/huawei_security/lib
+CANTIAN_LIB_DIR=${CTDB_CODE_PATH}/cantian_lib
+CANTIAN_SECURITY_LIB_PATH=${CTDB_CODE_PATH}/library/huawei_security/lib
 LOCAL_MYSQL_PATH=/usr/local/mysql
 MYSQL_BIN_COMMIT_ID=""
 LLT_TEST_TYPE=${1}
@@ -123,7 +123,7 @@ function collectMysqlTarget() {
     sh ${CTDB_CODE_PATH}/build/seperate_dbg_symbol.sh ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so
     mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/meta/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/meta
     mv -f ${MYSQL_TARGET_PATH}/mysql_bin/mysql/lib/plugin/nometa/ha_ctc.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol/nometa
-    cd ${MYSQL_CODE_PATH}/daac_lib/
+    cd ${MYSQL_CODE_PATH}/cantian_lib/
     sh ${CTDB_CODE_PATH}/build/seperate_dbg_symbol.sh libctc_proxy.so
     mv -f libctc_proxy.so.symbol ${BUILD_SYMBOL_PATH}/cantian-connector-mysql-symbol
   fi
@@ -145,19 +145,19 @@ function collectMysqlTarget() {
   mkdir -p ${MYSQL_SOURCE_BIN_TARGET_PATH}
   cp -arf /usr/local/mysql ${MYSQL_SOURCE_BIN_TARGET_PATH}/
 
-  mkdir -p ${MYSQL_TARGET_PATH}/daac_lib/
+  mkdir -p ${MYSQL_TARGET_PATH}/cantian_lib/
   if [ "${BUILD_MODE}" == "multiple" ]; then
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libsecurec.a ${MYSQL_TARGET_PATH}/daac_lib/libsecurec.a
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so ${MYSQL_TARGET_PATH}/daac_lib/libctc_proxy.so
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libsecurec.a ${MYSQL_TARGET_PATH}/cantian_lib/libsecurec.a
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libctc_proxy.so ${MYSQL_TARGET_PATH}/cantian_lib/libctc_proxy.so
   elif [ "${BUILD_MODE}" == "single" ]; then
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib ${MYSQL_TARGET_PATH}/
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib ${MYSQL_TARGET_PATH}/
   fi
 
   mkdir -p ${MYSQL_TARGET_PATH}/scripts
   cp -arf ${MYSQL_CODE_PATH}/scripts/my.cnf ${MYSQL_TARGET_PATH}/scripts/
   if [ "${BUILD_MODE}" == "multiple" ] && [ "${COMPILE_TYPE}" == "ASAN" ]; then
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libasan.s* ${MYSQL_TARGET_PATH}/daac_lib/
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libubsan.s* ${MYSQL_TARGET_PATH}/daac_lib/
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libasan.s* ${MYSQL_TARGET_PATH}/cantian_lib/
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libubsan.s* ${MYSQL_TARGET_PATH}/cantian_lib/
     sed -i "s/## BUILD_TYPE ENV_TYPE ##/ASAN ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   else
     sed -i "s/## BUILD_TYPE ENV_TYPE ##/${BUILD_TYPE} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
@@ -170,8 +170,8 @@ function collectMysqlTarget() {
   chmod 755 ${BUILD_TARGET_PATH}/for_mysql_official/patch.sh
 }
 
-function collectDaacTarget() {
-  echo "Start collectDaacTarget..."
+function collectCantianTarget() {
+  echo "Start collectCantianTarget..."
 
   rm -rf ${CTDB_TARGET_PATH}
   mkdir -p ${CTDB_TARGET_PATH}
@@ -188,7 +188,7 @@ function collectTarget() {
   if [ "${static_type}" != "cooddy" ]; then
     collectMysqlTarget
   fi
-  collectDaacTarget
+  collectCantianTarget
 }
 
 function generateScmFile() {
@@ -204,11 +204,11 @@ function generateScmFile() {
   local mysql_commit_id=$(git rev-parse HEAD)
   cd -
   cd ${CTDB_CODE_PATH}
-  local daac_commit_id=$(git rev-parse HEAD)
+  local cantian_commit_id=$(git rev-parse HEAD)
   cd -
   echo "Commit Id:" >>${scm_file_name}
   echo "    cantian-connector-mysql: ${mysql_commit_id}" >>${scm_file_name}
-  echo "    daac: ${daac_commit_id}" >>${scm_file_name}
+  echo "    cantian: ${cantian_commit_id}" >>${scm_file_name}
   echo "scm info："
   cat ${scm_file_name}
 }
@@ -309,8 +309,8 @@ function newPackageTarget() {
   fi
 }
 
-function buildDaacDebug() {
-  echo "Start buildDaacDebug..."
+function buildCantianDebug() {
+  echo "Start buildCantianDebug..."
   cd ${CTDB_CODE_PATH}/build
   if [ "${BUILD_MODE}" == "multiple" ]; then
     sh Makefile.sh package
@@ -320,8 +320,8 @@ function buildDaacDebug() {
   cd -
 }
 
-function buildDaacAsan() {
-  echo "Start buildDaacAsan..."
+function buildCantianAsan() {
+  echo "Start buildCantianAsan..."
   cd ${CTDB_CODE_PATH}/build
   if [ "${BUILD_MODE}" == "multiple" ]; then
     sh Makefile.sh package-release asan=1
@@ -331,8 +331,8 @@ function buildDaacAsan() {
   cd -
 }
 
-function buildDaacRelease() {
-  echo "Start buildDaacRelease..."
+function buildCantianRelease() {
+  echo "Start buildCantianRelease..."
   cd ${CTDB_CODE_PATH}/build
   if [ "${BUILD_MODE}" == "multiple" ]; then
     sh -x Makefile.sh package-release
@@ -364,7 +364,7 @@ function compileReleaseMysql() {
     local LLT_TEST_TYPE="NORMAL"
   fi
   rm -f ${HACTC_LIBCTCPROXY_DIR}/bld_debug/CMakeCache.txt
-  prepareGetMysqlClientStaticLibToDaaclib ${HACTC_LIBCTCPROXY_DIR} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${HACTC_LIBCTCPROXY_DIR} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
   cd ${HACTC_LIBCTCPROXY_DIR}/bld_debug
 
   if [ "${BUILD_MODE}" == "multiple" ]; then
@@ -379,9 +379,9 @@ function compileReleaseMysql() {
     fi
   elif [ "${BUILD_MODE}" == "single" ]; then
     if  [[ ${OS_ARCH} =~ "aarch64" ]]; then
-      cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
+      cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     else
-      cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
+      cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     fi
   fi
 }
@@ -392,7 +392,7 @@ function compileDebugMysql() {
     local LLT_TEST_TYPE="NORMAL"
   fi
   rm -f ${HACTC_LIBCTCPROXY_DIR}/bld_debug/CMakeCache.txt
-  prepareGetMysqlClientStaticLibToDaaclib ${HACTC_LIBCTCPROXY_DIR} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${HACTC_LIBCTCPROXY_DIR} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
   cd ${HACTC_LIBCTCPROXY_DIR}/bld_debug
 
   if [ "${BUILD_MODE}" == "multiple" ]; then
@@ -402,23 +402,23 @@ function compileDebugMysql() {
       cmake .. -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-w -DCMAKE_CXX_FLAGS=-w -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
     fi
   elif [ "${BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-w -DCMAKE_CXX_FLAGS=-w -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
+    cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-w -DCMAKE_CXX_FLAGS=-w -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
   fi
 }
 
 function compileReleaseAsanMysql() {
   echo "start compile release asan mysql"
   rm -f ${HACTC_LIBCTCPROXY_DIR}/bld_debug/CMakeCache.txt
-  prepareGetMysqlClientStaticLibToDaaclib ${HACTC_LIBCTCPROXY_DIR} "RELEASE" "ASAN" ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${HACTC_LIBCTCPROXY_DIR} "RELEASE" "ASAN" ${BOOST_PATH} ${CPU_CORES_NUM} ${HACTC_LIBCTCPROXY_DIR}/bld_debug
 
   cd ${HACTC_LIBCTCPROXY_DIR}/bld_debug
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
   if [ "${BUILD_MODE}" == "multiple" ]; then
     cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON \
           -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} \
           -DWITH_UBSAN=ON -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
   elif [ "${BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release \
+    cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release \
           -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON \
           -DWITH_UBSAN=ON -DWITHOUT_SERVER=OFF -DCMAKE_INSTALL_PREFIX=${HACTC_LIBCTCPROXY_DIR}/tmp
   fi
@@ -473,9 +473,9 @@ function buildMysqlMeta() {
   cd -
   cd ${HACTC_LIBCTCPROXY_DIR}/bld_debug/storage/ctc && make -j${CPU_CORES_NUM} && make install
   cp ${HACTC_LIBCTCPROXY_DIR}/tmp/lib/plugin/ha_ctc.so /usr/local/ha_ctc.so
-  cp -arf ${HACTC_LIBCTCPROXY_DIR}/daac_lib/libctc_proxy.so /usr/lib64
-  cp -arf ${HACTC_LIBCTCPROXY_DIR}/daac_lib/libsecurec.a /usr/lib64
-  cp -arf ${HACTC_LIBCTCPROXY_DIR}/daac_lib/libmessage_queue.a /usr/lib64
+  cp -arf ${HACTC_LIBCTCPROXY_DIR}/cantian_lib/libctc_proxy.so /usr/lib64
+  cp -arf ${HACTC_LIBCTCPROXY_DIR}/cantian_lib/libsecurec.a /usr/lib64
+  cp -arf ${HACTC_LIBCTCPROXY_DIR}/cantian_lib/libmessage_queue.a /usr/lib64
   make clean
   md5sum /usr/local/ha_ctc.so
   echo "meta version: build plugin so: ha_ctc and libctc_proxy finished"
@@ -492,9 +492,9 @@ function bazelBuildMysqlSource() {
   fi
   tar -xf ${LOCAL_MYSQL_PATH}/mysql.tar.gz -C ${LOCAL_MYSQL_PATH}
   md5sum /usr/lib64/libctc_proxy.so
-  cp -arf /usr/lib64/libctc_proxy.so ${MYSQL_CODE_PATH}/daac_lib/
-  cp -arf /usr/lib64/libsecurec.a ${MYSQL_CODE_PATH}/daac_lib/
-  cp -arf /usr/lib64/libmessage_queue.a ${MYSQL_CODE_PATH}/daac_lib/
+  cp -arf /usr/lib64/libctc_proxy.so ${MYSQL_CODE_PATH}/cantian_lib/
+  cp -arf /usr/lib64/libsecurec.a ${MYSQL_CODE_PATH}/cantian_lib/
+  cp -arf /usr/lib64/libmessage_queue.a ${MYSQL_CODE_PATH}/cantian_lib/
   if [ "${mrId}" == "" ] && [ "${local_build}" != "true" ];then
     cp -arf /usr/local/ha_ctc.so.nometa ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so.nometa
     md5sum ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so.nometa
@@ -510,17 +510,17 @@ function buildMysqlRelease() {
   mkdir -p ${LOCAL_MYSQL_PATH}
 
   echo "Start buildMysqlRelease..."
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
-  cp -arf ${DAAC_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/daac_lib/
+  rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+  mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+  cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
+  cp -arf ${CANTIAN_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/cantian_lib/
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
   cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
 
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
   buildMysqlnoMeta
 
@@ -545,10 +545,10 @@ function buildMysqlRelease() {
   if [ "${LLT_TEST_TYPE}" == "" ]; then
       local LLT_TEST_TYPE="NORMAL"
   fi
-  prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
 
   bazelBuildMysqlSource
 }
@@ -560,16 +560,16 @@ function buildMysqlDebug() {
   rm -rf ${LOCAL_MYSQL_PATH}
   mkdir -p ${LOCAL_MYSQL_PATH}
 
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
-  cp -arf ${DAAC_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/daac_lib/
+  rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+  mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+  cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
+  cp -arf ${CANTIAN_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/cantian_lib/
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
   cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
   buildMysqlnoMeta
 
@@ -592,10 +592,10 @@ function buildMysqlDebug() {
   if [ "${LLT_TEST_TYPE}" == "" ]; then
     local LLT_TEST_TYPE="NORMAL"
   fi
-  prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
 
   bazelBuildMysqlSource
 }
@@ -608,17 +608,17 @@ function buildMysqlReleaseAsan() {
   mkdir -p ${LOCAL_MYSQL_PATH}
 
   echo "Start buildMysqlAsan..."
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
-  cp -arf ${DAAC_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/daac_lib/
+  rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+  mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+  cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
+  cp -arf ${CANTIAN_SECURITY_LIB_PATH}/* ${MYSQL_CODE_PATH}/cantian_lib/
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
   cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
 
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
   buildMysqlnoMeta
 
@@ -638,10 +638,10 @@ function buildMysqlReleaseAsan() {
   buildMysqlMeta
 
   cd ${MYSQL_CODE_PATH}
-  prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "RELEASE" "ASAN" ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "RELEASE" "ASAN" ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/daac_lib
+  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
 
   bazelBuildMysqlSource
 }
@@ -673,7 +673,7 @@ function checkInterfaceVersion()
 }
 
 function prepare() {
-  # 合并不同代码仓代码至daac目录
+  # 合并不同代码仓代码至cantian目录
   if [ -L ${MYSQL_CODE_PATH} ]; then
     rm -f ${MYSQL_CODE_PATH}
   fi
@@ -683,7 +683,7 @@ function prepare() {
   fi
   local code_home=$(dirname $(realpath ${BASH_SOURCE[0]}))/../../../..
   echo $(realpath ${BASH_SOURCE[0]})
-  ln -s -f ${code_home}/daac ${CTDB_CODE_PATH}
+  ln -s -f ${code_home}/cantian ${CTDB_CODE_PATH}
   rm -rf ${BUILD_TARGET_PATH}
   mkdir -p ${BUILD_TARGET_PATH}
   generateScmFile ${code_home}/cantian-connector-mysql
@@ -757,19 +757,19 @@ set -e
 prepare
 checkInterfaceVersion
 if [ "${BUILD_MODE}" == "multiple" ] && [ "${COMPILE_TYPE}" == "ASAN" ]; then
-  buildDaacAsan
+  buildCantianAsan
   buildMysqlReleaseAsan
   buildCtOmPackage
 elif [ "${BUILD_TYPE}" == "DEBUG" ]; then
   changeLogicrepDebugConf
-  buildDaacDebug
+  buildCantianDebug
   if [ "${static_type}" != "cooddy" ]; then
     buildMysqlDebug
   fi
   buildCtOmPackage
 elif [ "${BUILD_TYPE}" == "RELEASE" ]; then
   changeLogicrepRealeaseConf
-  buildDaacRelease
+  buildCantianRelease
   if [ "${static_type}" != "cooddy" ]; then
     buildMysqlRelease
   fi

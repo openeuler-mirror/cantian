@@ -807,7 +807,7 @@ typedef enum en_cs_distribute_type {
 
 #define CT_MIN_TAB_COMPRESS_BUF_SIZE (uint32)SIZE_M(16) /* 16M */
 #define CT_MAX_TAB_COMPRESS_BUF_SIZE (uint64)SIZE_G(1)  /* 1G */
-/* DAAC */
+/* CANTIAN */
 #define CT_MES_MIN_CHANNEL_NUM (uint32)(1)
 #define CT_MES_MAX_CHANNEL_NUM (uint32)(32)
 #define CT_MES_MAX_REACTOR_THREAD_NUM (uint32)(32)

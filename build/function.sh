@@ -29,7 +29,7 @@ func_prepare_git_msg()
   fi
 }
 
-function prepareGetMysqlClientStaticLibToDaaclib() {
+function prepareGetMysqlClientStaticLibToCantianlib() {
   local MYSQL_CODE_PATH=$1
   local BUILD_TYPE=$2
   local LLT_TEST_TYPE=$3
@@ -45,7 +45,7 @@ function prepareGetMysqlClientStaticLibToDaaclib() {
   fi
   mkdir -p ${MYSQLD_CMAKE_DIR}/include
   if [ -f ${MYSQLCLIENTLIB_OUTPUT_PATH}/libmysqlclient.a ]; then
-    cp -arf ${MYSQLCLIENTLIB_OUTPUT_PATH}/libmysqlclient.a ${MYSQL_CODE_PATH}/daac_lib/
+    cp -arf ${MYSQLCLIENTLIB_OUTPUT_PATH}/libmysqlclient.a ${MYSQL_CODE_PATH}/cantian_lib/
     cp -arf ${MYSQL_CLIENT_CMAKE_DIR}/include/mysqld_error.h ${MYSQLD_CMAKE_DIR}/include
     echo "[MysqlClient][INFO]use cache from last. buildMysqlClient succeed."
     return 0
@@ -92,7 +92,7 @@ function prepareGetMysqlClientStaticLibToDaaclib() {
   # ctc_proxy build before gerenating mysqld_error.h when build ctc SE, but ctc_proxy source depends on it.
   cp -arf ${MYSQL_CLIENT_CMAKE_DIR}/include/mysqld_error.h ${MYSQLD_CMAKE_DIR}/include
   export LIBRARY_PATH=${LIBRARY_PATH}:${MYSQLCLIENTLIB_OUTPUT_PATH}
-  cp -arf ${MYSQLCLIENTLIB_OUTPUT_PATH}/libmysqlclient.a ${MYSQL_CODE_PATH}/daac_lib/
+  cp -arf ${MYSQLCLIENTLIB_OUTPUT_PATH}/libmysqlclient.a ${MYSQL_CODE_PATH}/cantian_lib/
   echo "[MysqlClient][INFO]buildMysqlClient succeed."
   cd -
   return 0

@@ -645,7 +645,7 @@ status_t drc_get_page_owner_id(knl_session_t *session, page_id_t pagid, uint8 *i
     }
 
     if ((buf_res->claimed_owner == CT_INVALID_ID8) && (g_rc_ctx->status >= REFORM_RECOVER_DONE)) {
-        knl_panic(!DAAC_PARTIAL_RECOVER_SESSION(session));
+        knl_panic(!CANTIAN_PARTIAL_RECOVER_SESSION(session));
         drc_clean_buf_res(buf_res);
     }
 
@@ -1523,7 +1523,7 @@ allocated:
     }
 
     if (buf_res->claimed_owner == CT_INVALID_ID8) {
-        if (DAAC_SESSION_IN_RECOVERY(session) || g_rc_ctx->status >= REFORM_RECOVER_DONE || dtc_dcs_readable(session, pagid)) {
+        if (CANTIAN_SESSION_IN_RECOVERY(session) || g_rc_ctx->status >= REFORM_RECOVER_DONE || dtc_dcs_readable(session, pagid)) {
             drc_clean_buf_res(buf_res);
         } else {
             cm_spin_unlock(&bucket->lock);
@@ -1609,7 +1609,7 @@ allocated:
     if (can_cvt && result->readonly_copies && req_info->req_mode == DRC_LOCK_EXCLUSIVE) {
 #ifdef DB_DEBUG_VERSION
         if (drc_bitmap64_exist(&result->readonly_copies, DCS_SELF_INSTID(session))) {
-            CM_ASSERT(DAAC_REPLAY_NODE(session));
+            CM_ASSERT(CANTIAN_REPLAY_NODE(session));
         }
 #endif
         ret = dcs_invalidate_readonly_copy(session, pagid, result->readonly_copies, req_info->inst_id,
@@ -1770,7 +1770,7 @@ void drc_claim_page_owner(knl_session_t *session, claim_info_t *claim_info, cvt_
             pagid.file, pagid.page, claim_info->new_id, cvt_info->readonly_copies);
 #ifdef LOG_DIAG
         if (drc_bitmap64_exist(&cvt_info->readonly_copies, DCS_SELF_INSTID(session))) {
-            CM_ASSERT(DAAC_REPLAY_NODE(session));
+            CM_ASSERT(CANTIAN_REPLAY_NODE(session));
         }
 #endif
         status_t ret = dcs_invalidate_readonly_copy(session, pagid, cvt_info->readonly_copies, cvt_info->req_id,
