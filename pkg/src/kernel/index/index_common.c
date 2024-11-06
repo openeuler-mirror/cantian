@@ -1691,7 +1691,7 @@ static void btree_set_scns(knl_session_t *session, btree_t *btree, rd_btree_info
 
 void btree_rd_set_scn(knl_session_t *session, rd_btree_info_t btree_info, rd_btree_set_recycle_t *recycle_info)
 {
-    if (DB_IS_MAINTENANCE(session) || DB_NOT_READY(session) || DAAC_PARTIAL_RECOVER_SESSION(session)) {
+    if (DB_IS_MAINTENANCE(session) || DB_NOT_READY(session) || CANTIAN_PARTIAL_RECOVER_SESSION(session)) {
         return;
     }
 

@@ -36,10 +36,10 @@ typedef struct st_rd_remove_space {
     uint64 org_scn;
 } rd_remove_space_t;
 
-typedef struct st_rd_remove_space_daac {
+typedef struct st_rd_remove_space_cantian {
     uint32 op_type;
     rd_remove_space_t space;
-} rd_remove_space_daac_t;
+} rd_remove_space_cantian_t;
 
 typedef struct st_rd_remove_datafile {
     uint32 id;        // datafile id in whole database
@@ -47,10 +47,10 @@ typedef struct st_rd_remove_datafile {
     uint32 file_no;   // sequence number in tablespace
 } rd_remove_datafile_t;
 
-typedef struct st_rd_remove_datafile_daac {
+typedef struct st_rd_remove_datafile_cantian {
     uint32 op_type;
     rd_remove_datafile_t datafile;
-} rd_remove_datafile_daac_t;
+} rd_remove_datafile_cantian_t;
 #pragma pack()
 #ifdef __cplusplus
 }

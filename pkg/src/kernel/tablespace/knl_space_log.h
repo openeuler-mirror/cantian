@@ -81,38 +81,38 @@ void print_df_change_map(log_entry_t *log);
 
 void rd_spc_extend_datafile(knl_session_t *session, log_entry_t *log);
 void rd_spc_truncate_datafile(knl_session_t *session, log_entry_t *log);
-void rd_spc_extend_datafile_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_truncate_datafile_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_extend_datafile_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_truncate_datafile_cantian(knl_session_t *session, log_entry_t *log);
 void rd_spc_change_autoextend(knl_session_t *session, log_entry_t *log);
-void rd_spc_change_autoextend_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_change_autoextend_cantian(knl_session_t *session, log_entry_t *log);
 
 void print_spc_extend_datafile(log_entry_t *log);
 void print_spc_truncate_datafile(log_entry_t *log);
-void print_spc_extend_datafile_daac(log_entry_t *log);
-void print_spc_truncate_datafile_daac(log_entry_t *log);
+void print_spc_extend_datafile_cantian(log_entry_t *log);
+void print_spc_truncate_datafile_cantian(log_entry_t *log);
 void print_spc_change_autoextend(log_entry_t *log);
-void print_spc_change_autoextend_daac(log_entry_t *log);
+void print_spc_change_autoextend_cantian(log_entry_t *log);
 
 void gbp_aly_spc_extend_datafile(knl_session_t *session, log_entry_t *log, uint64 lsn);
 bool32 format_page_redo_type(uint8 type);
 void punch_page_skip_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 void format_page_must_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 
-void rd_spc_create_space_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_remove_space_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_create_datafile_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_remove_datafile_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_set_autoextend_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_rename_space_daac(knl_session_t *session, log_entry_t *log);
-void rd_spc_set_flag_daac(knl_session_t *session, log_entry_t *log);
+void rd_spc_create_space_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_remove_space_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_create_datafile_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_remove_datafile_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_set_autoextend_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_rename_space_cantian(knl_session_t *session, log_entry_t *log);
+void rd_spc_set_flag_cantian(knl_session_t *session, log_entry_t *log);
 
-void print_spc_create_space_daac(log_entry_t *log);
-void print_spc_remove_space_daac(log_entry_t *log);
-void print_spc_create_datafile_daac(log_entry_t *log);
-void print_spc_remove_datafile_daac(log_entry_t *log);
-void print_spc_set_autoextend_daac(log_entry_t *log);
-void print_spc_set_flag_daac(log_entry_t *log);
-void print_spc_rename_space_daac(log_entry_t *log);
+void print_spc_create_space_cantian(log_entry_t *log);
+void print_spc_remove_space_cantian(log_entry_t *log);
+void print_spc_create_datafile_cantian(log_entry_t *log);
+void print_spc_remove_datafile_cantian(log_entry_t *log);
+void print_spc_set_autoextend_cantian(log_entry_t *log);
+void print_spc_set_flag_cantian(log_entry_t *log);
+void print_spc_rename_space_cantian(log_entry_t *log);
 
 #ifdef __cplusplus
 }

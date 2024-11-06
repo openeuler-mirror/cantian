@@ -467,11 +467,11 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     }
 
     ckpt_disable(session);
-    rd_remove_datafile_daac_t *daac_redo = (rd_remove_datafile_daac_t *)cm_push(session->stack,
-                                                                                sizeof(rd_remove_datafile_daac_t));
-    knl_panic(daac_redo != NULL);
-    daac_redo->op_type = RD_SPC_REMOVE_DATAFILE_DAAC;
-    rd_remove_datafile_t *redo = &daac_redo->datafile;
+    rd_remove_datafile_cantian_t *cantian_redo = (rd_remove_datafile_cantian_t *)cm_push(session->stack,
+                                                                                sizeof(rd_remove_datafile_cantian_t));
+    knl_panic(cantian_redo != NULL);
+    cantian_redo->op_type = RD_SPC_REMOVE_DATAFILE_CANTIAN;
+    rd_remove_datafile_t *redo = &cantian_redo->datafile;
     redo->id = id;
     redo->file_no = df->file_no;
     redo->space_id = df->space_id;
@@ -485,7 +485,7 @@ status_t spc_remove_datafile(knl_session_t *session, space_t *space, uint32 id, 
     buf_leave_page(session, CT_TRUE);
 
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, daac_redo, sizeof(rd_remove_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, cantian_redo, sizeof(rd_remove_datafile_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
     cm_pop(session->stack);
 
@@ -712,11 +712,11 @@ status_t spc_remove_mount_datafile(knl_session_t *session, space_t *space, uint3
     datafile_t *df = NULL;
 
     df = DATAFILE_GET(session, id);
-    if (!DAAC_REPLAY_NODE(session) && !spc_datafile_exist(space, df, id)) {
+    if (!CANTIAN_REPLAY_NODE(session) && !spc_datafile_exist(space, df, id)) {
         CT_THROW_ERROR(ERR_DATAFILE_NUMBER_NOT_EXIST, id);
         return CT_ERROR;
     }
-    if (DAAC_REPLAY_NODE(session)) {
+    if (CANTIAN_REPLAY_NODE(session)) {
         if (cm_exist_device(df->ctrl->type, df->ctrl->name)) {
             CT_LOG_RUN_ERR("[SPACE] replay remove space %u failed, datafile %u still exist in space",
                            space->ctrl->id, df->ctrl->id);
@@ -731,7 +731,7 @@ status_t spc_remove_mount_datafile(knl_session_t *session, space_t *space, uint3
     if (DATAFILE_IS_ONLINE(df)) {
         spc_invalidate_datafile(session, df, CT_FALSE);
 
-        if (!DAAC_REPLAY_NODE(session) && SPC_DROP_DATAFILE(options)) {
+        if (!CANTIAN_REPLAY_NODE(session) && SPC_DROP_DATAFILE(options)) {
             if (cm_exist_device(df->ctrl->type, df->ctrl->name) &&
                 cm_remove_device(df->ctrl->type, df->ctrl->name) != CT_SUCCESS) {
                 return CT_ERROR;
@@ -751,7 +751,7 @@ status_t spc_remove_mount_datafile(knl_session_t *session, space_t *space, uint3
     df->file_no = CT_INVALID_ID32;
     df->ctrl->flag = 0;
 
-    if (!DAAC_REPLAY_NODE(session) && db_save_datafile_ctrl(session, id) != CT_SUCCESS) {
+    if (!CANTIAN_REPLAY_NODE(session) && db_save_datafile_ctrl(session, id) != CT_SUCCESS) {
         CM_ABORT(0, "[SPACE] ABORT INFO: failed to save control file when remove datafiles");
     }
     session->kernel->db.ctrl.core.device_count--;
@@ -877,7 +877,7 @@ status_t spc_remove_space(knl_session_t *session, space_t *space, uint32 options
 
 status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, space_t *space, uint32 options)
 {
-    rd_remove_space_daac_t *daac_redo = NULL;
+    rd_remove_space_cantian_t *cantian_redo = NULL;
     rd_remove_space_t *redo = NULL;
 
     space->is_empty = CT_TRUE;
@@ -887,17 +887,17 @@ status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, spac
 
     log_atomic_op_begin(session);
 
-    daac_redo = (rd_remove_space_daac_t *)cm_push(session->stack, sizeof(rd_remove_space_daac_t));
-    knl_panic(daac_redo != NULL);
-    daac_redo->op_type = RD_SPC_REMOVE_SPACE_DAAC;
-    redo = &daac_redo->space;
+    cantian_redo = (rd_remove_space_cantian_t *)cm_push(session->stack, sizeof(rd_remove_space_cantian_t));
+    knl_panic(cantian_redo != NULL);
+    cantian_redo->op_type = RD_SPC_REMOVE_SPACE_CANTIAN;
+    redo = &cantian_redo->space;
     redo->space_id = space->ctrl->id;
     redo->options = options;
     redo->org_scn = space->ctrl->org_scn;
 
     log_put(session, RD_SPC_REMOVE_SPACE, redo, sizeof(rd_remove_space_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, daac_redo, sizeof(rd_remove_space_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, cantian_redo, sizeof(rd_remove_space_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
     cm_pop(session->stack);
 
@@ -907,7 +907,7 @@ status_t spc_remove_space_online(knl_session_t *session, knl_handle_t stmt, spac
     ckpt_disable(session);
     log_atomic_op_end(session);
     if (stmt != NULL) {
-        log_add_lrep_ddl_info(session, stmt, LOGIC_OP_TABLESPACE, RD_SPC_REMOVE_SPACE_DAAC, NULL);
+        log_add_lrep_ddl_info(session, stmt, LOGIC_OP_TABLESPACE, RD_SPC_REMOVE_SPACE_CANTIAN, NULL);
     }
     log_commit(session);
 

@@ -556,9 +556,9 @@ static inline uint32 knl_db_node_id(knl_session_t *session)
 #define TEMP_UNDO_SET(session, id) (&(session)->kernel->undo_ctx.temp_undo_sets[(id)])
 #define LOGFILE_SET(session, id) (&(session)->kernel->db.logfile_sets[(id)])
 
-#define DAAC_REPLAY_NODE(session)               (DB_IS_CLUSTER(session) && ((session)->dtc_session_type == DTC_WORKER))
-#define DAAC_CKPT_SESSION(session)              ((session)->id == SESSION_ID_DBWR)
-#define DAAC_NEED_FLUSH_LOG(session, ctrl)      ((session)->kernel->redo_ctx.flushed_lfn < (ctrl)->lastest_lfn)
+#define CANTIAN_REPLAY_NODE(session)               (DB_IS_CLUSTER(session) && ((session)->dtc_session_type == DTC_WORKER))
+#define CANTIAN_CKPT_SESSION(session)              ((session)->id == SESSION_ID_DBWR)
+#define CANTIAN_NEED_FLUSH_LOG(session, ctrl)      ((session)->kernel->redo_ctx.flushed_lfn < (ctrl)->lastest_lfn)
 
 #ifdef __cplusplus
 }

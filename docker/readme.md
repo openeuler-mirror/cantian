@@ -241,7 +241,7 @@ sed -i '/cantiandba/d' /home/cantiandba/.bashrc
 cd /home/regress/CantianKernel/build
 export local_build=true 
 export MYSQL_BUILD_MODE=single
-sh Makefile.sh package DAAC_READ_WRITE=1 no_shm=1
+sh Makefile.sh package CANTIAN_READ_WRITE=1 no_shm=1
 ```
 
 ### 编译MySQL

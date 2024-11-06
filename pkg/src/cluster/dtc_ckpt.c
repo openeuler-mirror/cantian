@@ -272,7 +272,7 @@ void dcs_process_ckpt_edp_local(knl_session_t *session, edp_page_info_t *pages, 
     cm_spin_lock(&group->lock, NULL);
     while (i < page_count && !CKPT_CLOSED(session)) {
         i = ckpt_merge_to_array(pages, i, page_count - i, group->pages, &group->count, CT_CLEAN_EDP_GROUP_SIZE);
-        if (i == page_count || DAAC_CKPT_SESSION(session)) {
+        if (i == page_count || CANTIAN_CKPT_SESSION(session)) {
             break;
         }
         cm_spin_unlock(&group->lock);

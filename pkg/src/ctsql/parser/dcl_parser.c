@@ -957,9 +957,9 @@ status_t sql_parse_dcl(sql_stmt_t *stmt, key_wid_t key_wid)
             stmt->context->type = CTSQL_TYPE_RECOVER;
             status = sql_parse_recover(stmt);
             break;
-        case KEY_WORD_DAAC:
-            stmt->context->type = CTSQL_TYPE_DAAC;
-            status = sql_parse_daac(stmt);
+        case KEY_WORD_CANTIAN:
+            stmt->context->type = CTSQL_TYPE_CANTIAN;
+            status = sql_parse_cantian(stmt);
             break;
         case KEY_WORD_SHUTDOWN:
             stmt->context->type = CTSQL_TYPE_SHUTDOWN;

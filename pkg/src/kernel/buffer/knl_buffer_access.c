@@ -289,7 +289,7 @@ status_t buf_load_page_from_disk(knl_session_t *session, buf_ctrl_t *ctrl, page_
         return CT_ERROR;
     }
 
-    knl_panic_log(lsn <= ctrl->page->lsn || DAAC_SESSION_IN_RECOVERY(session),
+    knl_panic_log(lsn <= ctrl->page->lsn || CANTIAN_SESSION_IN_RECOVERY(session),
                   "buf load page from disk lsn [%llu-%llu]", (uint64)lsn ,(uint64) ctrl->page->lsn);
 
     return CT_SUCCESS;
@@ -1303,11 +1303,11 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
             break;  // missed validate function
     }
 
-    if (DB_NOT_READY(session) || DB_IS_READONLY(session) || DAAC_PARTIAL_RECOVER_SESSION(session)) {
+    if (DB_NOT_READY(session) || DB_IS_READONLY(session) || CANTIAN_PARTIAL_RECOVER_SESSION(session)) {
         return;
     }
 
-    /* daac swap_space maybe changed, but no redo, no dirty, skip it */
+    /* cantian swap_space maybe changed, but no redo, no dirty, skip it */
     if (DATAFILE_GET(session, ctrl->page_id.file)->space_id == dtc_my_ctrl(session)->swap_space) {
         return;
     }
@@ -1390,7 +1390,7 @@ void buf_log_enter_page(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t m
     knl_securec_check(ret);
 #endif
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
-    if ((DB_IS_READONLY(session) && !lrpl->is_promoting) || DAAC_SESSION_IN_RECOVERY(session)) {
+    if ((DB_IS_READONLY(session) && !lrpl->is_promoting) || CANTIAN_SESSION_IN_RECOVERY(session)) {
         return;
     }
 
@@ -1416,7 +1416,7 @@ static void buf_log_leave_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
     log_group_t *group = NULL;
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
-    if (SECUREC_UNLIKELY(DB_NOT_READY(session) || (DB_IS_READONLY(session) && !lrpl->is_promoting) || DAAC_SESSION_IN_RECOVERY(session))) {
+    if (SECUREC_UNLIKELY(DB_NOT_READY(session) || (DB_IS_READONLY(session) && !lrpl->is_promoting) || CANTIAN_SESSION_IN_RECOVERY(session))) {
         return;
     }
 

@@ -681,7 +681,7 @@ status_t db_write_ctrl_page(knl_session_t *session, ctrlfile_t *ctrlfile, uint32
     }
     return CT_SUCCESS;
 }
-status_t db_save_ctrl_page_daac(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 id)
+status_t db_save_ctrl_page_cantian(knl_session_t *session, ctrlfile_t *ctrlfile, uint32 id)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
     database_t *db = &kernel->db;
@@ -719,7 +719,7 @@ status_t db_save_datafile_ctrl(knl_session_t *session, uint32 id)
     uint32 i;
     uint32 page_id;
 
-    knl_panic(!DAAC_REPLAY_NODE(session));
+    knl_panic(!CANTIAN_REPLAY_NODE(session));
     for (;;) {
         if (dls_spin_try_lock(session, &db->df_ctrl_lock)) {
             break;
@@ -736,7 +736,7 @@ status_t db_save_datafile_ctrl(knl_session_t *session, uint32 id)
             return CT_ERROR;
         }
         if (DB_IS_CLUSTER(session)) {
-            if (db_save_ctrl_page_daac(session, ctrlfile, id) != CT_SUCCESS) {
+            if (db_save_ctrl_page_cantian(session, ctrlfile, id) != CT_SUCCESS) {
                 dls_spin_unlock(session, &db->df_ctrl_lock);
                 return CT_ERROR;
             }
@@ -769,7 +769,7 @@ status_t db_save_space_ctrl(knl_session_t *session, uint32 id)
     uint32 i;
     uint32 page_id;
 
-    knl_panic(!DAAC_REPLAY_NODE(session));
+    knl_panic(!CANTIAN_REPLAY_NODE(session));
     cm_spin_lock(&db->ctrl_lock, NULL);
     db_store_core(db);
 

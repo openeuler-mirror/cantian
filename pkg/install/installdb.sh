@@ -103,7 +103,7 @@ function start_cantiand() {
     export RUN_MODE=${RUN_MODE}
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
-    export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/cantian_lib:$LD_LIBRARY_PATH
     set +e
     if [ "${IS_RERUN}" == 0 ]; then
         echo "Init mysqld data dir ${MYSQL_DATA_DIR}"
@@ -277,7 +277,7 @@ function temp_start_cantiand() {
     export RUN_MODE=$running_mode
     export CANTIAND_MODE=nomount
     export CANTIAND_HOME_DIR=${CTDB_DATA}
-    export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
+    export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/cantian_lib:${LD_LIBRARY_PATH}
     nohup ${MYSQL_BIN_DIR}/bin/mysqld \
       --defaults-file=${MYSQL_CODE_DIR}/scripts/my.cnf --datadir=${MYSQL_DATA_DIR} --plugin-dir=${MYSQL_BIN_DIR}/lib/plugin \
       --early-plugin-load="ha_ctc.so" --default-storage-engine=CTC --core-file >> ${STATUS_LOG} 2>&1 &

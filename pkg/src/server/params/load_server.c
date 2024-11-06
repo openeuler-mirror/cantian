@@ -1078,9 +1078,9 @@ status_t srv_load_cluster_params(void)
         return CT_ERROR;
     }
 
-    CT_RETURN_IFERR(srv_get_param_uint32("DAAC_TASK_NUM", &g_dtc->profile.task_num));
+    CT_RETURN_IFERR(srv_get_param_uint32("CANTIAN_TASK_NUM", &g_dtc->profile.task_num));
     if ((g_dtc->profile.task_num < CT_DTC_MIN_TASK_NUM) || (CT_DTC_MAX_TASK_NUM < g_dtc->profile.task_num)) {
-        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "DAAC_TASK_NUM");
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CANTIAN_TASK_NUM");
         return CT_ERROR;
     }
 

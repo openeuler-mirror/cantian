@@ -13,8 +13,8 @@ include_directories(
 
 option(NO_SHM OFF)
 if (NO_SHM)
-    add_compile_definitions(WITH_DAAC)
-    message(STATUS "Toolchain: Build use -DWITH_DAAC")
+    add_compile_definitions(WITH_CANTIAN)
+    message(STATUS "Toolchain: Build use -DWITH_CANTIAN")
 endif (NO_SHM)
 
 link_directories(${CANTIANDB_LIB} "${CANTIANDB_LIBRARY}/protobuf/lib" ${PCRE_LIB_PATH})

@@ -46,8 +46,8 @@ LOGICREP_GZ_NAME=com.huawei.cantian.logicrep.tar.gz
 GODRIVER_NAME=go-cantian-driver
 ZEBRATOOL_DIR=${CANTIANDB_HOME}/src/zebratool
 MYSQL_DIR=${CANTIANDB_HOME}/../../cantian-connector-mysql/mysql-source
-DAAC_LIB_DIR=${CANTIANDB_HOME}/../daac_lib
-DAAC_LIB_DIR_TMP=${CANTIANDB_HOME}/../daac_lib/tmp/
+CANTIAN_LIB_DIR=${CANTIANDB_HOME}/../cantian_lib
+CANTIAN_LIB_DIR_TMP=${CANTIANDB_HOME}/../cantian_lib/tmp/
 MYSQL_BUILD_MODE=${MYSQL_BUILD_MODE:-"multiple"}
 HOME_PATH=${MYSQL_DIR}/..
 BOOST_PATH=/tools/boost_1_73_0
@@ -324,49 +324,49 @@ func_pkg_run_basic()
 
 fun_pkg_mysql_lib()
 {
-    echo "DAAC_LIB_DIR:${DAAC_LIB_DIR}"
-    echo "DAAC_LIB_DIR_TMP:${DAAC_LIB_DIR_TMP}"
-    rm -rf ${DAAC_LIB_DIR}
-    mkdir -p ${DAAC_LIB_DIR}
-    mkdir -p ${DAAC_LIB_DIR_TMP}
+    echo "CANTIAN_LIB_DIR:${CANTIAN_LIB_DIR}"
+    echo "CANTIAN_LIB_DIR_TMP:${CANTIAN_LIB_DIR_TMP}"
+    rm -rf ${CANTIAN_LIB_DIR}
+    mkdir -p ${CANTIAN_LIB_DIR}
+    mkdir -p ${CANTIAN_LIB_DIR_TMP}
 
-    cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${DAAC_LIB_DIR_TMP}
-    cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${DAAC_LIB_DIR_TMP}
-    cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/libsecurec.so ${DAAC_LIB_DIR}
+    cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${CANTIAN_LIB_DIR_TMP}
+    cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${CANTIAN_LIB_DIR_TMP}
+    cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/libsecurec.so ${CANTIAN_LIB_DIR}
     
-    cd ${DAAC_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
-    cd ${DAAC_LIB_DIR_TMP} && rm -rf *.a
-    cd ${DAAC_LIB_DIR_TMP} && rm -rf ctc_mysql_proxy.o
-    cd ${DAAC_LIB_DIR_TMP} && ar cru libdaac.a *
-    cd ${DAAC_LIB_DIR_TMP} && ranlib libdaac.a
+    cd ${CANTIAN_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
+    cd ${CANTIAN_LIB_DIR_TMP} && rm -rf *.a
+    cd ${CANTIAN_LIB_DIR_TMP} && rm -rf ctc_mysql_proxy.o
+    cd ${CANTIAN_LIB_DIR_TMP} && ar cru libcantian.a *
+    cd ${CANTIAN_LIB_DIR_TMP} && ranlib libcantian.a
 
     #删除.a里面的main函数
-    strip -N main ${DAAC_LIB_DIR_TMP}/libdaac.a
+    strip -N main ${CANTIAN_LIB_DIR_TMP}/libcantian.a
 
     #dsw_boot.static_o中的print_version会跟mysql里面的print_version符号重复 这里需要重命名一下
-    objcopy --redefine-sym print_version=daac_print_version ${DAAC_LIB_DIR_TMP}/libdaac.a
+    objcopy --redefine-sym print_version=cantian_print_version ${CANTIAN_LIB_DIR_TMP}/libcantian.a
         
-    cd ${DAAC_LIB_DIR_TMP} && ranlib libdaac.a
-    cp ${DAAC_LIB_DIR_TMP}/libdaac.a ${DAAC_LIB_DIR}
-    rm -rf ${DAAC_LIB_DIR_TMP}/
+    cd ${CANTIAN_LIB_DIR_TMP} && ranlib libcantian.a
+    cp ${CANTIAN_LIB_DIR_TMP}/libcantian.a ${CANTIAN_LIB_DIR}
+    rm -rf ${CANTIAN_LIB_DIR_TMP}/
 
-    cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${DAAC_LIB_DIR}
-    cd ${CANTIANDB_HOME}/../build/pkg/src/ctc/CMakeFiles/zectc.dir/message_queue/ && ar cr libmessage_queue.a *.o && cp libmessage_queue.a ${DAAC_LIB_DIR}
+    cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${CANTIAN_LIB_DIR}
+    cd ${CANTIANDB_HOME}/../build/pkg/src/ctc/CMakeFiles/zectc.dir/message_queue/ && ar cr libmessage_queue.a *.o && cp libmessage_queue.a ${CANTIAN_LIB_DIR}
 
-    cp -d ${CANTIANDB_HOME}/../library/pcre/lib/libpcre2-8.so* ${DAAC_LIB_DIR}
-    cp -d ${CANTIANDB_HOME}/../output/lib/*.so ${DAAC_LIB_DIR}
+    cp -d ${CANTIANDB_HOME}/../library/pcre/lib/libpcre2-8.so* ${CANTIAN_LIB_DIR}
+    cp -d ${CANTIANDB_HOME}/../output/lib/*.so ${CANTIAN_LIB_DIR}
     if [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
-            cp -d /usr/lib64/libubsan.so* ${DAAC_LIB_DIR}
-            cp -d /usr/lib64/libasan.so* ${DAAC_LIB_DIR}
+            cp -d /usr/lib64/libubsan.so* ${CANTIAN_LIB_DIR}
+            cp -d /usr/lib64/libasan.so* ${CANTIAN_LIB_DIR}
         elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libubsan.so* ${DAAC_LIB_DIR}
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libasan.so* ${DAAC_LIB_DIR}
+            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libubsan.so* ${CANTIAN_LIB_DIR}
+            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libasan.so* ${CANTIAN_LIB_DIR}
         else 
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi
     fi
-    chmod -R 755 ${DAAC_LIB_DIR}
+    chmod -R 755 ${CANTIAN_LIB_DIR}
 }
 
 func_pkg_run()
@@ -416,7 +416,7 @@ func_collect_mysql_target()
     mkdir -p ${MYSQL_DIR}/mysql_bin/mysql
     cp -arf /usr/local/mysql/* ${MYSQL_DIR}/mysql_bin/mysql/
   elif [ "${node_id}" == "node1" ]; then
-    cp -arf ${MYSQL_DIR}/daac_lib/libsecurec.so /usr/lib64/
+    cp -arf ${MYSQL_DIR}/cantian_lib/libsecurec.so /usr/lib64/
   else
     echo "input error node_id, please check!"
     exit 1
@@ -445,9 +445,9 @@ func_make_mysql_debug()
   echo "Start build Mysql Debug..."
   func_prepare_header_files
   if [[ -z ${WITHOUT_DEPS} ]]; then
-    rm -rf ${MYSQL_CODE_PATH}/daac_lib
-    mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-    cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+    rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+    mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+    cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
   fi
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
   local LLT_TEST_TYPE="NORMAL"
@@ -456,7 +456,7 @@ func_make_mysql_debug()
   elif [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
     LLT_TEST_TYPE="ASAN"
   fi
-  prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   if [[ -z ${WITHOUT_DEPS} ]]; then
@@ -471,7 +471,7 @@ func_make_mysql_debug()
       cmake .. -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
   fi
 
   MYSQL_BUILD_TYPE="debug"
@@ -486,7 +486,7 @@ func_make_mysql_debug()
       make -j${CPU_CORES_NUM}
       make install
   fi
-  cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64
+  cp -r -f -p ${MYSQL_CODE_PATH}/cantian_lib/libctc_proxy.so /usr/lib64
   echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
   cd -
 }
@@ -495,9 +495,9 @@ func_make_mysql_release()
 {
   echo "Start build Mysql Release..."
   func_prepare_header_files
-  rm -rf ${MYSQL_CODE_PATH}/daac_lib
-  mkdir -p ${MYSQL_CODE_PATH}/daac_lib
-  cp -arf ${DAAC_LIB_DIR}/* ${MYSQL_CODE_PATH}/daac_lib/
+  rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+  mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+  cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
   local LLT_TEST_TYPE="NORMAL"
   if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
@@ -505,7 +505,7 @@ func_make_mysql_release()
   elif [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
     LLT_TEST_TYPE="ASAN"
   fi
-  prepareGetMysqlClientStaticLibToDaaclib ${MYSQL_CODE_PATH} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
+  prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "RELEASE" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
@@ -518,9 +518,9 @@ func_make_mysql_release()
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     else
-        cmake .. -DWITH_DAAC=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     fi  
   fi
 
@@ -535,7 +535,7 @@ func_make_mysql_release()
       make -j${CPU_CORES_NUM}
       make install
   fi
-  cp -r -f -p ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64
+  cp -r -f -p ${MYSQL_CODE_PATH}/cantian_lib/libctc_proxy.so /usr/lib64
   echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
   cd -
 }
@@ -1026,9 +1026,9 @@ main()
             echo "build with out shm"
             COMPILE_OPTS="${COMPILE_OPTS} -DNO_SHM=ON"
             ;;
-        'DAAC_READ_WRITE=1')
-            echo "build with DAAC_READ_WRITE"
-            COMPILE_OPTS="${COMPILE_OPTS} -DDAAC_READ_WRITE=ON"
+        'CANTIAN_READ_WRITE=1')
+            echo "build with CANTIAN_READ_WRITE"
+            COMPILE_OPTS="${COMPILE_OPTS} -DCANTIAN_READ_WRITE=ON"
             ;;
         '--without-deps')
             echo "no need for 3rdparty dependency compilation"

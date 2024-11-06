@@ -9759,7 +9759,7 @@ status_t knl_recover(knl_handle_t session, knl_recover_t *param)
     return CT_SUCCESS;
 }
 
-status_t knl_daac_recover(knl_handle_t session, knl_daac_recover_t *param)
+status_t knl_cantian_recover(knl_handle_t session, knl_cantian_recover_t *param)
 {
     knl_session_t *se = (knl_session_t *)session;
 
@@ -15631,11 +15631,11 @@ status_t knl_object_exists4mysql(knl_handle_t session, text_t *schema_name, text
     return CT_SUCCESS;
 }
 
-status_t knl_is_daac_cluster_ready(bool32 *is_ready)
+status_t knl_is_cantian_cluster_ready(bool32 *is_ready)
 {
     cms_res_status_list_t res_stat;
     if (cms_get_res_stat_list(&res_stat) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("knl_is_daac_cluster_ready get res stat list failed");
+        CT_LOG_RUN_ERR("knl_is_cantian_cluster_ready get res stat list failed");
         return CT_ERROR;
     }
     uint16_t i = g_instance->id;

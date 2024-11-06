@@ -67,7 +67,7 @@ function install_cantiandb() {
     sed -i 's/dbfiles1/'${ESCAPE_DATA_PATH}'/g' ${CREATEDB_SQL}
     #CANTIAN_DATA_DIR="/home/jenkins/agent/workspace/multiarch/openeuler/aarch64/cantian/cantian_data"
     #chmod 755 -R ${CANTIAN_DATA_DIR}
-    export LD_LIBRARY_PATH=${TEST_DATA_DIR}/cantian/daac_lib
+    export LD_LIBRARY_PATH=${TEST_DATA_DIR}/cantian/cantian_lib
     echo "========================= Install CantianDB ======================="
     cd ${ROOT_PATH}/output/bin/Cantian-DATABASE-CENTOS-64bit
     python3 install.py -U ${RUN_TEST_USER}:${RUN_TEST_USER}  \
@@ -137,7 +137,7 @@ function compile_code() {
     cd ${ROOT_PATH}/build
     sudo sh Makefile.sh clean
     echo "### Compile & Make CantianKernel and CTSQL, no errors and warnings are allowed"
-    sudo sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
+    sudo sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} CANTIAN_READ_WRITE=1 | tee -a ${COMPILE_LOG}
 #    error_num=`cat ${COMPILE_LOG} |grep 'error:'|wc -l`
 #    ignore_error=`cat ${COMPILE_LOG} |grep 'error: unexpected end of file'|wc -l`
 #    if [ $error_num -ne 0 ]; then

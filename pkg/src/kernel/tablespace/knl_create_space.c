@@ -253,12 +253,12 @@ status_t spc_extend_undo_segments(knl_session_t *session, uint32 count, datafile
 
 static void spc_put_create_redo(knl_session_t *session, space_t *space)
 {
-    rd_create_space_daac_t *daac_redo = (rd_create_space_daac_t *)cm_push(session->stack,
-                                                                          sizeof(rd_create_space_daac_t));
-    knl_panic(daac_redo != NULL);
-    rd_create_space_t *redo = &(daac_redo->space);
+    rd_create_space_cantian_t *cantian_redo = (rd_create_space_cantian_t *)cm_push(session->stack,
+                                                                          sizeof(rd_create_space_cantian_t));
+    knl_panic(cantian_redo != NULL);
+    rd_create_space_t *redo = &(cantian_redo->space);
 
-    daac_redo->op_type = RD_SPC_CREATE_SPACE_DAAC;
+    cantian_redo->op_type = RD_SPC_CREATE_SPACE_CANTIAN;
     redo->space_id = space->ctrl->id;
     redo->flags = space->ctrl->flag;
     redo->extent_size = space->ctrl->extent_size;
@@ -277,7 +277,7 @@ static void spc_put_create_redo(knl_session_t *session, space_t *space)
     }
     log_put(session, RD_SPC_CREATE_SPACE, redo, sizeof(rd_create_space_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, daac_redo, sizeof(rd_create_space_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, cantian_redo, sizeof(rd_create_space_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     cm_pop(session->stack);
@@ -286,7 +286,7 @@ static void spc_put_create_redo(knl_session_t *session, space_t *space)
 status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_def_t *def, uint32 *file_no)
 {
     rd_create_datafile_t *redo = NULL;
-    rd_create_datafile_daac_t *daac_redo = NULL;
+    rd_create_datafile_cantian_t *cantian_redo = NULL;
     uint32 i;
     uint32 used_count = 0;
     datafile_t *new_df = NULL;
@@ -429,9 +429,9 @@ status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_
     }
     db->ctrl.core.device_count++;
 
-    daac_redo = (rd_create_datafile_daac_t *)cm_push(session->stack, sizeof(rd_create_datafile_daac_t));
-    daac_redo->op_type = RD_SPC_CREATE_DATAFILE_DAAC;
-    redo = &(daac_redo->datafile);
+    cantian_redo = (rd_create_datafile_cantian_t *)cm_push(session->stack, sizeof(rd_create_datafile_cantian_t));
+    cantian_redo->op_type = RD_SPC_CREATE_DATAFILE_CANTIAN;
+    redo = &(cantian_redo->datafile);
     redo->id = new_df->ctrl->id;
     redo->space_id = new_df->space_id;
     redo->file_no = new_df->file_no;
@@ -446,7 +446,7 @@ status_t spc_create_datafile(knl_session_t *session, space_t *space, knl_device_
 
     log_put(session, RD_SPC_CREATE_DATAFILE, redo, sizeof(rd_create_datafile_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, daac_redo, sizeof(rd_create_datafile_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, cantian_redo, sizeof(rd_create_datafile_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     cm_pop(session->stack);

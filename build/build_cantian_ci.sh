@@ -140,9 +140,9 @@ function revertPatching() {
 }
 
 function collectMysqlTarget() {
-  cp "${MYSQL_CODE_PATH}"/daac_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
-  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
-  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CANTIANDB_BIN}"/cantian-connector-mysql/daac_lib
+  cp "${MYSQL_CODE_PATH}"/cantian_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
+  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
+  cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
   cp "${MYSQL_SERVER_PATH}"/scripts/my.cnf "${CANTIANDB_BIN}"/cantian-connector-mysql/scripts
 }
 
@@ -153,7 +153,7 @@ function seperateSymbol() {
 
 function buildMysql() {
   echo "meta version: declare directory and copy mysql code for ha_ctc.so and libctc_proxy.so"
-  mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/{daac_lib,mysql_bin,scripts}
+  mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/{cantian_lib,mysql_bin,scripts}
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
 
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
@@ -212,7 +212,7 @@ function prepare() {
     echo "compiling multiple process"
     if [[ ${BUILD_TYPE} == "debug" ]]; then
       echo "compiling multiple process debug"
-      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} DAAC_READ_WRITE=1"
+      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} CANTIAN_READ_WRITE=1"
     else
       echo "compiling multiple process release"
       sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE}"
@@ -221,7 +221,7 @@ function prepare() {
     echo "compiling single process"
     if [[ ${BUILD_TYPE} == "debug" ]]; then
       echo "compiling multiple process debug"
-      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1 DAAC_READ_WRITE=1"
+      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1 CANTIAN_READ_WRITE=1"
     else
       echo "compiling multiple process release"
       sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1"

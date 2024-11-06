@@ -912,7 +912,7 @@ bool32 is_fetch_success(knl_handle_t se, knl_cursor_t *cursor);
 status_t knl_set_ctrl_core_version(void *item_ptr);
 status_t knl_schema_exists4mysql(knl_handle_t session, text_t *schema_name, bool32 *exist);
 status_t knl_object_exists4mysql(knl_handle_t session, text_t *schema_name, text_t *object_name, bool32 *exist);
-status_t knl_is_daac_cluster_ready(bool32 *is_ready);
+status_t knl_is_cantian_cluster_ready(bool32 *is_ready);
 
 status_t knl_unlock_users4mysql(knl_handle_t session);
 
