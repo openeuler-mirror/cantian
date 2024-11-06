@@ -31,11 +31,6 @@ storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadat
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 mysql_data_dir="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}"
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
-
-function log() {
-  printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${CANTIAN_INSTALL_LOG_FILE}
-}
 
 function set_ctsql_config() {
     sys_password=`cat ${DORADO_CONF_PATH}/${SYS_PASS}`
@@ -49,10 +44,10 @@ function clear_sem_id() {
     if [ -n "${sem_id}" ]; then
         ipcrm -s ${sem_id}
         if [ $? -ne 0 ]; then
-            log "clear sem_id failed"
+            logAndEchoError "clear sem_id failed"
             exit 1
         fi
-        log "clear sem_id success"
+        logAndEchoInfo "clear sem_id success"
     fi
 }
 
