@@ -179,7 +179,7 @@ typedef struct st_exec_prev_stat {
     uint64 io_wait_time;     // user io wait
     uint64 con_wait_time;    // concurrency wait
     uint64 res_io_wait_time; // resource io wait
-    uint64 dcs_net_time;     // daac network buffer read
+    uint64 dcs_net_time;     // cantian network buffer read
 } exec_prev_stat_t;
 
 typedef struct st_ctx_prev_stat {

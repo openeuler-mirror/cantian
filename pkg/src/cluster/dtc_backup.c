@@ -264,7 +264,7 @@ status_t dtc_bak_fetch_last_log(knl_session_t *session, bak_t *bak, uint32 *last
     bak_ctrlinfo_t *ctrlinfo = &bak->record.ctrlinfo;
 
     if (bak->record.log_only) {
-        CT_LOG_RUN_ERR("[BACKUP] log_only option not support in daac.");
+        CT_LOG_RUN_ERR("[BACKUP] log_only option not support in cantian.");
         return CT_ERROR;
     } else {
         *last_asn = ctrlinfo->dtc_lrp_point[inst_id].asn;

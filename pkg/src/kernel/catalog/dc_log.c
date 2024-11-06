@@ -71,7 +71,7 @@ void rd_alter_sequence(knl_session_t *session, log_entry_t *log)
     if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[SEQ] failed to replay alter sequence,user id %u doesn't exists", rd->uid);
         rd_check_dc_replay_err(session);
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             CM_ASSERT(0);
         }
         return;
@@ -80,7 +80,7 @@ void rd_alter_sequence(knl_session_t *session, log_entry_t *log)
     if (dc_init_sequence_set(session, user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[SEQ] failed to replay alter sequence");
         rd_check_dc_replay_err(session);
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             CM_ASSERT(0);
         }
         return;
@@ -89,7 +89,7 @@ void rd_alter_sequence(knl_session_t *session, log_entry_t *log)
     entry = DC_GET_SEQ_ENTRY(user, rd->id);
     if (entry == NULL) {
         CT_LOG_RUN_ERR("[SEQ] failed to replay alter sequence,sequence doesn't exists");
-        if (DAAC_REPLAY_NODE(session)) {
+        if (CANTIAN_REPLAY_NODE(session)) {
             CM_ASSERT(0);
         }
         return;
@@ -238,7 +238,7 @@ dc_entity_t *rd_invalid_entity(knl_session_t *session, dc_entry_t *entry)
 
 void rd_alter_table(knl_session_t *session, log_entry_t *log)
 {
-    if (DAAC_REPLAY_NODE(session) && (log->size != CM_ALIGN4(sizeof(rd_table_t)) + LOG_ENTRY_SIZE)) {
+    if (CANTIAN_REPLAY_NODE(session) && (log->size != CM_ALIGN4(sizeof(rd_table_t)) + LOG_ENTRY_SIZE)) {
         CT_LOG_RUN_ERR("[DC] no need to replay alter table, log size %u is wrong", log->size);
         return;
     }
@@ -250,13 +250,13 @@ void rd_alter_table(knl_session_t *session, log_entry_t *log)
     if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DC] failed to replay alter table id %u, user id %u doesn't exists\n", rd->oid, rd->uid);
         rd_check_dc_replay_err(session);
-        CM_ASSERT(!DAAC_REPLAY_NODE(session));
+        CM_ASSERT(!CANTIAN_REPLAY_NODE(session));
         return;
     }
 
     if (!dc_find_by_id(session, user, rd->oid, CT_FALSE)) {
         CT_LOG_RUN_ERR("[DC] failed to replay alter table,table id %u doesn't exists\n", rd->oid);
-        CM_ASSERT(!DAAC_REPLAY_NODE(session));
+        CM_ASSERT(!CANTIAN_REPLAY_NODE(session));
         return;
     }
 
@@ -267,7 +267,7 @@ void rd_alter_table(knl_session_t *session, log_entry_t *log)
         return;
     }
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
-    if (DAAC_PARTIAL_RECOVER_SESSION(session)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session)) {
         if (dc_is_reserved_entry(rd->uid, rd->oid)) {
             CT_LOG_RUN_WAR("[DC] do not replay alter sys table in partial recovery, table id %u\n", rd->oid);
             cm_spin_unlock(&entry->sch_lock_mutex);
@@ -461,7 +461,7 @@ void rd_create_view(knl_session_t *session, log_entry_t *log)
                        rd->obj_name, rd->oid, rd->org_scn, rd->chg_scn);
         return;
     }
-    bool is_replay = DB_IS_CLUSTER(session) && DAAC_REPLAY_NODE(session);
+    bool is_replay = DB_IS_CLUSTER(session) && CANTIAN_REPLAY_NODE(session);
 
     if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DC] failed to replay create view %s, user id %u doesn't exists", rd->obj_name, rd->uid);
@@ -565,7 +565,7 @@ void rd_create_table(knl_session_t *session, log_entry_t *log)
     if (dc_open_user_by_id(session, rd->uid, &user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DC] failed to replay create table %s,user id %u doesn't exists", rd->obj_name, rd->uid);
         rd_check_dc_replay_err(session);
-        CM_ASSERT(!DAAC_REPLAY_NODE(session));
+        CM_ASSERT(!CANTIAN_REPLAY_NODE(session));
         return;
     }
 
@@ -576,7 +576,7 @@ void rd_create_table(knl_session_t *session, log_entry_t *log)
         CT_LOG_RUN_INF("[DC] no need to replay create table %s,table id %u already exists", rd->obj_name, rd->oid);
         return;
     }
-    if (DAAC_REPLAY_NODE(session) && !rd_create_table_check4replay(session, user, rd)) {
+    if (CANTIAN_REPLAY_NODE(session) && !rd_create_table_check4replay(session, user, rd)) {
         return;
     }
 
@@ -752,7 +752,7 @@ void rd_drop_table(knl_session_t *session, log_entry_t *log)
     }
 
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
-    if (DAAC_PARTIAL_RECOVER_SESSION(session) && dc_is_locked(entry)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session) && dc_is_locked(entry)) {
         // in partial recoverey, dc resource is busy means this logic log is staled, and do not need to replay
         CT_LOG_RUN_WAR("[DC] no need to replay drop table, resource of table id %u is busy\n", rd->oid);
         cm_spin_unlock(&entry->sch_lock_mutex);
@@ -863,7 +863,7 @@ void rd_rename_table(knl_session_t *session, log_entry_t *log)
 
     text_t new_name;
     cm_str2text(rd->new_name, &new_name);
-    if (DAAC_REPLAY_NODE(session) && dc_find(session, user, &new_name, NULL)) {
+    if (CANTIAN_REPLAY_NODE(session) && dc_find(session, user, &new_name, NULL)) {
         CT_LOG_RUN_ERR("[DC] failed to replay rename table,table name %s already exists\n", rd->new_name);
         return;
     }
@@ -871,7 +871,7 @@ void rd_rename_table(knl_session_t *session, log_entry_t *log)
     // only one session process the same message from the same source.
     entry = DC_GET_ENTRY(user, rd->oid);
     cm_spin_lock(&entry->sch_lock_mutex, &session->stat->spin_stat.stat_sch_lock);
-    if (DAAC_PARTIAL_RECOVER_SESSION(session) && dc_is_locked(entry)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session) && dc_is_locked(entry)) {
         // in partial recoverey, dc resource is busy means this logic log is staled, and do not need to replay
         CT_LOG_RUN_WAR("[DC] no need to replay alter table,resource of table id %u is busy\n", rd->oid);
         cm_spin_unlock(&entry->sch_lock_mutex);
@@ -1136,14 +1136,14 @@ void rd_create_user(knl_session_t *session, log_entry_t *log)
     }
     dc_user_t *user = NULL;
     rd->name[CT_NAME_BUFFER_SIZE - 1] = 0;
-    if (DAAC_REPLAY_NODE(session) && is_user_name_valid(session, rd->name, user) != CT_SUCCESS) {
+    if (CANTIAN_REPLAY_NODE(session) && is_user_name_valid(session, rd->name, user) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DB] failed to replay create user, user name is invalid: %s", rd->name);
         return;
     }
     CT_LOG_RUN_INF("[DB] Start to replay create user %s", rd->name);
     cm_spin_lock(&session->kernel->db.replay_logic_lock, NULL);
     // if user is not being dropped, clean the drop uid in session
-    if (DAAC_PARTIAL_RECOVER_SESSION(session) || DAAC_REPLAY_NODE(session)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session) || CANTIAN_REPLAY_NODE(session)) {
         dc_context_t *ctx = &session->kernel->dc_ctx;
         dc_user_t *dc_user = ctx->users[rd->uid];
         if (dc_user && dc_user->status != USER_STATUS_LOCKED) {
@@ -1153,7 +1153,7 @@ void rd_create_user(knl_session_t *session, log_entry_t *log)
     }
 
     // only one session process the same message from the same source.
-    status_t ret = DAAC_REPLAY_NODE(session) ?
+    status_t ret = CANTIAN_REPLAY_NODE(session) ?
         dc_open_user_by_id_for_replay(session, rd->uid, &user) : dc_open_user_by_id(session, rd->uid, &user);
     if (ret == CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DB] failed to replay create user %s,user id %u already occupied by %s", rd->name, rd->uid,
@@ -1228,7 +1228,7 @@ void rd_drop_user(knl_session_t *session, log_entry_t *log)
     CT_LOG_RUN_INF("[DB] Start to replay drop user, user id %u", rd->uid);
     cm_spin_lock(&session->kernel->db.replay_logic_lock, NULL);
 
-    if (DAAC_PARTIAL_RECOVER_SESSION(session) || DAAC_REPLAY_NODE(session)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session) || CANTIAN_REPLAY_NODE(session)) {
         if (dtc_modify_drop_uid(session, rd->uid) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DB] failed to replay drop user, user id %u doesn't exist", rd->uid);
             rd_check_dc_replay_err(session);
@@ -1237,7 +1237,7 @@ void rd_drop_user(knl_session_t *session, log_entry_t *log)
         }
     }
 
-    if (DAAC_PARTIAL_RECOVER_SESSION(session)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session)) {
         if (is_drop_same_user(session, rd->uid, rd) != CT_TRUE) {
             CT_LOG_RUN_ERR("[DB] failed to replay drop user %u,user name different from current user", rd->uid);
             rd_check_dc_replay_err(session);
@@ -1273,7 +1273,7 @@ void rd_drop_user(knl_session_t *session, log_entry_t *log)
         }
     }
 
-    if (DAAC_PARTIAL_RECOVER_SESSION(session) || DAAC_REPLAY_NODE(session)) {
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session) || CANTIAN_REPLAY_NODE(session)) {
         session->drop_uid = CT_INVALID_ID32;
     }
 
@@ -1894,7 +1894,7 @@ void rd_heap_create_entry(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         rd_alter_table(session, log);
         return;
     }
@@ -2018,7 +2018,7 @@ void rd_btree_create_entry(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         rd_alter_table(session, log);
         return;
     }
@@ -2137,7 +2137,7 @@ void rd_lob_create_entry(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         rd_alter_table(session, log);
         return;
     }
@@ -2244,7 +2244,7 @@ void rd_create_interval(knl_session_t *session, log_entry_t *log)
     }
     rd_create_interval_t *rd = (rd_create_interval_t *)log->data;
 
-    if (!DAAC_REPLAY_NODE(session)) {
+    if (!CANTIAN_REPLAY_NODE(session)) {
         rd_alter_table(session, log);
         return;
     }

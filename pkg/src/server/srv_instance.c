@@ -2121,7 +2121,7 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
         return CT_ERROR;
     }
 
-#ifndef WITH_DAAC
+#ifndef WITH_CANTIAN
     if (mq_srv_init() != CT_SUCCESS) {
         srv_instance_destroy();
         CT_LOG_RUN_ERR("failed to initialize shm and message queue");

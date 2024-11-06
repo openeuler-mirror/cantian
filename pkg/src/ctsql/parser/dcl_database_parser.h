@@ -37,7 +37,7 @@ status_t sql_parse_restore(sql_stmt_t *stmt);
 status_t sql_parse_recover(sql_stmt_t *stmt);
 status_t sql_parse_shutdown(sql_stmt_t *stmt);
 status_t sql_parse_backup_tag(sql_stmt_t *stmt, word_t *word, char *tag);
-status_t sql_parse_daac(sql_stmt_t *stmt);
+status_t sql_parse_cantian(sql_stmt_t *stmt);
 #ifdef __cplusplus
 }
 #endif

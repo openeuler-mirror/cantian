@@ -80,8 +80,8 @@ static status_t spc_alter_precheck_datafile_autoextend(knl_session_t *session, s
 status_t spc_set_autoextend(knl_session_t *session, space_t *space, knl_autoextend_def_t *autoextend)
 {
     datafile_t *df = NULL;
-    rd_set_space_autoextend_daac_t daac_redo;
-    rd_set_space_autoextend_t *redo = &daac_redo.rd;
+    rd_set_space_autoextend_cantian_t cantian_redo;
+    rd_set_space_autoextend_t *redo = &cantian_redo.rd;
 
     dls_spin_lock(session, &space->lock, &session->stat->spin_stat.stat_space);
 
@@ -105,7 +105,7 @@ status_t spc_set_autoextend(knl_session_t *session, space_t *space, knl_autoexte
         }
     }
 
-    daac_redo.op_type = RD_SPC_SET_AUTOEXTEND_DAAC;
+    cantian_redo.op_type = RD_SPC_SET_AUTOEXTEND_CANTIAN;
     redo->space_id = (uint16)space->ctrl->id;  // space id is less than 1023
     redo->auto_extend = DATAFILE_IS_AUTO_EXTEND(df);
     redo->auto_extend_size = df->ctrl->auto_extend_size;
@@ -113,7 +113,7 @@ status_t spc_set_autoextend(knl_session_t *session, space_t *space, knl_autoexte
 
     log_put(session, RD_SPC_SET_AUTOEXTEND, redo, sizeof(rd_set_space_autoextend_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_set_space_autoextend_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_set_space_autoextend_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     log_atomic_op_end(session);
@@ -124,8 +124,8 @@ status_t spc_set_autoextend(knl_session_t *session, space_t *space, knl_autoexte
 
 status_t spc_set_autooffline(knl_session_t *session, space_t *space, bool32 auto_offline)
 {
-    rd_set_space_flag_daac_t daac_redo;
-    rd_set_space_flag_t *redo = &daac_redo.rd;
+    rd_set_space_flag_cantian_t cantian_redo;
+    rd_set_space_flag_t *redo = &cantian_redo.rd;
 
     if (session->kernel->db.status != DB_STATUS_OPEN) {
         CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "set tablespace autooffline");
@@ -154,13 +154,13 @@ status_t spc_set_autooffline(knl_session_t *session, space_t *space, bool32 auto
         SPACE_SET_AUTOOFFLINE(space);
     }
 
-    daac_redo.op_type = RD_SPC_SET_FLAG_DAAC;
+    cantian_redo.op_type = RD_SPC_SET_FLAG_CANTIAN;
     redo->space_id = (uint16)space->ctrl->id;  // the maximum space id is 1023
     redo->flags = space->ctrl->flag;
 
     log_put(session, RD_SPC_SET_FLAG, redo, sizeof(rd_set_space_flag_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_set_space_flag_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_set_space_flag_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     log_atomic_op_end(session);
@@ -195,8 +195,8 @@ bool32 spc_check_space_exists(knl_session_t *session, const text_t *name, bool32
 status_t spc_rename_space(knl_session_t *session, space_t *space, text_t *rename_space)
 {
     char buf[CT_NAME_BUFFER_SIZE];
-    rd_rename_space_daac_t daac_redo;
-    rd_rename_space_t *redo = &daac_redo.rd;
+    rd_rename_space_cantian_t cantian_redo;
+    rd_rename_space_t *redo = &cantian_redo.rd;
     uint32 name_len = CT_NAME_BUFFER_SIZE - 1;
     errno_t ret;
     core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
@@ -227,14 +227,14 @@ status_t spc_rename_space(knl_session_t *session, space_t *space, text_t *rename
     knl_securec_check(ret);
     space->ctrl->name[rename_space->len] = 0;
 
-    daac_redo.op_type = RD_SPC_RENAME_SPACE_DAAC;
+    cantian_redo.op_type = RD_SPC_RENAME_SPACE_CANTIAN;
     redo->space_id = space->ctrl->id;
     ret = strcpy_sp(redo->name, CT_NAME_BUFFER_SIZE, space->ctrl->name);
     knl_securec_check(ret);
 
     log_put(session, RD_SPC_RENAME_SPACE, redo, sizeof(rd_rename_space_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_rename_space_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_rename_space_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     dls_spin_unlock(session, &space->lock);
@@ -354,8 +354,8 @@ status_t spc_rebuild_space(knl_session_t *session, space_t *space)
 
 status_t spc_set_autopurge(knl_session_t *session, space_t *space, bool32 auto_purge)
 {
-    rd_set_space_flag_daac_t daac_redo;
-    rd_set_space_flag_t *redo = &daac_redo.rd;
+    rd_set_space_flag_cantian_t cantian_redo;
+    rd_set_space_flag_t *redo = &cantian_redo.rd;
 
     if (session->kernel->db.status != DB_STATUS_OPEN) {
         CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "set tablespace autopurge");
@@ -378,13 +378,13 @@ status_t spc_set_autopurge(knl_session_t *session, space_t *space, bool32 auto_p
         SPACE_SET_AUTOPURGE(space);
     }
 
-    daac_redo.op_type = RD_SPC_SET_FLAG_DAAC;
+    cantian_redo.op_type = RD_SPC_SET_FLAG_CANTIAN;
     redo->space_id = (uint16)space->ctrl->id;  // the maximum space id is 1023
     redo->flags = space->ctrl->flag;
 
     log_put(session, RD_SPC_SET_FLAG, redo, sizeof(rd_set_space_flag_t), LOG_ENTRY_FLAG_NONE);
     if (DB_IS_CLUSTER(session)) {
-        log_put(session, RD_LOGIC_OPERATION, &daac_redo, sizeof(rd_set_space_flag_daac_t), LOG_ENTRY_FLAG_NONE);
+        log_put(session, RD_LOGIC_OPERATION, &cantian_redo, sizeof(rd_set_space_flag_cantian_t), LOG_ENTRY_FLAG_NONE);
     }
 
     log_atomic_op_end(session);

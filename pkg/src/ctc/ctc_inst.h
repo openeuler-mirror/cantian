@@ -32,7 +32,7 @@
 #define CTC_CTX_LIST_CNT (1)  // 每个mysql节点1个list，减少锁冲突
 
 typedef struct mysql_inst_info {
-    uint32_t inst_id;    // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
+    uint32_t inst_id;    // inst_id 高16位为cantian的nodeId,低16位为proc_id/mysql_instid
     bool empty;          // 该节点是否未被占用，true未被占用，false被占用
     ctc_list_t ctx_lists[CTC_CTX_LIST_CNT];  // 根据指针 % CTC_CTX_LIST_CNT 放到不同的list中去
 } mysql_inst_info_s;

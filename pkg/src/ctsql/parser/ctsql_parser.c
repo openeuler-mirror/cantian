@@ -263,7 +263,7 @@ lang_type_t sql_diag_lang_type(sql_stmt_t *stmt, sql_text_t *sql, word_t *leader
         case KEY_WORD_BACKUP:
         case KEY_WORD_RESTORE:
         case KEY_WORD_RECOVER:
-        case KEY_WORD_DAAC:
+        case KEY_WORD_CANTIAN:
         case KEY_WORD_SHUTDOWN:
         case KEY_WORD_BUILD:
         case KEY_WORD_VALIDATE:

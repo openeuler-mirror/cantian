@@ -4120,14 +4120,14 @@ class Installer:
         if 'LD_LIBRARY_PATH' in os.environ:
             os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s:%s" % (
                 os.path.join(MYSQL_BIN_DIR, "lib"),
-                os.path.join(MYSQL_CODE_DIR, "daac_lib"),
+                os.path.join(MYSQL_CODE_DIR, "cantian_lib"),
                 os.path.join(MYSQL_BIN_DIR, "lib/private"),
                 os.environ['LD_LIBRARY_PATH']))
         else:
             os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s" % (
                 os.path.join(MYSQL_BIN_DIR, "lib"), os.path.join(MYSQL_BIN_DIR, "lib/private"), os.path.join(
-                    MYSQL_CODE_DIR, "daac_lib")))
-        cmd = "ldconfig -N %s %s" % (os.path.join(MYSQL_CODE_DIR, "daac_lib"), os.path.join(MYSQL_BIN_DIR, "lib"))
+                    MYSQL_CODE_DIR, "cantian_lib")))
+        cmd = "ldconfig -N %s %s" % (os.path.join(MYSQL_CODE_DIR, "cantian_lib"), os.path.join(MYSQL_BIN_DIR, "lib"))
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
             logExit("Can not link mysql lib, command: %s, output: %s" % (cmd, stderr))
@@ -4340,7 +4340,7 @@ class Installer:
             os.path.join(self.installPath, "add-ons"), 
             os.path.join(MYSQL_BIN_DIR, "lib"), 
             os.path.join(MYSQL_BIN_DIR, "lib/private"), 
-            os.path.join(MYSQL_CODE_DIR, "daac_lib"), 
+            os.path.join(MYSQL_CODE_DIR, "cantian_lib"), 
             MYSQL_LIB_OUTPUT_DIR))
         persist_environment_variable("RUN_MODE", g_opts.running_mode.lower(), self.userProfile)
         persist_environment_variable("LD_LIBRARY_PATH", mysql_library_path, self.userProfile)

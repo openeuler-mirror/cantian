@@ -905,7 +905,7 @@ void dc_wait_till_load_finish(knl_session_t *session, dc_entry_t *entry)
 {
     // precondition: entry->lock is locked before this function
     // postcondition: entry->lock is locked
-    if (DAAC_SESSION_IN_RECOVERY(session)) {
+    if (CANTIAN_SESSION_IN_RECOVERY(session)) {
         return;
     }
 

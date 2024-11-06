@@ -123,7 +123,7 @@ function compile_code()
     cd ${ROOT_PATH}/build
     sh Makefile.sh clean
     echo "### Compile & Make CantianKernel and CTSQL, no errors and warnings are allowed"
-    sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
+    sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} CANTIAN_READ_WRITE=1 | tee -a ${COMPILE_LOG}
     if [ "${LCOV_ENABLE}" = TRUE ]; then
         mv -f ${ROOT_PATH}/pkg/src/cms/cms/cms_main.c.bak ${ROOT_PATH}/pkg/src/cms/cms/cms_main.c
         echo "Restoring the cms_main.c file"

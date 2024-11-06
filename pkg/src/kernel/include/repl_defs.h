@@ -226,11 +226,11 @@ typedef struct st_knl_recover {
     knl_scn_t scn;
 } knl_recover_t;
 
-typedef struct st_knl_daac_recover {
+typedef struct st_knl_cantian_recover {
     uint32 start;
     uint32 count;
     uint32 full;
-} knl_daac_recover_t;
+} knl_cantian_recover_t;
 
 typedef enum en_validate_type {
     VALIDATE_BACKUPSET = 0,
@@ -279,7 +279,7 @@ status_t knl_backup(knl_handle_t session, knl_backup_t *param);
 status_t knl_restore(knl_handle_t session, knl_restore_t *param);
 status_t knl_recover(knl_handle_t session, knl_recover_t *param);
 status_t knl_validate(knl_handle_t session, knl_validate_t *param);
-status_t knl_daac_recover(knl_handle_t session, knl_daac_recover_t *param);
+status_t knl_cantian_recover(knl_handle_t session, knl_cantian_recover_t *param);
 
 void knl_set_repl_timeout(knl_handle_t handle, uint32 val);
 bool32 knl_db_is_primary(knl_handle_t session);

@@ -199,7 +199,7 @@ make_code()
         lcov_build_flag="lcov=1"
     fi
 
-    sh Makefile.sh make_regress_test ${lcov_build_flag} DAAC_READ_WRITE=1 >> ${GRUN_LOG} 2>&1
+    sh Makefile.sh make_regress_test ${lcov_build_flag} CANTIAN_READ_WRITE=1 >> ${GRUN_LOG} 2>&1
     if [ "$?" != "0" ]; then
         error "make package error!"
     fi

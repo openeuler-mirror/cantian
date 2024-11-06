@@ -108,7 +108,7 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_CURRVAL, CT_TRUE, { (char *)"currval" } },
     { (uint32)KEY_WORD_CURSOR, CT_TRUE, { (char *)"cursor" } },
     { (uint32)KEY_WORD_CYCLE, CT_TRUE, { (char *)"cycle" } },
-    { (uint32)KEY_WORD_DAAC, CT_TRUE, { (char *)"daac" } },
+    { (uint32)KEY_WORD_CANTIAN, CT_TRUE, { (char *)"cantian" } },
     { (uint32)KEY_WORD_DATA, CT_TRUE, { (char *)"data" } },
     { (uint32)KEY_WORD_DATABASE, CT_TRUE, { (char *)"database" } },
     { (uint32)KEY_WORD_DATAFILE, CT_TRUE, { (char *)"datafile" } },

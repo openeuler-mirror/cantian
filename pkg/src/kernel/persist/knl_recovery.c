@@ -2573,7 +2573,7 @@ void log_diag_page(knl_session_t *session)
 static bool32 need_replay_in_partial_restart(knl_session_t *session, log_entry_t *log)
 {
     logic_op_t *op_type = (logic_op_t *)log->data;
-    if (!DAAC_PARTIAL_RECOVER_SESSION(session)) {
+    if (!CANTIAN_PARTIAL_RECOVER_SESSION(session)) {
         return CT_FALSE;
     }
     if (*op_type != RD_CREATE_INDEX && *op_type != RD_ALTER_INDEX && *op_type != RD_DROP_INDEX &&

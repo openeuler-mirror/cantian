@@ -17,8 +17,8 @@ include_directories(
 
 option(NO_SHM OFF)
 if (NO_SHM)
-    add_compile_definitions(WITH_DAAC)
-    message(STATUS "Toolchain: Build use -DWITH_DAAC")
+    add_compile_definitions(WITH_CANTIAN)
+    message(STATUS "Toolchain: Build use -DWITH_CANTIAN")
 endif (NO_SHM)
 
 add_subdirectory(common)

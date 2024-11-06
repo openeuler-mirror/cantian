@@ -27,7 +27,7 @@ function help() {
 
 function run_mysql_llt() {
     echo "========================= Run MySQL LLT ${TEST_LIST} ======================="
-    cp -arfn ${MYSQL_PATH}/daac_lib/* /usr/lib64/
+    cp -arfn ${MYSQL_PATH}/cantian_lib/* /usr/lib64/
     cp -arfn ${MYSQL_USER_PATH}/lib/* /usr/lib64/
     cp -arfn ${MYSQL_USER_PATH}/lib/private/* /usr/lib64/
     ldconfig
@@ -85,7 +85,7 @@ function compile_cantian() {
     echo "### Compile & Make Cantian, no errors and warnings are allowed"
     export cmc_username=p_ciArtifact
     export cmc_password=encryption:ETMsDgAAAYWZguqfABFBRVMvR0NNL05vUGFkZGluZwCAABAAEBMG1JSYl+HNdWoh2xTsIOoAAAAqylgeKzik6xoE+eMga6I3TrTiY9lcodqK86EW4waRd53dbSqXZ5O2E/ruABTp7d8K52StBves9rACbK+2rWBlvA==
-    sh Makefile.sh package ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
+    sh Makefile.sh package ${lcov_build_flag} CANTIAN_READ_WRITE=1 | tee -a ${COMPILE_LOG}
     echo "### Compile & Make Cantian success"
 
     if [ "${LCOV_ENABLE}" = TRUE ]

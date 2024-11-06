@@ -1212,12 +1212,12 @@ status_t sql_parse_shutdown(sql_stmt_t *stmt)
     return lex_expected_end(lex);
 }
 
-status_t sql_parse_daac(sql_stmt_t *stmt)
+status_t sql_parse_cantian(sql_stmt_t *stmt)
 {
-    knl_daac_recover_t *param = NULL;
+    knl_cantian_recover_t *param = NULL;
     status_t status;
 
-    status = sql_alloc_mem(stmt->context, sizeof(knl_daac_recover_t), (void **)&param);
+    status = sql_alloc_mem(stmt->context, sizeof(knl_cantian_recover_t), (void **)&param);
     CT_RETURN_IFERR(status);
     stmt->context->entry = param;
 

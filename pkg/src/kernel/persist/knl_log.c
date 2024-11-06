@@ -879,7 +879,7 @@ void log_proc(thread_t *thread)
     cm_set_thread_name("lgwr");
     CT_LOG_RUN_INF("lgwr thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-#ifdef WITH_DAAC
+#ifdef WITH_CANTIAN
     knl_attach_cpu_core();
 #endif
     while (!thread->closed) {

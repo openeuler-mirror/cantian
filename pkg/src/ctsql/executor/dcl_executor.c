@@ -901,10 +901,10 @@ static status_t sql_execute_recover(sql_stmt_t *ctsql_stmt)
     return knl_recover(&ctsql_stmt->session->knl_session, param);
 }
 
-static status_t sql_execute_daac_recover(sql_stmt_t *ctsql_stmt)
+static status_t sql_execute_cantian_recover(sql_stmt_t *ctsql_stmt)
 {
-    knl_daac_recover_t *param = (knl_daac_recover_t *)ctsql_stmt->context->entry;
-    return knl_daac_recover(&ctsql_stmt->session->knl_session, param);
+    knl_cantian_recover_t *param = (knl_cantian_recover_t *)ctsql_stmt->context->entry;
+    return knl_cantian_recover(&ctsql_stmt->session->knl_session, param);
 }
 
 static status_t sql_execute_validate(sql_stmt_t *ctsql_stmt)
@@ -1028,8 +1028,8 @@ status_t sql_execute_dcl(sql_stmt_t *ctsql_stmt)
         case CTSQL_TYPE_RECOVER:
             status = sql_execute_recover(ctsql_stmt);
             break;
-        case CTSQL_TYPE_DAAC:
-            status = sql_execute_daac_recover(ctsql_stmt);
+        case CTSQL_TYPE_CANTIAN:
+            status = sql_execute_cantian_recover(ctsql_stmt);
             break;
         case CTSQL_TYPE_SHUTDOWN:
             status = sql_execute_shutdown(ctsql_stmt);

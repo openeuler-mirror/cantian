@@ -49,7 +49,7 @@ uint32_t *get_ctc_max_inst_num(void)
 
 void set_is_single_run_mode()
 {
-#ifndef WITH_DAAC
+#ifndef WITH_CANTIAN
     g_is_single_run_mode = CT_FALSE;
 #else
     g_is_single_run_mode = CT_TRUE;
@@ -94,7 +94,7 @@ uint32_t get_mysql_inst_ctx_list_slot(void *ptr)
 
 int add_mysql_inst_ctx_res(uint32_t inst_id, ctc_context_t *ptr)
 {
-    // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
+    // inst_id 高16位为cantian的nodeId,低16位为proc_id/mysql_instid
     uint32_t mysql_inst_pos = GET_MYSQL_INST_POS(inst_id);
     if (mysql_inst_pos >= g_ctc_max_inst_num) {
         CT_LOG_RUN_ERR("add_mysql_inst_ctx_res error inst id:%x, mysql_inst_pos:%u", inst_id, mysql_inst_pos);
@@ -111,7 +111,7 @@ int add_mysql_inst_ctx_res(uint32_t inst_id, ctc_context_t *ptr)
 
 int remove_mysql_inst_ctx_res(uint32_t inst_id, ctc_context_t *ptr)
 {
-    // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
+    // inst_id 高16位为cantian的nodeId,低16位为proc_id/mysql_instid
     uint32_t mysql_inst_pos = GET_MYSQL_INST_POS(inst_id);
     if (mysql_inst_pos >= g_ctc_max_inst_num) {
         CT_LOG_RUN_ERR("remove_mysql_inst_ctx_res error inst id:%x, mysql_inst_pos:%u", inst_id, mysql_inst_pos);
@@ -167,7 +167,7 @@ void clean_up_mysql_inst_ctx_list(mysql_inst_info_s *inst)
 
 int ctc_release_inst_id(uint32_t inst_id)
 {
-    // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
+    // inst_id 高16位为cantian的nodeId,低16位为proc_id/mysql_instid
     uint32_t mysql_inst_pos = GET_MYSQL_INST_POS(inst_id);
     if (mysql_inst_pos >= g_ctc_max_inst_num) {
         CT_LOG_RUN_ERR("[CTC_CLEAN_UP]: ctc_release_inst_id error inst id:%x, mysql_inst_pos:%u", inst_id, mysql_inst_pos);
@@ -194,7 +194,7 @@ int ctc_alloc_inst_id(uint32_t *inst_id)
         CT_LOG_RUN_ERR("[CTC_INIT]:Can't alloc ctc_inst_id when Reforming. status:%d", g_rc_ctx->status);
         return CT_ERROR;
     }
-    // inst_id 高16位为daac的nodeId,低16位为proc_id/mysql_instid
+    // inst_id 高16位为cantian的nodeId,低16位为proc_id/mysql_instid
     uint32_t mysql_inst_pos = GET_MYSQL_INST_POS(*inst_id);
     if (mysql_inst_pos >= g_ctc_max_inst_num) {
         CT_LOG_RUN_ERR("ctc_alloc_inst_id error inst id:%u, mysql_inst_pos:%u", *inst_id, mysql_inst_pos);
@@ -202,7 +202,7 @@ int ctc_alloc_inst_id(uint32_t *inst_id)
     }
     uint32_t alloc_inst_id;
     alloc_inst_id = *inst_id;
-    alloc_inst_id |= (g_mes.profile.inst_id << 16);  // 高16位为daac的nodeId,低16位为proc_id
+    alloc_inst_id |= (g_mes.profile.inst_id << 16);  // 高16位为cantian的nodeId,低16位为proc_id
     CM_ASSERT(alloc_inst_id > 0);
     mysql_inst_info_s *inst = &g_mysql_inst_infos[mysql_inst_pos];
     if (inst->empty == false || inst->inst_id != CT_INFINITE32) {

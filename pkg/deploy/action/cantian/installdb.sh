@@ -104,9 +104,9 @@ function start_cantiand() {
     export CANTIAND_MODE=${START_MODE}
     export CANTIAND_HOME_DIR=${CTDB_DATA}
     if [ -z "${LD_LIBRARY_PATH}" ];then
-        export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib
+        export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/cantian_lib
     else
-        export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/daac_lib:${LD_LIBRARY_PATH}
+        export LD_LIBRARY_PATH=${MYSQL_BIN_DIR}/lib:${MYSQL_CODE_DIR}/cantian_lib:${LD_LIBRARY_PATH}
     fi
     
     if [ "${IS_RERUN}" == 0 ]; then

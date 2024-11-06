@@ -135,7 +135,7 @@ function compile_code() {
     cd ${ROOT_PATH}/build
     sh Makefile.sh clean
     echo "### Compile & Make CantianKernel and CTSQL, no errors and warnings are allowed"
-    sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} DAAC_READ_WRITE=1 | tee -a ${COMPILE_LOG}
+    sh Makefile.sh make_cantian_pkg_test ${lcov_build_flag} CANTIAN_READ_WRITE=1 | tee -a ${COMPILE_LOG}
 #    error_num=`cat ${COMPILE_LOG} |grep 'error:'|wc -l`
 #    ignore_error=`cat ${COMPILE_LOG} |grep 'error: unexpected end of file'|wc -l`
 #    if [ $error_num -ne 0 ]; then

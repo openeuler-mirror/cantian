@@ -39,10 +39,10 @@ collect_core()
 
     tar -zcf ${files}.tar.gz  ${files}
     mv ${files}.tar.gz ${files}.tar.gz.log
-    mkdir -p /home/regress/daac/build_test/logs/
+    mkdir -p /home/regress/cantian/build_test/logs/
     ls -l /home/core
-    cp -r /home/core/* /home/regress/daac/build_test/logs/
-    ls -l /home/regress/daac/build_test/logs/
+    cp -r /home/core/* /home/regress/cantian/build_test/logs/
+    ls -l /home/regress/cantian/build_test/logs/
 }
 
 log()
@@ -165,7 +165,7 @@ make_code()
     fi
     cd ${code_path}/build
     sh Makefile.sh clean
-    sh Makefile.sh make_regress_test ${lcov_build_flag} DAAC_READ_WRITE=1
+    sh Makefile.sh make_regress_test ${lcov_build_flag} CANTIAN_READ_WRITE=1
     if [ "$?" != "0" ]; then
         error "make package error!"
     fi

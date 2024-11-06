@@ -5,7 +5,7 @@ HOME_PATH="/home/regress"
 CTDB_CODE_PATH=${HOME_PATH}/CantianKernel
 if [ "${WORKSPACE}" != "" ]; then
     HOME_PATH=${WORKSPACE}
-    CTDB_CODE_PATH=${HOME_PATH}/daac
+    CTDB_CODE_PATH=${HOME_PATH}/cantian
     MYSQL_CODE_PATH=${HOME_PATH}/cantian-connector-mysql/mysql-source
     CTC_CODE_PATH=/hactc_libctcproxy_dir/mysql-source
 else
@@ -43,8 +43,8 @@ kill_all()
     kill_name cantiand
 }
 
-function run_daac() {
-    echo "Start run_daac..."
+function run_cantian() {
+    echo "Start run_cantian..."
     cantian_data_path="/home/regress/cantian_data"
     if [ ! -d $cantian_data_path ];then
       mkdir -p $cantian_data_path
@@ -84,8 +84,8 @@ function gen_lcov_report() {
 function run_test() {
   echo "Start run_test..."
   if [ "${BUILD_MODE}" == "multiple" ]; then
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libsecurec.a /usr/lib64/
-    cp -arf ${MYSQL_CODE_PATH}/daac_lib/libctc_proxy.so /usr/lib64/
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libsecurec.a /usr/lib64/
+    cp -arf ${MYSQL_CODE_PATH}/cantian_lib/libctc_proxy.so /usr/lib64/
     cp -arf /usr/local/mysql/lib/* /usr/lib64/
     cp -arf /usr/local/mysql/lib/private/* /usr/lib64/
     echo 'log_raw=ON' >> /usr/local/mysql/mysql-test/include/default_mysqld.cnf
@@ -130,7 +130,7 @@ check_user
 kill_all
 
 change_shm_size
-run_daac
+run_cantian
 run_test
 if [ $? -eq 0 ] && [ "${LLT_TEST_TYPE}" == "GCOV" ]; then
   echo "------------- COLLECTING LLT LCOV INFO -------------"

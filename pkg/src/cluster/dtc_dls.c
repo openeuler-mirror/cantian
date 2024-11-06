@@ -941,7 +941,7 @@ void dls_spin_lock(knl_session_t *session, drlock_t * dlock, spin_statis_t *stat
     drc_local_latch *latch_stat = NULL;
 
     /* CODE_REVIEW muting 00198166 2019-8-17: is this status really fine ?? */
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         drc_lock_local_resx(lock_res);
@@ -1056,7 +1056,7 @@ bool32 dls_do_spin_try_lock(knl_session_t *session, drlock_t * dlock, wait_event
     drc_local_lock_res_t *lock_res;
     drc_local_latch *latch_stat = NULL;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
@@ -1125,7 +1125,7 @@ bool32 dls_spin_timed_lock(knl_session_t *session, drlock_t * dlock, uint32 time
     uint32 spin_times = 0;
     uint32 wait_ticks = 0;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session)  && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session)  && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         DTC_DLS_DEBUG_INF("[DLS] add timed spinlock(%u/%u/%u/%u/%u)",
             dlock->drid.type, dlock->drid.uid, dlock->drid.id, dlock->drid.idx, dlock->drid.part);
@@ -1181,7 +1181,7 @@ void dls_spin_unlock(knl_session_t *session, drlock_t *dlock)
     database_t *db = &session->kernel->db;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         dls_request_spin_unlock(session, lock_res);
@@ -1200,7 +1200,7 @@ void dls_spin_add(knl_session_t *session, drlock_t *dlock)
     database_t *db = &session->kernel->db;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         drc_lock_local_res_count(lock_res);
@@ -1216,7 +1216,7 @@ void dls_spin_dec(knl_session_t *session, drlock_t *dlock)
     database_t *db = &session->kernel->db;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         drc_lock_local_res_count(lock_res);
@@ -1232,7 +1232,7 @@ void dls_spin_dec_unlock(knl_session_t *session, drlock_t *dlock)
     database_t *db = &session->kernel->db;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlock->drid.type != DR_TYPE_INVALID);
         lock_res = drc_get_local_resx(&dlock->drid);
         drc_lock_local_res_count(lock_res);
@@ -1471,7 +1471,7 @@ void dls_latch_x(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_st
     bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         for (;;) {
             lock_res = drc_get_local_resx(&dlatch->drid);
@@ -1530,7 +1530,7 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
     bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         for (;;) {
             lock_res = drc_get_local_resx(&dlatch->drid);
@@ -1595,7 +1595,7 @@ bool32 dls_latch_timed_s(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
     drc_local_lock_res_t *lock_res;
     uint32 wait_ticks = ticks_for_wait;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         DTC_DLS_DEBUG_INF("[DLS] add timed latch_s(%u/%u/%u/%u/%u)",
             dlatch->drid.type, dlatch->drid.uid, dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part);
@@ -1656,7 +1656,7 @@ bool32 dls_latch_timed_x(knl_session_t *session, drlatch_t *dlatch, uint32 ticks
     drc_local_lock_res_t *lock_res;
     uint32 wait_ticks = ticks_for_wait;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         DTC_DLS_DEBUG_INF("[DLS] add timed latch_x(%u/%u/%u/%u/%u)", dlatch->drid.type, dlatch->drid.uid,
                           dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part);
@@ -1724,7 +1724,7 @@ void dls_unlatch(knl_session_t *session, drlatch_t *dlatch, latch_statis_t *stat
     drc_local_lock_res_t *lock_res;
 
     //check dls spinlock valid in debug
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         DTC_DLS_DEBUG_INF("[DLS] release latch(%u/%u/%u/%u/%u)",
             dlatch->drid.type, dlatch->drid.uid, dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part);

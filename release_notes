@@ -120,7 +120,7 @@
     !968 cantian安装时正则匹配精度修改，匹配到秒
     !965 容器化正常修改NAMESPACE
     !944 适配LLT
-    !960 单进程mysqld编译debug包设置宏DAAC_READ_WRITE
+    !960 单进程mysqld编译debug包设置宏CANTIAN_READ_WRITE
     !951 修改参天mode的配置名
     !937 修复CTSQL显示STATISTICS_SAMPLE_SIZE不正确的问题
     !948 remove free cursor

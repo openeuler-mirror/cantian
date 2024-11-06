@@ -63,15 +63,15 @@ typedef struct rd_truncate_datafile {
     int64 size;
 } rd_truncate_datafile_t;
 
-typedef struct rd_extend_datafile_daac {
+typedef struct rd_extend_datafile_cantian {
     uint32 op_type;
     rd_extend_datafile_t datafile;
-} rd_extend_datafile_daac_t;
+} rd_extend_datafile_cantian_t;
 
-typedef struct rd_truncate_datafile_daac {
+typedef struct rd_truncate_datafile_cantian {
     uint32 op_type;
     rd_truncate_datafile_t datafile;
-} rd_truncate_datafile_daac_t;
+} rd_truncate_datafile_cantian_t;
 
 typedef struct st_rd_add_bitmap_group {
     page_id_t begin_page;
@@ -93,10 +93,10 @@ typedef struct st_rd_set_df_autoextend {
     int64 auto_extend_maxsize;
 } rd_set_df_autoextend_t;
 
-typedef struct st_rd_set_df_autoextend_daac {
+typedef struct st_rd_set_df_autoextend_cantian {
     uint32 op_type;
     rd_set_df_autoextend_t rd;
-} rd_set_df_autoextend_daac_t;
+} rd_set_df_autoextend_cantian_t;
 
 #pragma pack()
 

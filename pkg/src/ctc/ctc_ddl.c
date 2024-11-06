@@ -418,7 +418,7 @@ int ctc_lock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, const char
         return CT_ERROR;
     }
 
-    // 广播 其他daac节点
+    // 广播 其他cantian节点
     msg_prepare_ddl_req_t req = ctc_init_ddl_req(tch, lock_info);
     if (!CM_IS_EMPTY_STR(broadcast_db_name) &&
         copy_broadcast_dbname_to_req(req.db_name, MES_DB_NAME_BUFFER_SIZE, broadcast_db_name) != CT_SUCCESS) {
@@ -501,7 +501,7 @@ int ctc_broadcast_mysql_dd_invalidate_impl(ctc_handler_t *tch, knl_handle_t knl_
         return CT_ERROR;
     }
  
-    // 广播 其他daac节点
+    // 广播 其他cantian节点
     msg_invalid_dd_req_t req = ctc_fill_invalid_dd_req(tch, broadcast_req);
     mes_init_send_head(&req.head, MES_CMD_INVALID_DD_REQ, sizeof(msg_invalid_dd_req_t), CT_INVALID_ID32,
         DCS_SELF_INSTID((knl_session_t *)knl_session), 0, ((knl_session_t *)knl_session)->id, CT_INVALID_ID16);
@@ -883,7 +883,7 @@ int ctc_close_mysql_connection(ctc_handler_t *tch)
         return ret;
     }
 
-    // 广播 其他daac节点
+    // 广播 其他cantian节点
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
     CT_RETURN_IFERR(ctc_get_or_new_session(&session, tch, true, false, &is_new_session));
@@ -1185,7 +1185,7 @@ int ctc_unlock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, uint32_t
         CT_LOG_RUN_ERR("[CTC_UNLOCK_TABLE]:execute failed at other mysqld on current node conn_id:%u", tch->thd_id);
         return CT_ERROR;
     }
-    // 广播 其他daac节点
+    // 广播 其他cantian节点
     msg_commit_ddl_req_t req;
     req.tch = *tch;
     req.lock_info = *lock_info;
@@ -2178,7 +2178,7 @@ static int ctc_fill_drop_index_only(sql_stmt_t *stmt, TcDb__CtcDDLAlterTableDef 
     knl_altable_def_t *alter_def = *alterdef_ptr;
     int32_t key_type = req->drop_key_list[req_idx]->key_type;
     if (key_type == CTC_KEYTYPE_PRIMARY || key_type == CTC_KEYTYPE_UNIQUE) {
-        // 通过drop constraint的形式才能删除，但是daac侧的constraint name需要查询系统表
+        // 通过drop constraint的形式才能删除，但是cantian侧的constraint name需要查询系统表
         return CT_SUCCESS; // 后面通过drop constraint处理
     }
     fill_common_alter_def(stmt, req, alter_def);
@@ -4185,7 +4185,7 @@ EXTER_ATTACK int ctc_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
     database_t *db = &g_instance->kernel.db;
     bool32 ct_cluster_ready = CT_FALSE;
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
-        CT_RETURN_IFERR(knl_is_daac_cluster_ready(&ct_cluster_ready));
+        CT_RETURN_IFERR(knl_is_cantian_cluster_ready(&ct_cluster_ready));
         if (ct_cluster_ready) {
             *cantian_cluster_ready = true;
             CT_LOG_DEBUG_INF("[Disaster Recovery]: cantian_cluster_ready: %d.", ct_cluster_ready);
@@ -4223,7 +4223,7 @@ EXTER_ATTACK int ctc_search_metadata_status(bool *cantian_metadata_switch, bool 
     
     bool32 ct_cluster_ready = CT_FALSE;
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
-        CT_RETURN_IFERR(knl_is_daac_cluster_ready(&ct_cluster_ready));
+        CT_RETURN_IFERR(knl_is_cantian_cluster_ready(&ct_cluster_ready));
         if (ct_cluster_ready) {
             *cantian_cluster_ready = true;
             CT_LOG_RUN_INF("[CTC_SEARCH_METADATA_STATUS]: cantian_cluster_ready: %d.", ct_cluster_ready);

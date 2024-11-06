@@ -244,10 +244,10 @@ static inline void srv_print_version(void)
 
 static inline void set_mallopt()
 {
-#ifndef WITH_DAAC
+#ifndef WITH_CANTIAN
     (void)mallopt(M_ARENA_MAX, 1);
 #else
-    // only for mysql + daac in one process mode
+    // only for mysql + cantian in one process mode
     (void)mallopt(M_ARENA_MAX, CT_ARENA_MAX);
 #endif
 }

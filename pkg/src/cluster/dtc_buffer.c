@@ -307,11 +307,11 @@ bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id)
     }
 
     bool32 readable = (part_mngr->remaster_status == REMASTER_DONE &&
-                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || DAAC_SESSION_IN_RECOVERY(session) ||
+                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || CANTIAN_SESSION_IN_RECOVERY(session) ||
                         g_rc_ctx->status == REFORM_MOUNTING));
 
     // only check page_rcy_set in primary and partial recovery
-    if (readable == CT_TRUE || !DAAC_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
+    if (readable == CT_TRUE || !CANTIAN_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
         return readable;
     }
 
@@ -348,11 +348,11 @@ bool32 dtc_dls_readable(knl_session_t *session, drid_t *lock_id)
     }
 
     bool32 readable = (part_mngr->remaster_status == REMASTER_DONE &&
-                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || DAAC_SESSION_IN_RECOVERY(session) ||
+                       (g_rc_ctx->status >= REFORM_RECOVER_DONE || CANTIAN_SESSION_IN_RECOVERY(session) ||
                         g_rc_ctx->status == REFORM_MOUNTING));
 
     // only check lock_space_set in primary and partial recovery
-    if (readable == CT_TRUE || !DAAC_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
+    if (readable == CT_TRUE || !CANTIAN_PART_RECOVERY(session) || !DB_IS_PRIMARY(&session->kernel->db)) {
         return readable;
     }
 
