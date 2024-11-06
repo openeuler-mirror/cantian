@@ -251,7 +251,7 @@ static status_t ctc_ddl_reentrant_lock_user(session_t *session, dc_user_t *user,
             return CT_ERROR;
         }
     } else {
-        dls_latch_x(knl_session, &user->user_latch, knl_session->id, NULL);
+        dls_latch_sx(knl_session, &user->user_latch, knl_session->id, NULL);
     }
 
     *user_num += 1;
