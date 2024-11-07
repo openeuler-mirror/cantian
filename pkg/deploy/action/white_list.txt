@@ -1,3 +1,4 @@
 SOURCE-VERSION    UPGRADE-MODE         CHANGE_SYSTEM
 24.06.*           offline                  false
 24.09.*           offline,rollup           false
+24.12.*           offline,rollup           false
