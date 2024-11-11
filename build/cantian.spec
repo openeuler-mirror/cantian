@@ -1,5 +1,5 @@
 Name:cantian
-Version:24.09
+Version:24.12
 Release:00
 License:#None
 Group:Applications/Productivity
