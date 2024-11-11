@@ -3501,7 +3501,7 @@ void cms_proc_msg_req_gcc_export(cms_packet_head_t *msg)
     }
     cms_tool_msg_res_gcc_export_t *res = (cms_tool_msg_res_gcc_export_t *)cms_que_node_data(node);
     cms_proc_uds_res_msg_init(msg, &res->head, sizeof(cms_tool_msg_res_gcc_export_t), CMS_TOOL_MSG_RES_GCC_EXPORT);
-    ret = cms_export_gcc(req->path);
+    ret = cms_export_gcc(req->path, CMS_DEV_TYPE_FILE);
     res->result = ret;
     res->info[CMS_INFO_BUFFER_SIZE - 1] = 0;
     cms_enque(&g_cms_inst->cli_send_que, node);
