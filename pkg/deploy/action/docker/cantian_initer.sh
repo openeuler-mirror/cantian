@@ -173,20 +173,6 @@ function update_mysql_config() {
     fi
 }
 
-function update_numa_config() {
-    OS_ARCH=$(uname -i)
-    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
-        logAndEchoInfo "Begin to update numa config"
-
-        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "init_config"
-        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_numa"
-        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_dbstor"
-        python3 ${CURRENT_PATH}/../cantian/set_numa_config.py "update_cantian"
-
-        logAndEchoInfo "numa_config.json updated successfully."
-    fi
-}
-
 function wait_config_done() {
     current_domain=$1
     # 等待pod网络配置完成
@@ -502,12 +488,13 @@ function execute_cantian_numa() {
         echo "Error occurred in cantian-numa execution."
         return 0
     fi
-    update_numa_config
 
-     logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    python3 ${CURRENT_PATH}/../cantian/bind_cpu_config.py
 }
 
 function process_logs() {
+  logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+  # 启动日志处理脚本
   while true; do
     /bin/python3 /opt/cantian/common/script/logs_handler/execute.py
     if [ $? -ne 0 ]; then

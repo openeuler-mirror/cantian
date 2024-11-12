@@ -82,6 +82,10 @@ function start_cantiand() {
     OS_ARCH=$(uname -i)
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
       result_str=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_NUMA_CPU_INFO"`
+      if [ -z "$result_str" ]; then
+          echo "Error: CANTIAN_NUMA_CPU_INFO is empty."
+          exit 1
+      fi
       numactl_str="numactl -C ${result_str} "
     fi
   fi

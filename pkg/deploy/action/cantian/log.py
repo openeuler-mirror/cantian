@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import logging
 from pathlib import Path
 from logging import handlers
@@ -69,32 +70,43 @@ class DefaultLogFilter(logging.Filter):
 
 def setup(project_name):
     """
-    init log config
-    :param project_name:
+    Initialize log configuration for Kubernetes compatibility.
+    :param project_name: Name of the logging project.
     """
 
     log_root = logging.getLogger(project_name)
     for handler in list(log_root.handlers):
         log_root.removeHandler(handler)
 
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(logging.WARNING)
+    stream_handler.setFormatter(
+        logging.Formatter(
+            fmt=log_config.get("logging_context_format_string"),
+            datefmt=log_config.get("log_date_format")
+        )
+    )
+    log_root.addHandler(stream_handler)
+
     log_path = _get_log_file_path(project_name)
     if log_path:
         file_log = handlers.RotatingFileHandler(
             log_path, maxBytes=log_config.get("log_file_max_size"),
             backupCount=log_config.get("log_file_backup_count"))
-        log_root.addHandler(file_log)
-        log_root.addFilter(DefaultLogFilter())
-
-    for handler in log_root.handlers:
-        handler.setFormatter(
+        file_log.setFormatter(
             logging.Formatter(
                 fmt=log_config.get("logging_context_format_string"),
-                datefmt=log_config.get("log_date_format")))
+                datefmt=log_config.get("log_date_format")
+            )
+        )
+        log_root.addHandler(file_log)
+        log_root.addFilter(DefaultLogFilter())
 
     if log_config.get("debug"):
         log_root.setLevel(logging.DEBUG)
     else:
         log_root.setLevel(logging.INFO)
+
     return log_root
 
 

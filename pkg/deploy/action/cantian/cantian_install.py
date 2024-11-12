@@ -34,7 +34,6 @@ try:
     from options import Options
     from exception import NormalException
     from log import LOGGER
-    from set_numa_config import get_mysql_numa_info
     sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dbstor"))
     from kmc_adapter import CApiWrapper
 
@@ -1475,9 +1474,6 @@ class Installer:
                     numa_str = "0-1,6-11,16-" + str(last_numa_id)
             numa_info += numa_str + " "
             numa_num += 1
-
-        if platform.machine() == 'aarch64':
-            numa_info = get_mysql_numa_info() + " "
 
         if not numa_info.isspace():
             shm_mysql_cpu_group_info = (numa_info[:-1] + ";") * numa_cpu_num

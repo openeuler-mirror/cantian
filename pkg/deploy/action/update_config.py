@@ -98,6 +98,7 @@ def modify_ini_file(file_path, section, option, action, value=None):
     modes = stat.S_IWUSR | stat.S_IRUSR
     try:
         with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
+            file_obj.truncate(0)
             config.write(file_obj)
     except Exception as error:
         raise error
