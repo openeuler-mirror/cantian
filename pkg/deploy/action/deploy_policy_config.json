@@ -5,45 +5,38 @@
         "config": {
             "cantian_in_container": "0",
             "mysql_in_container": "0",
+            "link_type": "0",
+            "db_type": "1",
             "deploy_mode": "file",
-            "mysql_metadata_in_cantian": false
+            "mysql_metadata_in_cantian": false,
+            "ca_path": "/opt/certificate/ca.crt",
+            "crt_path": "/opt/certificate/mes.crt",
+            "key_path": "/opt/certificate/mes.key"
         }
     },
     "ModeB": {
-        "single_process": "0",
+        "single_process": "1",
         "config": {
-            "cantian_in_container": "0",
+            "cantian_in_container": "1",
             "mysql_in_container": "1",
-            "deploy_mode": "combined",
+            "link_type": "1",
+            "db_type": "1",
+            "deploy_mode": "dbstor",
             "mysql_metadata_in_cantian": true
         }
     },
     "ModeC": {
         "single_process": "1",
         "config": {
-            "cantian_in_container": "1",
-            "mysql_in_container": "1",
-            "deploy_mode": "dbstor",
-            "mysql_metadata_in_cantian": true
-        }
-    },
-    "ModeD": {
-        "single_process": "1",
-        "config": {
             "cantian_in_container": "0",
             "mysql_in_container": "0",
+            "link_type": "1",
+            "db_type": "1",
             "deploy_mode": "dbstor",
-            "mysql_metadata_in_cantian": true
-        }
-    },
-    "ModeE": {
-        "single_process": "1",
-        "config": {
-            "cantian_in_container": "1",
-            "mysql_in_container": "1",
-            "deploy_mode": "combined",
-            "mysql_metadata_in_cantian": true
+            "mysql_metadata_in_cantian": true,
+            "ca_path": "/opt/certificate/ca.crt",
+            "crt_path": "/opt/certificate/mes.crt",
+            "key_path": "/opt/certificate/mes.key"
         }
     }
-  }
-  
+}
