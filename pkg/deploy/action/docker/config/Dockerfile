@@ -12,7 +12,7 @@ COPY Cantian_connector_mysql_*_RELEASE.tgz .
 RUN tar -zxf Cantian_2*_RELEASE.tgz && rm -rf Cantian_2*_RELEASE.tgz && \
     cp DBStor_Client_*_RELEASE.tgz cantian_connector/repo && \
     rm -rf DBStor_Client_*_RELEASE.tgz && \
-    sed -i 's/"cantian_in_container": "0"/"cantian_in_container": "1"/' cantian_connector/action/config_params.json && \
+    jq '. + {"cantian_in_container": "1", "link_type": "1"} ' cantian_connector/action/config_params.json > temp && mv temp cantian_connector/action/config_params.json && \
     sed -i "s/\"deploy_user\": \"ctdba:ctdba\"/\"deploy_user\": \"${user}:${user}\"/" cantian_connector/action/config_params.json && \
     cd cantian_connector/action && sh appctl.sh install config_params.json
 
