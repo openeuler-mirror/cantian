@@ -1299,9 +1299,6 @@ void mes_channel_check_thread(thread_t *thread)
                 continue;
             }
 
-            //断掉原来的链路
-            mes_uc_disconnect(i);
-            CT_LOG_RUN_INF("disconnect success, inst_id = %d", i);
             //重新建链
             if (mes_uc_connect(i) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("reconnect failed, inst_id = %d", i);

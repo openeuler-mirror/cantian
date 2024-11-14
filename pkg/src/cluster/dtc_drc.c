@@ -780,8 +780,8 @@ void drc_buf_res_recycle(knl_session_t *session, uint32 inst_id, date_t time, pa
                 return;
             }
             if (ret != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("[DRC][%u-%u]: failed to invalidate, ignore recycle this buf_res", page_id.file,
-                               page_id.page);
+                CT_LOG_DEBUG_ERR("[DRC][%u-%u]: failed to invalidate, ignore recycle this buf_res", page_id.file,
+                                 page_id.page);
                 buf_res->pending = DRC_RES_INVALID_ACTION;
                 cm_spin_unlock(&bucket->lock);
                 cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
@@ -7358,7 +7358,8 @@ void drc_invalidate_datafile_buf_res(knl_session_t *session, uint32 file_id)
     drc_res_pool_t *pool = &g_buf_res->res_map.res_pool;
     uint32 hwm = pool->item_num;
 
-    for (uint32 i = 0; i < hwm; ++i) {
+    uint32 i = 0;
+    while (i < hwm) {
         cm_spin_lock(&pool->lock, NULL);
         drc_buf_res_t *buf_res = (drc_buf_res_t *)DRC_GET_RES_ADDR_BY_ID(pool, i);
         cm_spin_unlock(&pool->lock);
@@ -7372,17 +7373,17 @@ void drc_invalidate_datafile_buf_res(knl_session_t *session, uint32 file_id)
         if (buf_res->page_id.file != file_id || buf_res->pending == DRC_RES_PENDING_ACTION || !buf_res->is_used) {
             cm_spin_unlock(&bucket->lock);
             cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
+            i++;
             continue;
         }
 
-        knl_panic(buf_res_is_recyclable(buf_res, buf_res->claimed_owner));
-
-        if (drc_remaster_in_progress()) {
+        if (drc_remaster_in_progress()) {  // retry recycle this buf_res
             CT_LOG_RUN_WAR("[DRC][%u-%u]: reforming, stop invalidate buf res", buf_res->page_id.file,
                            buf_res->page_id.page);
             cm_spin_unlock(&bucket->lock);
             cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
-            break;
+            cm_sleep(5);  // sleep 5ms
+            continue;
         }
 
         drc_clean_page_owner_internal(g_buf_res, buf_res, bucket);
@@ -7390,5 +7391,6 @@ void drc_invalidate_datafile_buf_res(knl_session_t *session, uint32 file_id)
         cm_spin_unlock(&g_buf_res->res_part_stat_lock[part_id]);
 
         drc_res_pool_free_item(&g_buf_res->res_map.res_pool, i);
+        i++;
     }
 }

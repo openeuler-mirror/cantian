@@ -4199,7 +4199,6 @@ EXTER_ATTACK int ctc_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
         cm_sleep(META_SEARCH_WAITING_TIME_IN_MS);
     }
     CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_read: %d.", ct_cluster_ready);
- 
     return CT_ERROR;
 }
 

@@ -1112,6 +1112,7 @@ void stats_init_column_handler(knl_session_t *session, stats_col_handler_t *colu
     column_handler->mtrl.temp_seg_id = temp_seg;
     column_handler->simple_ratio = table_stats->estimate_sample_ratio;
     column_handler->is_nologging = tab_ctx->table_stats->is_nologging;
+    column_handler->g_rid.vmid = CT_INVALID_ID32;
 
     if (table_stats->is_part) {
         column_handler->g_rid = table_stats->part_start_rid;  // for record data position in temp table of every table part
@@ -3139,7 +3140,7 @@ static status_t stats_open_mtrl_rs_cursor(mtrl_rowid_t rid, mtrl_context_t *temp
 {
     vm_page_t      *page = NULL;
 
-    if (rid.vmid == 0 && rid.slot == 0) {
+    if (rid.vmid == CT_INVALID_ID32) {
         return mtrl_open_rs_cursor(temp_ctx, temp_seg, cursor);
     }
 
@@ -4437,6 +4438,7 @@ static void stats_init_index_handler(knl_session_t *session, stats_index_t *stat
     mtrl_init_context(&stats_idx->mtrl.mtrl_ctx, session);
     stats_idx->sample_ratio = sample_ratio;
     stats_idx->part_index = NULL;
+    stats_idx->g_rid.vmid = CT_INVALID_ID32;
 }
 
 void stats_calc_index_empty_size(knl_session_t *session, dc_entity_t *entity, index_t *idx, stats_index_t *stats_idx)
@@ -6634,7 +6636,7 @@ status_t stats_gather_global_columns_stats(knl_session_t *session, knl_dictionar
         }
     }
 
-    table_stats->part_start_rid.vmid = 0;
+    table_stats->part_start_rid.vmid = CT_INVALID_ID32;
     table_stats->part_start_rid.slot = 0;
     table_stats->part_stats.part_id = CT_INVALID_ID32;
 
@@ -8214,6 +8216,7 @@ static void stats_init_table_stats(knl_dictionary_t *dc, stats_table_t *table_st
     table_stats->single_part_analyze = single_part_analyze;
     table_stats->specify_part_id = specify_part_id;
     table_stats->part_sample_ratio = stats_option.sample_ratio;
+    table_stats->now_rid.vmid = CT_INVALID_ID32;
 }
 
 static status_t stats_gather_each_table_part(knl_session_t *session, knl_dictionary_t *dc,
