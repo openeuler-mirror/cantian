@@ -1097,6 +1097,8 @@ class Installer:
                 if json_data.get(tmp_word, '') != '':
                     _value = json_data.get(tmp_word, '').strip().split('=')
                     self.cantiand_configs[_value[0].strip().upper()] = _value[1].strip()
+            if json_data["CT_CLUSTER_STRICT_CHECK"] in ["FALSE", "TRUE"]:
+                self.cantiand_configs["CT_CLUSTER_STRICT_CHECK"] = json_data["CT_CLUSTER_STRICT_CHECK"]
             if g_opts.password:
                 self.cantiand_configs["_SYS_PASSWORD"] = g_opts.password
             if g_opts.cert_encrypt_pwd:

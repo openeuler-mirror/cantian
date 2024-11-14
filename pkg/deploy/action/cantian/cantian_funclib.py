@@ -92,6 +92,7 @@ class DefaultConfigValue(object):
         "DBWR_PROCESSES": 8,
         "SESSIONS": 18432,
         "CLUSTER_DATABASE": "TRUE",
+        "CT_CLUSTER_STRICT_CHECK": "TRUE",
         "_DOUBLEWRITE": "FALSE" if deploy_mode != "file" else "TRUE",
         "TEMP_BUFFER_SIZE": "25G",
         "DATA_BUFFER_SIZE": "200G",

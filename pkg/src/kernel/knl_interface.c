@@ -84,6 +84,7 @@
 #include "dtc_backup.h"
 #include "dtc_dcs.h"
 #include "ctc_ddl_list.h"
+#include "srv_param_common.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -111,6 +112,10 @@ knl_callback_t g_knl_callback = { NULL, NULL, NULL, NULL, NULL };
 #define COLUMN_DATATYPE_LEN_0 0
 #define COLUMN_DATATYPE_LEN_4 4
 #define COLUMN_DATATYPE_LEN_8 8
+
+#define CHECK_INSTANCE_STATUS(instance, id) \
+    ((instance).inst_list[(id)].stat != CMS_RES_ONLINE || \
+     (instance).inst_list[(id)].work_stat != RC_JOINED)
 
 init_cursor_t g_init_cursor = {
     .stmt = NULL,
@@ -15638,13 +15643,25 @@ status_t knl_is_cantian_cluster_ready(bool32 *is_ready)
         CT_LOG_RUN_ERR("knl_is_cantian_cluster_ready get res stat list failed");
         return CT_ERROR;
     }
-    uint16_t i = g_instance->id;
-    if (res_stat.inst_list[i].stat != CMS_RES_ONLINE ||
-            res_stat.inst_list[i].work_stat != RC_JOINED) {
-        *is_ready = CT_FALSE;
-        return CT_SUCCESS;
-    }
     *is_ready = CT_TRUE;
+    bool32 cluster_strict_check = CT_TRUE;
+    CT_RETURN_IFERR(srv_get_param_bool32("CT_CLUSTER_STRICT_CHECK", &cluster_strict_check));
+    if (cluster_strict_check) {
+        knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
+        for (uint32 i = 0; i < session->kernel->db.ctrl.core.node_count; i++) {
+            if (CHECK_INSTANCE_STATUS(res_stat, i)) {
+                CT_LOG_RUN_WAR("knl_is_daac_cluster_ready node_id : %u is not ready", i);     
+                *is_ready = CT_FALSE;
+                break;
+            }
+        }
+    } else {
+        uint16_t current_id = g_instance->id;
+        if (CHECK_INSTANCE_STATUS(res_stat, current_id)) {
+            CT_LOG_RUN_WAR("knl_is_daac_cluster_ready current node is not ready"); 
+            *is_ready = CT_FALSE;
+        }
+    }
     return CT_SUCCESS;
 }
 
