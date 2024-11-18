@@ -144,7 +144,7 @@ status_t ctbak_check_mysql_output(FILE *pipe_fp, char *check_cmd)
     bool32 found_cmd = CT_FALSE;
     ELAPSED_BEGIN(begin_time);
     while(use_time < MYSQL_LOCK_INSTANCE_TIMEOUT) {
-        if (fgets(output, MAX_STATEMENT_LENGTH, pipe_fp) != NULL) {   
+        if (fgets(output, MAX_STATEMENT_LENGTH, pipe_fp) != NULL) {
             if (strstr(output, "ERROR") != NULL || strstr(output, "Error") != NULL) {
                 printf("%s", output);
                 break;
@@ -183,7 +183,7 @@ void ctbak_execute_lock_instance(int32 pipe_stdout, int32 pipe_stdin, text_t *my
             break;
         }
         fclose(pipe_stdout_fp);
-        *lock_succ = CT_TRUE; 
+        *lock_succ = CT_TRUE;
         return;
     } while (0);
     printf("[ctbackup]check mysql execute output failed!\n");

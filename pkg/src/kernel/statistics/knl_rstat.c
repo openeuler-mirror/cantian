@@ -4070,7 +4070,7 @@ static void stats_estimate_total_idx_stats(index_t *idx, stats_index_t *stats_id
 
         if (cbo_index != NULL) {
             for (uint32 i = 0; i < idx->desc.column_count; i++) {
-                cbo_index->distinct_keys_arr[i] = stats_estimate_ndv(cbo_index->distinct_keys_arr[i], 
+                cbo_index->distinct_keys_arr[i] = stats_estimate_ndv(cbo_index->distinct_keys_arr[i],
                     stats_idx->info.keys, stats_idx->sample_ratio);
             }
         }

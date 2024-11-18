@@ -259,7 +259,7 @@ void knl_attach_cpu_core(void)
 {
     int cpu_group_num = get_cpu_group_num();
     cpu_set_t* cpu_masks = get_cpu_masks();
-    cpu_set_t mask; 
+    cpu_set_t mask;
     CPU_ZERO(&mask);
     if (cpu_group_num <= 0) {
         CT_LOG_RUN_ERR("Invalid cpu_group_num is %d!", cpu_group_num);
@@ -814,7 +814,7 @@ void knl_init_session(knl_handle_t kernel, knl_handle_t knl_session, uint32 uid,
     knl_securec_check(ret);
     ret = memset_sp(&session->wait_pool, WAIT_EVENT_COUNT * sizeof(knl_session_wait_t), 0,
         WAIT_EVENT_COUNT * sizeof(knl_session_wait_t));
-    knl_securec_check(ret);    
+    knl_securec_check(ret);
     temp_mtrl_init_context(session);
     session->temp_version = 0;
     session->index_root = NULL;
@@ -6929,7 +6929,7 @@ static status_t knl_altable_check_table_type(knl_session_t *session, knl_altable
     }
 
     if (!DB_IS_MAINTENANCE(session) && IS_SYS_DC(dc)) {
-        // allow to add nullable column for upgrade online, the nullable check is in 
+        // allow to add nullable column for upgrade online, the nullable check is in
         if (!IS_CORE_SYS_TABLE(dc->uid, dc->oid) &&
             (def->action == ALTABLE_ADD_COLUMN || def->action == ALTABLE_ADD_CONSTRAINT) &&
             knl_is_online_upgrading(session)) {
@@ -9657,7 +9657,7 @@ status_t knl_recover_set_end_point(knl_session_t *se, knl_recover_t *param, knl_
     } else {
         knl_recover_get_max_lrp(se, max_recover_lrp_lsn);
     }
-    CT_LOG_RUN_INF("[RECOVER] max_recover_scn: %llu, max_recover_lrp_lsn %llu, init time %llu", 
+    CT_LOG_RUN_INF("[RECOVER] max_recover_scn: %llu, max_recover_lrp_lsn %llu, init time %llu",
         *max_recover_scn, *max_recover_lrp_lsn, (uint64)DB_INIT_TIME(se));
     return CT_SUCCESS;
 }
@@ -15650,7 +15650,7 @@ status_t knl_is_cantian_cluster_ready(bool32 *is_ready)
         knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
         for (uint32 i = 0; i < session->kernel->db.ctrl.core.node_count; i++) {
             if (CHECK_INSTANCE_STATUS(res_stat, i)) {
-                CT_LOG_RUN_WAR("knl_is_daac_cluster_ready node_id : %u is not ready", i);     
+                CT_LOG_RUN_WAR("knl_is_daac_cluster_ready node_id : %u is not ready", i);
                 *is_ready = CT_FALSE;
                 break;
             }
@@ -15658,7 +15658,7 @@ status_t knl_is_cantian_cluster_ready(bool32 *is_ready)
     } else {
         uint16_t current_id = g_instance->id;
         if (CHECK_INSTANCE_STATUS(res_stat, current_id)) {
-            CT_LOG_RUN_WAR("knl_is_daac_cluster_ready current node is not ready"); 
+            CT_LOG_RUN_WAR("knl_is_daac_cluster_ready current node is not ready");
             *is_ready = CT_FALSE;
         }
     }

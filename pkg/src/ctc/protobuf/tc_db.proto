@@ -16,7 +16,7 @@ message CtcDDLColumnDataTypeDef {
 message CtcDDLColumnDef {
   string name = 1;
   CtcDDLColumnDataTypeDef datatype = 2;
-  uint32 is_option_set = 4; 
+  uint32 is_option_set = 4;
   uint32 col_id = 5;
   string cons_name = 6;
   string ref_user = 10;
@@ -254,7 +254,7 @@ message CtcDDLAlterSpaceDef {
   uint32 action = 1;
   string name = 2;        // name of the space
   string new_name = 3;    // name of the new space
-  uint64 auto_extend_size = 4; 
+  uint64 auto_extend_size = 4;
   string db_name = 5;
   string sql_str = 6;
 }

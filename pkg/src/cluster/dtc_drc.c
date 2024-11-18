@@ -3479,7 +3479,7 @@ static void drc_set_remaster_taskset_drc_in_reformer_mode(drc_inst_part_t *inst_
     }
 }
 
-static void drc_set_remaster_taskset(drc_inst_part_t *inst_part_entry, drc_part_mngr_t *part_mngr, uint32 inst_num) 
+static void drc_set_remaster_taskset(drc_inst_part_t *inst_part_entry, drc_part_mngr_t *part_mngr, uint32 inst_num)
 {
     uint32 i = 0;
     uint32 inst_loop_seq = 0;
@@ -3828,7 +3828,7 @@ void drc_process_remaster_param_verify(void *sess, mes_message_t *receive_msg)
     knl_session_t *session = (knl_session_t *)sess;
 
     if (msg->reformer_drc_mode != session->kernel->attr.drc_in_reformer_mode) {
-        CM_ABORT_REASONABLE(0, "[DRC] ABORT INFO: Inconsistent parameters between reformer and follower. Getting DRC_IN_REFORMER_MODE from Reformer: %u; But local DRC_IN_REFORMER_MODE: %u.", 
+        CM_ABORT_REASONABLE(0, "[DRC] ABORT INFO: Inconsistent parameters between reformer and follower. Getting DRC_IN_REFORMER_MODE from Reformer: %u; But local DRC_IN_REFORMER_MODE: %u.",
                         msg->reformer_drc_mode, session -> kernel -> attr.drc_in_reformer_mode);
         mes_release_message_buf(receive_msg->buffer);
         return;

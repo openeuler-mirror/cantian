@@ -172,7 +172,7 @@ EXTER_ATTACK int ctc_invalidate_mysql_dd_cache(ctc_handler_t *tch, ctc_invalidat
 EXTER_ATTACK int ctc_set_cluster_role_by_cantian(bool is_slave)
 {
     void* shm_inst = get_upstream_shm_inst();
-    struct set_cluster_role_by_cantian_request *req = 
+    struct set_cluster_role_by_cantian_request *req =
         (struct set_cluster_role_by_cantian_request *)alloc_share_mem(shm_inst, sizeof(struct set_cluster_role_by_cantian_request));
     if (req == NULL) {
         return ERR_GENERIC_INTERNAL_ERROR;

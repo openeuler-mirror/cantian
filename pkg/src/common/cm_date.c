@@ -2730,7 +2730,7 @@ int32 cm_datetime_cmp_mysql(void *datetime1, void *datetime2)
 }
 
 static inline int64 cm_cnvrt_time_from_binary_to_int(const uchar *ptr)
-{    
+{
     return ((int64)(cm_ptr6_to_uint_little_endian(ptr))) - TIMEF_OFS;
 }
 
@@ -3059,4 +3059,3 @@ date_t cm_timestamp2date_mysql(date_t date_input)
 #ifdef __cplusplus
 }
 #endif
-

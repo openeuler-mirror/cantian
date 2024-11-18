@@ -506,7 +506,7 @@ static inline status_t dcs_ask_master4page_r(knl_session_t *session, buf_ctrl_t 
     return ret;
 }
 
-static status_t dcs_try_get_page_exclusive_owner_r(knl_session_t *session, page_id_t *page_ids, 
+static status_t dcs_try_get_page_exclusive_owner_r(knl_session_t *session, page_id_t *page_ids,
                                                    uint32 count, uint32 master_id,
                                                    drc_req_owner_result_t *result)
 {

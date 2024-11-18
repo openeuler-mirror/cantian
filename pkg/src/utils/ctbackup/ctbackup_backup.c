@@ -285,7 +285,7 @@ status_t ctbak_do_backup_mysql(ctbak_param_t* ctbak_param)
 }
 
 void ctbak_check_backup_output(char *output, bool32 *need_retry)
-{   
+{
     if (strstr(output, CTSQL_CONNECT_CLOSED_32) != NULL) {
         *need_retry = CT_TRUE;
     }

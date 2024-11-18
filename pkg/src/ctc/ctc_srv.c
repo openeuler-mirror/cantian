@@ -1933,7 +1933,7 @@ int ctc_ddl_rollback_update_dc(knl_session_t *knl_session, knl_handle_t stmt, ct
         case DROP_DEF: {
             if (knl_open_dc_by_id(knl_session, def_node->uid, def_node->oid, &(dc_node->dc), CT_TRUE) != CT_SUCCESS) {
                 ctc_set_invalid_dc_node_id(dc_node);
-                CT_LOG_RUN_ERR("Fail to open dc for rollback(user_id:%d, table_id:%d, def_mode:%d)!", 
+                CT_LOG_RUN_ERR("Fail to open dc for rollback(user_id:%d, table_id:%d, def_mode:%d)!",
                                def_node->uid, def_node->oid, def_node->def_mode);
                 return CT_ERROR;
             }

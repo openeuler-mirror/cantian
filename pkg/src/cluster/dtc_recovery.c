@@ -228,7 +228,7 @@ status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t
             curr_page_lsn = 0;
             cm_spin_unlock(&buf_bucket->lock);
         } else {
-            curr_page_lsn = (ctrl->page)->lsn;        
+            curr_page_lsn = (ctrl->page)->lsn;
             cm_spin_unlock(&buf_bucket->lock);
         }
     }
@@ -1473,7 +1473,7 @@ void dtc_rcy_next_file(knl_session_t *session, uint32 idx, bool32 *need_more_log
         reply_point->asn++;
         reply_point->block_id = 0;
         *need_more_log = CT_TRUE;
-        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn && 
+        if (rcy_node->latest_rcy_end_lsn != rcy_node->recovery_read_end_point.lsn &&
             dtc_stats_lsn_is_changed(&(rcy_node->lsn_records.move_point_lsn_record), rcy_log_point->rcy_write_point.lsn)) {
             CT_LOG_RUN_INF("[DTC RCY] Move log point to [%u-%u/%u/%llu]", (uint32)point->rst_id, point->asn,
                            point->block_id, (uint64)point->lfn);
@@ -2028,7 +2028,7 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
             if (dtc_stats_lsn_is_changed(&(rcy_node->lsn_records.read_log_lsn_record), rcy_log_point->rcy_write_point.lsn)) {
                 CT_LOG_RUN_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
                             rcy_node->node_id, logfile_id, *size_read);
-            }  
+            }
         }
     } else {
         status = dtc_rcy_read_archived_log(session, idx, size_read);
