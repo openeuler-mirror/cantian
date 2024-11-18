@@ -261,7 +261,7 @@ status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uin
         }
     }
 
-    ret = ctc_ddl_execute_and_broadcast(&tch, broadcast_req, false, (knl_session_t *)session); 
+    ret = ctc_ddl_execute_and_broadcast(&tch, broadcast_req, false, (knl_session_t *)session);
 
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_DDL]:ctc_ddl_execute_and_broadcast failed in disaster-recovery. sql_str:%s",

@@ -75,7 +75,7 @@ uintptr_t copy_binary(FUNCTION_ARGS)
     
     cbinary_t  *new_t = (cbinary_t *) FMGR_ALLOC(sizeof(cbinary_t));
     if (new_t == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_t->bytes = FMGR_ALLOC(t->size);
     if (new_t->bytes == NULL) {
@@ -105,11 +105,11 @@ uintptr_t concat_binary(FUNCTION_ARGS)
     int new_text_size = arg1->size + arg2->size + arg3->size;
     cbinary_t *new_text = (cbinary_t *) FMGR_ALLOC(sizeof(cbinary_t));
     if (new_text == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_text->bytes = (char *) FMGR_ALLOC(new_text_size);
     if (new_text->bytes == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_text->size = new_text_size;
     memcpy(new_text->bytes, arg1->bytes, arg1->size);
@@ -130,7 +130,7 @@ uintptr_t copy_text(FUNCTION_ARGS)
     
     ctext_t  *new_t = (ctext_t *) FMGR_ALLOC(sizeof(ctext_t));
     if (new_t == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_t->str = FMGR_ALLOC(t->len);
     if (new_t->str == NULL) {
@@ -161,11 +161,11 @@ uintptr_t concat_text(FUNCTION_ARGS)
     int new_text_size = arg1->len + arg2->len;
     ctext_t *new_text = (ctext_t *) FMGR_ALLOC(sizeof(ctext_t));
     if (new_text == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_text->str = (char *) FMGR_ALLOC(new_text_size);
     if (new_text->str == NULL) {
-        FMGR_RETURN_NULL; 
+        FMGR_RETURN_NULL;
     }
     new_text->len = new_text_size;
     memcpy(new_text->str, arg1->str, arg1->len);
@@ -203,8 +203,7 @@ uintptr_t in_out_param(FUNCTION_ARGS)
 }
 
 uintptr_t exception_core(FUNCTION_ARGS)
-{   
+{
     *((unsigned int *)NULL) = 1;
     FMGR_RETURN(1);
 }
-

@@ -411,7 +411,7 @@ int ctc_lock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, const char
     char *broadcast_db_name = ctc_check_db_exists((knl_session_t *)knl_session, db_name) ? db_name : NULL;
     // 广播 mysqld
     int ret = ctc_ddl_execute_lock_tables(tch, broadcast_db_name, lock_info, error_code);
-    if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {  
+    if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[CTC_LOCK_TABLE]:execute failed at other mysqld on current node, error_code:%d"
                        "lock_info(db:%s, table:%s), conn_id:%u, ctc_instance_id:%u", *error_code,
                        lock_info->db_name, lock_info->table_name, tch->thd_id, tch->inst_id);
@@ -667,7 +667,7 @@ int ctc_ddl_execute_and_broadcast(ctc_handler_t *tch, ctc_ddl_broadcast_request 
         if (ret != CT_SUCCESS) {
             CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on current node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, ctc_instance_id:%u, allow_fail:%d",
-                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
+                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code,
                     broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
             cm_sleep(1000);
             CT_LOG_RUN_INF("Retrying to reform this ddl......");
@@ -698,7 +698,7 @@ int ctc_ddl_execute_and_broadcast(ctc_handler_t *tch, ctc_ddl_broadcast_request 
         if (error_code != CT_SUCCESS) {
             CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform ddl at mysqld on remote node, "
                     "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, err_msg:%s, conn_id:%u, ctc_instance_id:%u, allow_fail:%d",
-                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code, 
+                    broadcast_req->sql_str, broadcast_req->user_name, broadcast_req->sql_command, broadcast_req->err_code,
                     broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
             cm_sleep(1000);
             CT_LOG_RUN_INF("Retrying to reform this ddl on remote node......");
@@ -2428,7 +2428,7 @@ static int ctc_fill_rename_and_set_column_default(session_t *session, sql_stmt_t
         option_set.is_option_set = column_def->new_column.is_option_set;
 
         for (int j = 0; j < req->n_create_list; ++j) {
-            if (req->create_list[j]->name != NULL && 
+            if (req->create_list[j]->name != NULL &&
                 strcasecmp(req->alter_list[i]->name, req->create_list[j]->name) == 0) {
                 column = &column_def->new_column;
                 column->table = (void *)def;

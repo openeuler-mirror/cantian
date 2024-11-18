@@ -1090,7 +1090,7 @@ status_t tx_scn_broadcast(knl_session_t *session)
     ctrl_version_t fake_local_version = { 1, 0, 0, 1 };
     ctrl_version_t cluster_version = DB_CORE_CTRL(session)->version;
     CT_LOG_DEBUG_INF("Testing the rolling update function...");
-    CT_LOG_DEBUG_INF("The cluster version is %d.%d.%d.%d", 
+    CT_LOG_DEBUG_INF("The cluster version is %d.%d.%d.%d",
         cluster_version.main, cluster_version.major, cluster_version.revision, cluster_version.inner);
     
     if (db_cur_ctrl_version_is_higher(session, fake_local_version) ||
@@ -1457,7 +1457,7 @@ static void log_recycle_ulog_space_standby(knl_session_t *session)
             recycle_lsn = MIN(point.lsn, last_arch_log_record.end_lsn);
             CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, point lsn %llu, end lsn %llu",
                            recycle_lsn, point.lsn, last_arch_log_record.end_lsn);
-        } else if (is_archive && proc_ctx->enabled != CT_TRUE) { 
+        } else if (is_archive && proc_ctx->enabled != CT_TRUE) {
             CT_LOG_DEBUG_INF("[ARCH] skip recycle log, wait standby arch proc ctx initialized");
             continue;
         } else {
@@ -2908,4 +2908,3 @@ void log_set_logfile_writepos(knl_session_t *session, log_file_t *file, uint64 o
     file->head.write_pos = offset;
     cm_unlatch(&file->latch, NULL);
 }
-

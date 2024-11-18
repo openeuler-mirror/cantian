@@ -18,7 +18,7 @@
     "time_out": 60,
     "need_pwd": false,
     "need_ip": false
-  },  
+  },
   "ntp_server_check": {
     "inspection_file_path": "/opt/cantian/action/inspection/inspection_scripts/ct_om/cantian_om_ntp_check.py",
     "component": "ct_om",

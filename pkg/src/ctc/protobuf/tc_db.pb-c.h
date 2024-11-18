@@ -157,7 +157,7 @@ struct  TcDb__CtcDDLTableKeyPart
    */
   char *name;
   /*
-   * Length of key part in bytes, excluding NULL flag and length bytes 
+   * Length of key part in bytes, excluding NULL flag and length bytes
    */
   uint32_t length;
   int32_t datatype;

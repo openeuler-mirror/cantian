@@ -1109,7 +1109,7 @@ status_t mes_uc_create_link(uint32 inst_id, dpuc_addr *client_eid_addr, dpuc_add
     con_param.kaInterval = 1; // xnet heart beat judge interval, 0: use default values 10s;
     con_param.kaTimeoutTimes = MES_UC_XNET_TIMEOUT_TIMES; // xnet heart beat timeout disconnect.
     for (uint32 i = 0; i < g_mes.profile.channel_num; i++) {
-        ret = mes_global_handle()->dpuc_link_create_with_addr(g_mes_uc_config.eid_obj, 
+        ret = mes_global_handle()->dpuc_link_create_with_addr(g_mes_uc_config.eid_obj,
             g_mes_uc_config.dst_eid[inst_id], &con_param, __FUNCTION__);
         if (ret != DP_OK) {
             CT_LOG_RUN_ERR("To intance %d create link failed.ret = %d", inst_id, ret);

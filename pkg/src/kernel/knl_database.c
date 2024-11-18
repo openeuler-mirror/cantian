@@ -171,7 +171,7 @@ knl_scn_t db_next_scn(knl_session_t *session)
         seq++;
         knl_panic(status == CT_SUCCESS);
         CM_ABORT(status == CT_SUCCESS, "[DB] ABORT INFO: get next scn failed");
-    } else 
+    } else
 #endif
     {
         (void)cm_gettimeofday(&now);
@@ -1134,7 +1134,7 @@ static status_t db_recovery_to_initphase2(knl_session_t *session, bool32 has_off
             CT_LOG_RUN_WAR("[SPACE] failed to clean garbage tablespace");
         }
     } else if (rc_is_master()) {
-        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session); 
+        core_ctrl_t *core_ctrl = DB_CORE_CTRL(session);
         tx_area_release_impl(session, 0, core_ctrl->undo_segments, session->kernel->id);
     }
 

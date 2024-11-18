@@ -235,7 +235,7 @@ cc_binary(
         "//library:dposen",
         "//library:cmclient",
         "//library:kmcext",
-        "//library:sqlite3", 
+        "//library:sqlite3",
     ],
     linkshared = True,
 )
