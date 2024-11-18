@@ -1035,6 +1035,8 @@ config_item_t g_parameters[] = {
       PARAM_INTERCONNECT_CHANNEL_NUM, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
     { "REACTOR_THREAD_NUM", CT_TRUE, ATTR_NONE, "2", NULL, NULL, "-", "[1,32]", "CT_TYPE_INTEGER", NULL,
       PARAM_REACTOR_THREAD_NUM, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
+    { "MES_CPU_INFO", CT_TRUE, ATTR_NONE, "", NULL, NULL, "-", "-", "CT_TYPE_VARCHAR", NULL,
+      PARAM_MES_CPU_INFO, EFFECT_REBOOT, CFG_INS, sql_verify_als_cpu_inf_str, NULL, NULL, NULL },
     { "ENABLE_TX_FREE_PAGE_LIST", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_TX_FREE_PAGE_LIST, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
       sql_notify_als_enable_tx_free_page_list, sql_notify_als_bool, NULL},

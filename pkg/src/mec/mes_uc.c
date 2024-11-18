@@ -41,7 +41,6 @@ static uint32_t MY_PID = 400;
 
 #define MES_UC_BYTE_PER_PAGE_PI 8320
 #define MES_UC_MAX_USER_DATA_LEN 512
-#define MES_UC_MAX_REACTOR_THREAD_NUM 32
 #define DPLOG_MAX_NUM 20
 #define DPUC_DATA_MSG_RESERVE 1024
 #define DPUC_DATA_MSG_MAX 2048
@@ -92,7 +91,7 @@ typedef struct st_mes_uc_recv_thread {
 } mes_uc_recv_thread_t;
 
 mes_uc_config_t g_mes_uc_config;
-mes_uc_recv_thread_t g_mes_uc_recv_thead[MES_UC_MAX_REACTOR_THREAD_NUM];
+mes_uc_recv_thread_t g_mes_uc_recv_thead[CT_MES_MAX_REACTOR_THREAD_NUM];
 mes_uc_conn_t g_mes_uc_channel_status[CT_MAX_INSTANCES];
 
 spinlock_t g_thread_queue_id_lock;
@@ -655,7 +654,7 @@ void mes_get_thread_id(void)
 {
     if (g_thread_queue_id == CT_INVALID_ID8) {
         cm_spin_lock(&g_thread_queue_id_lock, NULL);
-        g_thread_queue_id = g_thread_id % MES_UC_MAX_REACTOR_THREAD_NUM;
+        g_thread_queue_id = g_thread_id % CT_MES_MAX_REACTOR_THREAD_NUM;
         g_thread_id++;
         cm_spin_unlock(&g_thread_queue_id_lock);
         CT_LOG_DEBUG_INF("set thread queue id = %d.", g_thread_queue_id);
@@ -872,25 +871,115 @@ int32_t create_and_reg_eid(mes_uc_config_t *uc_config, dpuc_msg_recv_s *msg_recv
     return ret;
 }
 
+int32_t get_cpu_id(uint32_t *cpu_id, uint32 *cpu_amount) {
+    int start = 0;
+    int end = 0;
+    char *cpu_info = get_g_mes_cpu_info();
+    char cpu_info_copy[CT_MES_MAX_CPU_STR] = {0};
+    char* next_token = NULL;
+    *cpu_amount = 0;
+    int32_t cpu_i = 0;
+    PRTS_RETURN_IFERR(memcpy_s(cpu_info_copy, CT_MES_MAX_CPU_STR, cpu_info, CT_MES_MAX_CPU_STR));
+    char* token = strtok_s(cpu_info_copy, ",", &next_token);
+
+    while (token != NULL) {
+        if (sscanf(token, "%d-%d", &start, &end) == 2) {
+            for (cpu_i = start; cpu_i <= end; cpu_i++) {   
+                if (*cpu_amount >= CT_MES_MAX_REACTOR_THREAD_NUM) {
+                    CT_LOG_RUN_ERR("CPU Core Limit Exceeded. MES_CPU_INFO can contain a maximum of %u cores", CT_MES_MAX_REACTOR_THREAD_NUM);
+                    return DP_ERROR;
+                }
+
+                cpu_id[*cpu_amount] = cpu_i;
+                (*cpu_amount)++;
+            }
+
+        } else if (sscanf(token, "%d", &start) == 1) {   
+            if (*cpu_amount >= CT_MES_MAX_REACTOR_THREAD_NUM) {
+                    CT_LOG_RUN_ERR("CPU Core Limit Exceeded. MES_CPU_INFO can contain a maximum of %u cores", CT_MES_MAX_REACTOR_THREAD_NUM);
+                    return DP_ERROR;
+                }
+
+            cpu_id[*cpu_amount] = start;
+            (*cpu_amount)++;
+
+        } else {
+            CT_LOG_RUN_ERR("MES_CPU_INFO contains unresolvable content: %s, MES_CPU_INFO:%s", token, cpu_info_copy);
+            return DP_ERROR;
+        }
+
+        token = strtok_s(NULL, ",", &next_token);
+    }
+    return DP_OK;
+}
+
+void check_set_cpu_affinity(void) {
+    if (g_mes.profile.set_cpu_affinity != CT_TRUE) {
+            CT_LOG_RUN_INF("No need to set CPU affinity.");
+            return;
+        }
+
+#if !defined(__arm__) && !defined(__aarch64__)
+    g_mes.profile.set_cpu_affinity = CT_FALSE;
+    CT_LOG_RUN_INF("No need to set CPU affinity in non-ARM environments");
+    return;
+#endif
+
+    if (g_mes.profile.pipe_type != CS_TYPE_UC_RDMA) {
+        CT_LOG_RUN_INF("No core binding if the link type is not RDMA");
+        g_mes.profile.set_cpu_affinity = CT_FALSE;
+        return;
+    }
+
+    char *mes_cpu_info = get_g_mes_cpu_info();
+    if (mes_cpu_info[0] == '\0') {
+        g_mes.profile.set_cpu_affinity = CT_FALSE;
+        CT_LOG_RUN_INF("Due to the lack of CPU info, MES will not set CPU affinity");
+        return;
+    }
+    CT_LOG_RUN_INF("CPU affinity can be configured");
+}
+
 // mes uc create reactor
 int32_t create_reactor(mes_uc_config_t *uc_config)
 {
-    int32_t ret = DP_ERROR;
+    int32_t ret = DP_OK;
     // 创建reactor
-    const uint32_t threadNum = g_mes.profile.reactor_thread_num;
+    uint32_t threadNum = g_mes.profile.reactor_thread_num;
     CT_LOG_DEBUG_INF("Set reacot thread num = %d.", threadNum);
-    if (threadNum > MES_UC_MAX_REACTOR_THREAD_NUM) {
+    if (threadNum > CT_MES_MAX_REACTOR_THREAD_NUM) {
         CT_LOG_RUN_ERR("reator threadNum is excced, threadNum = %d", threadNum);
         return DP_ERROR;
     }
 
-    dpuc_xnet_thread_info_s threadInfo[threadNum];
+    dpuc_xnet_thread_info_s threadInfo[CT_MES_MAX_REACTOR_THREAD_NUM];
     uint32_t i;
+    uint32_t cpu_amount = 0;
+    uint32_t xnet_cpu_id[CT_MES_MAX_REACTOR_THREAD_NUM];
+    check_set_cpu_affinity();
+    if (g_mes.profile.set_cpu_affinity == CT_TRUE) {
+        int32_t ret_get_cpu_id = get_cpu_id(xnet_cpu_id, &cpu_amount);
+        if(ret_get_cpu_id != DP_OK) {
+            CT_LOG_RUN_ERR("MES failed to parse CPU core binding information. ret: %d; cpu_amount: %u; threadNum %u.",
+                           ret_get_cpu_id, cpu_amount, threadNum);
+            return DP_ERROR;
+        }
+    }
+    if (g_mes.profile.set_cpu_affinity == CT_TRUE) {
+        threadNum = cpu_amount;
+        CT_LOG_RUN_INF("change xnet reactor threadNum to %u.", cpu_amount);
+    }
     for (i = 0; i < threadNum; i++) {
         threadInfo[i].pri = 0;
         CPU_ZERO(&(threadInfo[i].cpu_set));
+        if (g_mes.profile.set_cpu_affinity != CT_TRUE) {
+            CT_LOG_RUN_INF("NOT set xnet reactor CPU Affinity, reactor_id: %u.", i);
+            continue;
+        }
+        CT_LOG_RUN_INF("Set xnet reactor CPU Affinity, reactor_id: %u, cpu_id: %u.", i, xnet_cpu_id[i]);
+        CPU_SET(xnet_cpu_id[i], &(threadInfo[i].cpu_set));
     }
-    dpuc_sched_conf_info_s cfgInfo = { 0, 0, threadInfo, threadNum};
+    dpuc_sched_conf_info_s cfgInfo = {g_mes.profile.set_cpu_affinity, g_mes.profile.set_cpu_affinity, threadInfo, threadNum};
     ret = mes_global_handle()->dpuc_set_eid_reactor(uc_config->eid_obj, "mes_cfg_xnet", &cfgInfo, __FUNCTION__);
     if (ret != DP_OK) {
         CT_LOG_RUN_ERR("Generate reactor failed (%d).", ret);
@@ -1313,7 +1402,7 @@ void mes_channel_check_thread(thread_t *thread)
 status_t mes_init_uc(void)
 {
     uint32 i;
-    for (i = 0; i < MES_UC_MAX_REACTOR_THREAD_NUM; i++) {
+    for (i = 0; i < CT_MES_MAX_REACTOR_THREAD_NUM; i++) {
         init_msgqueue(&g_mes_uc_recv_thead[i].msg_queue);
         cm_init_thread_lock(&g_mes_uc_recv_thead[i].lock);
         g_mes_uc_recv_thead[i].thread_ready = CT_TRUE;

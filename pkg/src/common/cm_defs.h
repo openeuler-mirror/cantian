@@ -811,6 +811,7 @@ typedef enum en_cs_distribute_type {
 #define CT_MES_MIN_CHANNEL_NUM (uint32)(1)
 #define CT_MES_MAX_CHANNEL_NUM (uint32)(32)
 #define CT_MES_MAX_REACTOR_THREAD_NUM (uint32)(32)
+#define CT_MES_MAX_CPU_STR (uint32)(128)
 #define CT_DTC_MIN_TASK_NUM (16)
 #define CT_DTC_MAX_TASK_NUM (1000)
 #define CT_MES_MIN_POOL_SIZE (uint32)(256)
