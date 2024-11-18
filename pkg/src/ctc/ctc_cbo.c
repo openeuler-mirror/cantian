@@ -176,7 +176,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
         }
         table_stats = knl_get_cbo_part_table(handle, entity, max_part_no);
         if (table_stats != NULL) {
-            stats->records = table_stats->rows; // the biggest part, with max rows num 
+            stats->records = table_stats->rows; // the biggest part, with max rows num
         } else {
             stats->records = 0;
         }
@@ -202,7 +202,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
         }
         table_stats = knl_get_cbo_subpart_table(handle, entity, max_part_no, max_sub_part_no);
         if (table_stats != NULL) {
-            stats->records = table_stats->rows; // the biggest subpart, with max rows num 
+            stats->records = table_stats->rows; // the biggest subpart, with max rows num
         } else {
             stats->records = 0;
         }

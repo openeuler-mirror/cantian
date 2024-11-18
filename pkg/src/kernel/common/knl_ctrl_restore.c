@@ -341,7 +341,7 @@ status_t dbs_ctrl_rebuild_restore_corelog(knl_session_t *session, char *page, ui
         log_file_ctrl_t *log_ctrl = (log_file_ctrl_t *)db_get_log_ctrl_item(session->kernel->db.ctrl.pages, 0,
                                                                             sizeof(log_file_ctrl_t), offset_ctrl, i);
         ctrl_restore_logfile_ctrl(session, log_ctrl, logfile_ctrl_bk, CT_TRUE);
-        *file_id = log_ctrl->file_id; 
+        *file_id = log_ctrl->file_id;
     }
     offset = OFFSET_OF(backup_ctrl_bk_t, reset_log);
     reset_log_t *reset_logs = (reset_log_t *)(page + offset);

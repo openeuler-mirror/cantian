@@ -258,7 +258,7 @@ status_t cm_verify_lsnr_addr(const char *ipaddrs, uint32 len, uint32 *ip_cnt)
                 MEMS_RETURN_IFERR(memcpy_s(one_addr, sizeof(one_addr), ipaddrs + addr_begin, addr_end - addr_begin));
             }
             one_addr[addr_end - addr_begin] = '\0';
-            /* 适配域名 
+            /* 适配域名
             if (!cm_check_ip_valid(one_addr)) {
                 return CT_ERROR;
             }
@@ -795,7 +795,7 @@ bool32 cm_check_ip_valid(const char *ip)
     sock_addr_t sock_addr;
     int sa_family = cm_get_ip_version(ip);
     switch (sa_family) {
-        case AF_INET: 
+        case AF_INET:
             return CT_TRUE;
         
         case AF_INET6:

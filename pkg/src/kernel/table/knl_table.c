@@ -3465,7 +3465,7 @@ static status_t db_init_ltt_column(knl_column_t *column, uint32 uid, uint32 oid,
     column->flags = 0;
     column->is_collate = column_def->is_collate;
     column->collate_id = column_def->collate_id;
-    /* 
+    /*
     if (column->datatype == CT_TYPE_CLOB || column->datatype == CT_TYPE_IMAGE) {
         column->datatype = CT_TYPE_VARCHAR;
         column->size = TEMP_LOB_TO_CHAR_LENGTH;
@@ -10727,8 +10727,8 @@ static status_t db_prepare_modify_column(knl_session_t *session, knl_dictionary_
             return CT_ERROR;
         }
 
-        if (!col_null && 
-            ((old_column->mysql_ori_datatype != MYSQL_TYPE_FLOAT && old_column->mysql_ori_datatype != MYSQL_TYPE_DOUBLE) || 
+        if (!col_null &&
+            ((old_column->mysql_ori_datatype != MYSQL_TYPE_FLOAT && old_column->mysql_ori_datatype != MYSQL_TYPE_DOUBLE) ||
             (new_column->mysql_ori_datatype != MYSQL_TYPE_FLOAT && new_column->mysql_ori_datatype != MYSQL_TYPE_DOUBLE))) {
             CT_THROW_ERROR(ERR_COLUMN_NOT_EMPTY, new_column->name, table->desc.name);
             return CT_ERROR;
@@ -12851,7 +12851,7 @@ status_t db_drop_table_cascade(knl_session_t *session, text_t *user, knl_table_d
 
     cm_str2text(desc->name, &table_name);
 
-    /* In case client creates tmp user, 
+    /* In case client creates tmp user,
        when drop the tmp database or user would not choose the incorrect dc */
     if (desc->id < CT_LTT_ID_OFFSET) {
         CT_RETURN_IFERR(knl_open_dc_not_ltt(session, user, &table_name, &dc, &is_found));
@@ -19648,4 +19648,3 @@ status_t db_create_index_segment_of_hash_parts(knl_session_t *session,
     }
     return CT_SUCCESS;
 }
-

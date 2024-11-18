@@ -1395,7 +1395,7 @@ static status_t arch_write_arch_file_compress(knl_session_t *session, aligned_bu
     log_file_head_t *arch_log_head = (log_file_head_t *)buf.aligned_buf;
     arch_log_head->dbid = session->kernel->db.ctrl.core.dbid;
     if (logfile->head.cmp_algorithm != COMPRESS_LZ4) {
-        arch_log_head->cmp_algorithm = DEFAULT_ARCH_COMPRESS_ALGO; 
+        arch_log_head->cmp_algorithm = DEFAULT_ARCH_COMPRESS_ALGO;
     }
     // Recalculate checksum for log head
     log_calc_head_checksum(session, arch_log_head);
@@ -2101,8 +2101,8 @@ void arch_print_err_info(arch_proc_context_t *proc_ctx)
                        " cur_lsn %llu, offset %llu, redo log size %llu",
                        proc_ctx->need_file_archive, proc_ctx->force_archive_trigger, node_id,
                        proc_ctx->curr_arch_size, proc_ctx->last_archived_log_record.cur_lsn,
-                       proc_ctx->last_archived_log_record.offset, proc_ctx->redo_log_filesize);   
-        return; 
+                       proc_ctx->last_archived_log_record.offset, proc_ctx->redo_log_filesize);
+        return;
     }
     arch_context_t *arch_ctx = &proc_ctx->session->kernel->arch_ctx;
     CT_LOG_RUN_ERR("[ARCH] archive failed, need archive %u, force %u, node id %u, cur arch size %lld,"
@@ -2148,7 +2148,7 @@ void arch_dbstor_do_archive(knl_session_t *session, arch_proc_context_t *proc_ct
         arch_log_recycle_file(proc_ctx, node_id);
     } else {
         if (arch_need_print_error(session, proc_ctx)) {
-            arch_print_err_info(proc_ctx);        
+            arch_print_err_info(proc_ctx);
         }
         proc_ctx->need_file_archive = CT_FALSE;
         arch_dbstor_wake_force_thread(proc_ctx);
@@ -2811,7 +2811,7 @@ void arch_check_cont_archived_log_dbstor(arch_proc_context_t *proc_ctx)
 }
 
 void arch_dbstor_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
-{   
+{
     bool32 force_archive = CT_FALSE;
     arch_get_force_archive_param(proc_ctx, &force_archive);
     if (proc_ctx->is_force_archive == CT_TRUE && force_archive == CT_TRUE) {
@@ -3473,7 +3473,7 @@ status_t arch_init_logfile(knl_session_t *session)
     }
 
     arch_context_t *arch_ctx = &session->kernel->arch_ctx;
-    // init for standby node recycle log 
+    // init for standby node recycle log
     for (uint32 node_id = 0; node_id < g_dtc->profile.node_count; node_id++) {
         log_file_t *logfile = &arch_ctx->logfile[node_id];
         logfile->handle = CT_INVALID_HANDLE;
@@ -5477,7 +5477,7 @@ status_t arch_init_proc_standby()
 {
     knl_session_t *session = (knl_session_t *)g_rc_ctx->session;
     bool32 is_archive = session->kernel->arch_ctx.is_archive;
-    CT_LOG_RUN_INF("[ARCH_STANDBY] is primary %d, is dbstor %d, is master %d, is changed %d, is archive %d", 
+    CT_LOG_RUN_INF("[ARCH_STANDBY] is primary %d, is dbstor %d, is master %d, is changed %d, is archive %d",
         knl_db_is_primary(session), cm_dbs_is_enable_dbs(), rc_is_master(),
         g_rc_ctx->info.master_changed, is_archive);
     if (knl_db_is_primary(session) || !cm_dbs_is_enable_dbs() || !is_archive) {

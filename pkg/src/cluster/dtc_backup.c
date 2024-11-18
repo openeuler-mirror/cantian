@@ -193,7 +193,7 @@ void dtc_bak_file_unblocking(knl_session_t *session, uint32 file_id, uint32 sec_
                    (uint64)file_id, (uint64)sec_id, bcast.block.start, bcast.block.end, (uint64)bcast.head.rsn);
     if (ret != CT_SUCCESS) {
         CM_ABORT(0, "[BACKUP] ABORT INFO: dtc_bak_file_unblocking");
-    }              
+    }
 }
 
 void bak_process_unblock_file(void *sess, mes_message_t *msg)
@@ -490,12 +490,12 @@ status_t dtc_bak_read_logfiles(knl_session_t *session, uint32 inst_id)
     bak_arch_files_t *arch_file_buf = (bak_arch_files_t *)malloc(sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);
     if (arch_file_buf == NULL) {
         CT_LOG_RUN_ERR("[BACKUP] malloc arch file buffer failed");
-        return CT_ERROR;   
+        return CT_ERROR;
     }
     errno_t ret = memset_sp(arch_file_buf, sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM, 0, sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);
     if (ret != EOK) {
         CT_LOG_RUN_ERR("[BACKUP] memset arch file buffer failed");
-        return CT_ERROR;   
+        return CT_ERROR;
     }
     log_start_end_asn_t local_arch_file_asn = {0, 0, 0};
     log_start_end_asn_t target_arch_file_asn = {0, 0, 0};
@@ -552,13 +552,13 @@ status_t dtc_bak_read_logfiles_dbstor(knl_session_t *session, uint32 inst_id)
     bak_arch_files_t *arch_file_buf = (bak_arch_files_t *)malloc(sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);\
     if (arch_file_buf == NULL) {
         CT_LOG_RUN_ERR("[BACKUP] malloc arch file buffer failed");
-        return CT_ERROR;   
+        return CT_ERROR;
     }
     errno_t ret = memset_sp(arch_file_buf, sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM, 0,
                             sizeof(bak_arch_files_t) * BAK_ARCH_FILE_INIT_NUM);
     if (ret != EOK) {
         CT_LOG_RUN_ERR("[BACKUP] memset arch file buffer failed");
-        return CT_ERROR;   
+        return CT_ERROR;
     }
     log_start_end_asn_t arch_file_asn = {0, 0, 0};
     if (bak_get_arch_start_and_end_point_dbstor(session, inst_id, &arch_file_asn, &arch_file_buf) != CT_SUCCESS) {
@@ -1293,7 +1293,7 @@ status_t dtc_bak_force_arch_local(knl_session_t *session, uint64 lsn)
 {
     if (!DB_IS_PRIMARY(&session->kernel->db) && !rc_is_master()) {
         CT_LOG_RUN_INF("[BACKUP] standby but not master node %u, skip archive", session->kernel->id);
-        return CT_SUCCESS;         
+        return CT_SUCCESS;
     }
     if (arch_force_archive_trigger(session, lsn, CT_TRUE) != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_FORCE_ARCH_FAILED, "in backup");
@@ -2691,7 +2691,7 @@ status_t bak_remalloc_arch_file_buf(log_start_end_info_t arch_info, uint32_t new
         CT_LOG_RUN_ERR("[BACKUP] Failed to memset_s arch files buffer");
         return CT_ERROR;
     }
-    ret = memcpy_sp(arch_file_buf, sizeof(bak_arch_files_t) * (*arch_info.arch_num_cap), 
+    ret = memcpy_sp(arch_file_buf, sizeof(bak_arch_files_t) * (*arch_info.arch_num_cap),
                     *arch_info.arch_file_buf, sizeof(bak_arch_files_t) * (*arch_info.arch_num_cap));
     if (ret != EOK) {
         CM_FREE_PTR(arch_file_buf);
@@ -2705,7 +2705,7 @@ status_t bak_remalloc_arch_file_buf(log_start_end_info_t arch_info, uint32_t new
 }
 
 status_t bak_check_arch_file_num(log_start_end_info_t arch_info)
-{ 
+{
     if (*arch_info.arch_num >= *arch_info.arch_num_cap) {
         if (*arch_info.arch_num_cap >= BAK_ARCH_FILE_MAX_NUM) {
             CT_LOG_RUN_ERR("[BACKUP] the number of archive files to backup "

@@ -254,7 +254,7 @@ static bool32 sql_par_can_multi_prod(sql_query_t *query, plan_node_t *plan)
     return CT_FALSE;
 }
 
-static status_t sql_create_group_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass, 
+static status_t sql_create_group_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass,
                                       plan_node_t **group_plan)
 {
     uint32 i;
@@ -361,7 +361,7 @@ static status_t sql_create_cube_sub_plan(sql_stmt_t *stmt, sql_query_t *query, c
     return CT_SUCCESS;
 }
 
-static status_t sql_create_cube_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass, 
+static status_t sql_create_cube_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass,
                                      plan_node_t **cube_plan)
 {
     cube_node_t *cube_node = NULL;
@@ -420,7 +420,7 @@ static status_t sql_create_pivot_plan(sql_stmt_t *stmt, sql_query_t *query, plan
     return CT_SUCCESS;
 }
 
-static status_t sql_create_unpivot_plan(sql_stmt_t *stmt, sql_query_t *query, 
+static status_t sql_create_unpivot_plan(sql_stmt_t *stmt, sql_query_t *query,
                                         plan_assist_t *plan_ass, plan_node_t **plan)
 {
     plan_node_t *next_plan = NULL;
@@ -525,7 +525,7 @@ static status_t sql_generate_btree_sort(sql_stmt_t *stmt, sql_query_t *query, ui
     return generate_btree_cmp_keys(*btree_sort, sort_key_map, total_keys);
 }
 
-static status_t sql_get_distinct_plan_type(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass, 
+static status_t sql_get_distinct_plan_type(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass,
                                            plan_node_t *plan,
     plan_node_type_t *plan_type)
 {
@@ -717,7 +717,7 @@ static status_t sql_create_aggr_plan(sql_stmt_t *stmt, sql_query_t *query, plan_
     return sql_generate_optimize_aggr_cond(stmt, query, aggrnode->argument);
 }
 
-static status_t sql_create_for_update_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass, 
+static status_t sql_create_for_update_plan(sql_stmt_t *stmt, sql_query_t *query, plan_assist_t *plan_ass,
                                            plan_node_t **plan)
 {
     CT_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(plan_node_t), (void **)plan));

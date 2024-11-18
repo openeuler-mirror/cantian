@@ -212,7 +212,7 @@ void undo_init_proc(thread_t *thread)
     }
     g_knl_callback.release_knl_session(session);
     CT_LOG_RUN_INF("prefetch end thread %u", lseg_no);
-    return;    
+    return;
 }
 
 

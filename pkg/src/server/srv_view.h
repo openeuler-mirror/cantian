@@ -29,7 +29,7 @@
 #include "knl_dc.h"
 
 #define LOG_LEVEL_MODE_VIEW 1
-#define LOG_MODE_PARAMETER_COUNT 1 
+#define LOG_MODE_PARAMETER_COUNT 1
 typedef enum en_dynview_id {
     DYN_VIEW_LOGFILE,
     DYN_VIEW_LIBRARYCACHE,

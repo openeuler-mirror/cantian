@@ -45,9 +45,9 @@ const char* g_hook_func_desc[HOOK_FUNC_TAIL] = {
 };
 
 int32  g_sign_array[] = { SIGINT, SIGQUIT, SIGILL, SIGBUS,
-                          SIGFPE, SIGSEGV, 
-#ifndef WITH_CANTIAN                         
-                          SIGALRM, 
+                          SIGFPE, SIGSEGV,
+#ifndef WITH_CANTIAN
+                          SIGALRM,
 #endif
                           SIGTERM,
                           SIGTSTP, SIGTTIN, SIGTTOU, SIGXCPU, SIGXFSZ,

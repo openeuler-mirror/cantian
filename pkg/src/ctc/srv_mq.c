@@ -268,7 +268,7 @@ static int init_cpu_mask(char *cpu_info_str, int *cpu_group_num, int cpu_info[SH
             if (num == 1) {
                 e = s;
             } else if (num != 2) {
-                CT_LOG_RUN_ERR("cpu configuration error, num = %d, s = %d, e = %d, should be like \"0-3\" or \"0\", but \"%s\"", 
+                CT_LOG_RUN_ERR("cpu configuration error, num = %d, s = %d, e = %d, should be like \"0-3\" or \"0\", but \"%s\"",
                                num, s, e, cpu_str);
                 return CT_ERROR;
             }

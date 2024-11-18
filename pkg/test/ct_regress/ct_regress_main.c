@@ -114,11 +114,11 @@ typedef enum
 {
     OPT_UNKNOWN    = -1,
     OPT_HELP       = 0,
-    OPT_BINDIR     = 1, 
+    OPT_BINDIR     = 1,
     OPT_INPUTDIR   = 2,
     OPT_OUTPUTDIR  = 3,
     OPT_EXPECTDIR  = 4,
-    OPT_SCHEDULE   = 5,  
+    OPT_SCHEDULE   = 5,
     OPT_HOST       = 6,
     OPT_PORT       = 7,
     OPT_USER       = 8,
@@ -1076,7 +1076,7 @@ static void diff_test_group()
         date_t elapsed = g_cases.tests[i].end_time - g_cases.tests[i].begin_time;
 
         gr_printf(" [%c]      %-24s:  ", g_ttyp_flag[g_cases.t_typ], g_cases.tests[i].name);
-        if (diff_single_schedule(g_cases.tests[i].name, 
+        if (diff_single_schedule(g_cases.tests[i].name,
             g_cases.tests[i].outfile,
             g_cases.tests[i].expfile) == CT_TRUE)
         {

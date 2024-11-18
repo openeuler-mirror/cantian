@@ -139,7 +139,7 @@ typedef enum {
     ULOG_RETURN_TIMEOUT, // timeout
     ULOG_RETURN_MODE_MISMATCH, // ulog mode mismatch
     ULOG_RETURN_TRANSFER_ERROR, // transfer error
-    ULOG_RETURN_SERVER_ERROR, // server error return 
+    ULOG_RETURN_SERVER_ERROR, // server error return
     ULOG_RETURN_GET_STREAMOBJ_ERROR, // get streamObj cache error
     // setting error
     ULOG_RETURN_ALREADY_CREATED,
@@ -230,7 +230,7 @@ typedef union object_id_t {
         uint32_t snapId;         // 默认为0
         uint64_t type : 4;       // 对于kvs,填KVS_ALGORITHM_E; 其它，填XOBJECT_TYPE_E
         uint64_t shardId : 12;   // shardid
-        uint64_t objId : 48;  
+        uint64_t objId : 48;
         uint8_t  childNum;       // 孩子数量，等于0说明自己就是孩子.haizi的ID等于几ID+1...，shardid等于
     } __attribute__((packed));
     uint8_t objHandle[OBJ_HANDLE_LEN];   // UUID
@@ -303,7 +303,7 @@ typedef struct {
     char             nsName[CSS_MAX_NAME_LEN];
     uint32_t         mod;
     uint32_t         tierType;
-    uint64_t         feature; 
+    uint64_t         feature;
     LsnId            recycleLsn;
     uint32_t         pageSize;
     bool             isSupportMVCC;
@@ -360,7 +360,7 @@ typedef struct {
 typedef struct {
     LsnId startLsn; //
     LsnId endLsn;   //
-    LsnId preLsn;   // 
+    LsnId preLsn;   //
 } LogLsn;
 
 typedef struct {
