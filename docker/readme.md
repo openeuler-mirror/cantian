@@ -87,7 +87,8 @@ sh Makefile.sh package
 sh Makefile.sh package-release
 ```
 
-### 单节点Cantian部署
+### Cantian部署
+#### 单节点Cantian部署
 
 ```shell
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
@@ -96,7 +97,7 @@ mkdir -p /home/cantiandba/logs
 # 如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
-### 双节点Cantian部署
+#### 双节点Cantian部署
 ```shell
 #节点0，在容器内执行以下命令
 # -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
@@ -129,6 +130,7 @@ python3 install.py -U cantiandba -F -D /home/cantiandba/data -g withoutroot -d
 ### MySQL-Connector编译
 
 #### 元数据归一版本（MySQL元数据在cantian存放，修改了MySQL源码，需要应用patch生效）
+<a id="patch"></a>
 ##### 应用patch，修改源码
 ```shell
 cd cantian-connector-mysql/mysql-source
@@ -154,7 +156,7 @@ cp /home/regress/CantianKernel/library/protobuf/protobuf-c/protobuf-c.h /home/re
 
 #### 非归一MySQL编译
 
-双节点部署时，非元数据归一版本（MySQL元数据存放在InnoDB引擎）只需要在其中一个节点编译mysql即可
+无需对mysql源码打patch，双节点部署时，非元数据归一版本（MySQL元数据存放在InnoDB引擎）只需要在其中一个节点编译mysql即可
 
 ```shell
 cd /home/regress/CantianKernel/build
@@ -163,6 +165,32 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bl
 ```
 
 ### MySQL部署
+#### 元数据归一/非归一（推荐脚本拉起）
+
+双节点拉起前需分别执行以下命令
+
+```shell
+# node0
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql_package_node0
+
+# node1
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql_package_node1
+```
+
+使用`install.py`脚本拉起
+
+```shell
+# -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
+# 部署形态默认为元数据归一，此参数默认为TRUE，如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE。
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+mkdir -p /home/regress/logs
+元数据归一：
+python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
+非归一：
+python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf -Z MYSQL_METADATA_IN_CANTIAN=FALSE
+```
 
 #### 元数据归一(手动拉起)
 
@@ -192,38 +220,17 @@ mkdir -p /home/regress/mydata/mysql
 /usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file
 ```
 
-#### 元数据归一/非归一
-
-双节点拉起前需分别执行以下命令
-
-```shell
-# node0
-cd /home/regress/CantianKernel/build
-sh Makefile.sh mysql_package_node0
-
-# node1
-cd /home/regress/CantianKernel/build
-sh Makefile.sh mysql_package_node1
-```
-
-使用`install.py`脚本拉起
-
-```shell
-cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
-mkdir -p /home/regress/logs
-python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
-```
-
 #### 拉起检验MySQL
 
 ```shell
 /usr/local/mysql/bin/mysql -uroot
 ```
 登录MySQL客户端后执行命令
+
 <a id="section3"></a>
 ## 卸载清理
 
-若脚本卸载执行失败或需要重新编译安装部署，可执行以下命令手动卸载后再重新从cantian部署部分开始执行（除编译及打patch步骤）
+若脚本卸载执行失败或需要重新编译安装部署，可执行以下命令手动卸载后再重新从[cantian部署](#section2)部分开始执行
 
 ```shell
 kill -9 $(pidof mysqld)
@@ -245,14 +252,15 @@ sh Makefile.sh package CANTIAN_READ_WRITE=1 no_shm=1
 ```
 
 ### 编译MySQL
-
+同双进程一样，归一版本的MySQL也需要[打patch](#patch)如果不打patch，编译出来的MySQL为非归一版本。非归一版本需要在部署的时候加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE方能运行。见[部署](#single_deploy)
 ```Bash  
 cd /home/regress/CantianKernel/build
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
 sh Makefile.sh mysql no_shm=1
 ```
 
-### 部署
+<a id="single_deploy"></a>
+### 单进程部署
 
 ```Bash  
 cd /home/regress/CantianKernel/build
@@ -263,7 +271,7 @@ mkdir -p /home/cantiandba/logs
 # 如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
-卸载清理命令和单进程一致
+卸载清理命令和[双进程卸载清理](#section3)一致。
 注：单进程部署过后转双进程建议删除代码重新拉，否则仍会有代码残留导致形态无法切换
 <a id="section5"></a>
 ## 进程调试
