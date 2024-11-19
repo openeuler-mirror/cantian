@@ -1407,14 +1407,14 @@ static void log_recycle_ulog_space(knl_session_t *session, log_point_t *point)
 
     log_lock_logfile(session);
     file = &ctx->files[ctx->curr_file];
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
     free_size = cm_dbs_ulog_recycle(file->handle, point->lsn);
     if (free_size != 0) {
         ctx->free_size = free_size;
     }
     ctx->alerted = CT_FALSE;
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
     log_unlock_logfile(session);
     return;
 }
@@ -1465,14 +1465,14 @@ static void log_recycle_ulog_space_standby(knl_session_t *session)
             CT_LOG_DEBUG_INF("[ARCH] recycle lsn %llu, archive disabled", recycle_lsn);
         }
 
-        timeval_t tv_begin;
+        uint64_t tv_begin;
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
         uint64 free_size = cm_dbs_ulog_recycle(logfile_handle, recycle_lsn);
         if (free_size != 0) {
             ctx->free_size = free_size;
         }
         ctx->alerted = CT_FALSE;
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
     }
     log_unlock_logfile(session);
     return;

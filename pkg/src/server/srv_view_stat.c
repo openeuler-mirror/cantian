@@ -133,17 +133,8 @@ static knl_column_t g_io_stat_record_columns[] = {
     { 0, "STATISTIC#",     0, 0, CT_TYPE_INTEGER, sizeof(uint32),  0, 0, CT_FALSE, 0, { 0 }},
     { 1, "NAME",           0, 0, CT_TYPE_VARCHAR, CT_MAX_NAME_LEN, 0, 0, CT_FALSE, 0, { 0 }},
     { 2, "START",          0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 3, "BACK_GOOD",      0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 4, "BACK_BAD",       0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 5, "NOT_BACK",       0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
     { 6, "AVG_US",         0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 7, "MAX_US",         0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 8, "MIN_US",         0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
     { 9, "TOTAL_US",       0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 10, "TOTAL_GOOD_US", 0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 11, "AVG_GOOD_US",   0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 12, "TOTAL_BAD_US",  0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
-    { 13, "AVG_BAD_US",    0, 0, CT_TYPE_BIGINT, sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
 };
 
 static knl_column_t g_rfstat_columns[] = {
@@ -1100,39 +1091,13 @@ status_t vw_rfstat_open(knl_handle_t se, knl_cursor_t *cursor)
 static status_t io_record_fetch(row_assist_t *ra, io_record_detail_t detail, knl_cursor_t *cursor)
 {
     CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.start)));
-    CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.back_good)));
-    CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.back_bad)));
-    uint64 total_back = detail.back_good + detail.back_bad;
-    uint64 not_back = detail.start - total_back;
-    CT_RETURN_IFERR(row_put_int64(ra, (int64)not_back));
-    if (total_back == 0) {
-        row_put_null(ra);
-        row_put_null(ra);
+    if (detail.start == 0) {
         row_put_null(ra);
         row_put_null(ra);
     } else {
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_time / total_back)));
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.max_time)));
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.min_time)));
+        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_time / detail.start)));
         CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_time)));
     }
-
-    if (detail.back_good == 0) {
-        row_put_null(ra);
-        row_put_null(ra);
-    } else {
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_good_time)));
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_good_time / detail.back_good)));
-    }
-
-    if (detail.back_bad == 0) {
-        row_put_null(ra);
-        row_put_null(ra);
-    } else {
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_bad_time)));
-        CT_RETURN_IFERR(row_put_int64(ra, (int64)(detail.total_bad_time / detail.back_bad)));
-    }
-
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
     cursor->rowid.vmid++;
     return CT_SUCCESS;

@@ -552,34 +552,34 @@ status_t pcrh_rowid_scan_fetch(knl_handle_t session, knl_cursor_t *cursor)
  */
 status_t pcrh_fetch_by_rid(knl_session_t *session, knl_cursor_t *cursor)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
     cursor->ssi_conflict = CT_FALSE;
     if (pcrh_read_by_given_rowid(session, cursor, cursor->query_scn, cursor->isolevel, &cursor->is_found) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
         return CT_ERROR;
     }
 
     if (!cursor->is_found) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
         return CT_SUCCESS;
     }
 
     if (knl_match_cond(session, cursor, &cursor->is_found) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
         return CT_ERROR;
     }
 
     if (!cursor->is_found || cursor->action <= CURSOR_ACTION_SELECT) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
         return CT_SUCCESS;
     }
 
     if (pcrh_lock_row(session, cursor, &cursor->is_found) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
         return CT_ERROR;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_FETCH_BY_ROWID, &tv_begin);
     return CT_SUCCESS;
 }
 
@@ -909,8 +909,7 @@ status_t pcrh_fetch_inter(knl_handle_t handle, knl_cursor_t *cursor)
     heap_t *heap = NULL;
     seg_stat_t temp_stat;
     status_t status;
-    io_record_stat_t io_stat = IO_STAT_SUCCESS;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin);
 
     knl_panic_log(cursor->is_valid, "current cursor is invalid, panic info: page %u-%u type %u table %s",
@@ -919,8 +918,7 @@ status_t pcrh_fetch_inter(knl_handle_t handle, knl_cursor_t *cursor)
 
     if (IS_DUAL_TABLE((table_t *)cursor->table)) {
         status = dual_fetch(session, cursor);
-        io_stat = (status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin, io_stat);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin);
         return status;
     }
 
@@ -932,7 +930,7 @@ status_t pcrh_fetch_inter(knl_handle_t handle, knl_cursor_t *cursor)
         if (IS_INVALID_ROWID(cursor->rowid)) {
             cursor->is_found = CT_FALSE;
             cursor->eof = CT_TRUE;
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin);
             return CT_SUCCESS;
         }
 
@@ -988,8 +986,7 @@ status_t pcrh_fetch_inter(knl_handle_t handle, knl_cursor_t *cursor)
     }
 
     SEG_STATS_RECORD(session, temp_stat, &heap->stat);
-    io_stat = (status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin, io_stat);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_PCRH_FETCH, &tv_begin);
     return status;
 }
 

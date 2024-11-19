@@ -2165,14 +2165,14 @@ status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor)
     knl_scan_key_t *scan_key = NULL;
     key_locator_t *locator = NULL;
     seg_stat_t temp_stat;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
 
     SEG_STATS_INIT(session, &temp_stat);
 
     if (SECUREC_UNLIKELY(btree->segment == NULL)) {
         cursor->eof = CT_TRUE;
-        cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
         return CT_SUCCESS;
     }
 
@@ -2189,19 +2189,19 @@ status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor)
         /* for equal fetch, skip fetch again, if we have located key */
         if (equal_fetch && locator->is_located) {
             cursor->eof = CT_TRUE;
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_SUCCESS;
         }
 
         if (pcrb_find_key(session, cursor, scan_key) != CT_SUCCESS) {
             SEG_STATS_RECORD(session, temp_stat, &btree->stat);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_ERROR;
         }
 
         if (cursor->eof) {
             SEG_STATS_RECORD(session, temp_stat, &btree->stat);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_SUCCESS;
         }
 
@@ -2214,13 +2214,13 @@ status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor)
         pcrb_leave_curr_page(session, locator);
 
         if (status != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_ERROR;
         }
 
         if (cursor->is_found) {
             if (knl_cursor_ssi_conflict(cursor, CT_FALSE) != CT_SUCCESS) {
-                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_FAILED);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
                 return CT_ERROR;
             }
         }
@@ -2237,7 +2237,7 @@ status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor)
 
         if (cursor->eof) {
             SEG_STATS_RECORD(session, temp_stat, &btree->stat);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_SUCCESS;
         }
 
@@ -2254,19 +2254,19 @@ status_t pcrb_fetch(knl_handle_t handle, knl_cursor_t *cursor)
             }
 
             if (knl_match_cond(session, cursor, &cursor->is_found) != CT_SUCCESS) {
-                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, CT_ERROR);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
                 return CT_ERROR;
             }
         } else {
             if (TABLE_ACCESSOR(cursor)->do_fetch_by_rowid(session, cursor) != CT_SUCCESS) {
-                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, CT_ERROR);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
                 return CT_ERROR;
             }
         }
 
         if (cursor->is_found) {
             SEG_STATS_RECORD(session, temp_stat, &btree->stat);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_PCRB_FETCH, &tv_begin);
             return CT_SUCCESS;
         }
     }

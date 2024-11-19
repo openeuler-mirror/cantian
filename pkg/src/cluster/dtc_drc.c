@@ -6429,7 +6429,7 @@ static void drc_collect_page_info(thread_t *thread)
         return;
     }
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     for (uint32 j = param->start; j < param->start + param->count_per_thread; j++) {
         // page beyond hwm must not be readonly copy from aborted instance, nor be mastered on aborted instance.
         // because during recovery, new requests related to aborted instance are blocked.
@@ -6483,14 +6483,14 @@ static void drc_collect_page_info(thread_t *thread)
             (void)drc_get_page_remaster_id(page_id, &new_master_id);
             cantian_record_io_stat_begin(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin);
             (void)drc_cache_page_info(cache_param, new_master_id, ctrl, batch_buf);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin);
             cm_spin_unlock(&bucket->lock);
         }
         cm_spin_unlock(&buf_set->lock);
     }
     cantian_record_io_stat_begin(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin);
     (void)drc_send_rest_page_info(cache_param, batch_buf);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD, &tv_begin);
     drc_deinit_batch_buf(batch_buf);
 
     (void)cm_atomic_dec(param->job_num);

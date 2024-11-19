@@ -2075,7 +2075,7 @@ status_t cms_elect_res_reformer(uint32 res_id, uint8 reformer, uint8* new_reform
 status_t cms_try_be_master(void)
 {
     cms_res_reformer_t reformers;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin);
     CT_RETURN_IFERR(cms_disk_lock_get_data(&g_cms_inst->master_lock, (char *)&reformers, sizeof(cms_res_reformer_t)));
 
@@ -2103,7 +2103,7 @@ status_t cms_try_be_master(void)
         (inst_id != g_cms_param->node_id)) {
         CMS_LOG_INF("cms master changed, old master %llu, new master %u", inst_id, g_cms_param->node_id);
     }
-    cantian_record_io_stat_end(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin);
     return CT_SUCCESS;
 }
 
@@ -2192,7 +2192,8 @@ void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, io_record_stat_
     if (node_hb_aync != NULL) {
         cm_atomic_inc(&(g_io_record_event_wait[CMS_IO_RECORD_HB_AYNC_TIME_GAP].detail.start));
         cms_hb_aync_start_t *hb_write_aync = (cms_hb_aync_start_t *)cms_que_node_data(node_hb_aync);
-        cantian_record_io_stat_end(CMS_IO_RECORD_HB_AYNC_TIME_GAP, &(hb_write_aync->hb_time_aync_start), stat);
+        uint64_t sec = (uint64_t)hb_write_aync->hb_time_aync_start.tv_sec;
+        cantian_record_io_stat_end(CMS_IO_RECORD_HB_AYNC_TIME_GAP, &sec);
         cms_que_free_node(node_hb_aync);
     }
 }

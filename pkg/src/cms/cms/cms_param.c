@@ -515,7 +515,7 @@ status_t cms_load_param(int64* time_stamp)
     uint32 val_uint32;
     int64 val_int64;
     CT_RETURN_IFERR(cms_get_cms_home());
-    g_cm_io_record_open = CT_TRUE;
+    g_cm_cantian_event_tracking_open = CT_TRUE;
     // get config info
     ret = snprintf_s(file_name, CMS_FILE_NAME_BUFFER_SIZE, CMS_MAX_FILE_NAME_LEN, "%s/cfg/%s", g_param.cms_home,
         CMS_CFG_FILENAME);

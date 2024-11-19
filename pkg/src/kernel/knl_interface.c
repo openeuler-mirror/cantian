@@ -3707,22 +3707,22 @@ static status_t knl_update_index_key(knl_handle_t session, knl_cursor_t *cursor)
 
 status_t knl_insert(knl_handle_t session, knl_cursor_t *cursor)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
     if (cursor->vnc_column != NULL) {
         CT_THROW_ERROR(ERR_COLUMN_NOT_NULL, cursor->vnc_column);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
         return CT_ERROR;
     }
 
     if (knl_internal_insert(session, cursor) == CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
         return CT_SUCCESS;
     }
 
     if (cursor->rowid_count == 0) {
         CT_THROW_ERROR(ERR_INVALID_NUMBER, "");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
         return CT_ERROR;
     }
 
@@ -3735,14 +3735,14 @@ status_t knl_insert(knl_handle_t session, knl_cursor_t *cursor)
         if (knl_internal_insert(session, cursor) != CT_SUCCESS) {
             cursor->rowid_count = i;
             cursor->row = row_addr;
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
             return CT_ERROR;
         }
         cursor->row = (row_head_t *)((char *)cursor->row + cursor->row->size);
     }
 
     cursor->row = row_addr;
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INSERT, &tv_begin);
     return CT_SUCCESS;
 }
 
@@ -4019,12 +4019,12 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
     table = (table_t *)cursor->table;
     index_set = &table->index_set;
 
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
 
     if (!cursor->is_valid) {
         CT_THROW_ERROR(ERR_INVALID_CURSOR);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4033,7 +4033,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
 
     if (TABLE_ACCESSOR(cursor)->do_delete(session, cursor) != CT_SUCCESS) {
         knl_rollback(session, &savepoint);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4041,7 +4041,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, NULL);
 
     if (SECUREC_UNLIKELY(!cursor->is_found)) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
         return CT_SUCCESS;
     }
 
@@ -4074,7 +4074,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
         if (knl_delete_index_key(session, cursor) != CT_SUCCESS) {
             knl_rollback(session, &savepoint);
             knl_restore_cursor_index(cursor, org_index, org_index_slot);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
             return CT_ERROR;
         }
         SEG_STATS_RECORD(session, temp_stat, &btree->stat);
@@ -4084,7 +4084,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
         knl_rollback(session, &savepoint);
         CT_THROW_ERROR(ERR_CONSTRAINT_VIOLATED);
         knl_restore_cursor_index(cursor, org_index, org_index_slot);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4092,7 +4092,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
         if (knl_update_shadow_index(session, cursor, table->shadow_index, CURSOR_ACTION_DELETE) != CT_SUCCESS) {
             knl_rollback(session, &savepoint);
             knl_restore_cursor_index(cursor, org_index, org_index_slot);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
             return CT_ERROR;
         }
     }
@@ -4103,7 +4103,7 @@ status_t knl_internal_delete(knl_handle_t handle, knl_cursor_t *cursor)
         stats_monitor_table_change(cursor);
     }
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_DELETE, &tv_begin);
     return CT_SUCCESS;
 }
 
@@ -4132,12 +4132,12 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
     knl_part_locate_t new_part_loc;
     table = (table_t *)cursor->table;
     index_set = &table->index_set;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
 
     if (!cursor->is_valid) {
         CT_THROW_ERROR(ERR_INVALID_CURSOR);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4150,7 +4150,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
 
     if (!IS_COMPATIBLE_MYSQL_INST) {
         if (IS_PART_TABLE(table) && part_prepare_crosspart_update(se, cursor, &new_part_loc) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
             return CT_ERROR;
         }
 
@@ -4161,22 +4161,22 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
                 knl_rollback(session, &savepoint);
                 CT_THROW_ERROR(ERR_INVALID_OPERATION,
                                ", cross partition update between different partition row types are forbidden");
-                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
                 return CT_ERROR;
             }
             if (knl_crosspart_update(se, cursor, new_part_loc) != CT_SUCCESS) {
                 knl_rollback(session, &savepoint);
-                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
                 return CT_ERROR;
             }
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
             return CT_SUCCESS;
         }
     }
 
     if (TABLE_ACCESSOR(cursor)->do_update(session, cursor) != CT_SUCCESS) {
         knl_rollback(session, &savepoint);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4212,7 +4212,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
         if (knl_update_index_key(session, cursor) != CT_SUCCESS) {
             knl_rollback(session, &savepoint);
             knl_restore_cursor_index(cursor, org_index, org_index_slot);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
             return CT_ERROR;
         }
         SEG_STATS_RECORD(se, temp_stat, &btree->stat);
@@ -4222,7 +4222,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
         knl_rollback(session, &savepoint);
         CT_THROW_ERROR(ERR_CONSTRAINT_VIOLATED);
         knl_restore_cursor_index(cursor, org_index, org_index_slot);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -4231,7 +4231,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
             if (knl_verify_check_cons(se, cursor, table->cons_set.check_cons[i]) != CT_SUCCESS) {
                 knl_rollback(session, &savepoint);
                 knl_restore_cursor_index(cursor, org_index, org_index_slot);
-                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+                cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
                 return CT_ERROR;
             }
         }
@@ -4241,7 +4241,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
         if (knl_update_shadow_index(se, cursor, table->shadow_index, CURSOR_ACTION_UPDATE) != CT_SUCCESS) {
             knl_rollback(session, &savepoint);
             knl_restore_cursor_index(cursor, org_index, org_index_slot);
-            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
             return CT_ERROR;
         }
     }
@@ -4252,7 +4252,7 @@ status_t knl_internal_update(knl_handle_t session, knl_cursor_t *cursor)
         stats_monitor_table_change(cursor);
     }
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_INTERNAL_UPDATE, &tv_begin);
     return CT_SUCCESS;
 }
 
@@ -5235,7 +5235,7 @@ status_t knl_create_table_as_select(knl_handle_t session, knl_handle_t stmt, knl
 status_t knl_create_table(knl_handle_t session, knl_handle_t stmt, knl_table_def_t *def)
 {
     CT_LOG_RUN_INF("[DB] Start to create table %s", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     drlatch_t *ddl_latch = &se->kernel->db.ddl_latch;
@@ -5244,19 +5244,19 @@ status_t knl_create_table(knl_handle_t session, knl_handle_t stmt, knl_table_def
     bool32 is_existed = CT_FALSE;
 
     if (knl_ddl_enabled(session, CT_FALSE) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     if (dc_open_user(se, &def->schema, &user) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     dls_latch_x(session, &user->user_latch, se->id, NULL);
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -5266,8 +5266,7 @@ status_t knl_create_table(knl_handle_t session, knl_handle_t stmt, knl_table_def
     dls_unlatch(session, ddl_latch, NULL);
     dls_unlatch(session, &user->user_latch, NULL);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
     CT_LOG_DEBUG_INF("[DB] Finish to create table %s, ret: %d", T2S_EX(&def->name), status);
     return status;
 }
@@ -5278,15 +5277,14 @@ status_t knl_create_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_tab
     // user latch and ddl latch are not locked inside, must lock user and ddl before this interface
     // note the lock sequence: add user lock first and then the ddl lock
     CT_LOG_RUN_INF("[For MYSQL] Start to create table %s without commit", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     status_t status;
 
     status = knl_internal_create_table_no_commit(se, stmt, def);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin);
     CT_LOG_RUN_INF("[For MYSQL] Finish to create table %s without commit, ret: %d", T2S_EX(&def->name), status);
     return status;
 }
@@ -5388,34 +5386,34 @@ static void knl_save_core_space_type(knl_handle_t se, knl_space_def_t *def, uint
 
 status_t knl_create_space_internal(knl_handle_t session, knl_handle_t stmt, knl_space_def_t *def)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     uint32 space_id;
 
     if (DB_IS_READONLY(se)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     if (def->in_memory == CT_TRUE) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "create space all in memory");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     knl_set_new_space_type(session, def);
 
     if (spc_create_space_precheck(se, def) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     log_add_lrep_ddl_begin_4database(se, (!def->is_for_create_db));
     if (spc_create_space(se, def, &space_id) != CT_SUCCESS) {
         log_add_lrep_ddl_end_4database(se, (!def->is_for_create_db));
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -5426,7 +5424,7 @@ status_t knl_create_space_internal(knl_handle_t session, knl_handle_t stmt, knl_
         knl_save_core_space_type(session, def, space_id);
     }
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_SPACE, &tv_begin);
     CT_LOG_RUN_INF("[DB] Success to create space, space_id %u", space_id);
     return CT_SUCCESS;
 }
@@ -5471,7 +5469,7 @@ status_t knl_create_space4mysql(knl_handle_t session, knl_handle_t stmt, knl_spa
 status_t knl_alter_space(knl_handle_t session, knl_handle_t stmt, knl_altspace_def_t *def)
 {
     CT_LOG_RUN_INF("[DB] Start to alter space %s, action %u", def->name.str, (uint32)def->action);
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     status_t status = CT_ERROR;
@@ -5479,18 +5477,18 @@ status_t knl_alter_space(knl_handle_t session, knl_handle_t stmt, knl_altspace_d
 
     if (DB_IS_READONLY(se)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     if (knl_ddl_latch_x(session, NULL) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     if (CT_SUCCESS != spc_get_space_id(se, &def->name, def->is_for_create_db, &space_id)) {
         knl_ddl_unlatch_x(session);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -5544,8 +5542,7 @@ status_t knl_alter_space(knl_handle_t session, knl_handle_t stmt, knl_altspace_d
     space->allow_extend = CT_TRUE;
     knl_ddl_unlatch_x(session);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_SPACE, &tv_begin);
     CT_LOG_RUN_INF("[DB] Finish to alter space %s, ret:%d", def->name.str, status);
     return status;
 }
@@ -5609,7 +5606,7 @@ static status_t db_check_ddm_rule_by_obj(knl_session_t *session, uint32 uid, uin
 
 status_t knl_drop_space_internal(knl_handle_t session, knl_handle_t stmt, knl_drop_space_def_t *def)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     space_t *space = NULL;
@@ -5618,25 +5615,25 @@ status_t knl_drop_space_internal(knl_handle_t session, knl_handle_t stmt, knl_dr
 
     if (DB_IS_READONLY(se)) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "operation on read only mode");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     if (se->kernel->db.status != DB_STATUS_OPEN) {
         CT_THROW_ERROR(ERR_DATABASE_NOT_OPEN, "drop tablespace");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     if (spc_get_space_id(se, &def->obj_name, def->is_for_create_db, &space_id) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
     space = KNL_GET_SPACE(se, space_id);
     if (SPACE_IS_DEFAULT(space)) {
         CT_THROW_ERROR(ERR_INVALID_OPERATION, ",forbid to drop database system space");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -5652,8 +5649,7 @@ status_t knl_drop_space_internal(knl_handle_t session, knl_handle_t stmt, knl_dr
     }
     log_add_lrep_ddl_end(se);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_SPACE, &tv_begin);
     return status;
 }
 
@@ -5704,15 +5700,14 @@ status_t knl_drop_space4mysql(knl_handle_t session, knl_handle_t stmt, knl_drop_
 
 status_t knl_create_user_internal(knl_handle_t session, knl_handle_t stmt, knl_user_def_t *def)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_CREATE_USER, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     status_t status;
 
     status = user_create(se, stmt, def);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_USER, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_USER, &tv_begin);
     return status;
 }
 
@@ -5742,12 +5737,11 @@ status_t knl_create_user4mysql(knl_handle_t session, knl_handle_t stmt, knl_user
 
 status_t knl_drop_user_internal(knl_handle_t session, knl_drop_user_t *def)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     knl_session_t *se = (knl_session_t *)session;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_DROP_USER, &tv_begin);
     status_t status = user_drop(se, def);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_USER, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_USER, &tv_begin);
     return status;
 }
 
@@ -7261,7 +7255,7 @@ static status_t knl_is_alter_systable_online(knl_session_t *session, knl_altable
 status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_def_t *def, bool32 is_lrep_log)
 {
     CT_LOG_RUN_INF("[DB] Start to alter table %s", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     status_t status;
@@ -7269,7 +7263,7 @@ status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_de
     bool32 need_ddl_latch_x = CT_FALSE;
 
     if (knl_ddl_enabled(session, CT_TRUE) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -7277,7 +7271,7 @@ status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_de
     // to avoid other ddl write the system table which is being alter by rolling upgrade, we have to use ddl x latch
     // when alter system table during rolling upgrade
     if (knl_is_alter_systable_online(se, def, &need_ddl_latch_x) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin);
         return CT_ERROR;
     }
     if(!need_ddl_latch_x) {
@@ -7287,7 +7281,7 @@ status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_de
     }
 
     if (status != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -7302,8 +7296,7 @@ status_t knl_alter_table(knl_handle_t session, knl_handle_t stmt, knl_altable_de
         knl_ddl_unlatch_x(session);
     }
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_ALTER_TABLE, &tv_begin);
     CT_LOG_RUN_INF("[DB] Finish to alter table %s, ret:%d, action:%d", T2S_EX(&def->name), status, def->action);
     return status;
 }
@@ -7910,7 +7903,7 @@ void knl_drop_table_log_put(knl_handle_t session, knl_handle_t stmt, knl_drop_de
 status_t knl_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *def)
 {
     CT_LOG_RUN_INF("[DB] Start to drop table %s", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
     knl_session_t *se = (knl_session_t *)session;
     status_t status;
@@ -7918,22 +7911,21 @@ status_t knl_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t 
     dc_user_t *user = NULL;
 
     if (dc_open_user(se, &def->owner, &user) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     dls_latch_x(session, &user->user_latch, se->id, NULL);
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     status = knl_internal_drop_table(session, stmt, def, CT_TRUE);
     dls_unlatch(session, ddl_latch, NULL);
     dls_unlatch(session, &user->user_latch, NULL);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_WAR("[DB] Finish to drop table %s, ret:%d", T2S_EX(&def->name), status);
     } else {
@@ -7948,7 +7940,7 @@ status_t knl_drop_table_no_commit4mysql(knl_handle_t session, knl_handle_t stmt,
     // user latch, ddl latch, and table lock are not locked inside, must lock user, ddl, and table before this interface
     // note the lock sequence: add user lock first and then the ddl lock, and then table lock
     CT_LOG_RUN_INF("[For MYSQL] Start to drop table %s without commit", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
     status_t status = CT_SUCCESS;
     knl_session_t *se = (knl_session_t *)session;
@@ -7966,8 +7958,7 @@ status_t knl_drop_table_no_commit4mysql(knl_handle_t session, knl_handle_t stmt,
     status = knl_internal_drop_table(session, stmt, def, CT_FALSE);
     SYNC_POINT_GLOBAL_END;
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin);
     CT_LOG_RUN_INF("[For MYSQL] Finish to drop table %s without commit, ret:%d", T2S_EX(&def->name), status);
     return status;
 }
@@ -8308,7 +8299,7 @@ void knl_truncate_table_after_rollback(knl_handle_t session, knl_trunc_def_t *de
 status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_def_t *def)
 {
     CT_LOG_RUN_INF("[DB] Start to truncate table %s", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
     knl_dictionary_t dc;
     status_t status = CT_ERROR;
@@ -8316,19 +8307,19 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
     bool32 no_segment = CT_FALSE;
 
     if (knl_ddl_enabled(session, CT_TRUE) != CT_SUCCESS) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     if (CT_SUCCESS != dc_open(se, &def->owner, &def->name, &dc)) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
     uint32 timeout = se->kernel->attr.ddl_lock_timeout;
     if (CT_SUCCESS != lock_table_directly(se, &dc, timeout)) {
         dc_close(&dc);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
         return CT_ERROR;
     }
 
@@ -8336,7 +8327,7 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
     if (status != CT_SUCCESS || no_segment) {
         unlock_tables_directly(se);
         dc_close(&dc);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
         return status;
     }
 
@@ -8359,8 +8350,7 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
     dc_close(&dc);
     unlock_tables_directly(se);
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
     CT_LOG_RUN_INF("[DB] Finish to truncate table %s, ret:%d", T2S_EX(&def->name), status);
     return status;
 }
@@ -8368,7 +8358,7 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
 status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_trunc_def_t *def, knl_dictionary_t *dc)
 {
     CT_LOG_RUN_INF("[for mysql] Start to truncate table %s", T2S_EX(&def->name));
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
 
     status_t status = CT_ERROR;
@@ -8379,7 +8369,7 @@ status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_t
     status = knl_truncate_table_precheck(session, def, dc, &no_segment);
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS || no_segment) {
-        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
         return status;
     }
 
@@ -8389,8 +8379,7 @@ status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_t
     status = knl_truncate_table_internal(se, def, dc);
     SYNC_POINT_GLOBAL_END;
 
-    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin, status == CT_SUCCESS ?
-                       IO_STAT_SUCCESS : IO_STAT_FAILED);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
     CT_LOG_RUN_INF("[for mysql] Finish to truncate table %s, ret:%d", T2S_EX(&def->name), status);
     return status;
 }

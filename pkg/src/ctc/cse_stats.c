@@ -111,7 +111,7 @@ io_record_event_desc_t g_ctc_io_record_event_desc[CTC_FUNC_TYPE_NUMBER] = {
     {"CTC_FUNC_TYPE_UPDATE_DDCACHE", ""},
 };
 
-void ctc_record_io_state_reset(void)
+status_t ctc_record_io_state_reset(void)
 {
     status_t ret = CT_SUCCESS;
     io_record_wait_t *event_wait;
@@ -119,8 +119,9 @@ void ctc_record_io_state_reset(void)
         event_wait = &g_ctc_io_record_event_wait[i];
         ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
         if (ret != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[io record] init ctc io record failed, event %u", i);
+            CT_LOG_RUN_ERR("[io record] init tse io record failed, event %u", i);
+            return ret;
         }
-        event_wait->detail.min_time = CT_INVALID_ID64;
     }
+    return ret;
 }

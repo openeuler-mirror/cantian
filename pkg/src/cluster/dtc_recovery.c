@@ -2000,7 +2000,7 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
     reform_rcy_node_t *rcy_log_point = &dtc_rcy->rcy_log_points[idx];
     
     status_t status;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
 
     rcy_node->read_pos[rcy_node->read_buf_write_index] = 0;
     rcy_node->write_pos[rcy_node->read_buf_write_index] = 0;
@@ -2018,8 +2018,7 @@ status_t dtc_rcy_read_node_log(knl_session_t *session, uint32 idx, uint32 *size_
         cantian_record_io_stat_begin(IO_RECORD_EVENT_RECOVERY_READ_ONLINE_LOG, &tv_begin);
         status = dtc_rcy_read_online_log(session, logfile_id, idx, size_read);
         log_unlatch_file(session, logfile_id);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_RECOVERY_READ_ONLINE_LOG, &tv_begin,
-            status == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_RECOVERY_READ_ONLINE_LOG, &tv_begin);
         if (!DB_IS_PRIMARY(&session->kernel->db) && (*size_read == 0)) {
             CT_LOG_DEBUG_INF("[DTC RCY] finish read online redo log of crashed node=%u, logfile_id=%u, size_read=%u",
                             rcy_node->node_id, logfile_id, *size_read);

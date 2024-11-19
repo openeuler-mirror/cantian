@@ -48,6 +48,8 @@ int32 sint3korr(uchar *A)
 EXTER_ATTACK int ctc_open_table(ctc_handler_t *tch, const char *table_name, const char *user_name)
 {
     CTC_LOG_RET_VAL_IF_NUL(tch, CT_ERROR, "ctc_open_table: null tch ptr");
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_OPEN_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_OPEN_TABLE);
 
     bool is_new_session = CT_FALSE;
     session_t *session = NULL;
@@ -58,21 +60,26 @@ EXTER_ATTACK int ctc_open_table(ctc_handler_t *tch, const char *table_name, cons
         CT_LOG_RUN_ERR("ctc_open_table failed :thd_id:%u, user_name:%s, table_name:%s",
                        tch->thd_id, user_name, table_name);
         int32 error_code = ctc_get_and_reset_err();
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_OPEN_TABLE);
         return error_code == 0 ? ERR_GENERIC_INTERNAL_ERROR : error_code;
     };
     tch->ctx_addr = (uint64)ctc_context;
     tch->read_only_in_ct = IS_CANTIAN_SYS_DC(ctc_context->dc);
     CT_LOG_DEBUG_INF("ctc_open_table: tbl=%s, thd_id=%d, session_id=%u",
         ctc_context->table.str, tch->thd_id, session->knl_session.id);
-
+    
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_OPEN_TABLE);
     return CT_SUCCESS;
 }
 
 EXTER_ATTACK int ctc_close_table(ctc_handler_t *tch)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CLOSE_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CLOSE_TABLE);
     ctc_context_t *ctc_context = ctc_get_ctx_by_addr(tch->ctx_addr);
     if (ctc_context == NULL) {
         CT_LOG_RUN_WAR("ctc_close_table: ctx addr invalid");
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CLOSE_TABLE);
         return CT_SUCCESS;
     }
     char *table_name = "empty_table";
@@ -86,6 +93,7 @@ EXTER_ATTACK int ctc_close_table(ctc_handler_t *tch)
     if (remove_mysql_inst_ctx_res(ctc_context->ctc_inst_id, ctc_context) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("ctc_close_table remove error,inst_id:%u,thd_id:%u", tch->inst_id, tch->thd_id);
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CLOSE_TABLE);
     return CT_SUCCESS;
 }
 
@@ -758,12 +766,15 @@ EXTER_ATTACK int ctc_update_job(update_job_info info)
 EXTER_ATTACK int ctc_write_row(ctc_handler_t *tch, const record_info_t *record_info,
                                uint16_t serial_column_offset, uint64_t *last_insert_id, dml_flag_t flag)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_WRITE_ROW);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_WRITE_ROW);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
     if (flag.write_through) {
         if (knl_begin_auton_rm(session) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("ERR to begin transaction for write_through_row.");
+            END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_WRITE_ROW);
             return CT_ERROR;
         }
     }
@@ -824,6 +835,7 @@ EXTER_ATTACK int ctc_write_row(ctc_handler_t *tch, const record_info_t *record_i
     if (flag.write_through) {
         knl_end_auton_rm(session, ret);
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_WRITE_ROW);
     return ret;
 }
 
@@ -947,6 +959,8 @@ int ctc_open_cursor_and_fetch_by_rowid(knl_session_t *knl_session, knl_cursor_t 
 EXTER_ATTACK int ctc_update_row(ctc_handler_t *tch, uint16_t new_record_len, const uint8_t *new_record,
                                 const uint16_t *upd_cols, uint16_t col_num, dml_flag_t flag)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_UPDATE_ROW);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_UPDATE_ROW);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -971,6 +985,7 @@ EXTER_ATTACK int ctc_update_row(ctc_handler_t *tch, uint16_t new_record_len, con
         if (NULL == cursor) {
             CT_LOG_RUN_ERR("ctc_update_row: ctc_push_cursor FAIL");
             CTC_POP_CURSOR(knl_session);
+            END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_UPDATE_ROW);
             return ERR_GENERIC_INTERNAL_ERROR;
         }
         CT_LOG_DEBUG_INF("ctc_update_row: tbl=%s, thd_id=%u", ctc_context->table.str, tch->thd_id);
@@ -996,6 +1011,7 @@ EXTER_ATTACK int ctc_update_row(ctc_handler_t *tch, uint16_t new_record_len, con
     }
     CTC_POP_CURSOR(knl_session);
     ctc_close_cursor(knl_session, cursor);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_UPDATE_ROW);
     return ret;
 }
 
@@ -1031,6 +1047,8 @@ int delete_and_check_constraint(knl_session_t *knl_session, knl_cursor_t *cursor
 
 EXTER_ATTACK int ctc_delete_row(ctc_handler_t *tch, uint16_t record_len, dml_flag_t flag)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1048,9 +1066,11 @@ EXTER_ATTACK int ctc_delete_row(ctc_handler_t *tch, uint16_t record_len, dml_fla
             CT_LOG_RUN_ERR("ctc_delete_row: ctc_push_cursor FAIL, sql_command:%u, table: %s.%s, "
                            "cursor_addr:%u, rowid:%u", tch->sql_command, ctc_context->user.str,
                            ctc_context->table.str, tch->cursor_addr, valid_rowid);
+            END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
             return ERR_GENERIC_INTERNAL_ERROR;
         }
         CT_LOG_DEBUG_INF("ctc_delete_row: tbl=%s, thd_id=%u", ctc_context->table.str, tch->thd_id);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
         return delete_and_check_constraint(knl_session, prev_cursor, flag);
     }
 
@@ -1060,6 +1080,7 @@ EXTER_ATTACK int ctc_delete_row(ctc_handler_t *tch, uint16_t record_len, dml_fla
     if (NULL == cursor) {
         CT_LOG_RUN_ERR("ctc_delete_row: ctc_push_cursor FAIL");
         CTC_POP_CURSOR(knl_session);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
         return ERR_GENERIC_INTERNAL_ERROR;
     }
     CT_LOG_DEBUG_INF("ctc_delete_row:(replace) tbl=%s, thd_id=%u", ctc_context->table.str, tch->thd_id);
@@ -1071,6 +1092,7 @@ EXTER_ATTACK int ctc_delete_row(ctc_handler_t *tch, uint16_t record_len, dml_fla
     if (ret != CT_SUCCESS) {
         CTC_POP_CURSOR(knl_session);
         ctc_close_cursor(knl_session, cursor);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
         return ret;
     }
 
@@ -1079,6 +1101,7 @@ EXTER_ATTACK int ctc_delete_row(ctc_handler_t *tch, uint16_t record_len, dml_fla
     }
     ctc_close_cursor(knl_session, cursor);
     CTC_POP_CURSOR(knl_session);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ROW);
     return ret;
 }
 
@@ -1105,6 +1128,8 @@ int ctc_set_cursor_action(knl_cursor_t *cursor, expected_cursor_action_t action)
 EXTER_ATTACK int ctc_rnd_init(ctc_handler_t *tch, expected_cursor_action_t action,
                               ctc_select_mode_t mode, ctc_conds *cond)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_INIT);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_INIT);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1114,6 +1139,7 @@ EXTER_ATTACK int ctc_rnd_init(ctc_handler_t *tch, expected_cursor_action_t actio
     knl_cursor_t *cursor = ctc_alloc_session_cursor(session, tch->part_id, tch->subpart_id);
     if (cursor == NULL) {
         CT_LOG_RUN_ERR("ctc_rnd_init: ctc_alloc_session_cursor FAIL");
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_INIT);
         return ERR_GENERIC_INTERNAL_ERROR;
     }
     tch->cursor_addr = (uint64_t)cursor;
@@ -1135,14 +1161,17 @@ EXTER_ATTACK int ctc_rnd_init(ctc_handler_t *tch, expected_cursor_action_t actio
         int ret = ctc_get_and_reset_err();
         CT_LOG_RUN_ERR("ctc_rnd_init: ctc_open_cursor failed, ret = %d", ret);
         ctc_free_handler_cursor(session, tch);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_INIT);
         return ret;
     }
-
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_INIT);
     return CT_SUCCESS;
 }
 
 EXTER_ATTACK int ctc_rnd_end(ctc_handler_t *tch)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_END);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_END);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1152,6 +1181,7 @@ EXTER_ATTACK int ctc_rnd_end(ctc_handler_t *tch)
     if (tch->cursor_addr != INVALID_VALUE64) {
         ctc_free_handler_cursor(session, tch);
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_END);
     return CT_SUCCESS;
 }
 
@@ -1196,6 +1226,8 @@ int ctc_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, recor
 
 EXTER_ATTACK int ctc_rnd_next(ctc_handler_t *tch, record_info_t *record_info)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_NEXT);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_NEXT);
     int ret = CT_SUCCESS;
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
@@ -1215,8 +1247,10 @@ EXTER_ATTACK int ctc_rnd_next(ctc_handler_t *tch, record_info_t *record_info)
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("ctc_rnd_next: ctc_fetch_and_filter FAIL");
         ctc_free_handler_cursor(session, tch);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_NEXT);
         return ret;
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_NEXT);
     return CT_SUCCESS;
 }
 
@@ -1314,6 +1348,8 @@ int ctc_rnd_prefetch(ctc_handler_t *tch, uint8_t *records, uint16_t *record_lens
 
 EXTER_ATTACK int ctc_position(ctc_handler_t *tch, uint8_t *position, uint16_t pos_length)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_POSITION);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_POSITION);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1326,13 +1362,17 @@ EXTER_ATTACK int ctc_position(ctc_handler_t *tch, uint8_t *position, uint16_t po
     rowid_t rowid = cursor->rowid;
     errno_t errcode = memcpy_s(position, pos_length, &rowid, sizeof(rowid));
     if (errcode != EOK) {
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_POSITION);
         return CT_ERROR;
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_POSITION);
     return CT_SUCCESS;
 }
 
 EXTER_ATTACK int ctc_rnd_pos(ctc_handler_t *tch, uint16_t pos_length, uint8_t *position, record_info_t *record_info)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_POS);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_POS);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1360,6 +1400,7 @@ EXTER_ATTACK int ctc_rnd_pos(ctc_handler_t *tch, uint16_t pos_length, uint8_t *p
     if (knl_fetch_by_rowid(knl_session, cursor, &isFound) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("ctc_rnd_pos fetch failed");
         ctc_free_handler_cursor(session, tch);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_POS);
         return ctc_get_and_reset_err();
     }
 
@@ -1368,22 +1409,27 @@ EXTER_ATTACK int ctc_rnd_pos(ctc_handler_t *tch, uint16_t pos_length, uint8_t *p
         ret = ctc_copy_cursor_row_read(knl_session, cursor, record_info, !g_is_single_run_mode);
         if (ret != CT_SUCCESS) {
             ctc_free_handler_cursor(session, tch);
+            END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_POS);
             return ret;
         }
     } else {
         record_info->record_len = 0;
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RND_POS);
     return CT_SUCCESS;
 }
 
 EXTER_ATTACK int ctc_delete_all_rows(ctc_handler_t *tch, dml_flag_t flag)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
     ctc_context_t *ctc_context = ctc_get_ctx_by_addr(tch->ctx_addr);
     CTC_LOG_RET_VAL_IF_NUL(ctc_context, ERR_INVALID_DC, "get_ha_context failed");
     if (!ctc_alloc_stmt_context(session)) {
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
         return CT_ERROR;
     }
     int ret = CT_SUCCESS;
@@ -1395,6 +1441,7 @@ EXTER_ATTACK int ctc_delete_all_rows(ctc_handler_t *tch, dml_flag_t flag)
     if (NULL == cursor) {
         CT_LOG_RUN_ERR("ctc_delete_all_rows: ctc_push_cursor FAIL");
         CTC_POP_CURSOR(knl_session);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
         return ERR_GENERIC_INTERNAL_ERROR;
     }
     CT_LOG_DEBUG_INF("ctc_delete_all_rows: tbl=%s, thd_id=%u", ctc_context->table.str, tch->thd_id);
@@ -1405,6 +1452,7 @@ EXTER_ATTACK int ctc_delete_all_rows(ctc_handler_t *tch, dml_flag_t flag)
         CT_LOG_RUN_ERR("ctc_delete_all_rows: ctc_open_cursor failed");
         CTC_POP_CURSOR(knl_session);
         ctc_close_cursor(knl_session, cursor);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
         return ctc_get_and_reset_err();
     }
     if (fetch_and_delete_all_rows(knl_session, cursor, flag) != CT_SUCCESS) {
@@ -1413,6 +1461,7 @@ EXTER_ATTACK int ctc_delete_all_rows(ctc_handler_t *tch, dml_flag_t flag)
     }
     CTC_POP_CURSOR(knl_session);
     ctc_close_cursor(knl_session, cursor);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DELETE_ALL_ROWS);
     return ret;
 }
 
@@ -1458,6 +1507,8 @@ static int ctc_index_init(session_t *session, ctc_context_t *ctc_context, ctc_ha
 
 EXTER_ATTACK int ctc_index_end(ctc_handler_t *tch)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_END);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_END);
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
@@ -1468,6 +1519,7 @@ EXTER_ATTACK int ctc_index_end(ctc_handler_t *tch)
     if (tch->cursor_addr != INVALID_VALUE64) {
         ctc_free_handler_cursor(session, tch);
     }
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_END);
     return CT_SUCCESS;
 }
 
@@ -1652,6 +1704,8 @@ int ctc_check_partition_changed(knl_cursor_t *cursor, ctc_handler_t *tch)
 EXTER_ATTACK int ctc_index_read(ctc_handler_t *tch, record_info_t *record_info, index_key_info_t *index_info,
                                 ctc_select_mode_t mode, ctc_conds *cond, const bool is_replace)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_READ);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_READ);
     CM_ASSERT(index_info != NULL);
 
     bool is_new_session = CT_FALSE;
@@ -1672,6 +1726,7 @@ EXTER_ATTACK int ctc_index_read(ctc_handler_t *tch, record_info_t *record_info, 
     ctc_get_index_from_name(dc, index_info->index_name, &index_info->active_index);
     if (index_info->active_index == MAX_INDEXES) {
         CT_LOG_RUN_ERR("ctc_get_index_from_name: ctc find index name '%s' failed!", index_info->index_name);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_READ);
         return CT_ERROR;
     }
 
@@ -1698,9 +1753,10 @@ EXTER_ATTACK int ctc_index_read(ctc_handler_t *tch, record_info_t *record_info, 
 
     int ret = get_correct_pos_by_fetch(tch, cursor, record_info, index_info);
     if (ret != CT_SUCCESS) {
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_READ);
         return ret;
     }
-
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_INDEX_READ);
     return CT_SUCCESS;
 }
 
@@ -2134,6 +2190,8 @@ EXTER_ATTACK int ctc_srv_release_savepoint(ctc_handler_t *tch, const char *name)
 
 EXTER_ATTACK int ctc_general_fetch(ctc_handler_t *tch, record_info_t *record_info)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_GENERAL_PREFETCH);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_GENERAL_PREFETCH);
     int ret = CT_SUCCESS;
     session_t *session = NULL;
     if (tch->pre_sess_addr != 0) {
@@ -2154,6 +2212,7 @@ EXTER_ATTACK int ctc_general_fetch(ctc_handler_t *tch, record_info_t *record_inf
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("ctc_general_fetch: ctc_fetch_and_filter FAIL");
         ctc_free_handler_cursor(session, tch);
+        END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_GENERAL_PREFETCH);
         return ret;
     }
     if (!cursor->eof) {
@@ -2164,7 +2223,7 @@ EXTER_ATTACK int ctc_general_fetch(ctc_handler_t *tch, record_info_t *record_inf
     } else {
         record_info->record_len = 0;
     }
-
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_GENERAL_PREFETCH);
     return ret;
 }
 
