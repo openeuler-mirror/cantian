@@ -45,7 +45,7 @@ class Options(object):
         self.conf_file_path = "/opt/cantian/backup/files"
         self.backup_ini_file = ""
         self.backup_select = True
-        self.log_file = "/opt/cantian/dbstor/log/backup.log"
+        self.log_file = "/opt/cantian/log/dbstor/backup.log"
         self.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         self.docker_ini_file = "/home/regress/cantian_data"
         self.js_conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")

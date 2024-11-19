@@ -1,12 +1,12 @@
 [
   {
-    "log_file_dir": "/opt/cantian/cms/log/run/cms_adm.rlog",
+    "log_file_dir": "/opt/cantian/log/cms/run/cms_adm.rlog",
     "max_log_vol": "80",
     "userandgroup": "deploy_user"
   },
 
   {
-    "log_file_dir": "/opt/cantian/cms/log/run/cms_srv.rlog",
+    "log_file_dir": "/opt/cantian/log/cms/run/cms_srv.rlog",
     "max_log_vol": "80",
     "userandgroup": "deploy_user"
   },
@@ -31,7 +31,7 @@
   },
 
   {
-    "log_file_dir": "/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog",
+    "log_file_dir": "/opt/cantian/log/cantian/run/cantiand.rlog",
     "max_log_vol": "210",
     "userandgroup": "deploy_user"
   },

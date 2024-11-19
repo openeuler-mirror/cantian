@@ -8,7 +8,7 @@ from pathlib import Path
 
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 INSTALL_FILE = str(Path(os.path.join(CUR_PATH, "../config/deploy_param.json")))
-DBSTORE_UNIFY_FLAG = os.path.exists("/opt/cantian/deploy/.dbstor_unify_flag")
+DBSTORE_UNIFY_FLAG = os.path.exists("/opt/cantian/log/deploy/.dbstor_unify_flag")
 
 # 适配LLT
 if os.path.exists(INSTALL_FILE):

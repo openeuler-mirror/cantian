@@ -29,8 +29,8 @@ try:
     from init_unify_config import ConfigTool
 
     DBSTORE_LOG_PATH = "/opt/cantian/dbstor"
-    LOG_PATH = "/opt/cantian/dbstor/log"
-    LOG_FILE = "/opt/cantian/dbstor/log/install.log"
+    LOG_PATH = "/opt/cantian/log/dbstor"
+    LOG_FILE = "/opt/cantian/log/dbstor/install.log"
     JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
     DBSTOR_CONF_FILE = "/mnt/dbdata/remote/share_"
     CONTAINER_DBSTOR_CONF_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/container")

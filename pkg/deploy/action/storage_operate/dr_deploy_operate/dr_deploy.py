@@ -793,7 +793,7 @@ class DRDeploy(object):
             err_pattern = re.compile(".*ERROR.*")
             _err = err_pattern.findall(output + stderr)
             err_msg = "Failed to execute start, details:\n%s  for details see " \
-                      "/opt/cantian/deploy/deploy.log" % "\n".join(_err)
+                      "/opt/cantian/log/deploy/deploy.log" % "\n".join(_err)
             self.record_deploy_process("standby_start", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
         self.update_install_status(node_id, "start", "success")
@@ -1018,7 +1018,7 @@ class DRDeploy(object):
                 err_pattern = re.compile(".*ERROR.*")
                 _err = err_pattern.findall(output + stderr)
                 err_msg = "Failed to execute install, details:\n%s, for details see " \
-                          "/opt/cantian/deploy/deploy.log" % "\n".join(_err)
+                          "/opt/cantian/log/deploy/deploy.log" % "\n".join(_err)
                 self.record_deploy_process("standby_install", "failed", code=-1, description=err_msg)
                 self.update_install_status(node_id, "install", "failed")
                 raise Exception(err_msg)

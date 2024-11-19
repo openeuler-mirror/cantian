@@ -150,7 +150,7 @@ do
             logAndEchoInfo "force uninstall ${lib_name} result is success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         else
             logAndEchoError "force uninstall ${lib_name} result is failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
     else
@@ -159,7 +159,7 @@ do
             logAndEchoInfo "uninstall ${lib_name} result is success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         else
             logAndEchoError "uninstall ${lib_name} result is failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
     fi
@@ -200,7 +200,7 @@ if [[ ${uninstall_type} = 'override' ]]; then
         logAndEchoInfo "Auto delete fs"
         echo -e "${dm_login_user}\n${dm_login_pwd}" | python3 -B "${CURRENT_PATH}"/storage_operate/create_file_system.py --action="delete" --ip="${dm_login_ip}"
         if [ $? -ne 0 ];then
-            logAndEchoError "Auto delete fs failed, for details see the /opt/cantian/deploy/om_deploy/create_fs_log.log"
+            logAndEchoError "Auto delete fs failed, for details see the /opt/cantian/log/deploy/om_deploy/create_fs_log.log"
             exit 1
         fi
         logAndEchoInfo "Auto delete fs success"

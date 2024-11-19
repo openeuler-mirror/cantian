@@ -467,7 +467,7 @@ function do_upgrade() {
         sh "${CURRENT_PATH}/${upgrade_module}/appctl.sh" upgrade ${UPGRADE_MODE} ${dircetory_path} ${SO_PATH}
         if [ $? -ne 0 ]; then
             logAndEchoError "${upgrade_module} upgrade failed"
-            logAndEchoError "For details, see the /opt/cantian/${upgrade_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${upgrade_module}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
         logAndEchoInfo "${upgrade_module} upgrade success"
@@ -581,7 +581,7 @@ function check_local_nodes() {
         sh "${CURRENT_PATH}/${check_module}/appctl.sh" post_upgrade
         if [ $? -ne 0 ]; then
             logAndEchoError "${check_module} post upgrade check failed"
-            logAndEchoError "For details, see the /opt/cantian/${check_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${check_module}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
 

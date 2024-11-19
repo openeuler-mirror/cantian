@@ -4,7 +4,7 @@
 #
 
 CURRENT_PATH=$(dirname $(readlink -f $0))
-MYSQLD_INSTALL_LOG_FILE="/opt/cantian/mysql/log/install.log"
+MYSQLD_INSTALL_LOG_FILE="/opt/cantian/log/mysql/install.log"
 
 function help() {
     echo ""

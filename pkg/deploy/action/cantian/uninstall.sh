@@ -3,7 +3,7 @@ set +x
 #当前路径
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_UNINSTALL_PY_NAME="cantian_uninstall.py"
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
@@ -42,8 +42,8 @@ function cantian_uninstall()
 
     log "shell uninstall step 5 $(date)"
     if [ -d /mnt/dbdata/local/cantian/tmp/data/log ]; then
-        mkdir -p -m 750 /opt/cantian/cantian/log/cantian_start_log
-        yes | cp -arf /mnt/dbdata/local/cantian/tmp/data/log /opt/cantian/cantian/log/cantian_start_log
+        mkdir -p -m 750 /opt/cantian/log/cantian/cantian_start_log
+        yes | cp -arf /mnt/dbdata/local/cantian/tmp/data/log /opt/cantian/log/cantian/cantian_start_log
     fi
 
     if [ $? -ne 0 ]; then

@@ -1,5 +1,5 @@
 #!/bin/bash
-MYSQL_LOG_PATH=/opt/cantian/mysql/log
+MYSQL_LOG_PATH=/opt/cantian/log/mysql
 if [ ! -d ${MYSQL_LOG_PATH} ];then
     mkdir -p ${MYSQL_LOG_PATH}
 fi

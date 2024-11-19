@@ -4,7 +4,7 @@ from pathlib import Path
 from logging import handlers
 from logging import LogRecord
 
-LOG_FILE = "/opt/cantian/cms/log/cms_deploy.log"
+LOG_FILE = "/opt/cantian/log/cms/cms_deploy.log"
 
 
 CONSOLE_CONF = {

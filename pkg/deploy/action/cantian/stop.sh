@@ -7,7 +7,7 @@ CANTIAN_STOP_CONFIG_NAME="cantian_uninstall_config.json"
 CANTIAN_CHECK_STATUS_PY_NAME="cantian_check_status.py"
 CANTIAN_START_STATUS=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_START_STATUS"`
 CANTIAN_START_STATUS_FILE="/opt/cantian/cantian/cfg/start_status.json"
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"

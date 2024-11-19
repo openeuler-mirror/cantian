@@ -50,12 +50,13 @@ INIT_CONTAINER_NAME="init_container.sh"
 DEFAULT_MEM_SIZE=10
 cms_home=/opt/cantian/cms
 cantian_home=/opt/cantian/cantian
+cms_log=/opt/cantian/log/cms
 cms_scripts=/opt/cantian/action/cms
 cms_tmp_file="${cms_home}/cms_server.lck ${cms_home}/local ${cms_home}/gcc_backup ${cms_home}/cantian.ctd.cms*"
 shm_home=/dev/shm
 cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 
-LOG_FILE="${cms_home}/log/cms_deploy.log"
+LOG_FILE="${cms_log}/cms_deploy.log"
 
 cantian_user_and_group=${cantian_user}:${cantian_group}
 
@@ -620,16 +621,22 @@ function check_and_create_cms_home()
         mkdir -m 750 -p ${cms_home}
         chown ${cantian_user_and_group} -hR ${cms_home}
     fi
+
     if [ ! -d ${cms_home}/cfg ];then
         mkdir -m 750 -p ${cms_home}/cfg
         chown ${cantian_user_and_group} -hR ${cms_home}/cfg
     fi
-    if [ ! -d ${cms_home}/log ]; then
-        mkdir -m 750 -p ${cms_home}/log
-        touch ${LOG_FILE}
+
+    if [ ! -d ${cms_log} ];then
+        mkdir -m 750 -p ${cms_log}        
     fi
-    chmod 640 ${LOG_FILE}
-    chown ${cantian_user_and_group} -hR ${cms_home}/log
+
+    if [ ! -f ${LOG_FILE} ]; then        
+        touch ${LOG_FILE}
+        chmod 640 ${LOG_FILE}
+    fi
+    chown ${cantian_user_and_group} -hR ${cms_log}
+    
 }
 
 function check_old_install()
@@ -639,7 +646,8 @@ function check_old_install()
         return 1
     fi
     chmod 750 -R ${cms_home}
-    find ${cms_home}/log -type f | xargs chmod 640
+    chmod 750 -R ${cms_log}
+    find ${cms_log} -type f | xargs chmod 640
 }
 
 deploy_user=$(cat ${CURRENT_PATH}/../../config/deploy_param.json |

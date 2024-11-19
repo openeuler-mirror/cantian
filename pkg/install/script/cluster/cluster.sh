@@ -20,7 +20,7 @@ if [ "$running_mode" = "cantiand_with_mysql" ] ||
 	process_to_check="mysqld"
 	process_path=$MYSQL_BIN_DIR
 fi
-MYSQL_INSTALL_LOG_FILE="/opt/cantian/mysql/log/install.log"
+MYSQL_INSTALL_LOG_FILE="/opt/cantian/log/mysql/install.log"
 
 function usage()
 {

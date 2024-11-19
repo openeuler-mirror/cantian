@@ -52,11 +52,11 @@ function main() {
     mkdir dbstor/opt dbstor/mnt dbstor/ftds dbstor/install
     check_path_and_copy /mnt/dbdata/local/cantian/tmp/data/log cantian/mnt
     check_path_and_copy /mnt/dbdata/local/cantian/tmp/data/cfg cantian/mnt
-    check_path_and_copy /opt/cantian/cantian/log cantian/opt
-    check_path_and_copy /opt/cantian/deploy cantian/opt
+    check_path_and_copy /opt/cantian/log/cantian cantian/opt
+    check_path_and_copy /opt/cantian/log/deploy cantian/opt
     check_path_and_copy /opt/cantian/cantian_exporter cantian/opt
     check_path_and_copy /opt/cantian/common/config cantian/opt
-    check_path_and_copy /opt/cantian/cms/log cms/
+    check_path_and_copy /opt/cantian/log/cms cms/
     check_path_and_copy /mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs dbstor/mnt
     check_path_and_copy /opt/cantian/cms/dbstor/data/logs dbstor/opt
     check_path_and_copy /opt/cantian/dbstor/data/logs dbstor/install

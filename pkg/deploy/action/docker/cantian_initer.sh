@@ -252,7 +252,7 @@ function mount_fs() {
         chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node1
         chmod 755 /mnt/dbdata/remote
         # 多租会缺少这个标记文件，这里补上
-        DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
+        DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
         touch "${DEPLOY_MODE_DBSTORE_UNIFY_FLAG}"
         return 0
     fi

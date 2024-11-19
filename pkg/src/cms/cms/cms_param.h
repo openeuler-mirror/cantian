@@ -51,6 +51,7 @@ typedef struct st_cms_params {
     uint32          cms_mes_msg_buff_count;
     uint32          cms_mes_msg_channel_num;
     char            cms_home[CMS_PATH_BUFFER_SIZE];
+    char            cms_log[CMS_PATH_BUFFER_SIZE];
     char            gcc_home[CMS_FILE_NAME_BUFFER_SIZE];
     char            gcc_dir[CMS_FILE_NAME_BUFFER_SIZE];
     char            cms_gcc_bak[CMS_FILE_NAME_BUFFER_SIZE];

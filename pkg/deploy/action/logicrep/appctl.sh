@@ -329,7 +329,7 @@ function main_deploy()
             chown -h "${cantian_user}":"${cantian_group}" ${FLAG_FILE}
             logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk '{print $2}')
             if [[ -z ${logicrep_pid} ]];then
-                su -s /bin/bash - ${cantian_user} -c "nohup sh ${LOGICREP_HOME}/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/deploy/deploy.log 2>&1
+                su -s /bin/bash - ${cantian_user} -c "nohup sh ${LOGICREP_HOME}/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/log/deploy/deploy.log 2>&1
                 check_startup_status
             fi
             exit $?

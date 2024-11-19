@@ -79,7 +79,7 @@ do
     sh ${CURRENT_PATH}/${lib_name}/appctl.sh start ${START_MODE} >> ${OM_DEPLOY_LOG_FILE} 2>&1
     if [ $? -ne 0 ]; then
         logAndEchoError "start ${lib_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         exit 1
     fi
     logAndEchoInfo "start ${lib_name} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -87,7 +87,7 @@ done
 
 logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk '{print $2}')
 if [[ -f /opt/software/tools/logicrep/start.success ]] && [[ -z ${logicrep_pid} ]];then
-    su -s /bin/bash - "${cantian_user}" -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/deploy/deploy.log 2>&1
+    su -s /bin/bash - "${cantian_user}" -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/log/deploy/deploy.log 2>&1
 fi
 
 # 全部启动成功后，拉起守护进程 自动拉起cms和ct_om

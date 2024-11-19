@@ -302,7 +302,7 @@ function dr_deploy() {
             fi
             echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}\n${cert_encrypt_pwd}" | \
             nohup python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" --site="${dr_site}" "$@" \
-            >> /opt/cantian/deploy/deploy.log 2>&1 &
+            >> /opt/cantian/log/deploy/deploy.log 2>&1 &
         else
             logAndEchoInfo "dr ${dr_action} is started."
         fi

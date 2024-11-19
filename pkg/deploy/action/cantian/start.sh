@@ -4,7 +4,7 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_START_PY_NAME="cantian_start.py"
 CANTIAN_STOP_SH_NAME="stop.sh"
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 START_MODE=$1
 
 function log() {

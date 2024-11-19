@@ -61,7 +61,7 @@ function prepare_env() {
     if [ -f ${CONFIG_FILE_PATH} ] && [ -n "${CONFIG_FILE_PATH}" ]; then
         python3 ${CURRENT_PATH}/pre_upgrade.py ${CONFIG_FILE_PATH}
         if [ $? -ne 0 ]; then
-            logAndEchoError "config check failed, please check /opt/cantian/ct_om/log/om_deploy.log for detail"
+            logAndEchoError "config check failed, please check /opt/cantian/log/ct_om/om_deploy.log for detail"
             exit 1
         else
             mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
@@ -145,7 +145,7 @@ function call_each_pre_upgrade() {
         sh ${CURRENT_PATH}/${module_name}/appctl.sh pre_upgrade
         if [ $? -ne 0 ]; then
             logAndEchoError "call ${module_name} pre_upgrade failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "For details, see the /opt/cantian/${module_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${module_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
         logAndEchoInfo "${module_name} pre_upgrade success"
@@ -304,12 +304,12 @@ function check_file_system_exist() {
       echo ""
       echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "pre_upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
       if [ $? -ne 0 ];then
-          logAndEchoError "Check dbstore page file system failed, /opt/cantian/deploy/om_deploy"
+          logAndEchoError "Check dbstore page file system failed, /opt/cantian/log/deploy/om_deploy"
           exit 1
       fi
       echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/migrate_file_system.py "pre_upgrade" "${CURRENT_PATH}"/../config/deploy_param.json "/opt/cantian/config/deploy_param.json"
       if [ $? -ne 0 ];then
-          logAndEchoError "Check share file system failed, details see /opt/cantian/deploy/om_deploy/"
+          logAndEchoError "Check share file system failed, details see /opt/cantian/log/deploy/om_deploy/"
           exit 1
       fi
     fi

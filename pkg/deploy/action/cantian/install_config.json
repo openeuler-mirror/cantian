@@ -1,7 +1,7 @@
 {
     "R_INSTALL_PATH": "/opt/cantian/cantian/server",
     "D_DATA_PATH": "/mnt/dbdata/local/cantian/tmp/data",
-    "l_LOG_FILE": "/opt/cantian/cantian/log/cantian_deploy.log",
+    "l_LOG_FILE": "/opt/cantian/log/cantian/cantian_deploy.log",
     "M_RUNING_MODE": "cantiand_in_cluster",
     "USE_DBSTORE": "--dbstor",
     "p_PACKAGE_AND_VERSION": "-P",
