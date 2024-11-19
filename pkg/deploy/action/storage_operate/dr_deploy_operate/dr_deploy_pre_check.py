@@ -22,10 +22,22 @@ from logic.common_func import exec_popen, read_json_config, write_json_config, g
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_POLICY_FILE = os.path.join(CURRENT_PATH, "../../deploy_policy_config.json")
+DEFAULT_PARAM_FILE = os.path.join(CURRENT_PATH, "../../config_params.json")
 DR_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 CANTIAN_STOP_SUCCESS_FLAG = os.path.join(CURRENT_PATH, "../../../config/.stop_success")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
+DEPLOY_POLICY_CONFIG_FILE = os.path.join(CURRENT_PATH, "../../deploy_policy_config.json")
 DOMAIN_LIMITS = 4
+
+
+def get_config_values(key):
+        default_config = read_json_config(DEFAULT_PARAM_FILE)
+        if "deploy_policy" in default_config and default_config["deploy_policy"] != "default":
+            policy_config = read_json_config(DEPLOY_POLICY_CONFIG_FILE).get("deploy_policy")
+            if policy_config:
+                if key in policy_config["config"]:
+                    return policy_config["config"][key]
+        return default_config.get(key, "")
 
 
 class DRDeployPreCheck(object):
@@ -633,9 +645,7 @@ class DRDeployPreCheck(object):
         install_json_data = read_json_config(install_json_path)
         root_dir = os.path.join(CURRENT_PATH, "../../../../")
         if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
-            meta_path = os.path.join(CURRENT_PATH, "../../config_params.json")
-            meta_data = read_json_config(meta_path)
-            if meta_data.get("mysql_metadata_in_cantian"):
+            if get_config_values("mysql_metadata_in_cantian"):
                 # 归一
                 check_pkg_cmd = "ls %s/Cantian_connector_mysql_*.tgz" % root_dir
             else:
