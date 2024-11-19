@@ -37,3 +37,9 @@ int mysql_execute_ddl_sql(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_
     int ret = ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
     return ret;
 }
+
+int mysql_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail)
+{
+    int ret = ctc_ddl_execute_set_opt(thd_id, broadcast_req, allow_fail);
+    return ret;
+}

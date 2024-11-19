@@ -29,4 +29,5 @@
 #include <stdbool.h>
 #include "ctc_srv.h"
 int mysql_execute_ddl_sql(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
+int mysql_execute_set_opt(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 #endif

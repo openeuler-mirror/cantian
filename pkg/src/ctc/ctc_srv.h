@@ -87,6 +87,8 @@ extern "C" {
 #define CTC_AUTOINC_NEW_STYLE_LOCKING 1
 #define CTC_AUTOINC_NO_LOCKING 2
 
+#define CTC_MAX_VAR_VALUE_LEN 1024
+
 typedef int64 date_t;
 
 typedef struct {
@@ -221,6 +223,22 @@ typedef struct {
 } ctc_ddl_broadcast_request;
 
 typedef struct {
+    char base_name[SMALL_RECORD_SIZE];
+    char var_name[SMALL_RECORD_SIZE];
+    char var_value[CTC_MAX_VAR_VALUE_LEN];
+    uint32_t options;
+    bool var_is_int;
+} set_opt_info_t;
+
+typedef struct {
+    set_opt_info_t *set_opt_info;
+    uint32_t mysql_inst_id;
+    uint32_t opt_num;
+    int err_code;
+    char err_msg[ERROR_MESSAGE_LEN];
+} ctc_set_opt_request;
+
+typedef struct {
     uint8_t type;
     char first[SMALL_RECORD_SIZE];
     char second[SMALL_RECORD_SIZE];
@@ -333,6 +351,7 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_GET_SERIAL_VALUE,
     CTC_FUNC_TYPE_DROP_TABLE,
     CTC_FUNC_TYPE_EXCUTE_MYSQL_DDL_SQL,
+    CTC_FUNC_TYPE_SET_OPT,
     CTC_FUNC_TYPE_BROADCAST_REWRITE_SQL,
     CTC_FUNC_TYPE_CREATE_TABLESPACE,
     CTC_FUNC_TYPE_ALTER_TABLESPACE,
@@ -359,6 +378,7 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_WAIT_CONNETOR_STARTUPED,
     /* for duplex channel */
     CTC_FUNC_TYPE_MYSQL_EXECUTE_UPDATE,
+    CTC_FUNC_TYPE_MYSQL_EXECUTE_SET_OPT,
     CTC_FUNC_TYPE_CLOSE_MYSQL_CONNECTION,
     CTC_FUNC_TYPE_LOCK_TABLES,
     CTC_FUNC_TYPE_UNLOCK_TABLES,
@@ -626,7 +646,9 @@ int close_mysql_connection(uint32_t thd_id, uint32_t mysql_inst_id);
 int ctc_ddl_execute_lock_tables(ctc_handler_t *tch, char *db_name, ctc_lock_table_info *lock_info, int *err_code);
 int ctc_ddl_execute_unlock_tables(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
 EXTER_ATTACK int ctc_ddl_execute_update(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
+EXTER_ATTACK int ctc_ddl_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail);
 EXTER_ATTACK int ctc_execute_mysql_ddl_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
+EXTER_ATTACK int ctc_execute_set_opt(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, bool allow_fail);
 int ctc_execute_rewrite_open_conn(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
 int ctc_broadcast_rewrite_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 
