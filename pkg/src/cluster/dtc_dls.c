@@ -1585,6 +1585,78 @@ void dls_latch_s(knl_session_t *session, drlatch_t *dlatch, uint32 sid, bool32 i
     return;
 }
 
+void dls_latch_sx(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_statis_t *stat)
+{
+    database_t *db = &session->kernel->db;
+    uint32 count = 0;
+    drc_local_latch* latch_stat = NULL;
+    bool32 locked = CT_FALSE;
+    drc_local_lock_res_t *lock_res;
+
+    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+        knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
+        for (;;) {
+            lock_res = drc_get_local_resx(&dlatch->drid);
+            drc_lock_local_resx(lock_res);
+            drc_get_local_latch_statx(lock_res, &latch_stat);
+            DTC_DLS_DEBUG_INF("[DLS] add latch_sx(%u/%u/%u/%u/%u), state=%d, lock_mode=%d", dlatch->drid.type,
+                              dlatch->drid.uid, dlatch->drid.id, dlatch->drid.idx, dlatch->drid.part, latch_stat->stat,
+                              latch_stat->lock_mode);
+            if (latch_stat->stat == LATCH_STATUS_IDLE) {
+                if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
+                    locked = dls_request_latch_x(session, &dlatch->drid, CT_TRUE, 1, CT_INVALID_ID32);
+                    if (!locked) {
+                        drc_unlock_local_resx(lock_res);
+                        cm_spin_sleep();
+                        continue;
+                    }
+                    latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
+                }
+                latch_stat->stat = LATCH_STATUS_S;
+                latch_stat->shared_count = 1;
+                latch_stat->sid = sid;
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
+                drc_unlock_local_resx(lock_res);
+                cm_latch_stat_inc(stat, count);
+                return;
+            } else if (latch_stat->stat == LATCH_STATUS_S) {
+                if (latch_stat->lock_mode != DRC_LOCK_EXCLUSIVE) {
+                    locked = dls_request_latch_x(session, &dlatch->drid, CT_TRUE, 1, CT_INVALID_ID32);
+                    if (!locked) {
+                        drc_unlock_local_resx(lock_res);
+                        cm_spin_sleep();
+                        continue;
+                    }
+                    latch_stat->lock_mode = DRC_LOCK_EXCLUSIVE;
+                }
+
+                latch_stat->shared_count++;
+                drc_set_local_lock_statx(lock_res, CT_TRUE, CT_TRUE);
+                drc_unlock_local_resx(lock_res);
+                cm_latch_stat_inc(stat, count);
+                return;
+            } else {
+                drc_unlock_local_resx(lock_res);
+                if (stat != NULL) {
+                    stat->misses++;
+                }
+                while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
+                    count++;
+                    if (count >= CT_SPIN_COUNT) {
+                        SPIN_STAT_INC(stat, s_sleeps);
+                        cm_spin_sleep();
+                        count = 0;
+                    }
+                }
+            }
+        }
+    } else {
+        cm_latch_s(&dlatch->latch, sid, CT_FALSE, stat);
+    }
+
+    return;
+}
+
 bool32 dls_latch_timed_s(knl_session_t *session, drlatch_t *dlatch, uint32 ticks_for_wait, bool32 is_force,
                          latch_statis_t *stat, uint32 release_timeout_ticks)
 {

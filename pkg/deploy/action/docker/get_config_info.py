@@ -35,7 +35,14 @@ def get_value(param):
     if param == "M_RUNING_MODE":
         return install_config.get("M_RUNING_MODE")
 
-    return info.get(param, "")
+    keys = param.split('.')
+    value = info
+    try:
+        for key in keys:
+            value = value.get(key, "")
+        return value
+    except (KeyError, TypeError):
+        return ""
 
 
 if __name__ == "__main__":

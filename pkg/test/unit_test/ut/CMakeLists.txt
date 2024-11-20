@@ -1,0 +1,8 @@
+add_subdirectory(message_queue)
+add_subdirectory(kernel)
+add_subdirectory(ctc_srv)
+add_subdirectory(mes)
+add_subdirectory(cms)
+add_subdirectory(server)
+add_subdirectory(common)
+add_subdirectory(ctbackup)

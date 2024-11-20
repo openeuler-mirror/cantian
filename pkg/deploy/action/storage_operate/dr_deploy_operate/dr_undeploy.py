@@ -28,6 +28,7 @@ class UNDeploy(object):
         self.storage_opt = None
         self.site = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.deploy_params = read_json_config(CANTIAN_DEPLOY_CONFIG)
         self.run_user = get_env_info("cantian_user")
         
     def init_storage_opt(self):
@@ -118,20 +119,28 @@ class UNDeploy(object):
         """
         hyper_metro_vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
         if not hyper_metro_vstore_pair_id:
-            return
+            return False
         try:
             self.dr_deploy_opt.query_hyper_metro_vstore_pair_info(hyper_metro_vstore_pair_id)
         except Exception as err:
             if "1073781761" in str(err):
                 LOG.info("Hyper Metro pair id[%s] is not exist.", hyper_metro_vstore_pair_id)
-                return
+                return False
             else:
                 raise err
+        dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
+        file_system_count = self.dr_deploy_opt.query_hyper_metro_filesystem_count_info(dbstore_fs_vstore_id)
+        if file_system_count and file_system_count.get("COUNT") != "0":
+            msg = "Delete Hyper Metro pair id[id:%s], " \
+                  "but there are also other pair file systems" % dbstore_fs_vstore_id
+            LOG.info(msg)
+            return False
         try:
             self.dr_deploy_opt.delete_hyper_metro_vstore_pair(hyper_metro_vstore_pair_id)
         except Exception as err:
             self.dr_deploy_opt.delete_hyper_metro_vstore_pair(hyper_metro_vstore_pair_id, is_local_del=True)
         LOG.info("Delete Hyper Metro pair id[id:%s] success", hyper_metro_vstore_pair_id)
+        return True
 
     def delete_hyper_metro_domain(self):
         """
@@ -186,13 +195,13 @@ class UNDeploy(object):
         self.delete_hyper_metro_filesystem()
         # 删除双活文件系统租户pair id
         time.sleep(60)
-        self.delete_hyper_metro_filesystem_vstore_id()
-        self.delete_hyper_metro_domain()
+        if self.delete_hyper_metro_filesystem_vstore_id():
+            self.delete_hyper_metro_domain()
 
     def do_stop(self):
         stop_flag_file = CANTIAN_STOP_SUCCESS_FLAG
         if not os.path.exists(stop_flag_file):
-            node_id = self.dr_deploy_info.get("node_id")
+            node_id = self.deploy_params.get("node_id")
             share_fs_name = self.dr_deploy_info.get("storage_share_fs")
             install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
             ctl_file_path = os.path.join(CURRENT_PATH, "../../")
@@ -246,6 +255,27 @@ class UNDeploy(object):
             return False
         return True
 
+    def clean_dr_config_file(self):
+        if os.path.exists(DR_DEPLOY_CONFIG):
+            os.remove(DR_DEPLOY_CONFIG)
+
+        if self.deploy_params.get("node_id") == "1":
+            return
+
+        if self.deploy_params.get("deploy_mode") == "dbstor":
+            fs_name = self.deploy_params.get("storage_share_fs")
+            clean_cmd = f"su -s /bin/bash - {self.run_user} -c \"dbstor --delete-file --fs-name={fs_name} " \
+                "--file-name=/dr_deploy_param.json\""
+        else:
+            fs_name = self.deploy_params.get("storage_metadata_fs")
+            clean_cmd = f"rm -rf /mnt/dbdata/remote/metadata_{fs_name}/dr_deploy_param.json"
+        try:
+            ret_code, output, stderr = exec_popen(clean_cmd)
+            if ret_code:
+                LOG.info(f"Failed to execute command '{clean_cmd}', error: {stderr}")
+        except Exception as e:
+            LOG.info(f"Exception occurred while executing command '{clean_cmd}': {str(e)}")
+
     def standby_uninstall(self, node_id, uninstall_cantian_flag):
         if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
             self.do_stop()
@@ -266,12 +296,14 @@ class UNDeploy(object):
                 self.delete_filesystem(dbstor_fs_vstore_id, fs_name)
             except Exception as err:
                 LOG.info("Standby site delete hyper system failed: %s", str(err))
+        self.clean_dr_config_file()
         if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
             if node_id == "0":
                 self.wait_remote_node_exec("1", UNINSTALL_TIMEOUT)
             self.do_uninstall()
             # stop cantian, uninstall cantian 备集群需要卸载cantian， 主集群不需要卸载，不需要停
             LOG.info("Uninstall Cantian engine success.")
+
         LOG.info("Successfully uninstalled!")
 
     def execute(self):
@@ -282,7 +314,7 @@ class UNDeploy(object):
             LOG.info("Deploy process exist.")
             return
         self.init_storage_opt()
-        node_id = self.dr_deploy_info.get("node_id")
+        node_id = self.deploy_params.get("node_id")
         action_parse = argparse.ArgumentParser()
         action_parse.add_argument("--site", dest="site", choices=["standby", "active"], required=True)
         args = action_parse.parse_args()

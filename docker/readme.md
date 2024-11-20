@@ -353,3 +353,29 @@ chmod 777 ./mysql-test-run-meta.pl
 # 元数据归一MTR自拉起MySQL进程验证
 ./mysql-test-run-meta.pl --mysqld=--default-storage-engine=CTC --mysqld=--check_proxy_users=ON --do-test-list=enableCases.list --noreorder --nowarnings
 ```
+### UT测试
+1. 在对应模块添加测试代码
+``` Bash
+# 对应模块目录
+pkg/test/unit_test/ut/...
+# 如增加测试文件则需要修改对应模块下的CMakeLists.txt
+set(DEMO_SOURCE ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/cms/cms_test_main.cpp
+                ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/cms/cms_disk_lock_test.cpp
+                ...)
+# (注意)项目中包含.c和.cpp的混合编译，注意编写 extern "C" 的合理使用。
+```
+2. 执行测试脚本[Dev_unit_test.sh](https://gitee.com/openeuler/cantian/blob/master/CI/script/Dev_unit_test.sh)
+``` Bash
+# 双进程
+sh CI/script/Dev_unit_test.sh  
+# 单进程
+sh CI/script/Dev_unit_test.sh single 
+# 如果已经编译过cantian，可以注释掉make_cantian_pkg。
+```
+3. 查看测试结果
+```Bash
+CantianKernel/output/bin  # UT二进制bin文件所在目录
+CantianKernel/gtest_run.log  # 运行日志
+CantianKernel/lcov_output    # 代码覆盖率测试结果(需要安装lcov)
+CantianKernel/gtest_result   # 每个UT用例的xml结果
+```

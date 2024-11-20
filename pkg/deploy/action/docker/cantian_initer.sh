@@ -6,7 +6,6 @@ PKG_PATH=${CURRENT_PATH}/../..
 CONFIG_PATH=${CURRENT_PATH}/../../config
 OPT_CONFIG_PATH="/opt/cantian/config"
 INIT_CONFIG_PATH=${CONFIG_PATH}/container_conf/init_conf
-DORADO_CONFIG_PATH=${CONFIG_PATH}/container_conf/dorado_conf
 KMC_CONFIG_PATH=${CONFIG_PATH}/container_conf/kmc_conf
 CERT_CONFIG_PATH=${CONFIG_PATH}/container_conf/cert_conf
 CERT_PASS="certPass"
@@ -21,7 +20,6 @@ USER_FILE="${LOGICREP_HOME}/create_user.json"
 HEALTHY_FILE="/opt/cantian/healthy"
 READINESS_FILE="/opt/cantian/readiness"
 CMS_CONTAINER_FLAG="/opt/cantian/cms/cfg/container_flag"
-SINGLE_FLAG="/opt/cantian/cantian/cfg/single_flag"
 
 source ${CURRENT_PATH}/../log4sh.sh
 
@@ -398,7 +396,6 @@ function set_version_file() {
     fi
 }
 
-
 function start_mysqld() {
     logAndEchoInfo "Begin to start mysqld. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     su -s /bin/bash - ${deploy_user} -c "python3 -B \
@@ -410,6 +407,65 @@ function start_mysqld() {
         exit_with_log
     fi
     logAndEchoInfo "start mysqld success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+}
+
+function start_cantian_with_dr_deploy() {
+    ln -s /ctdb/cantian_install/cantian_connector/action/docker/dr_deploy.sh /usr/local/bin/dr-deploy
+    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/dr_deploy.sh
+
+    role=$(python3 "${CURRENT_PATH}"/get_config_info.py "dr_deploy.role")
+    password=$(sh "${CURRENT_PATH}"/dr_deploy.sh "get_dm_password")
+
+    if [ x"${deploy_mode}" == x"dbstor" ]; then
+        dr_config_file=$(su -s /bin/bash - "${cantian_user}" \
+            -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "dr_deploy_param.json" | wc -l)
+    else
+        dr_config_file=$(ls -l "/mnt/dbdata/remote/metadata_${storage_metadata_fs}" | grep "dr_deploy_param.json" | wc -l)
+    fi
+
+    if [[ ${dr_config_file} -gt 0 ]]; then
+        chown -R ${deploy_user}:${deploy_group} ${OPT_CONFIG_PATH}
+        if [ x"${deploy_mode}" == x"dbstor" ]; then
+            su -s /bin/bash - "${cantian_user}" \
+                -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ \
+                --target-dir=${OPT_CONFIG_PATH} --file-name=dr_deploy_param.json"
+        else
+            cp "/mnt/dbdata/remote/metadata_${storage_metadata_fs}/dr_deploy_param.json" ${OPT_CONFIG_PATH}
+        fi
+        cp ${OPT_CONFIG_PATH}/dr_deploy_param.json ${CONFIG_PATH}
+
+        echo -e "${password}" | sh "${SCRIPT_PATH}"/appctl.sh dr_operate progress_query --action=check --display=table 2>&1 | grep -E "^\-|^\|"
+
+        dr_status=$(jq -r '.dr_status' ${CONFIG_PATH}/dr_status.json)
+
+        if [[ "${dr_status}" != "Normal" ]]; then
+            logAndEchoWarn "DR status is Abnormal. If you need, please enter the container and manually execute the Dr_deploy process."
+        fi
+
+        sh "${SCRIPT_PATH}"/appctl.sh start
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
+        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+            start_mysqld
+        fi
+    else
+        if [[ X"${role}" == X"active" ]]; then
+            # Cantian启动
+            sh "${SCRIPT_PATH}"/appctl.sh start
+            if [ $? -ne 0 ]; then
+                exit_with_log
+            fi
+            if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+                start_mysqld
+            fi
+        fi
+        logAndEchoInfo "dr_setup is True, executing dr_deploy tasks."
+        sh "${CURRENT_PATH}"/dr_deploy.sh
+    fi
+
+    logAndEchoInfo "dr_deploy Already executed."
+    return 0
 }
 
 function init_start() {
@@ -440,18 +496,33 @@ function init_start() {
         exit_with_log
     fi
 
-    # Cantian启动
-    sh ${SCRIPT_PATH}/appctl.sh start
-    if [ $? -ne 0 ]; then
-        exit_with_log
+    dr_setup=$(python3 ${CURRENT_PATH}/get_config_info.py "dr_deploy.dr_setup")
+    if [[ X"${dr_setup}" == X"True" ]]; then   
+        # 容灾搭建
+        start_cantian_with_dr_deploy
+    else
+        password=$(sh "${CURRENT_PATH}"/dr_deploy.sh "get_dm_password")
+        echo -e "${password}" | sh "${SCRIPT_PATH}"/appctl.sh dr_operate progress_query --action=check --display=table 2>&1 | grep -E "^\-|^\|"
+
+        dr_status=$(jq -r '.dr_status' ${CONFIG_PATH}/dr_status.json)
+
+        if [[ "${dr_status}" == "Normal" ]]; then
+            logAndEchoError "DR status is Normal. but dr_deploy=>dr_setup is False, please check config file."
+            exit_with_log
+        fi
+        # Cantian启动
+        sh ${SCRIPT_PATH}/appctl.sh start
+        if [ $? -ne 0 ]; then
+            exit_with_log
+        fi
+        # 安装并拉起MySQL,单进程不执行
+        if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
+            start_mysqld
+        fi
+
     fi
 
     set_version_file
-
-    # 安装并拉起MySQL,单进程不执行
-    if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
-        start_mysqld
-    fi
 
     # 创建就绪探针
     touch ${READINESS_FILE}
@@ -482,7 +553,8 @@ function execute_cantian_numa() {
     ln -sf /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py /usr/local/bin/cantian-numa
     chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
 
-    /usr/local/bin/cantian-numa
+    python3 /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
+    # /usr/local/bin/cantian-numa
     if [ $? -ne 0 ]; then
         echo "Error occurred in cantian-numa execution."
         return 0

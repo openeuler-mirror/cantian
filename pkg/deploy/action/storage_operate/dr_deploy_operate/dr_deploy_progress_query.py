@@ -3,14 +3,21 @@
 import datetime
 import json
 import os
+import stat
 import argparse
+
+from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from logic.common_func import read_json_config
 from logic.common_func import exec_popen
+from logic.storage_operate import StorageInf
+from utils.config.rest_constant import HealthStatus, VstorePairConfigStatus, VstorePairRunningStatus, \
+    MetroDomainRunningStatus, ReplicationRunningStatus
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 LOCAL_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 FULL_SYNC_PROGRESS = os.path.join(CURRENT_PATH, "../../../config/full_sync_progress.json")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+DR_STATUS = os.path.join(CURRENT_PATH, "../../../config/dr_status.json")
 
 
 class DrDeployQuery(object):
@@ -72,6 +79,153 @@ class DrDeployQuery(object):
             return "Dr deploy has not started yet."
 
 
+class DrStatusCheck(object):
+    def __init__(self):
+        self.dr_deploy_opt = None
+        self.dm_passwd = None
+        self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+
+    @staticmethod
+    def table_format(statuses: dict) -> str:
+        table = ""
+        table += "-" * 68 + "\n"
+        table += "|" + "Component".center(50, " ") + "|" + "Status".center(15, " ") + "|\n"
+        table += "-" * 68 + "\n"
+
+        for key, value in statuses.items():
+            if key == "dr_status":
+                continue
+            table += "|" + key.replace("_", " ").capitalize().center(50, " ") + "|" + value.center(15, " ") + "|\n"
+
+        table += "-" * 68 + "\n"
+        table += "|" + "DR Status".center(50, " ") + "|" + statuses["dr_status"].center(15, " ") + "|\n"
+        table += "-" * 68 + "\n"
+
+        return table
+
+    def init_storage_opt(self):
+        """Initialize storage operations from the configuration file."""
+        dm_ip = self.dr_deploy_info.get("dm_ip")
+        dm_user = self.dr_deploy_info.get("dm_user")
+        self.dm_passwd = input("Enter DM password: \n")
+        storage_opt = StorageInf((dm_ip, dm_user, self.dm_passwd))
+        storage_opt.login()
+        self.dr_deploy_opt = DRDeployCommon(storage_opt)
+
+    def query_domain_status(self) -> str:
+        hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
+        try:
+            domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(hyper_domain_id)
+            if domain_info:
+                domain_running_status = domain_info.get("RUNNINGSTATUS")
+                if domain_running_status == MetroDomainRunningStatus.Normal:
+                    return "Normal"
+                else:
+                    return "Abnormal"
+            return "Unknown"
+        except Exception:
+            return "Unknown"
+
+    def query_vstore_pair_status(self) -> str:
+        vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
+        try:
+            vstore_pair_info = self.dr_deploy_opt.query_hyper_metro_vstore_pair_info(vstore_pair_id)
+            if vstore_pair_info:
+                vstore_running_status = vstore_pair_info.get("RUNNINGSTATUS")
+                if (vstore_running_status == VstorePairRunningStatus.Normal and
+                        vstore_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal and
+                        vstore_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal):
+                    return "Normal"
+                else:
+                    return "Abnormal"
+            return "Unknown"
+        except Exception:
+            return "Unknown"
+
+    def query_ulog_fs_pair_status(self) -> str:
+        filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
+        try:
+            filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
+                pair_id=filesystem_pair_id)
+            if filesystem_pair_info:
+                ulog_fs_running_status = filesystem_pair_info.get("RUNNINGSTATUS")
+                if (ulog_fs_running_status == VstorePairRunningStatus.Normal and
+                        filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal and
+                        filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal):
+                    return "Normal"
+                else:
+                    return "Abnormal"
+            return "Unknown"
+        except Exception:
+            return "Unknown"
+
+    def query_page_fs_pair_status(self) -> str:
+        dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
+        try:
+            dbstore_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(dbstore_page_fs_name)
+            dbstore_page_fs_id = dbstore_page_fs_info.get("ID")
+            page_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstore_page_fs_id)
+            if page_fs_pair_info:
+                if page_fs_pair_info[0].get("HEALTHSTATUS") == HealthStatus.Normal:
+                    return "Normal"
+                else:
+                    return "Abnormal"
+            return "Unknown"
+        except Exception:
+            return "Unknown"
+
+    def update_dr_status_file(self, statuses: dict):
+        """Update the DR status information to a JSON file."""
+        try:
+            os.makedirs(os.path.dirname(DR_STATUS), exist_ok=True)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            mode = stat.S_IWUSR | stat.S_IRUSR
+            with os.fdopen(os.open(DR_STATUS, flags, mode), "w", encoding='utf-8') as file:
+                json.dump(statuses, file, indent=4)
+            os.chmod(DR_STATUS, 0o640)
+        except Exception as e:
+            print(f"Error updating DR status file: {e}")
+
+    def execute(self, display) -> str:
+        is_json_display = display != "table"
+        self.init_storage_opt()
+
+        statuses = {
+            "domain_status": "Unknown",
+            "vstore_pair_status": "Unknown",
+            "ulog_fs_pair_status": "Unknown",
+            "page_fs_pair_status": "Unknown",
+            "dr_status": "Abnormal"
+        }
+
+        statuses["domain_status"] = self.query_domain_status()
+        if statuses["domain_status"] in ["Unknown", "Abnormal"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
+        statuses["vstore_pair_status"] = self.query_vstore_pair_status()
+        if statuses["vstore_pair_status"] in ["Unknown", "Abnormal"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
+        statuses["ulog_fs_pair_status"] = self.query_ulog_fs_pair_status()
+        if statuses["ulog_fs_pair_status"] in ["Unknown", "Abnormal"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
+        statuses["page_fs_pair_status"] = self.query_page_fs_pair_status()
+        if statuses["page_fs_pair_status"] in ["Unknown", "Abnormal"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
+        if all(status == "Normal" for status in list(statuses.values())[:-1]):
+            statuses["dr_status"] = "Normal"
+
+        self.update_dr_status_file(statuses)
+
+        return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
+
 class FullSyncProgress(DrDeployQuery):
     def __init__(self):
         super(FullSyncProgress, self).__init__()
@@ -116,6 +270,9 @@ class ProgressQuery(object):
         args = parse_params.parse_args()
         if args.action == "deploy":
             dr_deploy_progress = DrDeployQuery()
+            result = dr_deploy_progress.execute(args.display)
+        elif args.action == "check":
+            dr_deploy_progress = DrStatusCheck()
             result = dr_deploy_progress.execute(args.display)
         elif args.action == "full_sync":
             full_sync_progress = FullSyncProgress()
