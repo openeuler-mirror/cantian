@@ -5192,7 +5192,7 @@ status_t knl_create_table_as_select(knl_handle_t session, knl_handle_t stmt, knl
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
         return CT_ERROR;
@@ -5253,7 +5253,7 @@ status_t knl_create_table(knl_handle_t session, knl_handle_t stmt, knl_table_def
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
         cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_CREATE_TABLE, &tv_begin, IO_STAT_FAILED);
@@ -5331,7 +5331,7 @@ status_t knl_create_view(knl_handle_t session, knl_handle_t stmt, knl_view_def_t
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (db_create_view((knl_session_t *)session, stmt, def) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
         return CT_ERROR;
@@ -6060,7 +6060,7 @@ status_t knl_create_sequence(knl_handle_t session, knl_handle_t stmt, knl_sequen
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (db_create_sequence((knl_session_t *)session, stmt, def) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
         return CT_ERROR;
@@ -6140,7 +6140,7 @@ status_t knl_drop_sequence(knl_handle_t session, knl_handle_t stmt, knl_drop_def
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (CT_SUCCESS != dc_seq_open(se, &def->owner, &def->name, &dc)) {
         dls_unlatch(session, &user->user_latch, NULL);
         cm_reset_error_user(ERR_SEQ_NOT_EXIST, T2S(&def->owner), T2S_EX(&def->name), ERR_TYPE_SEQUENCE);
@@ -7922,7 +7922,7 @@ status_t knl_drop_table(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t 
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, se->id, NULL);
+    dls_latch_sx(session, &user->user_latch, se->id, NULL);
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != CT_SUCCESS) {
         dls_unlatch(session, &user->user_latch, NULL);
         cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_DROP_TABLE, &tv_begin, IO_STAT_FAILED);
@@ -8122,7 +8122,7 @@ status_t knl_drop_view(knl_handle_t session, knl_handle_t stmt, knl_drop_def_t *
     }
 
     if (need_latch) {
-        dls_latch_x(session, &user->user_latch, se->id, NULL);
+        dls_latch_sx(session, &user->user_latch, se->id, NULL);
     }
 
     if (dc_open(se, &def->owner, &def->name, &dc) != CT_SUCCESS) {
@@ -11591,7 +11591,7 @@ status_t knl_create_synonym(knl_handle_t session, knl_handle_t stmt, knl_synonym
         return CT_ERROR;
     }
 
-    dls_latch_x(session, &user->user_latch, knl_session->id, NULL);
+    dls_latch_sx(session, &user->user_latch, knl_session->id, NULL);
 
     if (DB_NOT_READY(knl_session)) {
         CT_THROW_ERROR(ERR_NO_DB_ACTIVE);
@@ -11684,7 +11684,7 @@ status_t knl_drop_synonym(knl_handle_t session, knl_handle_t stmt, knl_drop_def_
         return CT_ERROR;
     }
 
-    dls_latch_x(knl_session, &user->user_latch, knl_session->id, NULL);
+    dls_latch_sx(knl_session, &user->user_latch, knl_session->id, NULL);
     status = knl_drop_synonym_internal(session, stmt, def);
     dls_unlatch(session, &user->user_latch, NULL);
 
