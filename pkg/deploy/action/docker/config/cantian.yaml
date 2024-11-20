@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: cantian-service
+  name: cantian-service-1
   labels:
-    app: cantian
+    app: cantian-1
   namespace: cantian
 spec:
   selector:
-    app: cantian
+    app: cantian-1
   ports:
     - protocol: TCP
       port: 33060
@@ -17,15 +17,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: cantian-svc  # 供集群内部通信
+  name: cantian-svc-1
   labels:
-    app: cantian
+    app: cantian-1
   namespace: cantian
 spec:
   publishNotReadyAddresses: true
   clusterIP: None
   selector:
-    app: cantian
+    app: cantian-1
   ports:
     - protocol: TCP
       port: 33060
@@ -34,7 +34,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cantian-node0
+  name: cantian-1-node0
   namespace: cantian
 spec:
   replicas: 1
@@ -45,20 +45,20 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: cantian
+      app: cantian-1
   template:
     metadata:
       labels:
-        app: cantian
+        app: cantian-1
       annotations:
         k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1, kube-system/rdma-sriov-net2
     spec:
-      hostname: cantian-node0
-      subdomain: cantian-svc
+      hostname: cantian-1-node0
+      subdomain: cantian-svc-1
       nodeSelector:
         sriov: enabled
       containers:
-        - name: cantian
+        - name: cantian-1
           image: {{ .Values.images.cantian }}
           imagePullPolicy: IfNotPresent
           securityContext:
@@ -113,12 +113,12 @@ spec:
             - name: MY_MEMORY_SIZE
               valueFrom:
                 resourceFieldRef:
-                  containerName: cantian
+                  containerName: cantian-1
                   resource: limits.memory
             - name: MY_CPU_NUM
               valueFrom:
                 resourceFieldRef:
-                  containerName: cantian
+                  containerName: cantian-1
                   resource: limits.cpu
       volumes:
         - name: localtime
@@ -132,7 +132,7 @@ spec:
             path: /home/k8s-node/container_conf
         - name: config-volume
           configMap:
-            name: node0-config
+            name: node0-config-1
         - name: kube-config-volume
           hostPath:
             path: /root/.kube
@@ -145,19 +145,13 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app: cantian
+                  app: cantian-1
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: "master"
-                    operator: DoesNotExist
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cantian-node1
+  name: cantian-1-node1
   namespace: cantian
 spec:
   replicas: 1
@@ -168,20 +162,20 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: cantian
+      app: cantian-1
   template:
     metadata:
       labels:
-        app: cantian
+        app: cantian-1
       annotations:
         k8s.v1.cni.cncf.io/networks: kube-system/rdma-sriov-net1, kube-system/rdma-sriov-net2
     spec:
-      hostname: cantian-node1
-      subdomain: cantian-svc
+      hostname: cantian-1-node1
+      subdomain: cantian-svc-1
       nodeSelector:
         sriov: enabled
       containers:
-        - name: cantian
+        - name: cantian-1
           image: {{ .Values.images.cantian }}
           imagePullPolicy: IfNotPresent
           securityContext:
@@ -208,12 +202,12 @@ spec:
           resources:
             requests:
               memory: "40Gi"
-              cpu: "12"  # 最小 CPU 需求
+              cpu: "12"
               huawei.io/rdma1: '1'
               huawei.io/rdma2: '1'
             limits:
               memory: "64Gi"
-              cpu: "12"  # 最大 CPU
+              cpu: "12"
               huawei.io/rdma1: '1'
               huawei.io/rdma2: '1'
           readinessProbe:
@@ -236,12 +230,12 @@ spec:
             - name: MY_MEMORY_SIZE
               valueFrom:
                 resourceFieldRef:
-                  containerName: cantian
+                  containerName: cantian-1
                   resource: limits.memory
             - name: MY_CPU_NUM
               valueFrom:
                 resourceFieldRef:
-                  containerName: cantian
+                  containerName: cantian-1
                   resource: limits.cpu
       volumes:
         - name: localtime
@@ -255,7 +249,7 @@ spec:
             path: /home/k8s-node/container_conf
         - name: config-volume
           configMap:
-            name: node1-config
+            name: node1-config-1
         - name: kube-config-volume
           hostPath:
             path: /root/.kube
@@ -268,11 +262,5 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app: cantian
+                  app: cantian-1
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: "master"
-                    operator: DoesNotExist
