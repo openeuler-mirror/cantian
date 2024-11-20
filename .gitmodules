@@ -1,0 +1,4 @@
+[submodule "open_source"]
+	path = open_source
+	url = https://gitee.com/cantian-repo/cantian-repo.git
+	branch = master

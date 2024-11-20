@@ -1,7 +1,9 @@
 #!/bin/bash
 
-CTDB_CODE_PATH=$(cd $(dirname $(dirname $(dirname $0))); pwd)
-
+CURRNT_PATH=$(cd $(dirname $0); pwd);
+cd ${CURRNT_PATH}
+cd ../../
+CTDB_CODE_PATH=$(pwd)
 GTEST_RESULT_PATH=${CTDB_CODE_PATH}/gtest_result
 echo "gtest_result_path: ${GTEST_RESULT_PATH}/"
 if [[ ! -d "${GTEST_RESULT_PATH}" ]]; then
@@ -30,14 +32,28 @@ function error(){
     exit 1
 }
 
+function make_cantian_pkg(){
+    cd ${CTDB_CODE_PATH}/build/
+    sh Makefile.sh clean
+    if [ $# -eq 1 ]; then
+        if [ "$1" == "single" ];then
+            export MYSQL_BUILD_MODE=single
+            sh Makefile.sh make_regress_test CANTIAN_READ_WRITE=1 no_shm=1 lcov=1 >> ${GTEST_RUN_LOG} 2>&1
+        else
+            error "The parameter is error!"
+        fi
+    else 
+        sh Makefile.sh make_regress_test lcov=1 >> ${GTEST_RUN_LOG} 2>&1
+    fi
+}
+
 echo -n "make test ..."
 dots 5 &
 DOTS_BG_PID=$!
 trap "kill -9 $DOTS_BG_PID" INT
 
-cd ${CTDB_CODE_PATH}/build/
-sh Makefile.sh clean
-sh Makefile.sh make_regress_test lcov=1 >> ${GTEST_RUN_LOG} 2>&1
+make_cantian_pkg
+
 cd ${CTDB_CODE_PATH}/build/pkg/test/unit_test/ut/
 make -sj 8 >> ${GTEST_RUN_LOG} 2>&1 
 
@@ -47,7 +63,8 @@ if [ "$?" != "0" ]; then
 fi
 
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/output/lib/
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/library/gtest/lib/
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/library/googletest/lib/
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/library/mockcpp/lib/
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/library/dbstor/lib/
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CTDB_CODE_PATH}/library/dbstor/lib/nomlnx/
 
@@ -60,9 +77,9 @@ else
     error "error: unknown arch!"
 fi
 mkdir -p ${CTDB_HOME}/cfg
-chmod 777 ${CTDB_CODE_PATH}/pkg/test/unit_test/ut/cms_test/cfg
-chmod 777 ${CTDB_CODE_PATH}/pkg/test/mes_test/config
-chmod 600 ${CTDB_CODE_PATH}/pkg/test/mes_test/config/ca.crt
+#chmod 777 ${CTDB_CODE_PATH}/pkg/test/unit_test/ut/cms_test/cfg
+#chmod 777 ${CTDB_CODE_PATH}/pkg/test/mes_test/config
+#chmod 600 ${CTDB_CODE_PATH}/pkg/test/mes_test/config/ca.crt
 echo "DBWR_PROCESSES = 8" >> ${CTDB_HOME}/cfg/cantiand.ini
 
 echo
@@ -92,6 +109,7 @@ fi
 echo
 echo "run ctbackup_test success!"
 
+echo
 echo -n "run knl_test ..."
 ${CTDB_CODE_PATH}/output/bin/knl_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
 if [ "$?" != "0" ]; then
@@ -100,6 +118,7 @@ fi
 echo
 echo "run knl_test success!"
 
+echo
 echo -n "run server_test ..."
 ${CTDB_CODE_PATH}/output/bin/server_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
 if [ "$?" != "0" ]; then
@@ -108,6 +127,7 @@ fi
 echo
 echo "run server_test success!"
 
+echo
 echo -n "run common_test ..."
 ${CTDB_CODE_PATH}/output/bin/common_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
 if [ "$?" != "0" ]; then
@@ -115,23 +135,6 @@ if [ "$?" != "0" ]; then
 fi
 echo
 echo "run common_test success!"
-
-echo -n "run tms_test ..."
-${CTDB_CODE_PATH}/output/bin/tms_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
-if [ "$?" != "0" ]; then
-    error "run tms_test error!"
-fi
-echo
-echo "run tms_test success!"
-
-echo
-echo -n "run cms_test ..."
-${CTDB_CODE_PATH}/output/bin/cms_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
-if [ "$?" != "0" ]; then
-    error "run cms_test error!"
-fi
-echo
-echo "run cms_test success!"
 
 echo
 echo -n "run mes_test ..."
@@ -141,6 +144,15 @@ if [ "$?" != "0" ]; then
 fi
 echo
 echo "run mes_test success!"
+
+echo
+echo -n "run cms_test ..."
+${CTDB_CODE_PATH}/output/bin/cms_test --gtest_output=xml:${GTEST_RESULT_PATH}/ >> ${GTEST_RUN_LOG} 2>&1
+if [ "$?" != "0" ]; then
+    error "run cms_test error!"
+fi
+echo
+echo "run cms_test success!"
 
 echo -n "collect coverage data ..."
 echo "lcov_output_path: ${LCOV_OUTPUT_PATH}/"
