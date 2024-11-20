@@ -31,6 +31,7 @@ class Constant:
     QUERY_REMOTE_DEVICE_INFO = "/deviceManager/rest/{deviceId}/remote_device"
     QUERY_LICENSE_FEATURE = "/deviceManager/rest/{deviceId}/license/feature"
     QUERY_HYPER_METRO_FILE_SYSTEM_PAIR = "/deviceManager/rest/{deviceId}/HyperMetroPair/associate"
+    QUERY_HYPER_METRO_FILE_SYSTEM_COUNT = "/deviceManager/rest/{deviceId}/HyperMetroPair/count"
     QUERY_REPLICATION_FILE_SYSTEM_PAIR = "/deviceManager/rest/{deviceId}/replicationpair/associate"
     QUERY_FILESYSTEM_FOR_REPLICATION = "/deviceManager/rest/{deviceId}/filesystem_for_replication"
 

@@ -14,6 +14,7 @@ from get_config_info import get_env_info
 RUN_USER = get_env_info("cantian_user")
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+DEPLOY_PARAMS_CONFIG = os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")
 LOGICREP_APPCTL_FILE = os.path.join(CURRENT_PATH, "../../logicrep/appctl.sh")
 EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
 CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '\
@@ -27,12 +28,13 @@ class SwitchOver(object):
     def __init__(self):
         self.dr_deploy_opt = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.deploy_params = read_json_config(DEPLOY_PARAMS_CONFIG)
         self.hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
         self.page_fs_pair_id = self.dr_deploy_info.get("page_fs_pair_id")
         self.meta_fs_pair_id = self.dr_deploy_info.get("meta_fs_pair_id")
         self.ulog_fs_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
         self.vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
-        self.node_id = self.dr_deploy_info.get("node_id")
+        self.node_id = self.deploy_params.get("node_id")
         self.cluster_name = self.dr_deploy_info.get("cluster_name")
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
         self.run_user = RUN_USER
@@ -247,7 +249,7 @@ class SwitchOver(object):
         :return:
         """
         LOG.info("Active/standby switch start.")
-        node_id = self.dr_deploy_info.get("node_id")
+        node_id = self.deploy_params.get("node_id")
         self.check_cluster_status(target_node=node_id)
         self.init_storage_opt()
         pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(self.ulog_fs_pair_id)

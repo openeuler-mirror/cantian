@@ -317,6 +317,10 @@ function dr_deploy() {
         if [[ -z ${dr_site} ]];then
             dr_site="--action=deploy"
         fi
+        if [[ "${dr_site}" == "--action=check" ]]; then
+            read -s -p "Please input device manager login passwd: " dm_pwd
+            echo ""
+        fi
         echo -e "${dm_pwd}" | python3 -B "${CURRENT_PATH}/storage_operate/dr_operate_interface.py" "${dr_action}" "${dr_site}" "$@"
     else
         echo -e "${dm_pwd}\n${dbstor_user}\n${dbstor_pwd_first}\n${unix_sys_pwd_first}\n${unix_sys_pwd_second}" | \

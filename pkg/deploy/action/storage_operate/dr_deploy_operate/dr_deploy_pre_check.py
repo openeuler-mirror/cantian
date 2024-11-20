@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # coding=utf-8
 import copy
+import json
 import os
 import argparse
 import re
@@ -21,10 +22,22 @@ from logic.common_func import exec_popen, read_json_config, write_json_config, g
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DEPLOY_POLICY_FILE = os.path.join(CURRENT_PATH, "../../deploy_policy_config.json")
+DEFAULT_PARAM_FILE = os.path.join(CURRENT_PATH, "../../config_params.json")
 DR_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 CANTIAN_STOP_SUCCESS_FLAG = os.path.join(CURRENT_PATH, "../../../config/.stop_success")
 DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
+DEPLOY_POLICY_CONFIG_FILE = os.path.join(CURRENT_PATH, "../../deploy_policy_config.json")
 DOMAIN_LIMITS = 4
+
+
+def get_config_values(key):
+        default_config = read_json_config(DEFAULT_PARAM_FILE)
+        if "deploy_policy" in default_config and default_config["deploy_policy"] != "default":
+            policy_config = read_json_config(DEPLOY_POLICY_CONFIG_FILE).get("deploy_policy")
+            if policy_config:
+                if key in policy_config["config"]:
+                    return policy_config["config"][key]
+        return default_config.get(key, "")
 
 
 class DRDeployPreCheck(object):
@@ -41,6 +54,12 @@ class DRDeployPreCheck(object):
         self.dm_login_passwd = None
         self.remote_operate = None
         self.run_user = get_env_info("cantian_user")
+        self.domain_name = None
+        self.hyper_domain_id = None
+        self.vstore_pair_id = None
+        self.ulog_fs_pair_id = None
+        self.page_fs_pair_id = None
+        self.meta_fs_pair_id = None
 
     @staticmethod
     def clean_env():
@@ -84,23 +103,19 @@ class DRDeployPreCheck(object):
         :return:
         """
         err_msg = []
+        node_id = self.deploy_params.get("node_id")
         cmd = "su -s /bin/bash - %s -c \"cms stat | " \
-              "grep -v NODE_ID | awk '{print \$3,\$6,\$9}'\"" % self.run_user
+            "grep -v NODE_ID | awk '{if(\$1==%s){print \$3,\$6,\$9}}'\"" % (self.run_user, node_id)
         return_code, output, stderr = exec_popen(cmd)
         if return_code == 1:
             err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
         else:
             cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
-            reformer_status = False
             for index, item in enumerate(cms_stat):
                 if item[0].strip(" ") != "ONLINE":
                     err_msg.append("Node[%s] status is not ONLINE." % index)
                 if item[1] != "1":
                     err_msg.append("Node[%s] status is not normal." % index)
-                if item[2] == "REFORMER":
-                    reformer_status = True
-            if not reformer_status:
-                err_msg.append("Current cluster reformer status is not normal.")
         return err_msg
 
     def check_storage_system_info(self) -> list:
@@ -206,6 +221,7 @@ class DRDeployPreCheck(object):
             return err_msg
         remote_pool_info = {}
         remote_pool_id = self.local_conf_params.get("remote_pool_id")
+        self.remote_operate = RemoteStorageOPT(self.storage_opt, self.remote_device_id)
         try:
             remote_pool_info = self.remote_operate.query_remote_storage_pool_info(pool_id=remote_pool_id)
         except Exception as _err:
@@ -234,7 +250,9 @@ class DRDeployPreCheck(object):
         err_msg = []
         if self.site == "standby":
             return err_msg
-        remote_vstore_id = self.local_conf_params.get("remote_dbstore_fs_vstore_id")
+        node_id = self.deploy_params.get("node_id")
+        if node_id != "0":
+            return err_msg
         LOG.info("Check standby filesystem nums start.")
         metadata_fs_name = self.local_conf_params.get("storage_metadata_fs")
         dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
@@ -244,21 +262,28 @@ class DRDeployPreCheck(object):
             dbstore_page_fs = RepFileSystemNameRule.NamePrefix + dbstore_page_fs + name_suffix
         if name_suffix and not metadata_in_cantian:
             metadata_fs_name = RepFileSystemNameRule.NamePrefix + metadata_fs_name + name_suffix
-        self.remote_operate = RemoteStorageOPT(self.storage_opt, self.remote_device_id)
-        file_system_count = self.remote_operate.query_remote_storage_vstore_filesystem_num(remote_vstore_id)
-        remote_metadata_fs_info = self.remote_operate.\
-            query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
-        remote_dbstore_page_fs_info = self.remote_operate.\
-            query_remote_filesystem_info(fs_name=dbstore_page_fs, vstore_id="0")
-        if file_system_count and file_system_count.get("COUNT") != "0":
-            err_msg.append("Standby vstore[%s] exist filesystems, count[%s]"
-                           % (remote_vstore_id, file_system_count.get("COUNT")))
-        if remote_dbstore_page_fs_info:
-            err_msg.append("Standby dbstore page filesystem[%s] exist, filesystem id[%s]." %
-                           (dbstore_page_fs, remote_dbstore_page_fs_info.get("ID")))
-        if remote_metadata_fs_info and not metadata_in_cantian:
-            err_msg.append("Standby metadata filesystem[%s] exist, filesystem id[%s]." %
-                           (metadata_fs_name, remote_metadata_fs_info.get("ID")))
+        if self.ulog_fs_pair_id is None:
+            dbstore_fs = self.local_conf_params.get("storage_dbstore_fs")
+            remote_fs_vstore_id = self.remote_conf_params.get("dbstore_fs_vstore_id")
+            remote_ulog_fs_info = self.remote_operate.\
+                query_remote_filesystem_info(fs_name=dbstore_fs, vstore_id=remote_fs_vstore_id)
+            if remote_ulog_fs_info:
+                err_msg.append("Standby dbstore filesystem[%s] exist, filesystem id[%s]." %
+                    (dbstore_fs, remote_ulog_fs_info.get("ID")))
+
+        if self.page_fs_pair_id is None:
+            remote_dbstore_page_fs_info = self.remote_operate.\
+                query_remote_filesystem_info(fs_name=dbstore_page_fs, vstore_id="0")
+            if remote_dbstore_page_fs_info:
+                err_msg.append("Standby dbstore page filesystem[%s] exist, filesystem id[%s]." %
+                    (dbstore_page_fs, remote_dbstore_page_fs_info.get("ID")))
+    
+        if self.meta_fs_pair_id is None:
+            remote_metadata_fs_info = self.remote_operate.\
+                query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
+            if remote_metadata_fs_info and not metadata_in_cantian:
+                err_msg.append("Standby metadata filesystem[%s] exist, filesystem id[%s]." %
+                    (metadata_fs_name, remote_metadata_fs_info.get("ID")))
         LOG.info("Check standby filesystem nums success.")
         return err_msg
 
@@ -294,50 +319,90 @@ class DRDeployPreCheck(object):
         err_msg = []
         if self.site == "standby":
             return err_msg
-        LOG.info("Check license effectivity start.")
+        LOG.info("Check disaster status start.")
         dbstore_fs = self.local_conf_params.get("storage_dbstore_fs")
         dbstore_fs_vstore_id = self.local_conf_params.get("dbstore_fs_vstore_id")
         remote_dbstore_fs_vstore_id = self.local_conf_params.get("remote_dbstore_fs_vstore_id")
         dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
         metadata_fs = self.local_conf_params.get("storage_metadata_fs")
         metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
-        cluster_id = self.local_conf_params.get("cluster_id")
         dbstore_fs_info = self.storage_opt.query_filesystem_info(dbstore_fs, dbstore_fs_vstore_id)
         dbstore_fs_id = dbstore_fs_info.get("ID")
-        dbstore_fs_info = self.storage_opt.query_filesystem_info(dbstore_page_fs)
-        page_fs_id = dbstore_fs_info.get("ID")
-        dbstore_fs_info = self.storage_opt.query_filesystem_info(metadata_fs)
-        metadata_fs_id = dbstore_fs_info.get("ID")
-        # 检查双活域是否已经存在
-        random_seed = LSIDGenerate.generate_random_seed()
+        dbstore_page_fs_info = self.storage_opt.query_filesystem_info(dbstore_page_fs)
+        metadata_fs_info = self.storage_opt.query_filesystem_info(metadata_fs)
+        metadata_fs_id = metadata_fs_info.get("ID")
+        page_fs_id = dbstore_page_fs_info.get("ID")
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
-        domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
+        domain_name = self.local_conf_params.get("domain_name", "")
+        if domain_name == "":
+            err_msg.append(f"deploy_param.json parameter[{domain_name}] error.")
+        domain_exist = False
         for domain_info in domain_infos:
             if domain_info.get("NAME") == domain_name:
-                err_msg.append("Domain name[%s] is exist." % domain_name)
-                break
-        if len(domain_infos) >= DOMAIN_LIMITS:
+                remote_esn = self.remote_conf_params.get("esn")
+                for remote_info in json.loads(domain_info.get("REMOTEDEVICES")):
+                    if remote_info.get("devESN") == remote_esn:
+                        domain_exist = True
+                        self.hyper_domain_id = domain_info.get("ID")
+                        LOG.info("Domain name[%s] is exist." % domain_name)
+                        break
+                if domain_exist:
+                    break
+                else:
+                    _err_msg = "Domain name[%s] is exist, " \
+                               "but remote esn[%s] matching failed." % (domain_name, remote_esn)
+                    err_msg.append(_err_msg)
+        else:
+            LOG.info("Domain name[%s] is not exist." % domain_name)
+        if len(domain_infos) >= DOMAIN_LIMITS and not domain_exist:
             err_msg.append("The number of HyperMetro domains has reached the upper limit %s." % DOMAIN_LIMITS)
         page_pair_info = self.deploy_operate.query_remote_replication_pair_info(page_fs_id)
         if page_pair_info:
-            err_msg.append("Filesystem[%s] replication pair is exist." % dbstore_page_fs)
+            if len(page_pair_info) == 1 and page_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                self.page_fs_pair_id = page_pair_info[0].get("ID")
+            else:
+                _err_msg = "Filesystem[%s] replication pair is exist, details: %s" % (dbstore_page_fs, page_pair_info)
+                err_msg.append(_err_msg)
         vstore_pair_infos = self.deploy_operate.query_hyper_metro_vstore_pair_info()
         for vstore_pair_info in vstore_pair_infos:
             exist_remote_vstoreid = vstore_pair_info.get("REMOTEVSTOREID")
             exist_local_vstoreid = vstore_pair_info.get("LOCALVSTOREID")
             if exist_local_vstoreid == dbstore_fs_vstore_id and remote_dbstore_fs_vstore_id == exist_remote_vstoreid:
-                err_msg.append("Vstore[%s] metro pair is exist." % dbstore_fs_vstore_id)
+                if vstore_pair_info.get("DOMAINNAME") == domain_name:
+                    self.vstore_pair_id = vstore_pair_info.get("ID")
+                    LOG.info("Vstore[%s] metro pair is exist." % dbstore_fs_vstore_id)
+                else:
+                    _err_msg = "Vstore[%s] metro pair is exist, " \
+                               "but domain name[%s] matching failed." % (dbstore_fs_vstore_id, domain_name)
+                    err_msg.append(_err_msg)
                 break
+        else:
+            system_count = self.remote_operate.query_remote_storage_vstore_filesystem_num(remote_dbstore_fs_vstore_id)
+            if system_count and system_count.get("COUNT") != "0":
+                err_msg.append("Standby vstore[%s] exist filesystems, count[%s]"
+                            % (remote_dbstore_fs_vstore_id, system_count.get("COUNT")))
+        
         ulog_pair_info = self.deploy_operate.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
         if ulog_pair_info:
-            err_msg.append("Filesystem[%s] metro pair is exist." % dbstore_fs)
+            pair_info = ulog_pair_info[0]
+            if pair_info.get("DOMAINNAME") == domain_name:
+                self.ulog_fs_pair_id = pair_info.get("ID")
+                LOG.info("Filesystem[%s] metro pair is exist." % dbstore_fs)
+            else:
+                _err_msg = "Filesystem[%s] metro pair is exist, " \
+                           "but domain name[%s] matching failed." % (dbstore_fs, domain_name)
+                err_msg.append(_err_msg)
+
         deploy_mode = self.local_conf_params.get("deploy_mode")
         if metadata_in_cantian and deploy_mode != "dbstor":
             meta_pair_info = self.deploy_operate.query_remote_replication_pair_info(metadata_fs_id)
             if meta_pair_info:
-                err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
+                if len(meta_pair_info) == 1 and meta_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                    self.meta_fs_pair_id = meta_pair_info[0].get("ID")
+                else:
+                    err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
 
-        LOG.info("Check license effectivity success.")
+        LOG.info("Check disaster status success.")
         return err_msg
 
     def check_active_exist_params(self):
@@ -360,7 +425,6 @@ class DRDeployPreCheck(object):
                       "please check cantian is deployed." % DEPLOY_PARAM_FILE
             LOG.error(_err_msg)
             raise Exception(_err_msg)
-        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         deploy_mode = self.deploy_params.get("deploy_mode")
         if deploy_mode != "dbstor":
             check_list.append("storage_metadata_fs")
@@ -388,7 +452,9 @@ class DRDeployPreCheck(object):
         local_site = self.site
         remote_site = ({"standby", "active"} - {self.site}).pop()
         local_dr_deploy_param = conf_params.get("dr_deploy").get(local_site)
+        local_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name")
         remote_dr_deploy_param = conf_params.get("dr_deploy").get(remote_site)
+        remote_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name")
         remote_pool_id = conf_params.get("dr_deploy").get("standby").get("pool_id")
         remote_dbstore_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstore_fs_vstore_id")
         name_suffix = conf_params.get("dr_deploy").get("standby").get("name_suffix", "")
@@ -421,7 +487,11 @@ class DRDeployPreCheck(object):
             "remote_pool_id": self.local_conf_params.get("remote_pool_id"),
             "remote_cluster_name": self.local_conf_params.get("remote_cluster_name"),
             "remote_device_id": self.remote_device_id,
-            "remote_dbstore_fs_vstore_id": self.local_conf_params.get("remote_dbstore_fs_vstore_id")
+            "remote_dbstore_fs_vstore_id": self.local_conf_params.get("remote_dbstore_fs_vstore_id"),
+            "domain_name": self.local_conf_params.get("domain_name"),
+            "hyper_domain_id": self.hyper_domain_id,
+            "vstore_pair_id": self.vstore_pair_id,
+            "ulog_fs_pair_id": self.ulog_fs_pair_id
         }
         name_suffix = self.local_conf_params.get("name_suffix")
         if name_suffix and self.site == "standby":
@@ -433,6 +503,7 @@ class DRDeployPreCheck(object):
                                                                 self.local_conf_params[
                                                                     "mysql_metadata_in_cantian"] + name_suffix
         self.local_conf_params.update(dr_params)
+        del self.local_conf_params["node_id"]
         write_json_config(DR_DEPLOY_PARAM_FILE, self.local_conf_params)
 
     def init_opt(self):
@@ -459,6 +530,7 @@ class DRDeployPreCheck(object):
         if not os.path.exists(os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")):
             shutil.copy("/opt/cantian/config/deploy_param.json", os.path.join(CURRENT_PATH, "../../../config"))
             return check_result
+        self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         check_result.extend(self.check_master_cantian_status())
         check_result.extend(self.check_file_system_status(
             fs_name=self.local_conf_params.get("storage_dbstore_page_fs"),
@@ -560,7 +632,8 @@ class DRDeployPreCheck(object):
         :return:
         """
         check_result = []
-        if self.site == "active":
+        conf_params = read_json_config(self.conf)
+        if self.site == "active" or conf_params.get("cantian_in_container") == "1":
             return check_result
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"
@@ -572,9 +645,7 @@ class DRDeployPreCheck(object):
         install_json_data = read_json_config(install_json_path)
         root_dir = os.path.join(CURRENT_PATH, "../../../../")
         if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
-            meta_path = os.path.join(CURRENT_PATH, "../../config_params.json")
-            meta_data = read_json_config(meta_path)
-            if meta_data.get("mysql_metadata_in_cantian"):
+            if get_config_values("mysql_metadata_in_cantian"):
                 # 归一
                 check_pkg_cmd = "ls %s/Cantian_connector_mysql_*.tgz" % root_dir
             else:
@@ -599,9 +670,9 @@ class DRDeployPreCheck(object):
             check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_remote_device_info())
             check_result.extend(self.check_license_effectivity())
-            check_result.extend(self.check_standby_filesystem())
             check_result.extend(self.check_standby_pool_info())
             check_result.extend(self.check_disaster_exist())
+            check_result.extend(self.check_standby_filesystem())
             if check_result:
                 _err = "\n".join([" " * 8 + str(index + 1) + "." + err for index, err in enumerate(check_result)])
                 _err = "DR deploy pre_check failed, details:\n" + _err

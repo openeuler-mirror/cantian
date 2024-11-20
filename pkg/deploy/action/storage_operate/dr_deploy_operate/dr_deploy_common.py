@@ -230,6 +230,16 @@ class DRDeployCommon(object):
         err_msg = "Failed to query hyper metro file system pair info"
         rsp_data = StorageInf.result_parse(err_msg, res)
         return rsp_data
+    
+    def query_hyper_metro_filesystem_count_info(self, vstore_id: str) -> list:
+        url = (Constant.QUERY_HYPER_METRO_FILE_SYSTEM_COUNT).format(deviceId=self.device_id)
+        data = {
+            "vstoreId": vstore_id
+        }
+        res = self.rest_client.normal_request(url, data=data, method="get")
+        err_msg = "Failed to query hyper metro file system pair count info"
+        rsp_data = StorageInf.result_parse(err_msg, res)
+        return rsp_data
 
     def query_hyper_metro_filesystem_pair_info_by_pair_id(self, pair_id: str) -> dict:
         """
@@ -304,7 +314,7 @@ class DRDeployCommon(object):
                 timeout -= 10
                 continue
             else:
-                err_msg = "Failed to create replication filesystem pair"
+                err_msg = "Failed to create filesystem pair"
                 LOG.error(err_msg)
                 raise Exception(err_msg)
 
