@@ -549,7 +549,10 @@ if [ ! -f /.dockerenv ]; then
     check_ntp_active
 fi
 
-cantian_in_container=`cat ${CONFIG_FILE} | grep -oP '(?<="cantian_in_container": ")[^"]*'`
+if [[ -r "${CONFIG_FILE}" ]]; then
+    cantian_in_container=`cat ${CONFIG_FILE} | grep -oP '(?<="cantian_in_container": ")[^"]*'`
+fi
+
 if [[ "${cantian_in_container}" != "1" && "${cantian_in_container}" != "2" ]]; then
     python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
     if [ $? -ne 0 ]; then
