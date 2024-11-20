@@ -3120,8 +3120,15 @@ void cms_proc_msg_req_get_iostat(cms_packet_head_t *msg)
     res->head.src_msg_seq = req->head.msg_seq;
     res->head.uds_sid = msg->uds_sid;
     for (uint8 i = 0; i < CMS_IO_COUNT; i++) {
-        res->detail[i].total_time = g_io_record_event_wait[i].detail.total_time;
-        res->detail[i].start = g_io_record_event_wait[i].detail.start;
+        uint64 total_count = 0;
+        uint64 event_total_time = 0;
+        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            total_count += g_io_record_event_wait[i][hash_id].detail.start;
+            event_total_time += g_io_record_event_wait[i][hash_id].detail.total_time;
+        }
+
+        res->detail[i].total_time = event_total_time;
+        res->detail[i].start = total_count;
     }
     res->result = CT_SUCCESS;
     cms_enque(&g_cms_inst->cli_send_que, node);

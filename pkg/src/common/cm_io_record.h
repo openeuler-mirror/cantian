@@ -36,6 +36,9 @@ extern "C" {
 #endif /* __cplusplus */
 extern uint64_t clock_frequency;
 
+#define EVENT_TRACKING_GROUP 1024
+#define EVENT_TRACKING_HASH(CYCLES) (CYCLES >> 1) % EVENT_TRACKING_GROUP
+
 typedef enum {
     IO_RECORD_EVENT_DRC_REMASTER_RECOVER_CKPT = 0,
     IO_RECORD_EVENT_DRC_REMASTER_RECOVER_REBUILD,
@@ -143,10 +146,12 @@ typedef struct {
     char desc[CT_MAX_NAME_LEN];
 } io_record_event_desc_t;
 
-extern io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT];
+extern io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT][EVENT_TRACKING_GROUP];
 extern io_record_event_desc_t g_io_record_event_desc[IO_RECORD_EVENT_COUNT];
 extern bool32 g_cm_cantian_event_tracking_open;
 extern bool32 g_cm_ctc_event_tracking_open;
+
+uint64_t rdtsc();
 
 status_t record_io_stat_reset(void);
 status_t record_io_stat_init(void);
@@ -157,7 +162,8 @@ static inline void cantian_record_io_stat_begin(io_record_event_t event, uint64_
     if (!g_cm_cantian_event_tracking_open) {
         return;
     }
-    atomic_t *start = &(g_io_record_event_wait[event].detail.start);
+    *tv_begin = rdtsc();
+    atomic_t *start = &(g_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail.start);
     record_io_stat_begin(tv_begin, start);
 }
 
@@ -168,12 +174,11 @@ static inline void cantian_record_io_stat_end(io_record_event_t event, uint64_t 
     if (!g_cm_cantian_event_tracking_open) {
         return;
     }
-    io_record_detail_t *detail = &(g_io_record_event_wait[event].detail);
+    io_record_detail_t *detail = &(g_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail);
     record_io_stat_end(tv_begin, detail);
 }
 
 void record_io_stat_print(void);
-uint64_t rdtsc();
 status_t get_clock_frequency(void);
 
 volatile bool32 get_iorecord_status(void);

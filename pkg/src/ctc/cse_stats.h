@@ -33,7 +33,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern io_record_wait_t g_ctc_io_record_event_wait[CTC_FUNC_TYPE_NUMBER];
+extern io_record_wait_t g_ctc_io_record_event_wait[CTC_FUNC_TYPE_NUMBER][EVENT_TRACKING_GROUP];
 extern io_record_event_desc_t g_ctc_io_record_event_desc[CTC_FUNC_TYPE_NUMBER];
 
 #define INIT_CTC_EVENT_TRACKING(TYPE) uint64_t tv_begin_##TYPE
@@ -51,7 +51,8 @@ EXTER_ATTACK static inline void mysql_record_io_stat_begin(enum CTC_FUNC_TYPE ty
     if (!g_cm_ctc_event_tracking_open) {
         return;
     }
-    atomic_t *start = &g_ctc_io_record_event_wait[type].detail.start;
+    *tv_begin = rdtsc();
+    atomic_t *start = &g_ctc_io_record_event_wait[type][EVENT_TRACKING_HASH(*tv_begin)].detail.start;
     record_io_stat_begin(tv_begin, start);
 }
 
@@ -60,7 +61,7 @@ EXTER_ATTACK static inline void mysql_record_io_stat_end(enum CTC_FUNC_TYPE even
     if (!g_cm_ctc_event_tracking_open) {
         return;
     }
-    io_record_detail_t *detail = &(g_ctc_io_record_event_wait[event].detail);
+    io_record_detail_t *detail = &(g_ctc_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail);
     record_io_stat_end(tv_begin, detail);
 }
 

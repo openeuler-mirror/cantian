@@ -2244,7 +2244,7 @@ status_t sql_notify_als_ckpt_wait_timeout(void *se, void *item, char *value)
 
 status_t sql_notify_event_tracking_stats(event_tracking_module module, bool32 *param, char *value)
 {
-    status_t ret;
+    status_t ret = CT_SUCCESS;
     if (!(bool32)value[0]) {
         PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "OFF"));
         *param = false;

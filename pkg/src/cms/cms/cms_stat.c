@@ -2190,9 +2190,9 @@ status_t cms_get_res_session(cms_res_session_t* sessions, uint32 size)
 void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, io_record_stat_t stat)
 {
     if (node_hb_aync != NULL) {
-        cm_atomic_inc(&(g_io_record_event_wait[CMS_IO_RECORD_HB_AYNC_TIME_GAP].detail.start));
         cms_hb_aync_start_t *hb_write_aync = (cms_hb_aync_start_t *)cms_que_node_data(node_hb_aync);
         uint64_t sec = (uint64_t)hb_write_aync->hb_time_aync_start.tv_sec;
+        cm_atomic_inc(&(g_io_record_event_wait[CMS_IO_RECORD_HB_AYNC_TIME_GAP][EVENT_TRACKING_HASH(sec)].detail.start));
         cantian_record_io_stat_end(CMS_IO_RECORD_HB_AYNC_TIME_GAP, &sec);
         cms_que_free_node(node_hb_aync);
     }

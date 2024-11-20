@@ -42,7 +42,7 @@ bool32 g_cm_ctc_event_tracking_open = CT_FALSE;
 
 uint64_t clock_frequency = 0;
 
-io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT];
+io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT][EVENT_TRACKING_GROUP];
 
 io_record_event_desc_t g_io_record_event_desc[IO_RECORD_EVENT_COUNT] = {
     { "remaster recover ckpt", ""},
@@ -143,11 +143,13 @@ status_t record_io_stat_reset(void)
     status_t ret = CT_SUCCESS;
     io_record_wait_t *event_wait;
     for (uint32 i = 0; i < IO_RECORD_EVENT_COUNT; i++) {
-        event_wait = &g_io_record_event_wait[i];
-        ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
-        if (ret != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[io record] init io record failed, event %u", i);
-            return ret;
+        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            event_wait = &g_io_record_event_wait[i][hash_id];
+            ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
+            if (ret != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[io record] init io record failed, event %u", i);
+                return ret;
+            }
         }
     }
     return ret;
@@ -160,7 +162,6 @@ status_t record_io_stat_init(void)
 
 void record_io_stat_begin(uint64_t *tv_begin, atomic_t *start)
 {
-    *tv_begin = rdtsc();
     cm_atomic_inc(start);
 }
 
@@ -186,10 +187,12 @@ void record_io_stat_print(void)
 {
     io_record_detail_t detail;
     for (uint32 i = 0; i < IO_RECORD_EVENT_COUNT; i++) {
-        detail = g_io_record_event_wait[i].detail;
-        if (detail.start != 0) {
-            printf("id:%u  start:%lld  avg:%lld  total:%lld \n",
-                i, detail.start, detail.total_time / detail.start, detail.total_time);
+        for (uint32 hash_id; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            detail = g_io_record_event_wait[i][hash_id].detail;
+            if (detail.start != 0) {
+                printf("id:%u  start:%lld  avg:%lld  total:%lld \n",
+                    i, detail.start, detail.total_time / detail.start, detail.total_time);
+            }
         }
     }
     printf("\n");

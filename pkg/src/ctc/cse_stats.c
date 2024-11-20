@@ -35,7 +35,7 @@
 #endif
 
 #define NUMBER_DOUBLE 0.00000001
-io_record_wait_t g_ctc_io_record_event_wait[CTC_FUNC_TYPE_NUMBER];
+io_record_wait_t g_ctc_io_record_event_wait[CTC_FUNC_TYPE_NUMBER][EVENT_TRACKING_GROUP];
 
 io_record_event_desc_t g_ctc_io_record_event_desc[CTC_FUNC_TYPE_NUMBER] = {
     {"CTC_FUNC_TYPE_OPEN_TABLE", ""},
@@ -116,11 +116,13 @@ status_t ctc_record_io_state_reset(void)
     status_t ret = CT_SUCCESS;
     io_record_wait_t *event_wait;
     for (uint32 i = 0; i < CTC_FUNC_TYPE_NUMBER; i++) {
-        event_wait = &g_ctc_io_record_event_wait[i];
-        ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
-        if (ret != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[io record] init tse io record failed, event %u", i);
-            return ret;
+        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            event_wait = &g_ctc_io_record_event_wait[i][hash_id];
+            ret = memset_s(&(event_wait->detail), sizeof(io_record_detail_t), 0, sizeof(io_record_detail_t));
+            if (ret != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[io record] init tse io record failed, event %u", i);
+                return ret;
+            }
         }
     }
     return ret;

@@ -1105,13 +1105,21 @@ static status_t io_record_fetch(row_assist_t *ra, io_record_detail_t detail, knl
 
 status_t vw_ctc_io_fetch(knl_handle_t session, knl_cursor_t *cursor)
 {
+    uint32 start_count = 0;
+    uint64 event_total_time = 0;
     uint64 id = cursor->rowid.vmid;
     while (CT_TRUE) {
         if (id >= CTC_FUNC_TYPE_NUMBER) {
             cursor->eof = CT_TRUE;
             return CT_SUCCESS;
         }
-        if (g_ctc_io_record_event_wait[id].detail.start == 0) {
+        start_count = 0;
+        event_total_time = 0;
+        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            start_count += g_ctc_io_record_event_wait[id][hash_id].detail.start;
+            event_total_time += g_ctc_io_record_event_wait[id][hash_id].detail.total_time;
+        }
+        if (start_count == 0) {
             cursor->rowid.vmid++;
             id = cursor->rowid.vmid;
             continue;
@@ -1123,20 +1131,27 @@ status_t vw_ctc_io_fetch(knl_handle_t session, knl_cursor_t *cursor)
     CT_RETURN_IFERR(row_put_int32(&ra, (int32)id));
     CT_RETURN_IFERR(row_put_str(&ra, g_ctc_io_record_event_desc[id].name));
 
-    io_record_detail_t detail = g_ctc_io_record_event_wait[id].detail;
+    io_record_detail_t detail = {start_count, event_total_time};
     return io_record_fetch(&ra, detail, cursor);
 }
 
 status_t vw_io_stat_record_fetch(knl_handle_t session, knl_cursor_t *cursor)
 {
     uint64 id = cursor->rowid.vmid;
-
+    uint32 start_count = 0;
+    uint64 event_total_time = 0;
     while (CT_TRUE) {
         if (id >= IO_RECORD_EVENT_COUNT) {
             cursor->eof = CT_TRUE;
             return CT_SUCCESS;
         }
-        if (g_io_record_event_wait[id].detail.start == 0) {
+        start_count = 0;
+        event_total_time = 0;
+        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
+            start_count += g_io_record_event_wait[id][hash_id].detail.start;
+            event_total_time += g_io_record_event_wait[id][hash_id].detail.total_time;
+        }
+        if (start_count == 0) {
             cursor->rowid.vmid++;
             id = cursor->rowid.vmid;
             continue;
@@ -1149,7 +1164,7 @@ status_t vw_io_stat_record_fetch(knl_handle_t session, knl_cursor_t *cursor)
     CT_RETURN_IFERR(row_put_int32(&ra, (int32)id));
     CT_RETURN_IFERR(row_put_str(&ra, g_io_record_event_desc[id].name));
 
-    io_record_detail_t detail = g_io_record_event_wait[id].detail;
+    io_record_detail_t detail = {start_count, event_total_time};
     return io_record_fetch(&ra, detail, cursor);
 }
 
