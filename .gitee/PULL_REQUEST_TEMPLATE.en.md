@@ -1,16 +1,11 @@
 <!--
-PR Title Format: type(module|feature): brief description
+PR Title Format: "type(module|feature): brief description". The description of module or feature is optional.
 Where type can be one of the following:
-    feat: for new features
-    fix: for bug fixes
-    perf: for performance improvements
-    refactor: for code refactoring
-    revert: for reverting changes
-    test: for adding or updating tests
-    docs: for documentation changes
-    style: for code style improvements
-    sync: for synchronization tasks
-    chore: for maintenance tasks
+    feat: new features;				fix: bug fixes;						perf: performance improvements;
+	refactor: code refactoring;		revert: reverting changes;			test: adding or updating tests;
+	docs: documentation changes;	style: code style improvements;		sync: synchronization tasks
+	chore: maintenance tasks;
+Example: "docs(template): add templates for PR and Issue"
 Note: Delete This Section When Committing Code.
 -->
 
