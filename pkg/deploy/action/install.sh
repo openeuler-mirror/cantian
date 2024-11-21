@@ -549,10 +549,12 @@ if [ ! -f /.dockerenv ]; then
     check_ntp_active
 fi
 
-if [[ -r "${CONFIG_FILE}" ]]; then
-    cantian_in_container=`cat ${CONFIG_FILE} | grep -oP '(?<="cantian_in_container": ")[^"]*'`
-fi
+# 把生成的deploy_param.json移到config路径下
+mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
+python3 ${CURRENT_PATH}/write_config.py "install_type" ${INSTALL_TYPE}
 
+deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
+cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 if [[ "${cantian_in_container}" != "1" && "${cantian_in_container}" != "2" ]]; then
     python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
     if [ $? -ne 0 ]; then
@@ -563,12 +565,7 @@ else
     cp -arf ${CURRENT_PATH}/${CONFIG_FILE} ${CURRENT_PATH}/deploy_param.json
 fi
 
-# 把生成的deploy_param.json移到config路径下
-mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
-python3 ${CURRENT_PATH}/write_config.py "install_type" ${INSTALL_TYPE}
 
-deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
-cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 # 公共预安装检查
 rpm_check
 

@@ -225,18 +225,6 @@ function check_container_context() {
     check_cpu_limit
 }
 
-function init_container() {
-    # 非去nas在后续init_container
-    if [ x"${deploy_mode}" != x"dbstor" ]; then
-        return 0
-    fi
-    # Cantian启动前执行init流程，更新各个模块配置文件，初始化cms
-    sh ${SCRIPT_PATH}/appctl.sh init_container
-    if [ $? -ne 0 ]; then
-        exit_with_log
-    fi
-}
-
 function mount_fs() {
     if [ x"${deploy_mode}" == x"dbstor" ]; then
         logAndEchoInfo "deploy_mode = dbstor, no need to mount file system. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -469,18 +457,6 @@ function start_cantian_with_dr_deploy() {
 }
 
 function init_start() {
-
-    # 使用共享文件在这里init_container
-    if [ x"${deploy_mode}" != x"dbstor" ]; then
-        sh ${SCRIPT_PATH}/appctl.sh init_container
-        if [ $? -ne 0 ]; then
-            exit_with_log
-        fi
-    fi
-
-    # 更新 MySQL 配置文件,存在则更新
-    update_mysql_config
-
     # Cantian启动前参数预检查
     logAndEchoInfo "Begin to pre-check the parameters."
     python3 ${PRE_INSTALL_PY_PATH} 'override' ${CONFIG_PATH}/${CONFIG_NAME}
@@ -489,6 +465,18 @@ function init_start() {
         exit_with_log
     fi
     logAndEchoInfo "pre-check the parameters success."
+
+    sh ${SCRIPT_PATH}/appctl.sh init_container
+    if [ $? -ne 0 ]; then
+        exit_with_log
+    fi
+
+    python3 ${PRE_INSTALL_PY_PATH} 'sga_buffer_check'
+
+    check_init_status
+
+    # 更新 MySQL 配置文件,存在则更新
+    update_mysql_config
 
     # Cantian启动前先执行升级流程
     sh ${CURRENT_PATH}/container_upgrade.sh
@@ -585,9 +573,7 @@ function main() {
     prepare_kmc_conf
     prepare_certificate
     execute_cantian_numa
-    init_container
     mount_fs
-    check_init_status
     init_start
     process_logs
 }

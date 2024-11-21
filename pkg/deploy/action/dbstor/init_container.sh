@@ -19,24 +19,35 @@ function set_dbstor_config() {
     
     cantian_vlan_name=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cantian_vlan_ip"`
     cantian_vlan_ip=""
-    IFS=';' read -ra vlan_names <<< "${cantian_vlan_name}"
-    for vlan_name in "${vlan_names[@]}";
-    do
+
+    # vlan_ip分割符支持分号（;）和竖线（|）
+    if [[ "${cantian_vlan_name}" == *";"* ]]; then
+        separator=";"
+    elif [[ "${cantian_vlan_name}" == *"|"* ]]; then
+        separator="|"
+    else
+        echo "Unsupported delimiter in cantian_vlan_name. Must contain ';' or '|'."
+        exit 1
+    fi
+
+    IFS="${separator}" read -ra vlan_names <<< "${cantian_vlan_name}"
+
+    for vlan_name in "${vlan_names[@]}"; do
         if [[ ${vlan_name} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             if [ -n "${cantian_vlan_ip}" ]; then
-                cantian_vlan_ip+=";"
+                cantian_vlan_ip+="${separator}"
             fi
             cantian_vlan_ip+="${vlan_name}"
         else
             vlan_ip=$(ip add show dev ${vlan_name} | grep -w 'inet' | awk '{print $2}' | awk -F '/' '{print $1}')
-            if [ -n "${vlan_ip}" ]; then  
-                if [ -n "${cantian_vlan_ip}" ]; then  
-                    cantian_vlan_ip+=";"  
-                fi  
-                cantian_vlan_ip+="${vlan_ip}"  
-            else  
-                echo "No IP address found for interface ${vlan_name}"  
-            fi 
+            if [ -n "${vlan_ip}" ]; then
+                if [ -n "${cantian_vlan_ip}" ]; then
+                    cantian_vlan_ip+="${separator}"
+                fi
+                cantian_vlan_ip+="${vlan_ip}"
+            else
+                echo "No IP address found for interface ${vlan_name}"
+            fi
         fi
     done
 
