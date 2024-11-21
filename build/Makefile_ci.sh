@@ -717,35 +717,19 @@ func_download_3rdparty()
     else
         DOWNLOAD_PATH=${WORKSPACE}"/cantian"
     fi
-
-    mkdir -p ${WORKSPACE}/3rdPartyPkg
-    cd ${WORKSPACE}/3rdPartyPkg
-    if [[ ! -e "cantian3.0.0.zip" ]]; then
-        wget --no-check-certificate https://gitee.com/solid-yang/cantian-test/repository/archive/cantian3.0.0.zip
-        unzip cantian3.0.0.zip
-        mv cantian-test-cantian3.0.0/* ./
-        rm -rf cantian-test-cantian3.0.0
+    
+    cd ${DOWNLOAD_PATH}
+    echo "Clone source start"
+    if [[ x"${proxy_user}" != x"" ]]; then
+        export http_proxy=http://${proxy_user}:${proxy_pwd}@${proxy_url}
+        export https_proxy=${http_proxy}
+        export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
     fi
+    git clone https://gitee.com/cantian-repo/cantian-repo.git
+    rm -rf open_source
+    mv cantian-repo open_source 
+
     cd -
-
-    lib_name_list=("huawei_security" "lz4" "openssl" "pcre" "protobuf" "protobuf-c" "zlib" "Zstandard")
-
-    mkdir -p ${DOWNLOAD_PATH}/platform
-
-    for lib_name in ${lib_name_list[@]}; do
-    echo ${lib_name}
-    mkdir -p ${DOWNLOAD_PATH}/open_source/${lib_name}/include
-    mkdir -p ${DOWNLOAD_PATH}/library/${lib_name}/lib
-    done
-
-    cp -f ${WORKSPACE}/3rdPartyPkg/pcre2-10.40.tar.gz ${DOWNLOAD_PATH}/open_source/pcre/
-    cp -f ${WORKSPACE}/3rdPartyPkg/lz4-1.9.4.tar.gz ${DOWNLOAD_PATH}/open_source/lz4/
-    cp -f ${WORKSPACE}/3rdPartyPkg/zstd-1.5.2.tar.gz ${DOWNLOAD_PATH}/open_source/Zstandard/
-    cp -f ${WORKSPACE}/3rdPartyPkg/protobuf-all-3.13.0.tar.gz ${DOWNLOAD_PATH}/open_source/protobuf/
-    cp -f ${WORKSPACE}/3rdPartyPkg/protobuf-c-1.4.1.tar.gz ${DOWNLOAD_PATH}/open_source/protobuf-c/
-    cp -f ${WORKSPACE}/3rdPartyPkg/openssl-3.0.7.tar.gz ${DOWNLOAD_PATH}/open_source/openssl/
-    cp -f ${WORKSPACE}/3rdPartyPkg/zlib-1.2.13.tar.gz ${DOWNLOAD_PATH}/open_source/zlib/
-    cp -f ${WORKSPACE}/3rdPartyPkg/huawei_secure_c.zip ${DOWNLOAD_PATH}/platform/
 
     echo "start compile 3rdparty : "
     sh compile_opensource_new.sh
@@ -758,11 +742,6 @@ func_prepare_dependency()
     if [[ ! -d ${CANTIANDB_LIBRARY} ]]; then
         echo "library dir not exist"
         mkdir -p ${CANTIANDB_LIBRARY}
-    fi
-
-    if [[ ! -d ${CANTIANDB_OPEN_SOURCE} ]]; then
-        echo "open_source dir not exist"
-        mkdir -p ${CANTIANDB_OPEN_SOURCE}
     fi
 
     if [[ ! -d ${CANTIANDB_OUTPUT} ]]; then
