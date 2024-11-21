@@ -21,6 +21,7 @@ function cantian_install()
     cantian_use=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_user")
     cantian_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
     mes_ssl_switch=$(python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch")
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
     cert_encrypt_pwd=""
     user_pwd=""
 

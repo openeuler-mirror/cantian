@@ -469,7 +469,8 @@ function start_cantian_with_dr_deploy() {
 }
 
 function init_start() {
-    # 非去nas在这里init_container
+
+    # 使用共享文件在这里init_container
     if [ x"${deploy_mode}" != x"dbstor" ]; then
         sh ${SCRIPT_PATH}/appctl.sh init_container
         if [ $? -ne 0 ]; then
@@ -560,10 +561,12 @@ function execute_cantian_numa() {
         return 0
     fi
 
-     logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    python3 ${CURRENT_PATH}/../cantian/bind_cpu_config.py
 }
 
 function process_logs() {
+  logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+  # 启动日志处理脚本
   while true; do
     /bin/python3 /opt/cantian/common/script/logs_handler/execute.py
     if [ $? -ne 0 ]; then
@@ -581,11 +584,11 @@ function main() {
     check_container_context
     prepare_kmc_conf
     prepare_certificate
+    execute_cantian_numa
     init_container
     mount_fs
     check_init_status
     init_start
-    execute_cantian_numa
     process_logs
 }
 

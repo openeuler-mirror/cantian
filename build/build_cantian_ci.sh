@@ -198,10 +198,6 @@ function prepare_path() {
   cp -arf ${mysql_dir}/storage ${mysql_dir}/mysql-source
   cp -arf ${mysql_dir}/mysql-test ${mysql_dir}/mysql-source
   cp -arf ${mysql_dir}/mysql-test/*.patch ${mysql_dir}/mysql-source
-  mkdir -p ${WORKSPACE}/3rdPartyPkg
-  touch ${WORKSPACE}/3rdPartyPkg/cantian3.0.0.zip
-  unzip ${WORKSPACE}/cantian-test-cantian3.0.0.zip -d ${WORKSPACE}/3rdPartyPkg/
-  cp ${WORKSPACE}/3rdPartyPkg/cantian-test-cantian3.0.0/* ${WORKSPACE}/3rdPartyPkg/
   cd -
 }
 
