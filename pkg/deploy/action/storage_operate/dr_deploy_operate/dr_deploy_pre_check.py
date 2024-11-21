@@ -31,13 +31,14 @@ DOMAIN_LIMITS = 4
 
 
 def get_config_values(key):
-        default_config = read_json_config(DEFAULT_PARAM_FILE)
-        if "deploy_policy" in default_config and default_config["deploy_policy"] != "default":
-            policy_config = read_json_config(DEPLOY_POLICY_CONFIG_FILE).get("deploy_policy")
-            if policy_config:
-                if key in policy_config["config"]:
-                    return policy_config["config"][key]
-        return default_config.get(key, "")
+    default_config = read_json_config(DEFAULT_PARAM_FILE)
+    if default_config.get("deploy_policy") != "default":
+        deploy_policy = default_config["deploy_policy"]
+        policy_config = read_json_config(DEPLOY_POLICY_CONFIG_FILE).get(deploy_policy)
+        if policy_config:
+            if key in policy_config["config"]:
+                return policy_config["config"][key]
+    return default_config.get(key, "")
 
 
 class DRDeployPreCheck(object):
