@@ -51,8 +51,8 @@ elif [[ ${INSTALL_TYPE} == "override" ]]; then  # 指定override，接收第二�
         exit 1
     fi
 elif [[ ${INSTALL_TYPE} == "reserve" ]]; then  # 指定reserve，无配置文件路径接收
-    CONFIG_FILE=""
     cp /opt/cantian/config/deploy_param.json ${CURRENT_PATH}
+    CONFIG_FILE=${CURRENT_PATH}/deploy_param.json
 else  # 参数输入格式有误
     logAndEchoError "input params error"
     exit 1

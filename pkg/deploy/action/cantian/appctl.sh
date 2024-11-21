@@ -594,6 +594,11 @@ function create_mysql_dir()
     chown ${deploy_user} -hR /opt/cantian/mysql/install
 }
 
+function init_cpu_config()
+{
+    python3 ${CURRENT_PATH}/bind_cpu_config.py 'init_config'
+}
+
 function clean_mysql_dir()
 {
     if [ -d /opt/cantian/mysql/install/mysql ];then
@@ -662,6 +667,10 @@ function check_and_create_cantian_home()
 
 }
 
+function update_cpu_config() {
+    su -s /bin/bash - "${user}" -c "python3 ${CURRENT_PATH}/bind_cpu_config.py"
+}
+
 check_and_create_cantian_home
 
 ##################################### main #####################################
@@ -682,6 +691,7 @@ function main_deploy() {
     case "$ACTION" in
         start)
             create_cgroup_path
+            update_cpu_config
             do_deploy ${START_NAME} ${INSTALL_TYPE}
             if [[ $? -ne 0 ]]; then
                 exit 1
@@ -695,6 +705,7 @@ function main_deploy() {
         pre_install)
             check_old_install
             chown_mod_scripts
+            init_cpu_config
             do_deploy ${PRE_INSTALL_NAME} ${INSTALL_TYPE}
             exit $?
             ;;

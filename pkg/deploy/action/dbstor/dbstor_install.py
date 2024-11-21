@@ -652,8 +652,6 @@ class DBStor:
         if deploy_mode == "dbstor" or deploy_mode == "combined":
             configTool = ConfigTool()
             configTool.create_unify_dbstor_config()
-
-    
      
     def cp_ini_to_client_test(self):
         self.dbstor_conf_file
