@@ -1593,7 +1593,7 @@ void dls_latch_sx(knl_session_t *session, drlatch_t *dlatch, uint32 sid, latch_s
     bool32 locked = CT_FALSE;
     drc_local_lock_res_t *lock_res;
 
-    if (session->kernel->attr.clustered && !DAAC_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
+    if (session->kernel->attr.clustered && !CANTIAN_REPLAY_NODE(session) && db->status >= DB_STATUS_MOUNT) {
         knl_panic(dlatch->drid.type != DR_TYPE_INVALID);
         for (;;) {
             lock_res = drc_get_local_resx(&dlatch->drid);
