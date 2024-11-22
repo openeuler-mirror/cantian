@@ -3,6 +3,8 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
+# 容器手动停止参天场景，生成标记文件后不在检查cantian状态
+touch /opt/cantian/stop.enable
 
 function stop_systemd_timer() {
     local timer_name=$1
