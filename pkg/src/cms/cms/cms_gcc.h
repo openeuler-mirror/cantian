@@ -155,7 +155,7 @@ void cms_gcc_backup_entry(thread_t* thread);
 void cms_notify_load_gcc(void);
 status_t cms_reset_gcc(void);
 status_t cms_load_gcc(void);
-status_t cms_export_gcc(const char* path);
+status_t cms_export_gcc(const char* path, cms_dev_type_t gcc_type);
 status_t cms_import_gcc(const char* path);
 status_t cms_add_node(const char *name, const char *ip, uint32 port);
 status_t cms_insert_node(uint32 node_id, const char *name, const char *ip, uint32 port);

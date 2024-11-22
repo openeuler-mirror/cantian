@@ -461,7 +461,7 @@ int32 cms_gcc_export(int32 argc, char* argv[])
         return 0;
     }
 
-    if (cms_export_gcc(path) == CT_SUCCESS) {
+    if (cms_export_gcc(path, CMS_DEV_TYPE_FILE) == CT_SUCCESS) {
         printf("export gcc to file %s succeed.\n", path);
         CMS_LOG_INF("export gcc to file %s succeed.", path);
     } else {
