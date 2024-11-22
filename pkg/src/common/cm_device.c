@@ -119,9 +119,8 @@ status_t cm_create_device_dir(device_type_t type, const char *name)
 
 status_t cm_create_device(const char *name, device_type_t type, uint32 flags, int32 *handle)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     status_t ret = CT_SUCCESS;
-    io_record_stat_t io_stat = IO_STAT_SUCCESS;
     if (type == DEV_TYPE_FILE) {
         if (cm_create_file(name, O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags, handle) != CT_SUCCESS) {
             cm_check_file_error();
@@ -142,14 +141,12 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
     } else if (type == DEV_TYPE_ULOG) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CREATE_ULOG, &tv_begin);
         ret = cm_dbs_ulog_create(name, 0, flags, handle);
-        io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CREATE_ULOG, &tv_begin, io_stat);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CREATE_ULOG, &tv_begin);
         return ret;
     } else if (type == DEV_TYPE_PGPOOL) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CREATE_PG_POOL, &tv_begin);
         ret = cm_dbs_pg_create(name, 0, flags, handle);
-        io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CREATE_PG_POOL, &tv_begin, io_stat);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CREATE_PG_POOL, &tv_begin);
         return ret;
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         ret = cm_dbs_create_file(name, handle);
@@ -259,7 +256,7 @@ status_t cm_remove_device_when_enoent(device_type_t type, const char *name)
 
 status_t cm_open_device_common(const char *name, device_type_t type, uint32 flags, int32 *handle, uint8 is_retry)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (*handle != -1) {
             // device already opened, nothing to do.
@@ -288,20 +285,20 @@ status_t cm_open_device_common(const char *name, device_type_t type, uint32 flag
         }
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin);
         if (cm_dbs_ulog_open(name, handle, is_retry) == CT_ERROR) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_ULOG, &tv_begin);
     } else if (type == DEV_TYPE_PGPOOL) {
         if (*handle != -1) {
             return CT_SUCCESS;
         }
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin);
         if (cm_dbs_pg_open(name, handle) == CT_ERROR) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_OPEN_PG_POOL, &tv_begin);
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         if (*handle != -1) {
             return CT_SUCCESS;
@@ -327,7 +324,7 @@ status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 fl
 
 void cm_close_device(device_type_t type, int32 *handle)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         cm_close_file(*handle);
     } else if (type == DEV_TYPE_RAW) {
@@ -337,11 +334,11 @@ void cm_close_device(device_type_t type, int32 *handle)
     } else if (type == DEV_TYPE_ULOG) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CLOSE_ULOG, &tv_begin);
         cm_dbs_ulog_close(*handle);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CLOSE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CLOSE_ULOG, &tv_begin);
     } else if (type == DEV_TYPE_PGPOOL) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CLOSE_PG_POOL, &tv_begin);
         cm_dbs_pg_close(*handle);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CLOSE_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_CLOSE_PG_POOL, &tv_begin);
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         cm_dbs_close_file(*handle);
     }
@@ -351,7 +348,7 @@ void cm_close_device(device_type_t type, int32 *handle)
 status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *buf, int32 size)
 {
     int32 read_size;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (cm_pread_file(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
@@ -371,24 +368,24 @@ status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *bu
     } else if (type == DEV_TYPE_ULOG) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_ULOG, &tv_begin);
         if (cm_dbs_ulog_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_ULOG, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_ULOG, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_ULOG, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_ULOG, &tv_begin);
     } else if (type == DEV_TYPE_PGPOOL) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin);
         if (cm_dbs_pg_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_PG_POOL, &tv_begin);
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin);
         if (cm_dbs_read_file(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_DBSTOR_FILE, &tv_begin);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -405,7 +402,7 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
                                 int32 *return_size)
 {
     int32 read_size;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (cm_pread_file(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
@@ -435,10 +432,10 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin);
         if (cm_dbs_read_file(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_READ_NOCHECK_DBSTOR_FILE, &tv_begin);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -499,7 +496,7 @@ status_t cm_device_capacity(device_type_t type, int64 *capacity)
 
 status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const void *buf, int32 size)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (type == DEV_TYPE_FILE) {
         if (cm_pwrite_file(handle, buf, size, offset) != CT_SUCCESS) {
             return CT_ERROR;
@@ -519,24 +516,24 @@ status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const v
     } else if (type == DEV_TYPE_ULOG) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_WRITE_ULOG, &tv_begin);
         if (cm_dbs_ulog_write(handle, offset, buf, size, NULL) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_ULOG, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_ULOG, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_ULOG, &tv_begin);
     } else if (type == DEV_TYPE_PGPOOL) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin);
         if (cm_dbs_pg_write(handle, offset, buf, size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_PG_POOL, &tv_begin);
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin);
         if (cm_dbs_write_file(handle, offset, buf, size) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_WRITE_DBSTOR_FILE, &tv_begin);
     } else {
         CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
         return CT_ERROR;
@@ -738,11 +735,10 @@ status_t cm_extend_device(device_type_t type, int32 handle, char *buf, uint32 bu
         return CT_ERROR;
     }
     if (type == DEV_TYPE_PGPOOL) {
-        timeval_t tv_begin;
+        uint64_t tv_begin;
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_EXTENT_PG_POOL, &tv_begin);
         status_t ret = cm_dbs_pg_extend(handle, offset, size);
-        io_record_stat_t io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_EXTENT_PG_POOL, &tv_begin, io_stat);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_NS_EXTENT_PG_POOL, &tv_begin);
         return ret;
     }
     if (prealloc) {
@@ -954,23 +950,21 @@ void cm_aio_set_callback(cm_iocb_t *iocb, cm_io_callback_t cb)
 
 status_t cm_aio_prep_write_by_part(int32 handle, int64 offset, void *buf, int32 size, int32 part_id)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_PUT_PAGE, &tv_begin);
 
     status_t ret = cm_dbs_pg_asyn_write(handle, offset, buf, size, part_id);
-    io_record_stat_t io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_PUT_PAGE, &tv_begin, io_stat);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_PUT_PAGE, &tv_begin);
     return ret;
 }
 
 status_t cm_sync_device_by_part(int32 handle, int32 part_id)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_SYNC_PAGE, &tv_begin);
 
     status_t ret = cm_dbs_sync_page(handle, part_id);
-    io_record_stat_t io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_SYNC_PAGE, &tv_begin, io_stat);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_SYNC_PAGE, &tv_begin);
     return ret;
 }
 

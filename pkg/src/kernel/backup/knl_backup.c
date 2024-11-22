@@ -134,7 +134,7 @@ void bak_reset_fileinfo(bak_assignment_t *assign_ctrl)
 status_t bak_local_write(bak_local_t *local, const void *buf, int32 size, bak_t *bak, int64 offset)
 {
     bak_stat_t *stat = &bak->stat;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
 
     if (size == 0) {
         return CT_SUCCESS;
@@ -142,10 +142,10 @@ status_t bak_local_write(bak_local_t *local, const void *buf, int32 size, bak_t 
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin);
     if (cm_write_device(local->type, local->handle, offset, buf, size) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to write %s", local->name);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin);
         return CT_ERROR;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin);
     if (bak->kernel->attr.enable_fdatasync) {
         if (cm_fdatasync_file(local->handle) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[BACKUP] failed to fdatasync datafile %s", local->name);
@@ -1729,7 +1729,7 @@ status_t bak_read_datafile_pages(knl_session_t *session, bak_process_t *bak_proc
     bak_context_t *bak_ctx = &session->kernel->backup_ctx;
     bak_stat_t *stat = &bak_ctx->bak.stat;
     status_t status;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
 
     bak_fetch_read_range(session, bak_proc);
 
@@ -1738,7 +1738,7 @@ status_t bak_read_datafile_pages(knl_session_t *session, bak_process_t *bak_proc
     status = cm_read_device(ctrl->type, ctrl->handle, ctrl->offset, bak_proc->read_buf->data_addr,
         bak_proc->read_size);
     SYNC_POINT_GLOBAL_END;
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_READ_DATA, &tv_begin, IO_RECORD_STAT_RET(status));
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_READ_DATA, &tv_begin);
     if (status != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to read %s", ctrl->name);
         if (DB_ATTR_CLUSTER(session)) {
@@ -2128,7 +2128,7 @@ void bak_read_prepare(knl_session_t *session, bak_process_t *process, datafile_t
 status_t bak_deal_datafile_pages_read(knl_session_t *session, bak_process_t *bak_proc, bool32 to_disk)
 {
     bak_ctrl_t *ctrl = &bak_proc->ctrl;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
 
     if (to_disk && bak_proc->write_deal == CT_TRUE) {
         bak_proc->read_buf->write_deal = CT_TRUE;
@@ -2143,15 +2143,15 @@ status_t bak_deal_datafile_pages_read(knl_session_t *session, bak_process_t *bak
         cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
         if (bak_verify_datafile_checksum(session, bak_proc, ctrl->offset,
                                          ctrl->name, bak_proc->read_buf) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
     }
 #endif
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_FILTER, &tv_begin);
     bak_filter_pages(session, bak_proc, bak_proc->read_buf);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FILTER, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FILTER, &tv_begin);
     bak_proc->read_buf->write_deal = CT_FALSE;
     bak_proc->read_buf->data_size = bak_proc->write_size;
     return CT_SUCCESS;
@@ -2479,13 +2479,13 @@ void bak_calc_log_head_checksum(knl_session_t *session, bak_assignment_t *assign
 status_t bak_read_logfile_with_proc(bak_process_t *bak_proc, bak_ctrl_t *ctrl, log_file_head_t *buf, int32 size)
 {
     status_t status;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
 
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_READ_LOG, &tv_begin);
     SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_READ_LOG_FROM_ARCH_FAIL, &status, CT_ERROR);
     status = bak_read_data(bak_proc, ctrl, buf, size);
     SYNC_POINT_GLOBAL_END;
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_READ_LOG, &tv_begin, IO_RECORD_STAT_RET(status));
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_READ_LOG, &tv_begin);
     return status;
 }
 
@@ -2493,13 +2493,13 @@ status_t bak_write_logfile_with_proc(bak_context_t *ctx, bak_process_t *bak_proc
     bool32 arch_compressed)
 {
     status_t status;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     bool32 stream_end = CT_FALSE;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin);
     SYNC_POINT_GLOBAL_START(CANTIAN_BACKUP_WRITE_LOG_TO_FILE_FAIL, &status, CT_ERROR);
     status = bak_write_to_local_disk(ctx, bak_proc, buf, size, stream_end, arch_compressed);
     SYNC_POINT_GLOBAL_END;
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin, IO_RECORD_STAT_RET(status));
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_WRITE_LOCAL, &tv_begin);
     return status;
 }
 

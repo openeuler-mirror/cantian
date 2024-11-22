@@ -34,6 +34,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+extern uint64_t clock_frequency;
+
+#define EVENT_TRACKING_GROUP 1024
+#define EVENT_TRACKING_HASH(CYCLES) (CYCLES >> 1) % EVENT_TRACKING_GROUP
 
 typedef enum {
     IO_RECORD_EVENT_DRC_REMASTER_RECOVER_CKPT = 0,
@@ -130,14 +134,7 @@ typedef enum {
 
 typedef struct {
     atomic_t start;
-    atomic_t back_good;
-    atomic_t back_bad;
-
     atomic_t total_time;
-    atomic_t total_good_time;
-    atomic_t total_bad_time;
-    atomic_t max_time;
-    atomic_t min_time;
 } io_record_detail_t;
 
 typedef struct {
@@ -149,33 +146,40 @@ typedef struct {
     char desc[CT_MAX_NAME_LEN];
 } io_record_event_desc_t;
 
-extern io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT];
+extern io_record_wait_t g_io_record_event_wait[IO_RECORD_EVENT_COUNT][EVENT_TRACKING_GROUP];
 extern io_record_event_desc_t g_io_record_event_desc[IO_RECORD_EVENT_COUNT];
-extern volatile bool32 g_cm_io_record_open;
+extern bool32 g_cm_cantian_event_tracking_open;
+extern bool32 g_cm_ctc_event_tracking_open;
+
+uint64_t rdtsc();
 
 status_t record_io_stat_reset(void);
 status_t record_io_stat_init(void);
 
-void record_io_stat_begin(timeval_t *tv_begin, atomic_t *start);
-static inline void cantian_record_io_stat_begin(io_record_event_t event, timeval_t *tv_begin)
+void record_io_stat_begin(uint64_t *tv_begin, atomic_t *start);
+static inline void cantian_record_io_stat_begin(io_record_event_t event, uint64_t *tv_begin)
 {
-#ifdef DB_DEBUG_VERSION
-    atomic_t *start = &(g_io_record_event_wait[event].detail.start);
+    if (!g_cm_cantian_event_tracking_open) {
+        return;
+    }
+    *tv_begin = rdtsc();
+    atomic_t *start = &(g_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail.start);
     record_io_stat_begin(tv_begin, start);
-#endif
 }
 
-void record_io_stat_end(timeval_t *tv_begin, int stat, io_record_detail_t *detail);
+void record_io_stat_end(uint64_t *tv_begin, io_record_detail_t *detail);
 
-static inline void cantian_record_io_stat_end(io_record_event_t event, timeval_t *tv_begin, io_record_stat_t stat)
+static inline void cantian_record_io_stat_end(io_record_event_t event, uint64_t *tv_begin)
 {
-#ifdef DB_DEBUG_VERSION
-    io_record_detail_t *detail = &(g_io_record_event_wait[event].detail);
-    record_io_stat_end(tv_begin, stat, detail);
-#endif
+    if (!g_cm_cantian_event_tracking_open) {
+        return;
+    }
+    io_record_detail_t *detail = &(g_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail);
+    record_io_stat_end(tv_begin, detail);
 }
 
 void record_io_stat_print(void);
+status_t get_clock_frequency(void);
 
 volatile bool32 get_iorecord_status(void);
 void set_iorecord_status(bool32 is_open);

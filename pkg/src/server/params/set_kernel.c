@@ -2242,14 +2242,46 @@ status_t sql_notify_als_ckpt_wait_timeout(void *se, void *item, char *value)
     return CT_SUCCESS;
 }
 
-status_t sql_notify_io_record(void *se, void *item, char *value)
+status_t sql_notify_event_tracking_stats(event_tracking_module module, bool32 *param, char *value)
 {
-    bool32 open_record = (bool32)value[0];
-    if (g_cm_io_record_open == CT_FALSE && open_record == CT_TRUE) {
-        ctc_record_io_state_reset();
+    status_t ret = CT_SUCCESS;
+    if (!(bool32)value[0]) {
+        PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "OFF"));
+        *param = false;
+        return CT_SUCCESS;
     }
-    set_iorecord_status(open_record);
-    return sql_notify_als_bool(se, item, value);
+    
+    PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "ON"));
+    if ((bool32)value[0] && !(*param)) {
+        *param = true;
+        if (module == CANTIAN_EVENT_TRACKING) {
+            ret = record_io_stat_reset();
+        } else if (module == CTC_EVENT_TRACKING) {
+            ret = ctc_record_io_state_reset();
+        }
+        if (ret != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, ": failed to initialize statistics.");
+            return CT_ERROR;
+        }
+        ret = get_clock_frequency();
+        if (ret != CT_SUCCESS) {
+            CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, ": failed to get cpu frequency.");
+            return CT_ERROR;
+        }
+    }
+    
+    CT_LOG_RUN_WAR("[IO RECORD] Performance Statistic recording is OPEN. It will SEVERELY degrade performance.");
+    return CT_SUCCESS;
+}
+
+status_t sql_notify_cantian_stats(void *se, void *item, char *value)
+{
+    return sql_notify_event_tracking_stats(CANTIAN_EVENT_TRACKING, &g_cm_cantian_event_tracking_open, value);
+}
+
+status_t sql_notify_ctc_stats(void *se, void *item, char *value)
+{
+    return sql_notify_event_tracking_stats(CTC_EVENT_TRACKING, &g_cm_ctc_event_tracking_open, value);
 }
 
 status_t sql_verify_als_page_clean_mode(void *se, void *lex, void *def)

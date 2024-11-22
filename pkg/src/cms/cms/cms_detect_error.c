@@ -266,13 +266,13 @@ status_t cms_daemon_stop_pull(void)
 void cms_detect_disk_error_entry(thread_t *thread)
 {
     while (!thread->closed) {
-        timeval_t tv_begin;
+        uint64_t tv_begin;
         cantian_record_io_stat_begin(CMS_IO_RECORD_DETECT_DISK, &tv_begin);
         if (cms_detect_disk() != CT_SUCCESS) {
             CMS_LOG_ERR("cms detect disk failed, retry after one second.");
-            cantian_record_io_stat_end(CMS_IO_RECORD_DETECT_DISK, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(CMS_IO_RECORD_DETECT_DISK, &tv_begin);
         } else {
-            cantian_record_io_stat_end(CMS_IO_RECORD_DETECT_DISK, &tv_begin, IO_STAT_SUCCESS);
+            cantian_record_io_stat_end(CMS_IO_RECORD_DETECT_DISK, &tv_begin);
         }
         cm_sleep(CMS_DETECT_DISK_INTERVAL);
     }

@@ -222,15 +222,15 @@ static status_t cms_cli_hb(void)
         errno_t err = strcpy_s(req.res_type, CMS_MAX_RES_TYPE_LEN, g_res_type);
         PRTS_RETURN_IFERR(err);
 
-        timeval_t tv_begin;
+        uint64_t tv_begin;
         cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_CLI_HB, &tv_begin);
         ret = cms_uds_cli_send(&req.head, CMS_CLI_UDS_SEND_TMOUT);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("send hb msg failed");
-            cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_CLI_HB, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_CLI_HB, &tv_begin);
             return ret;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_CLI_HB, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_CLI_HB, &tv_begin);
         last_check_time = check_time;
 
         CT_LOG_DEBUG_INF("cms cli send hb msg, msg type %u, msg seq %llu", req.head.msg_type, req.head.msg_seq);
@@ -535,15 +535,15 @@ static status_t cms_cli_iof_kick_res(status_t result)
     res.head.src_node = g_node_id;
     res.result = result;
 
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_IOF_KICK_RES, &tv_begin);
     status_t ret = cms_uds_cli_send(&res.head, 1000);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("send iof kick res msg failed");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_IOF_KICK_RES, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_IOF_KICK_RES, &tv_begin);
         return CT_ERROR;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_IOF_KICK_RES, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_IOF_KICK_RES, &tv_begin);
     CT_LOG_RUN_INF("send iof kick res msg succeed, msg type %u, msg seq %llu", res.head.msg_type, res.head.msg_seq);
     return CT_SUCCESS;
 }
@@ -838,17 +838,17 @@ status_t cms_send_disconn_req(void)
     }
     req.inst_id = g_inst_id;
 
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cms_cli_msg_res_dis_conn_t res;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_UNREGISTER, &tv_begin);
     ret = cms_uds_cli_request(&req.head, &res.head, sizeof(cms_cli_msg_res_dis_conn_t),
         CMS_CLIENT_REQUEST_TIMEOUT);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms cli uds request failed, ret %d", ret);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_UNREGISTER, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_UNREGISTER, &tv_begin);
         return ret;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_UNREGISTER, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_UNREGISTER, &tv_begin);
     if (res.result != CT_SUCCESS) {
         CT_LOG_RUN_ERR("send disconnect msg failed, result %d", res.result);
         return CT_ERROR;
@@ -927,17 +927,17 @@ status_t cms_set_res_work_stat(uint8 stat)
     req.work_stat = stat;
 
     cms_cli_msg_res_set_work_stat_t res;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT, &tv_begin);
 
     status_t ret = cms_uds_cli_request(&req.head, &res.head, sizeof(cms_cli_msg_res_set_work_stat_t),
         CMS_CLIENT_REQUEST_TIMEOUT);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms set res work stat msg failed");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT, &tv_begin);
         return ret;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_WORK_STAT, &tv_begin);
 
     if (res.result != CT_SUCCESS) {
         CT_LOG_RUN_ERR("set data failed, work stat %d, msg type %u, msg req %llu",
@@ -980,16 +980,16 @@ status_t cms_get_res_stat_list1(const char* res_type, cms_res_status_list_t* res
     MEMS_RETURN_IFERR(err);
 
     cms_cli_msg_res_get_res_stat_t res_stat;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_GET_STAT_LIST1, &tv_begin);
     status_t ret = cms_uds_cli_request(&req.head, &res_stat.head, sizeof(cms_cli_msg_res_get_res_stat_t),
         CMS_CLIENT_REQUEST_TIMEOUT);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms cli uds request failed");
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_STAT_LIST1, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_STAT_LIST1, &tv_begin);
         return ret;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_STAT_LIST1, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_STAT_LIST1, &tv_begin);
     if (res_stat.result != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms cli get res stat failed, result %d", res_stat.result);
         return CT_ERROR;
@@ -1073,17 +1073,17 @@ status_t cms_set_res_data_new(uint32 slot_id, char* data, uint32 size, uint64 ol
         return CT_ERROR;
     }
 
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_SET_DATA_NEW, &tv_begin);
     status_t ret = cms_uds_cli_request(&req->head, &res.head, sizeof(cms_cli_msg_res_set_data_t),
         CMS_CLIENT_REQUEST_TIMEOUT);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms socket send msg failed, ret %d", ret);
         CM_FREE_PTR(req);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_DATA_NEW, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_DATA_NEW, &tv_begin);
         return ret;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_DATA_NEW, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_SET_DATA_NEW, &tv_begin);
     CM_FREE_PTR(req);
 
     if (res.result != CT_SUCCESS) {
@@ -1157,16 +1157,16 @@ status_t cms_get_res_data_new(uint32 slot_id, char* data, uint32 max_size, uint3
         return CT_ERROR;
     }
 
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_CMS_UDS_GET_DATA_NEW, &tv_begin);
     ret = cms_uds_cli_request(&req.head, &res->head, sizeof(cms_cli_msg_res_get_data_t), CMS_CLIENT_REQUEST_TIMEOUT);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("cms socket send msg failed, ret %d", ret);
         CM_FREE_PTR(res);
-        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_DATA_NEW, &tv_begin, IO_STAT_FAILED);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_DATA_NEW, &tv_begin);
         return ret;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_DATA_NEW, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_CMS_UDS_GET_DATA_NEW, &tv_begin);
 
     ret = cms_handle_get_data_res(res, data, max_size, size, new_version);
     if (ret != CT_SUCCESS) {

@@ -461,7 +461,7 @@ int32 cms_gcc_export(int32 argc, char* argv[])
         return 0;
     }
 
-    if (cms_export_gcc(path) == CT_SUCCESS) {
+    if (cms_export_gcc(path, CMS_DEV_TYPE_FILE) == CT_SUCCESS) {
         printf("export gcc to file %s succeed.\n", path);
         CMS_LOG_INF("export gcc to file %s succeed.", path);
     } else {
@@ -1425,18 +1425,16 @@ int32 cms_stat_server(int32 argc, char* argv[])
 
 void cms_print_iostat_inner(cms_tool_msg_res_iostat_t *res, char *msg_name, uint8 msg_type)
 {
-    if ((res->detail[msg_type].back_good + res->detail[msg_type].back_bad) != 0) {
-        printf("%-35s  %-12lld  %-12lld  %-12lld  %-20lld  "
-            "%-20lld  %-20lld  %-20lld \n",
-            msg_name, res->detail[msg_type].start, res->detail[msg_type].back_good, res->detail[msg_type].back_bad,
-            res->detail[msg_type].total_time / (res->detail[msg_type].back_good + res->detail[msg_type].back_bad),
-            res->detail[msg_type].max_time, res->detail[msg_type].min_time, res->detail[msg_type].total_time);
+    if ((res->detail[msg_type].start) != 0) {
+        printf("%-35s  %-12lld  %-20lld  %-20lld\n",
+            msg_name, res->detail[msg_type].start,
+            res->detail[msg_type].total_time / res->detail[msg_type].start,
+            res->detail[msg_type].total_time);
     } else {
-        printf("%-35s  %-12lld  %-12lld  %-12lld  %-20lld  "
-            "%-20lld  %-20lld  %-20lld \n",
-            msg_name, res->detail[msg_type].start, res->detail[msg_type].back_good, res->detail[msg_type].back_bad,
-            res->detail[msg_type].total_time / (res->detail[msg_type].back_good + res->detail[msg_type].back_bad + 1),
-            res->detail[msg_type].max_time, res->detail[msg_type].min_time, res->detail[msg_type].total_time);
+        printf("%-35s  %-12lld  %-20lld  %-20lld\n",
+            msg_name, res->detail[msg_type].start,
+            res->detail[msg_type].total_time / res->detail[msg_type].start,
+            res->detail[msg_type].total_time);
     }
 }
 

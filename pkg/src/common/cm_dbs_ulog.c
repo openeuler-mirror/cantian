@@ -295,14 +295,13 @@ bool32 cm_dbs_log_recycled()
 status_t cm_dbs_ulog_read(int32 handle, int64 startLsn, void *buf, int32 size, int32 *r_size)
 {
     int32 ret;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cm_dbs_map_item_s obj = { 0 };
     ReadBatchLogOption option;
     LogRecord logRecord;
     ReadResult result = {0};
     uint32_t partId;
     LogRecordList recordList = {0};
-    io_record_stat_t io_stat = IO_STAT_SUCCESS;
 
     if (cm_dbs_map_get(handle, &obj) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to find ulog by handle(%d).", handle);
@@ -336,8 +335,7 @@ status_t cm_dbs_ulog_read(int32 handle, int64 startLsn, void *buf, int32 size, i
             ret = CT_ERROR;
         }
     }
-    io_stat = (ret == CT_SUCCESS ? IO_STAT_SUCCESS : IO_STAT_FAILED);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_BATCH_READ_ULOG, &tv_begin, io_stat);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_BATCH_READ_ULOG, &tv_begin);
     *r_size = result.outLen;
     return ret;
 }
