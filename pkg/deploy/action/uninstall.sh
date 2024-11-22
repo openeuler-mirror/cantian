@@ -93,6 +93,7 @@ function clear_security_limits() {
 # override模式下umount
 function umount_fs() {
     if [[ "$cantian_in_container" != "0" ]]; then
+        su -s /bin/bash - "${deploy_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=dr_deploy_param.json" > /dev/null 2>&1
         return 0
     fi
 
