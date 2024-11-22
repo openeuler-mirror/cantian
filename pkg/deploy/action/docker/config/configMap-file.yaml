@@ -24,9 +24,6 @@ data:
       "mes_ssl_switch": true,
       "mysql_metadata_in_cantian": true,
       "MAX_ARCH_FILES_SIZE": "300G",
-      "ca_path": "/opt/certificate/ca.crt",
-      "crt_path": "/opt/certificate/mes.crt",
-      "key_path": "/opt/certificate/mes.key",
       "redo_num": "6",
       "redo_size": "5G"
     }
@@ -58,9 +55,6 @@ data:
       "mes_ssl_switch": true,
       "mysql_metadata_in_cantian": true,
       "MAX_ARCH_FILES_SIZE": "300G",
-      "ca_path": "/opt/certificate/ca.crt",
-      "crt_path": "/opt/certificate/mes.crt",
-      "key_path": "/opt/certificate/mes.key",
       "redo_num": "6",
       "redo_size": "5G"
     }

@@ -389,9 +389,9 @@ class CheckInstallConfig(CheckBase):
         if os.path.exists(CANTIAN_MEM_SPEC_FILE):
             with open(CANTIAN_MEM_SPEC_FILE, encoding="utf-8") as f:
                 mem_spec = json.load(f)
-            if mem_spec not in ["1", "2", "3"]:
+            if mem_spec not in ["0", "1", "2", "3"]:
                 LOG.error("Check mem spec failed, current value[%s], " \
-                          "value range [\"1\", \"2\", \"3\"]", mem_spec)
+                          "value range [\"0\", \"1\", \"2\", \"3\"]", mem_spec)
                 return False
         return True
 
@@ -668,12 +668,17 @@ class CheckInstallConfig(CheckBase):
             except Exception as error:
                 LOG.error('write config param to deploy_param.json failed, error: %s', str(error))
                 return False
-        if install_config_params['cantian_in_container'] != '0':
-            if not self.check_cantian_mem_spec():
-                return False
+        return True
 
-            if not self.check_sga_buff_size():
-                return False
+    def sga_buffer_check(self):
+        """
+        用于容器场景检查sga buffer size
+        """
+        if not self.check_cantian_mem_spec():
+            return False
+
+        if not self.check_sga_buff_size():
+            return False
         return True
 
     def install_config_params_init(self, install_config_params):
@@ -766,6 +771,18 @@ class PreInstall:
         self.install_model = install_model
         self.result = []
 
+    @staticmethod
+    def run_sga_buffer_check():
+        """
+        sga_buffer_check用于内存，包括容器套餐检查
+        """
+        check_config = CheckInstallConfig()
+        res = check_config.sga_buffer_check()
+        if not res:
+            LOG.error('failed: %s, suggestion: %s', check_config.check_name, check_config.suggestion)
+            return 1
+        return 0
+
     def check_main(self):
         """
         存在，但是不是目录
@@ -796,8 +813,10 @@ class PreInstall:
 if __name__ == '__main__':
     config_file = None
     install_type = sys.argv[1]
-    if install_type == 'override':
+    if install_type == 'sga_buffer_check':
+        exit(PreInstall.run_sga_buffer_check())
+    elif install_type == 'override':
         config_file = sys.argv[2]
 
-    pre_install = PreInstall(install_type, config_file)
-    exit(pre_install.check_main())
+        pre_install = PreInstall(install_type, config_file)
+        exit(pre_install.check_main())
