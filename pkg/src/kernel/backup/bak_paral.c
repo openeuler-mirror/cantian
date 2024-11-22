@@ -941,8 +941,7 @@ void bak_paral_backup_task(knl_session_t *session, bak_process_t *proc)
     bak_assignment_t *assign_ctrl = &proc->assign_ctrl;
     bak_local_t *bak_file = &assign_ctrl->bak_file;
     bak_ctrl_t *ctrl = &proc->ctrl;
-    timeval_t tv_begin;
-    status_t status;
+    uint64_t tv_begin;
     uint32 mode = O_BINARY | O_SYNC | O_RDWR;
     bool32 can_direct = CT_FALSE;
     if (bak_check_direct_mode_for_archfile(assign_ctrl, bak, mode, &can_direct) != CT_SUCCESS) {
@@ -968,8 +967,8 @@ void bak_paral_backup_task(knl_session_t *session, bak_process_t *proc)
     }
 
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_FSYNC, &tv_begin);
-    status = bak_fsync_and_close(bak, bak_file->type, &bak_file->handle);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FSYNC, &tv_begin, IO_RECORD_STAT_RET(status));
+    bak_fsync_and_close(bak, bak_file->type, &bak_file->handle);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FSYNC, &tv_begin);
     bak_file->handle = CT_INVALID_HANDLE;
 
     if (assign_ctrl->type == BACKUP_DATA_FILE) {
@@ -2004,7 +2003,7 @@ void bak_paral_extend_task(knl_session_t *session, bak_process_t *proc)
 status_t bak_deal_datafile_pages_write(knl_session_t *session, bak_process_t *bak_proc)
 {
     bak_ctrl_t *ctrl = &bak_proc->ctrl;
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     if (bak_proc->write_buf->write_deal == CT_FALSE) {
         return CT_SUCCESS;
     }
@@ -2018,15 +2017,15 @@ status_t bak_deal_datafile_pages_write(knl_session_t *session, bak_process_t *ba
         cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
         if (bak_verify_datafile_checksum(session, bak_proc,
                                          ctrl->offset, ctrl->name, bak_proc->write_buf) != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
             return CT_ERROR;
         }
-        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin, IO_STAT_SUCCESS);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_CHECKSUM, &tv_begin);
     }
 #endif
     cantian_record_io_stat_begin(IO_RECORD_EVENT_BAK_FILTER, &tv_begin);
     bak_filter_pages(session, bak_proc, bak_proc->write_buf);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FILTER, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_BAK_FILTER, &tv_begin);
     bak_proc->write_buf->data_size = bak_proc->write_size;
     return CT_SUCCESS;
 }

@@ -933,7 +933,7 @@ status_t arch_write_file(arch_read_file_src_info_t *read_file_src_info, arch_pro
 status_t arch_dbstor_ulog_archive(log_file_t *logfile, arch_proc_context_t *proc_ctx,
     uint64 start_lsn, uint64 *last_lsn, uint64 *real_copy_size)
 {
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     int32 src_file = logfile->handle;
     int32 dst_file = proc_ctx->tmp_file_handle;
     uint64 offset = proc_ctx->last_archived_log_record.offset;
@@ -943,14 +943,14 @@ status_t arch_dbstor_ulog_archive(log_file_t *logfile, arch_proc_context_t *proc
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin);
         status_t ret = cm_dbs_ulog_archive(src_file, dst_file, offset, start_lsn, copy_size, real_copy_size, last_lsn);
         if (ret != CT_SUCCESS) {
-            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_FAILED);
+            cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin);
             CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
             cm_sleep(ARCH_FAIL_WAIT_SLEEP_TIME);
             continue;
         }
         break;
     }
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_ULOG_ARCHIVE_DBSTOR_FILE, &tv_begin);
     if (retry_num == ARCH_READ_BATCH_RETRY_TIMES) {
         CT_LOG_RUN_ERR("[ARCH] fail to copy redo log by dbstor, lsn %llu, size %llu", start_lsn, copy_size);
         return CT_ERROR;
@@ -3009,10 +3009,10 @@ void rc_arch_recycle_file(arch_proc_context_t *proc_ctx)
     dtc_node_ctrl_t *node_ctrl = dtc_get_ctrl(session, proc_ctx->arch_id);
     log_point_t recycle_point;
     recycle_point.lsn = MIN(node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn);
-    timeval_t tv_begin;
+    uint64_t tv_begin;
     cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
     free_size = cm_dbs_ulog_recycle(logfile->handle, recycle_point.lsn);
-    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin, IO_STAT_SUCCESS);
+    cantian_record_io_stat_end(IO_RECORD_EVENT_NS_TRUNCATE_ULOG, &tv_begin);
     CT_LOG_RUN_INF("[RC_ARCH] recycle redo logs in ulog, rcy lsn %llu, archive lsn %llu, free size %llu",
                    node_ctrl->rcy_point.lsn, proc_ctx->last_archived_log_record.end_lsn, free_size);
 }

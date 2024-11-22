@@ -1428,12 +1428,8 @@ EXTER_ATTACK int mq_recv_msg(struct shm_seg_s *shm_seg, dsw_message_block_t *mes
         return result;
     }
 
-    timeval_t tv_begin;
-    mysql_record_io_stat_begin(g_mq_recv_msg[cmd_type].func_type, &tv_begin);
-
     result = g_mq_recv_msg[cmd_type].deal_msg(message_block);
     
-    mysql_record_io_stat_end(g_mq_recv_msg[cmd_type].func_type, &tv_begin, result);
     sem_post(&message_block->head.sem);
     return result;
 }

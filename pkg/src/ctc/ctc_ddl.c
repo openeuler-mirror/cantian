@@ -2151,11 +2151,14 @@ static int ctc_create_table_impl(TcDb__CtcDDLCreateTableDef *req, ddl_ctrl_t *dd
 
 EXTER_ATTACK int ctc_create_table(void *table_def, ddl_ctrl_t *ddl_ctrl)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CREATE_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CREATE_TABLE);
     TcDb__CtcDDLCreateTableDef *req = tc_db__ctc_ddlcreate_table_def__unpack(NULL,
         ddl_ctrl->msg_len - sizeof(ddl_ctrl_t), (uint8_t*)((char*)table_def + sizeof(ddl_ctrl_t)));
     CTC_LOG_RET_VAL_IF_NUL(req, CT_ERROR, "ctc_create_table: null req ptr");
     int ret = ctc_create_table_impl(req, ddl_ctrl);
     tc_db__ctc_ddlcreate_table_def__free_unpacked(req, NULL);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_CREATE_TABLE);
     return ret;
 }
 
@@ -2933,11 +2936,14 @@ static int ctc_alter_table_atomic_impl(TcDb__CtcDDLAlterTableDef *req, ddl_ctrl_
 
 EXTER_ATTACK int ctc_alter_table(void *alter_def, ddl_ctrl_t *ddl_ctrl)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_ALTER_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_ALTER_TABLE);
     TcDb__CtcDDLAlterTableDef *req = tc_db__ctc_ddlalter_table_def__unpack(NULL,
         ddl_ctrl->msg_len - sizeof(ddl_ctrl_t), (uint8_t*)((char*)alter_def + sizeof(ddl_ctrl_t)));
     CTC_LOG_RET_VAL_IF_NUL(req, CT_ERROR, "ctc_alter_table: null req ptr");
     int ret = ctc_alter_table_atomic_impl(req, ddl_ctrl);
     tc_db__ctc_ddlalter_table_def__free_unpacked(req, NULL);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_ALTER_TABLE);
     return ret;
 }
 
@@ -3811,6 +3817,8 @@ static int ctc_rename_table_impl(TcDb__CtcDDLRenameTableDef *req, ddl_ctrl_t *dd
 
 EXTER_ATTACK int ctc_rename_table(void *alter_def, ddl_ctrl_t *ddl_ctrl)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RENAME_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RENAME_TABLE);
     TcDb__CtcDDLRenameTableDef *req = tc_db__ctc_ddlrename_table_def__unpack(NULL, ddl_ctrl->msg_len, alter_def);
     CTC_LOG_RET_VAL_IF_NUL(req, CT_ERROR, "ctc_rename_table: null req ptr");
     int ret = CT_SUCCESS;
@@ -3820,6 +3828,7 @@ EXTER_ATTACK int ctc_rename_table(void *alter_def, ddl_ctrl_t *ddl_ctrl)
         ret = ctc_rename_table_impl(req, ddl_ctrl);
     }
     tc_db__ctc_ddlrename_table_def__free_unpacked(req, NULL);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_RENAME_TABLE);
     return ret;
 }
 
@@ -3927,10 +3936,13 @@ static int ctc_drop_table_impl(TcDb__CtcDDLDropTableDef *req, ddl_ctrl_t *ddl_ct
 
 EXTER_ATTACK int ctc_drop_table(void *drop_def, ddl_ctrl_t *ddl_ctrl)
 {
+    INIT_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DROP_TABLE);
+    BEGIN_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DROP_TABLE);
     TcDb__CtcDDLDropTableDef *req = tc_db__ctc_ddldrop_table_def__unpack(NULL, ddl_ctrl->msg_len, drop_def);
     CTC_LOG_RET_VAL_IF_NUL(req, CT_ERROR, "ctc_drop_table: null req ptr");
     int ret = ctc_drop_table_impl(req, ddl_ctrl);
     tc_db__ctc_ddldrop_table_def__free_unpacked(req, NULL);
+    END_CTC_EVENT_TRACKING(CTC_FUNC_TYPE_DROP_TABLE);
     return ret;
 }
 
