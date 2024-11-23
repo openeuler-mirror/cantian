@@ -125,7 +125,7 @@ static status_t sql_process_direct_route_info(sql_stmt_t *stmt)
 
         sql_release_resource(stmt, CT_TRUE);
         sql_release_context(stmt);
-        sql_release_sql_map(stmt);
+        //sql_release_sql_map(stmt);
 
         uint16 save_status = stmt->status;
         stmt->status = STMT_STATUS_IDLE;

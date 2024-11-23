@@ -14,7 +14,8 @@ ENV_TYPE=$(uname -p)
 TMP_PKG_PATH=${CTDB_CODE_PATH}/package
 CTDB_TARGET_PATH=${CANTIANDB_BIN}/${BUILD_TARGET_NAME}/CantianKernel
 MYSQL_CODE_PATH=${MYSQL_SERVER_PATH}/mysql-source
-MYSQL_BIN_NAME="Cantian_connector_mysql"
+MYSQL_BIN_NAME="Mysql_server"
+CONNECT_BIN_NAME="Cantian_connector"
 
 mkdir -p ${TMP_PKG_PATH}
 
@@ -72,12 +73,13 @@ function newPackageTarget() {
   local build_type_upper=$(echo "${BUILD_TYPE}" | tr [:lower:] [:upper:])
   local pkg_name="${BUILD_PACK_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   local mysql_pkg_name="${MYSQL_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
+  local connector_pkg_name="${CONNECT_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   if [[ ${BUILD_MODE} == "single" ]]; then
     pkg_name="${BUILD_PACK_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
     mysql_pkg_name="${MYSQL_BIN_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
+    connector_pkg_name="${CONNECT_BIN_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
   fi
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
-  rm -rf ${TMP_PKG_PATH}/*
 
   mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
@@ -100,6 +102,7 @@ function newPackageTarget() {
     cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
   fi
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
   cp -rf ${CTDB_CODE_PATH}/pkg/src/zlogicrep/build/Cantian_PKG/file/* ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file/
@@ -115,8 +118,11 @@ function newPackageTarget() {
   cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
   echo "Start pkg ${mysql_pkg_name}..."
   tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+  echo "Start pkg ${connector_pkg_name}..."
+  tar -zcf "${connector_pkg_name}" connector
   rm -rf ${MYSQL_BIN_NAME}
   rm -rf ${pkg_dir_name}
+  rm -rf ${TMP_PKG_PATH}/connector
   echo "Packing ${pkg_name} success"
 }
 
@@ -140,7 +146,6 @@ function revertPatching() {
 }
 
 function collectMysqlTarget() {
-  cp "${MYSQL_CODE_PATH}"/cantian_lib/libctc_proxy.so  "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.a "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
   cp "${CANTIANDB_LIBRARY}"/huawei_security/lib/libsecurec.so "${CANTIANDB_BIN}"/cantian-connector-mysql/cantian_lib
   cp "${MYSQL_SERVER_PATH}"/scripts/my.cnf "${CANTIANDB_BIN}"/cantian-connector-mysql/scripts
@@ -152,9 +157,11 @@ function seperateSymbol() {
 }
 
 function buildMysql() {
+  rm -rf ${TMP_PKG_PATH}/*
   echo "meta version: declare directory and copy mysql code for ha_ctc.so and libctc_proxy.so"
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/{cantian_lib,mysql_bin,scripts}
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
+  mkdir -p "${TMP_PKG_PATH}"/connector
 
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
     echo "compile multiple mysql process"
@@ -167,8 +174,7 @@ function buildMysql() {
     exit 1
   fi
 
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/nometa
-
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so ${TMP_PKG_PATH}/connector/ha_ctc_noshare.so
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
   if [ $? -ne 0 ]; then
@@ -186,7 +192,8 @@ function buildMysql() {
   fi
 
   revertPatching
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/meta
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so ${TMP_PKG_PATH}/connector/ha_ctc_share.so
+  cp "${MYSQL_CODE_PATH}"/cantian_lib/libctc_proxy.so  ${TMP_PKG_PATH}/connector
   collectMysqlTarget
 }
 

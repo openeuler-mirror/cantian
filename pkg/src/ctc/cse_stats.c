@@ -88,6 +88,7 @@ io_record_event_desc_t g_ctc_io_record_event_desc[CTC_FUNC_TYPE_NUMBER] = {
     {"CTC_FUNC_TYPE_GET_MAX_SESSIONS", ""},
     {"CTC_FUNC_LOCK_INSTANCE", ""},
     {"CTC_FUNC_UNLOCK_INSTANCE", ""},
+    {"CTC_FUNC_INIT_MYSQL_LIB", ""},
     {"CTC_FUNC_CHECK_TABLE_EXIST", ""},
     {"CTC_FUNC_SEARCH_METADATA_SWITCH", ""},
     {"CTC_FUNC_QUERY_SHM_USAGE", ""},

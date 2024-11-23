@@ -130,7 +130,7 @@ function wait_config_done() {
 function check_mysql_pkg() {
     if [[ "${cantian_in_container}" == "1" ]]; then
         # 归一
-        MYSQLD_PKG=/ctdb/cantian_install/Cantian_connector_mysql_*
+        MYSQLD_PKG=/ctdb/cantian_install/Mysql_server_*
         if [ "${mysql_metadata_in_cantian,,}" == "false" ];then
             # 非归一 
             mkdir -p /var/lib/mysql-files

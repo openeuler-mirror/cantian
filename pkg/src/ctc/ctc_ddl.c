@@ -429,7 +429,7 @@ int ctc_lock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, const char
 {
     char *broadcast_db_name = ctc_check_db_exists((knl_session_t *)knl_session, db_name) ? db_name : NULL;
     // 广播 mysqld
-    int ret = ctc_ddl_execute_lock_tables(tch, broadcast_db_name, lock_info, error_code);
+    int ret = ctc_ddl_execute_lock_tables_intf(tch, broadcast_db_name, lock_info, error_code);
     if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[CTC_LOCK_TABLE]:execute failed at other mysqld on current node, error_code:%d"
                        "lock_info(db:%s, table:%s), conn_id:%u, ctc_instance_id:%u", *error_code,
@@ -514,7 +514,7 @@ int ctc_broadcast_mysql_dd_invalidate_impl(ctc_handler_t *tch, knl_handle_t knl_
 {
     // 本节点的其他mysqld
     int error_code;
-    status_t ret = ctc_invalidate_mysql_dd_cache(tch, broadcast_req, &error_code);
+    status_t ret = ctc_invalidate_mysql_dd_cache_intf(tch, broadcast_req, &error_code);
     //metadata DDL in slave node continue broadcast
     if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[CTC_DD_INVALID]:execute failed at other mysqld on current node, error_code:%d"
@@ -909,7 +909,7 @@ int ctc_rewrite_open_conn(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadca
     knl_session_t *knl_session)
 {
     // 本节点的其他mysqld
-    status_t ret = ctc_execute_rewrite_open_conn(tch->thd_id, broadcast_req);
+    status_t ret = ctc_execute_rewrite_open_conn_intf(tch->thd_id, broadcast_req);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_REWRITE_CONN]:execute failed at other mysqld on current node, ret:%d,"
             "sql_str:%s, user_name:%s, sql_command:%u, err_code:%d, conn_id:%u, ctc_instance_id:%u",
@@ -992,7 +992,7 @@ int ctc_close_mysql_connection(ctc_handler_t *tch)
     int ret;
     // 广播 mysqld
     if (tch->is_broadcast == true) {
-        ret = close_mysql_connection(tch->thd_id, tch->inst_id);
+        ret = close_mysql_connection_intf(tch->thd_id, tch->inst_id);
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[CTC_CLOSE_SESSION]:execute failed at other mysqld on current node, "
                 "ret = %d, conn_id:%u, inst_id:%u.", ret, tch->thd_id, tch->inst_id);
@@ -1303,7 +1303,7 @@ int ctc_unlock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, uint32_t
 
 {
     // 广播 mysqld
-    int ret = ctc_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
+    int ret = ctc_ddl_execute_unlock_tables_intf(tch, mysql_inst_id, lock_info);
     if (ret != CT_SUCCESS && DB_IS_PRIMARY(&g_instance->kernel.db)) {
         CT_LOG_RUN_ERR("[CTC_UNLOCK_TABLE]:execute failed at other mysqld on current node conn_id:%u", tch->thd_id);
         return CT_ERROR;
@@ -4334,7 +4334,7 @@ EXTER_ATTACK int ctc_query_cluster_role(bool *is_slave, bool *cantian_cluster_re
         }
         cm_sleep(META_SEARCH_WAITING_TIME_IN_MS);
     }
-    CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_read: %d.", ct_cluster_ready);
+    CT_LOG_RUN_ERR("[Disaster Recovery]: cantian_cluster_cluster_ready: %d.", ct_cluster_ready);
     return CT_ERROR;
 }
 
@@ -4374,7 +4374,7 @@ int ctc_unlock_mdl_key_impl(ctc_handler_t *tch, knl_handle_t knl_session, uint32
 {
     int ret;
     // 广播 mysqld
-    ret = close_mysql_connection(tch->thd_id, tch->inst_id);
+    ret = close_mysql_connection_intf(tch->thd_id, tch->inst_id);
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_UNLOCK_MDL_KEY]:execute failed at other mysqld on current node, "
                        "ret = %d, conn_id:%u, inst_id:%u.", ret, tch->thd_id, tch->inst_id);

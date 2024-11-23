@@ -1934,14 +1934,16 @@ class Installer:
                             % os.path.join(self.install_path, "bin"))
                 _file.write(os.linesep)
                 if "LD_LIBRARY_PATH" in os.environ:
-                    _file.write("export LD_LIBRARY_PATH=\"%s\":\"%s\""
+                    _file.write("export LD_LIBRARY_PATH=\"%s\":\"%s\":\"%s\""
                                 ":$LD_LIBRARY_PATH"
                                 % (os.path.join(self.install_path, "lib"),
-                                   os.path.join(self.install_path, "add-ons")))
+                                    os.path.join(self.install_path, "add-ons"),
+                                    os.path.join(MYSQL_BIN_DIR, "lib/plugin")))
                 else:
-                    _file.write("export LD_LIBRARY_PATH=\"%s\":\"%s\""
+                    _file.write("export LD_LIBRARY_PATH=\"%s\":\"%s\":\"%s\""
                                 % (os.path.join(self.install_path, "lib"),
-                                   os.path.join(self.install_path, "add-ons")))
+                                    os.path.join(self.install_path, "add-ons"),
+                                    os.path.join(MYSQL_BIN_DIR, "lib/plugin")))
                 _file.write(os.linesep)
                 if self.old_data_path == "":
                     # set CTDB_DATA
@@ -3309,18 +3311,7 @@ class Installer:
         if ret_code:
             LOGGER.error("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
             raise Exception("Can not copy mysql bin, command: %s, output: %s" % (cmd, stderr))
-        is_mysql_metadata_in_cantian = self.cantiand_configs.get("MYSQL_METADATA_IN_CANTIAN")
-        if is_mysql_metadata_in_cantian == "TRUE":
-            ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/meta/ha_ctc.so")
-        else:
-            ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
-        if os.path.exists(ctc_path):
-            mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
-            old_ctc_path = os.path.join(mysql_plugin_path, "ha_ctc.so")
-            if (os.path.exists(old_ctc_path)):
-                os.remove(old_ctc_path)
-            shutil.copy(ctc_path, mysql_plugin_path)
-
+        LOGGER.info("end mysql bin dir...")
     def set_mysql_env(self):
         LOGGER.info("Preparing mysql running env...")
         if 'LD_LIBRARY_PATH' in os.environ:

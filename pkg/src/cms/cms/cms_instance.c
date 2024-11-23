@@ -545,7 +545,7 @@ status_t cms_startup(void)
     CMS_LOG_INF("[cms srv init] cms startup begin.");
     CT_RETURN_IFERR(cms_load_keyfiles());
     CMS_LOG_INF("[cms srv init] cms load keyfiles succ");
-    CT_RETURN_IFERR(sigcap_handle_reg());
+    CT_RETURN_IFERR(sigcap_hreg());
     CMS_LOG_INF("[cms srv init] cms sigcap handle reg succ");
     CT_RETURN_IFERR(cms_load_gcc());
     CMS_LOG_INF("[cms srv init] cms load gcc succ");
