@@ -67,6 +67,7 @@ message CtcDDLTableKey {
     repeated CtcDDLTableKeyPart columns = 8;
     bool is_constraint = 9;
     bool is_dsc = 10;
+    int32 parallelism = 11;
 }
 message CtcMsgCommDef {
     uint32 inst_id = 1;

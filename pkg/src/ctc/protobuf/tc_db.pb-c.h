@@ -194,10 +194,11 @@ struct  TcDb__CtcDDLTableKey
   TcDb__CtcDDLTableKeyPart **columns;
   protobuf_c_boolean is_constraint;
   protobuf_c_boolean is_dsc;
+  int32_t parallelism;
 };
 #define TC_DB__CTC_DDLTABLE_KEY__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&tc_db__ctc_ddltable_key__descriptor) \
-    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0, 0, 0, 0,NULL, 0, 0 }
+    , (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, (char *)protobuf_c_empty_string, 0, 0, 0, 0,NULL, 0, 0, 0 }
 
 
 struct  TcDb__CtcMsgCommDef

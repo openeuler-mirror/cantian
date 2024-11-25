@@ -1,5 +1,6 @@
 # 容器开发编译部署手册
 ## 大纲
+ - [文档说明](#term)
  - [环境准备](#section1)
  - [双进程编译部署](#section2)
  - [卸载清理](#section3)
@@ -8,14 +9,27 @@
  - [定位分析](#section6)
  - [开发自验](#section7)
 
+<a id="term"></a>
+## 文档说明及术语解释
+此文档只涉及归一模式，非归一部署请参考非归一安装部署文档。
+### 归一
+又称元数据归一部署，是指通过[patch](#patch)对MySQL源码进行修改,将MySQL的系统表等元数据放置Cantian存储引擎当中
+避免因为故障等失败场景导致Cantian引擎和MySQL引擎发生元数据不一致。因为MySQL元数据存放在Cantian引擎，所以通俗地讲，将MySQL元数据归一存放于Cantian引擎。
+但Cantian只是存放MySQL的元数据，并不是真正地把两者的元数据归成一份，Cantian有独立的元数据。
+### 非归一
+又称非元数据归一部署，是指将MySQL部分的元数据存储到InnoDB引擎,因为MySQL存储了一份元数据，Cantian自身又存储了一份元数据，所以又称非归一模式。
+### 单进程
+Cantian和MySQL在同一个进程中，对外体现只有一个进程mysqld。
+### 双进程
+Cantian和MySQL位于不同进程，通过共享内存进行消息通信。对外体现有两个进程cantiand和mysqld。
 <a id="section1"></a>
 ## 环境准备
 
 ### 目录组织
 
-```
 例：
 新建编译目录ctdb_compile，后续操作均在此目录下展开
+```
 drwxr-xr-x  2 root root      4096 Aug 24 10:45 3rdPartyPkg // 三方依赖所用路径(protobuf等等)
 drwxr-xr-x 16 root root      4096 Sep 25 18:10 cantian // cantian 源码目录
 drwxr-xr-x  7 root root      4096 Sep 20 10:25 cantian-connector-mysql // cantian-connector-mysql 源码目录
@@ -36,10 +50,10 @@ docker tag ykfnxx/cantian_dev:0.1.[x] cantian_dev:latest
 ### 准备代码
 
 ```shell
-git clone git@gitee.com:openeuler/cantian.git
-git clone git@gitee.com:openeuler/cantian-connector-mysql.git
+git clone https://gitee.com/openeuler/cantian.git
+git clone https://gitee.com/openeuler/cantian-connector-mysql.git
 
-下载mysql-8.0.26源码
+#下载mysql-8.0.26源码
 wget --no-check-certificate https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz
 tar -zxf mysql-8.0.26.tar.gz
 mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
@@ -47,6 +61,7 @@ mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
 mkdir -p cantian_data
 ```
 
+<a id="start_docker"></a>
 ### 启动开发编译自验容器
 需进入cantian代码目录  
 单节点
@@ -61,16 +76,30 @@ sh docker/container.sh startnode [node_id]
 sh docker/container.sh enternode [node_id]
 ```
 
-[container.sh](https://gitee.com/openeuler/cantian/blob/master/docker/container.sh)按`startnode`和`dev`参数启动时会执行代码拷贝的操作，具体操作参考脚本中`sync_mysql_code`函数
+**container.sh(https://gitee.com/openeuler/cantian/blob/master/docker/container.sh)按`startnode`和`dev`参数启动时会执行代码拷贝的操作，具体操作参考脚本中`sync_mysql_code`函数**
 
 **注：容器外修改代码后需要重新进入容器内方能生效**
 ```shell
 # 单节点：
 sh docker/container.sh dev
-# 双节点：
-sh docker/container.sh startnode 0
-sh docker/container.sh enternode 0
+# 双节点0：
+sh docker/container.sh startnode [0]
+sh docker/container.sh enternode [0]
+# 双节点1：
+sh docker/container.sh startnode [1]
+sh docker/container.sh enternode [1]
 ```
+**注：如果确实未能更新，可以将容器清掉后[重新创建](#start_docker)，再从[编译拉起](#section2)操作继续执行**
+单节点
+```shell
+sh docker/container.sh stopode
+```
+双节点：
+```shell
+//docker stop [CONTAINER_ID]
+docker stop cantian_dev-dev
+```
+
 <a id="section2"></a>
 ## 双进程编译部署
 
@@ -88,23 +117,31 @@ sh Makefile.sh package-release
 ```
 
 ### Cantian部署
-#### 单节点Cantian部署
+#### 残留文件清理
+```shell
+kill -9 $(pidof mysqld)
+kill -9 $(pidof cantiand)
+kill -9 $(pidof cms)
+rm -rf /home/regress/cantian_data/* /home/regress/install /home/regress/data /home/cantiandba/install/* /data/data/* /home/cantiandba/data
+sed -i '/cantiandba/d' /home/cantiandba/.bashrc
+```
 
+#### 单节点Cantian部署
 ```shell
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/cantiandba/logs
 # -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
-# 如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
 #### 双节点Cantian部署
+节点0，在容器内执行以下命令
 ```shell
-#节点0，在容器内执行以下命令
 # -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/cantiandba/logs
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install -D /home/cantiandba/data -l /home/cantiandba/logs/install.log -M cantiand_in_cluster -Z _LOG_LEVEL=255 -N 0 -W 192.168.0.1 -g withoutroot -d -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
+节点1，在容器内执行以下命令
 ```shell
 #节点1，在容器内执行以下命令
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
@@ -120,18 +157,13 @@ cms stat
 ctsql / as sysdba -q -c 'SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE'
 ```
 
-### 卸载Cantian
-
-```shell
-cd /home/cantiandba/install/bin
-python3 install.py -U cantiandba -F -D /home/cantiandba/data -g withoutroot -d
-```
-
 ### MySQL-Connector编译
 
 #### 元数据归一版本（MySQL元数据在cantian存放，修改了MySQL源码，需要应用patch生效）
 <a id="patch"></a>
 ##### 应用patch，修改源码
+***如果此前已经应用过，下次编译时，可以跳过这一步***
+
 ```shell
 cd cantian-connector-mysql/mysql-source
 patch --ignore-whitespace -p1 < mysql-scripts-meta.patch
@@ -142,33 +174,25 @@ patch --ignore-whitespace -p1 < mysql-source-code-meta.patch
 ##### 编译MySQL及Connector
 ```shell
 cd /home/regress/CantianKernel/build
+# debug
 sh Makefile.sh mysql
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
-rm -rf /home/regress/mydata/*
+# release
+sh Makefile.sh mysql_release
 ```
 
-双节点部署时，如果使用**手动部署**，则两个节点需要分别执行编译。若使用**脚本部署**，只需在一个节点编译即可  
-特别地，若在node0完成cantian的编译，在node1编译mysql前需要先执行以下命令
-```shell
-mkdir /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
-cp /home/regress/CantianKernel/library/protobuf/protobuf-c/protobuf-c.h /home/regress/cantian-connector-mysql/mysql-source/include/protobuf-c
-```
-
-#### 非归一MySQL编译
-
-无需对mysql源码打patch，双节点部署时，非元数据归一版本（MySQL元数据存放在InnoDB引擎）只需要在其中一个节点编译mysql即可
-
-```shell
-cd /home/regress/CantianKernel/build
-sh Makefile.sh mysql
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
-```
+双节点部署时，若使用**脚本部署**，只需在一个节点编译即可  
 
 ### MySQL部署
-#### 元数据归一/非归一（推荐脚本拉起）
+<a id="copy_mysql"></a>
+#### 拷贝MySQL二进制
+单节点拉起前需分别执行以下命令
+```shell
+# node0
+cd /home/regress/CantianKernel/build
+sh Makefile.sh mysql_package_node0
+```
 
 双节点拉起前需分别执行以下命令
-
 ```shell
 # node0
 cd /home/regress/CantianKernel/build
@@ -179,58 +203,26 @@ cd /home/regress/CantianKernel/build
 sh Makefile.sh mysql_package_node1
 ```
 
-使用`install.py`脚本拉起
+##### MySQL拉起 & 重拉
+使用`install.py`脚本拉起 & 重拉
 
 ```shell
-# -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
-# 部署形态默认为元数据归一，此参数默认为TRUE，如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE。
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/regress/logs
-元数据归一：
 python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf
-非归一：
-python3 install.py -U cantiandba:cantiandba -l /home/cantiandba/logs/install.log -d -M mysqld -m /home/regress/cantian-connector-mysql/scripts/my.cnf -Z MYSQL_METADATA_IN_CANTIAN=FALSE
-```
-
-#### 元数据归一(手动拉起)
-
-初始化：
-双节点仅需在其中一个节点执行初始化命令，且在初始化前，需保证`/home/regress/mydata`下没有文件需先执行
-
-```shell
-rm -rf /home/regress/mydata/*
-```
-
-```shell
-初始化命令（datadir可自行调整，类似上步的清理命令也要修改）
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf --initialize-insecure --datadir=/home/regress/mydata --early-plugin-load="ha_ctc.so" --core-file
-```
-
-部署：
-双节点在初始化后分别执行部署命令。若在node0完成初始化，则node1需先执行以下命令
-
-```shell
-rm -rf /home/regress/mydata/*
-mkdir -p /home/regress/mydata/
-mkdir -p /home/regress/mydata/mysql
-```
-
-部署命令为：
-```shell
-/usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-connector-mysql/scripts/my.cnf  --datadir=/home/regress/mydata --user=root --early-plugin-load="ha_ctc.so" --core-file
 ```
 
 #### 拉起检验MySQL
-
+登录MySQL客户端后执行命令
 ```shell
 /usr/local/mysql/bin/mysql -uroot
 ```
-登录MySQL客户端后执行命令
+
 
 <a id="section3"></a>
 ## 卸载清理
 
-若脚本卸载执行失败或需要重新编译安装部署，可执行以下命令手动卸载后再重新从[cantian部署](#section2)部分开始执行
+若需要对Cantian进行重新编译安装部署，或者调试需要重拉，可执行以下命令手动卸载后再重新从[cantian部署](#section2)部分开始执行
 
 ```shell
 kill -9 $(pidof mysqld)
@@ -241,6 +233,7 @@ sed -i '/cantiandba/d' /home/cantiandba/.bashrc
 ```
 <a id="section4"></a>
 ## 单进程编译部署
+***注：单进程部署过后转双进程建议删除代码重新拉，否则仍会有代码残留导致形态无法切换***  
 与双进程(cantiand+mysqld)不同，单进程部署形态只有mysqld进程
 ### 编译参天
 
@@ -252,27 +245,28 @@ sh Makefile.sh package CANTIAN_READ_WRITE=1 no_shm=1
 ```
 
 ### 编译MySQL
-同双进程一样，归一版本的MySQL也需要[打patch](#patch)如果不打patch，编译出来的MySQL为非归一版本。非归一版本需要在部署的时候加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE方能运行。见[部署](#single_deploy)
 ```Bash  
 cd /home/regress/CantianKernel/build
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
+### debug
 sh Makefile.sh mysql no_shm=1
+### release
+sh Makefile.sh mysql_release no_shm=1
 ```
 
 <a id="single_deploy"></a>
 ### 单进程部署
 
+#### 拷贝MySQL二进制
+见章节[拷贝MySQL二进制](#copy_mysql)
+#### 安装部署
 ```Bash  
-cd /home/regress/CantianKernel/build
-sh Makefile.sh mysql_package_node0
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/cantiandba/logs
 # -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
-# 如果需要部署非元数据归一版本，则需要加参数-Z MYSQL_METADATA_IN_CANTIAN=FALSE
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
 卸载清理命令和[双进程卸载清理](#section3)一致。
-注：单进程部署过后转双进程建议删除代码重新拉，否则仍会有代码残留导致形态无法切换
 <a id="section5"></a>
 ## 进程调试
 
@@ -328,31 +322,53 @@ gdb /usr/local/mysql/bin/mysqld /home/core/core文件名
 ### 分析日志
 
 ```
-mysql日志目录
+# mysql日志目录
 /data/data/mysql.log
-cantian日志目录
+# cantian日志目录
 /home/cantiandba/data/log/run/cantiand.rlog
-打开cantiand debug日志
+# 打开cantiand debug日志
 su - cantiandba
 ctsql / as sysdba
 show parameter LOG;
 alter system set _LOG_LEVEL_MODE=FATAL即可生效
-cantian debug日志目录
+# cantian debug日志目录
 /home/cantiandba/data/log/debug/cantiand.dlog
 ```
+
 <a id="section7"></a>
+
 ## 开发自验
-### MTR
+MTR可自己拉起MySQL进行初始话，如果已通过脚本拉起过MySQL，可[清理元数据](#mtr_rerun)之后再运行MTR。
+### 双进程MTR
 ``` Bash 
 cd /usr/local/mysql/mysql-test
 chmod 777 ./mysql-test-run-meta.pl
-# 原主干执行MTR
-./mysql-test-run.pl --mysql=--plugin_load="ctc_ddl_rewriter=ha_ctc.so;ctc=ha_ctc.so;" --mysql=--default-storage-engine=CTC --mysql=--check_proxy_users=ON --mysqld=--mysql_native_password_proxy_users=ON --do-test-list=enableCases.list --noreorder
-# 元数据归一MySQL进程拉起后执行MTR命令
-./mysql-test-run-meta.pl --mysqld=--default-engine=CTC --mysqld=--check_proxy_users=ON --do-test-list=enableCases.list --noreorder --nowarnings --extern host=127.0.0.1 --extern port=3306 --extern user=root
 # 元数据归一MTR自拉起MySQL进程验证
 ./mysql-test-run-meta.pl --mysqld=--default-storage-engine=CTC --mysqld=--check_proxy_users=ON --do-test-list=enableCases.list --noreorder --nowarnings
 ```
+
+<a id="mtr_rerun"></a>
+### MTR重跑
+``` Bash
+ctsql / as sysdba
+select USERNAME from ADM_USERS where USERNAME not in('SYS','PUBLIC','tmp','LREP');
+# 清理回显的这些MySQL系统库和用户库
+drop user mysql cascade;
+drop user sys cascade;
+drop user test cascade;
+drop user mtr cascade;
+# 此处不尽显示,可能还存在cantian及其它MySQL用户库,需要开发者补充上述命令删除。
+```
+
+### 单进程MTR
+``` Bash
+cd /usr/local/mysql/mysql-test
+chmod 777 ./mysql-test-run-meta.pl
+# 元数据归一MTR自拉起MySQL进程验证
+./mysql-test-run-meta-single.pl --mysqld=--check_proxy_users=ON --noreorder --nowarnings --force --retry=0 --do-test-list=enableCases.list
+
+```
+
 ### UT测试
 1. 在对应模块添加测试代码
 ``` Bash
