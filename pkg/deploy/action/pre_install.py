@@ -651,6 +651,8 @@ class CheckInstallConfig(CheckBase):
             return False
 
         for key, value in install_config_params.items():
+            if not install_config_params.get("mes_ssl_switch") and key in self.mes_type_key:
+                continue
             if key in self.config_key:
                 checked_result = self.check_install_config_param(key, value)
                 if not checked_result:
