@@ -78,7 +78,7 @@ STANDBY_RECORD_DICT = {
 
 
 class DRDeploy(object):
-    def __init__(self):
+    def __init__(self, mysql_cmd=None, mysql_user=None, site=None, mysql_pwd=None):
         self.dr_deploy_opt = None
         self.ctsql_passwd = None
         self.ulog_fs_pair_id = None
@@ -88,15 +88,15 @@ class DRDeploy(object):
         self.page_fs_pair_id = None
         self.meta_fs_pair_id = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
-        if self.dr_deploy_info.get("cantian_in_container") == "1":
+        if self.dr_deploy_info.get("cantian_in_container") != "0":
             self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         else:
             self.deploy_params = read_json_config(DEFAULT_PARAM_FILE)
         self.record_progress_file = LOCAL_PROCESS_RECORD_FILE
-        self.mysql_user = None
-        self.mysql_cmd = None
-        self.mysql_pwd = None
-        self.site = None
+        self.mysql_user = mysql_user
+        self.mysql_cmd = mysql_cmd
+        self.mysql_pwd = mysql_pwd
+        self.site = site
         self.metadata_in_cantian = False
         self.backup_lock_shell = None
         self.sync_speed = 2
@@ -372,7 +372,7 @@ class DRDeploy(object):
             domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(hyper_domain_id)
             if not domain_info:
                 domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(
-                    remote_dev_name, remote_dev_esn, remote_device_id, domain_name)     
+                    remote_dev_name, remote_dev_esn, remote_device_id, domain_name)
             else:
                 exist_domain_name = domain_info.get("NAME")
                 if exist_domain_name != domain_name:
@@ -385,7 +385,7 @@ class DRDeploy(object):
             err_msg = "Hyper metro domain[%s] create failed" % domain_name
             LOG.error(err_msg)
             raise Exception(err_msg)
-        
+
         running_status = domain_info.get("RUNNINGSTATUS")
         if running_status == MetroDomainRunningStatus.Invalid:
             err_msg = "Hyper metro domain[%s] status is invalid" % domain_name
@@ -408,7 +408,7 @@ class DRDeploy(object):
         local_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
         vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
         domain_id = domain_info.get("ID")
-       
+
         if vstore_pair_id is None:
             vstore_pair_info = self.dr_deploy_opt.create_hyper_metro_vstore_pair(
                 domain_id, local_vstore_id, remote_vstore_id)
@@ -1058,7 +1058,7 @@ class DRDeploy(object):
             cmd = "echo -e \"%s\\n%s\\n%s\\n%s\\n%s\"|sh %s/install.sh %s" \
                   % (dbstor_user, dbstor_pwd,
                      cantian_pwd, comfirm_cantian_pwd, cert_encrypt_pwd,
-                     ctl_file_path, DR_DEPLOY_CONFIG)
+                     ctl_file_path, DEFAULT_PARAM_FILE)
             _, output, stderr = exec_popen(cmd, timeout=600)
             if "install success" not in output:
                 err_pattern = re.compile(".*ERROR.*")
@@ -1139,6 +1139,8 @@ class DRDeploy(object):
                 raise err
 
     def copy_param_file_to_metadata(self):
+        run_user = get_env_info("cantian_user")
+        user_grop = get_env_info("cantian_group")
         self.metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
         self.share_fs = self.dr_deploy_info.get("storage_share_fs")
         self.cluster_name = self.dr_deploy_info.get("cluster_name")
@@ -1146,7 +1148,7 @@ class DRDeploy(object):
         dr_deploy_param_path = "/opt/cantian/config/dr_deploy_param.json"
 
         if self.deploy_mode == "dbstor":
-            chown_command = f'chown "{RUN_USER}":"{USER_GROUP}" "{dr_deploy_param_path}"'
+            chown_command = f'chown "{run_user}":"{user_grop}" "{dr_deploy_param_path}"'
             LOG.info(f"Executing command: {chown_command}")
             return_code, output, stderr = exec_popen(chown_command, timeout=30)
 
@@ -1156,16 +1158,16 @@ class DRDeploy(object):
                 self.record_deploy_process("dr_deploy", "failed", code=-1, description=err_msg)
                 raise Exception(err_msg)
             dbstor_del_command = (
-                f'su -s /bin/bash - "{RUN_USER}" -c \''
+                f'su -s /bin/bash - "{run_user}" -c \''
                 f'dbstor --delete-file --fs-name="{self.share_fs}" '
                 f'--file-name="dr_deploy_param.json"\''
             )
             LOG.info(f"Executing command: {dbstor_del_command}")
             return_code, output, stderr = exec_popen(dbstor_del_command, timeout=100)
-            
+
             # 切换到指定用户并执行 dbstor 命令
             dbstor_command = (
-                f'su -s /bin/bash - "{RUN_USER}" -c \''
+                f'su -s /bin/bash - "{run_user}" -c \''
                 f'dbstor --create-file --fs-name="{self.share_fs}" '
                 f'--source-dir="{dr_deploy_param_path}" '
                 f'--file-name="dr_deploy_param.json"\''
@@ -1212,7 +1214,8 @@ class DRDeploy(object):
             LOG.error(err_msg)
             self.record_deploy_process("dr_deploy", "failed", code=-1, description=err_msg)
             raise Exception(err_msg)
-        self.mysql_pwd = input()
+        if self.mysql_pwd is None:
+            self.mysql_pwd = input()
         self.record_deploy_process("dr_deploy", "start")
         self.record_deploy_process("dr_deploy", "running")
         self.do_lock_instance_for_backup()
@@ -1314,9 +1317,12 @@ class DRDeploy(object):
             action_parse.add_argument("--mysql_cmd", dest="mysql_cmd", required=False)
             action_parse.add_argument("--mysql_user", dest="mysql_user", required=False)
             args = action_parse.parse_args()
-            self.mysql_cmd = args.mysql_cmd
-            self.mysql_user = args.mysql_user
-            self.site = args.site
+            if self.mysql_cmd is None:
+                self.mysql_cmd = args.mysql_cmd
+            if self.mysql_user is None:
+                self.mysql_user = args.mysql_user
+            if self.site is None:
+                self.site = args.site
             self.record_deploy_process_init()
             self.init_storage_opt()
             try:

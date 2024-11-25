@@ -1,36 +1,34 @@
-import copy
 import getpass
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import time
 import logging
+import traceback
+from datetime import datetime
 
 import yaml
 
 
-CURRENT_PATH = os.path.dirname(os.path.abspath(__file__)) # cantian/action/storage_operate
-sys.path.append(os.path.join(CURRENT_PATH, "..", "utils", "client"))
-sys.path.append(os.path.join(CURRENT_PATH, "..", "utils", "config"))
+CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, ".."))
-sys.path.append(os.path.join(CURRENT_PATH, "..", "logic"))
-sys.path.append(os.path.join(CURRENT_PATH, "dr_deploy_operate"))
-from ssh_client import SshClient
-from common_func import get_status
-from storage_operate import StorageInf
-from dr_deploy_common import DRDeployCommon
-from rest_constant import (DataIntegrityStatus, MetroDomainRunningStatus, ConfigRole, HealthStatus,
-                           DomainAccess, ReplicationRunningStatus, VstorePairRunningStatus,
-                           FilesystemPairRunningStatus)
+from utils.client.ssh_client import SshClient
+from logic.common_func import get_status
+from logic.storage_operate import StorageInf
+from dr_deploy_operate.dr_deploy_common import DRDeployCommon
+from utils.config.rest_constant import (DataIntegrityStatus, MetroDomainRunningStatus, ConfigRole, HealthStatus,
+                                        DomainAccess, ReplicationRunningStatus, VstorePairRunningStatus,
+                                        FilesystemPairRunningStatus)
 
 
-EXEC_SQL = os.path.join(CURRENT_PATH, "../cantian_common/exec_sql.py")
-CANTIAN_DATABASE_ROLE_CHECK = ('echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '
-                               'su -s /bin/bash - {run_user} -c \'source ~/.bashrc && '
-                               'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '
-                               'python3 -B {exe_sql}\'')
+EXEC_SQL = "/ctdb/cantian_install/cantian_connector/action/cantian_common/exec_sql.py"
+CANTIAN_DATABASE_ROLE_CHECK = ("echo -e 'select DATABASE_ROLE from DV_LRPL_DETAIL;' | "
+                               "su -s /bin/bash - %s -c 'source ~/.bashrc && "
+                               "export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && "
+                               "python3 -B %s'")
 
 DBSTORE_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
 
@@ -104,14 +102,38 @@ def exec_popen(cmd, timeout=5):
     return return_code, stdout, stderr
 
 
-def get_all_yaml_config(file_path):
-    with open(file_path, 'r') as f:
-        return yaml.safe_load_all(f)
+def get_now_timestamp():
+    now = datetime.now()
+    timestamp = now.timestamp()
+    return int(timestamp)
 
 
 def get_json_config(file_path):
     with open(file_path, 'r') as f:
-        return json.load(f)
+        configs = json.load(f)
+    return configs
+
+
+def copy_file(source, dest):
+    if os.path.exists(dest):
+        os.remove(dest)
+    shutil.copy(source, dest)
+
+
+def remove_dir(path):
+    if not os.path.isdir(path):
+        return False
+    for filename in os.listdir(path):
+        file_path = os.path.join(path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+            return True
+        except Exception as e:
+            print(f'delete {file_path} err: {e}')
+            return False
 
 
 def split_pod_name(pod_name):
@@ -120,13 +142,25 @@ def split_pod_name(pod_name):
         first_part = '-'.join(parts[:len(parts) - 2])
         return first_part
     else:
-        msg = f"split pod name failed: pod_name[{pod_name}]"
-        print(msg)
-        raise Exception(msg)
+        return pod_name
 
 
 def warning(warn_msg):
     print(f"\033[91m{warn_msg}\033[0m")
+
+
+def confirm():
+    warning_confirm = input("Do you want to continue? (yes/no): ", )
+    if warning_confirm != "yes" and warning_confirm != "no":
+        warning_confirm = input("Invalid input. Please enter 'yes' or 'no': ", )
+    if warning_confirm == "no":
+        LOG.info("Operation cancelled.")
+        return False
+    second_warning_confirm = input("To confirm operation, enter yes. Otherwise, exit: ")
+    if second_warning_confirm != "yes":
+        LOG.info("Operation cancelled.")
+        return False
+    return True
 
 
 class K8sDRContainer:
@@ -139,16 +173,21 @@ class K8sDRContainer:
         self.dm_user = ""
         self.server_info = {}
         self.server_user = "root"
-        self.server_key_file = "/root/.ssh/id_rsa.pub"
+        self.server_key_file = "/root/.ssh/id_rsa"
         self.dr_option = None
-        self.ulog_pair_list = None
-        self.dr_info_map = None
+        self.storage_opt = None
+        self.ulog_pair_list = []
+        self.dr_info_map = {}
         self.ssh_cmd_end = " ; echo last_cmd=$?"
-        self.vstore_pair_list = None
-        self.server_value_map = None
+        self.vstore_pair_list = []
         self.single_file_path = os.path.join(CURRENT_PATH, "single_file.json")
-        self.single_pod = None
+        self.single_pod = {}
+        self.abnormal_pod = {}
         self.check_flag = True
+        self.action_list = ["delete", "switch_over", "fail_over", "recover"]
+        self.ip_info = ""
+        self.config_count = 0
+        self.ssh_expect = "]# "
 
     def warning_tip(self):
         warning_msgs = {
@@ -165,6 +204,7 @@ class K8sDRContainer:
                        "\tEnsure remote data consistency to avoid data loss.\n",
             "fail_over": "\tFailover operation will start the standby cluster.\n"
                          "\tPlease confirm that the active device or cantian has failed,\n"
+                         "\tPlease ensure that all primary sites have been stopped.\n"
                          "\tAfter this operation,\n"
                          "\tplease ensure that the original active cluster is not accessed for write operations,\n"
                          "\totherwise it will cause data inconsistency.\n",
@@ -173,16 +213,7 @@ class K8sDRContainer:
         if self.action in warning_msgs:
             warning("Warning:")
             warning(warning_msgs[self.action])
-            warning_confirm = input("Do you want to continue? (yes/no): ", )
-            if warning_confirm != "yes" and warning_confirm != "no":
-                warning_confirm = input("Invalid input. Please enter 'yes' or 'no': ", )
-            if warning_confirm == "no":
-                LOG.info("Operation cancelled.")
-                return False
-            second_warning_confirm = input("To confirm operation, enter yes. Otherwise, exit: ")
-            if second_warning_confirm != "yes":
-                LOG.info("Operation cancelled.")
-                return False
+            return confirm()
         return True
 
     def init_k8s_config(self):
@@ -192,124 +223,176 @@ class K8sDRContainer:
             self.check_flag = False
             return
         config = get_json_config(self.k8s_config_path)
-        err_msg = None
-        if "domain_name" in config:
-            self.domain_name = config["domain_name"]
-            if not self.domain_name:
-                err_msg = f"Domain name is empty, config path: {self.k8s_config_path}"
-                LOG.error(err_msg)
-                self.check_flag = False
-        if "dm_ip" in config:
-            self.dm_ip = config["dm_ip"]
-            if not self.dm_ip:
-                err_msg = f"Domain ip is empty, config path: {self.k8s_config_path}"
-                LOG.error(err_msg)
-                self.check_flag = False
-        if "dm_user" in config:
-            self.dm_user = config["dm_user"]
-            if not self.dm_user:
-                err_msg = f"Domain user is empty, config path: {self.k8s_config_path}"
-                LOG.error(err_msg)
-                self.check_flag = False
-        if "server" in config:
-            self.server_info = config["server"]
-            if not self.server_info:
-                err_msg = f"server info is empty, config path: {self.k8s_config_path}"
-                LOG.error(err_msg)
-                self.check_flag = False
+        self.domain_name = config.get("domain_name").strip()
+        if not self.domain_name:
+            err_msg = f"Domain name is empty, config path: {self.k8s_config_path}"
+            LOG.error(err_msg)
+            self.check_flag = False
+        self.dm_ip = config.get("dm_ip").strip()
+        if not self.dm_ip:
+            err_msg = f"Domain ip is empty, config path: {self.k8s_config_path}"
+            LOG.error(err_msg)
+            self.check_flag = False
+        self.dm_user = config.get("dm_user").strip()
+        if not self.dm_user:
+            err_msg = f"Domain user is empty, config path: {self.k8s_config_path}"
+            LOG.error(err_msg)
+            self.check_flag = False
+        self.server_info = config.get("server")
+        if not self.server_info:
+            err_msg = f"Server info is empty, config path: {self.k8s_config_path}"
+            LOG.error(err_msg)
+            self.check_flag = False
+        LOG.info("init k8s config finish")
 
-    def check_k8s_config(self, ip, path, server_path):
-        cmd = f"ls {path}"
+    def get_self_ip_info(self):
+        cmd = "hostname -I"
         ret_code, ret, stderr = exec_popen(cmd, 20)
         if ret_code:
-            err_msg = f"Failed to ls {path}"
+            err_msg = f"Failed to get ip info for {cmd}"
             LOG.error(err_msg)
+            self.check_flag = False
+            return
+        self.ip_info = ret.strip()
+        LOG.info("get self ip info finish")
+
+    def check_k8s_config(self, ip, index, dir_path):
+        value = self.server_info[ip][index]
+        config_yaml = value.get("config_yaml")
+        if (not os.path.exists(os.path.join(dir_path, "cantian.yaml")) or 
+                not os.path.exists(os.path.join(dir_path, "configMap.yaml"))):
+            self.check_flag = False
             return False
-        if ip not in self.server_value_map:
-            self.server_value_map[ip] = []
-        file_list = ret.strip()
-        file_count = 0
-        data = {
-            "server_path": server_path,
-            "file_path": path
-        }
-        for name in file_list:
-            if name.endswith(".yaml") and "configMap" in name:
-                data["configMap"] = name.strip()
-                configs = get_all_yaml_config(os.path.join(path, name.strip()))
-                for config in configs:
-                    if config.get("kind") == "ConfigMap":
-                        deploy_param = json.loads(config.get("data").get("deploy_param.json"))
-                        domain_name = deploy_param.get("dr_deploy").get("domain_name")
-                        if domain_name != self.domain_name:
-                            err_msg = f"Domain name is not match, server ip[{ip}], config path[{path}]"
-                            LOG.error(err_msg)
-                            return False
-                        data["storage_dbstore_fs"] = deploy_param.get("storage_dbstore_fs")
-                        data["run_user"] = deploy_param.get("deploy_user").strip().split(":")[0]
-                        data["cluster_name"] = deploy_param.get("cluster_name").strip()
-                        data["storage_dbstore_page_fs"] = deploy_param.get("storage_dbstore_page_fs")
-                        data["dbstore_fs_vstore_id"] = deploy_param.get("dbstore_fs_vstore_id")
-                        file_count += 1
-                        break
-            if name.endswith(".yaml") and "cantian" in name:
-                data["cantian"] = name.strip()
-                configs = get_all_yaml_config(os.path.join(path, name.strip()))
-                for config in configs:
-                    if config.get("kind") == "Deployment":
-                        if "pod_name" in data:
-                            data["pod_name"].append(config.get("metadata").get("name"))
-                            continue
-                        data["pod_name"] = [config.get("metadata").get("name")]
-                        data["namespace"] = config.get("metadata").get("namespace")
+        value["server_path"] = dir_path
+        with open(os.path.join(dir_path, "configMap.yaml"), 'r') as f:
+            configs = yaml.safe_load_all(f)
+            for config in configs:
+                if config.get("kind") == "ConfigMap":
+                    deploy_param = json.loads(config.get("data").get("deploy_param.json"))
+                    domain_name = deploy_param.get("dr_deploy").get("domain_name")
+                    if domain_name != self.domain_name:
+                        err_msg = f"Domain name is not match, server ip[{ip}], config path[{config_yaml}]"
+                        LOG.error(err_msg)
+                        return False
+                    value["storage_dbstore_fs"] = deploy_param.get("storage_dbstore_fs")
+                    value["run_user"] = deploy_param.get("deploy_user").strip().split(":")[0]
+                    value["cluster_name"] = deploy_param.get("cluster_name").strip()
+                    value["storage_dbstore_page_fs"] = deploy_param.get("storage_dbstore_page_fs")
+                    value["dbstore_fs_vstore_id"] = deploy_param.get("dbstore_fs_vstore_id")
+                    break
+                
+        with open(os.path.join(dir_path, "cantian.yaml"), 'r') as f:
+            configs = yaml.safe_load_all(f)
+            for config in configs:
+                if config.get("kind") == "Deployment":
+                    if "pod_name" in value:
+                        value["pod_name"].append(config.get("metadata").get("name"))
                         continue
-                file_count += 1
-        if file_count != 2:
-            err_msg = (f"Failed to analysis server ip[{ip}], path[{path}],Expected to be two configuration files, "
-                       f"but actually file_count[{file_count}]")
-            LOG.error(err_msg)
+                    value["pod_name"] = [config.get("metadata").get("name")]
+                    value["namespace"] = config.get("metadata").get("namespace")
+                    continue
+        LOG.info(f"check ip[{ip}] k8s config index[{index}] finish")
+        return True
+
+    def change_config(self, dir_path):
+        config_yaml_path = os.path.join(dir_path, "configMap.yaml")
+        with open(config_yaml_path, 'r') as f:
+            configs = yaml.safe_load_all(f)
+            for config in configs:
+                if config.get("kind") == "ConfigMap":
+                    deploy_param = json.loads(config.get("data").get("deploy_param.json"))
+                    deploy_param["dr_action"] = self.action
+                    new_deploy_param_str = json.dumps(deploy_param)
+                    config.get("data")["deploy_param.json"] = new_deploy_param_str
+            with open(config_yaml_path, 'w') as file:
+                file.truncate()
+                yaml.dump(configs, file)
+
+    def download_config_file(self, ssh_client, ip, index, dir_path):
+        value = self.server_info[ip][index]
+        cantian_yaml = value.get("cantian_yaml")
+        config_yaml = value.get("config_yaml")
+        try:
+            if ip in self.ip_info:
+                copy_file(cantian_yaml, f"{dir_path}/cantian.yaml")
+                copy_file(config_yaml, f"{dir_path}/configMap.yaml")
+            else:
+                ssh_client.down_file(cantian_yaml, dir_path, "cantian.yaml")
+                ssh_client.down_file(config_yaml, dir_path, "configMap.yaml")
+            self.change_config(dir_path)
+        except Exception as e:
+            LOG.error(f"Download config file failed, err[{e}]")
             return False
-        self.server_value_map[ip].append(data)
         return True
 
     def pre_check_link(self):
+        if not os.path.exists(self.server_key_file):
+            err_msg = f"Server key file {self.server_key_file} does not exist"
+            LOG.error(err_msg)
+            self.check_flag = False
+            return
+
         server_path = os.path.join(CURRENT_PATH, "server")
         if not os.path.exists(server_path):
             os.makedirs(server_path)
-        del_cmd = f"rm -rf {server_path}/*"
-        ret_code, _, stderr = exec_popen(del_cmd, 20)
-        if ret_code:
-            err_msg = f"Failed to remove {server_path}/*, err[{stderr}]"
+        config_index = 0
+        remove_dir(server_path)
+        if not remove_dir(server_path):
+            err_msg = f"Failed to remove {server_path}."
             LOG.error(err_msg)
             raise Exception(err_msg)
         for ip in self.server_info:
-            ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-            ssh_client.create_client()
-            for index, path in enumerate(self.server_info[ip]):
-                dir_path = os.path.join(server_path, str(index))
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            self.config_count += len(self.server_info[ip])
+            for index, value in enumerate(self.server_info[ip]):
+                dir_path = os.path.join(server_path, str(config_index))
+                config_index += 1
                 if not os.path.exists(dir_path):
                     os.makedirs(dir_path)
-                cmd = f"ls {path}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=20)
-                if not flag:
-                    LOG.error(f"Failed to ls {path}, maybe not exist")
+                cantian_yaml = value.get("cantian_yaml", "")
+                config_yaml = value.get("config_yaml", "")
+                if not cantian_yaml or not config_yaml:
+                    LOG.error(f"IP[{ip}] Cantian or config yaml path is empty, please check.")
                     self.check_flag = False
                     continue
-                cmd = f"scp {self.server_user}@{ip}:{path}/* {dir_path}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=60)
+                cmd = f"ls {cantian_yaml}"
+                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                 if not flag:
-                    LOG.error(f"Failed to copy {path} to {dir_path}")
+                    LOG.error(f"Failed to ls {cantian_yaml}, maybe not exist")
                     self.check_flag = False
                     continue
-                if not self.check_k8s_config(ip, dir_path, path):
+                cmd = f"ls {config_yaml}"
+                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                if not flag:
+                    LOG.error(f"Failed to ls {config_yaml}, maybe not exist")
                     self.check_flag = False
-            ssh_client.close_client()
-        LOG.info("pre_check_link successful")
+                    continue
+                LOG.info(f"ip[{ip}] check path exist finish")
+                if not self.download_config_file(ssh_client, ip, index, dir_path):
+                    self.check_flag = False
+                    LOG.error(f"ip[{ip}] download_config_file config index[{index}] failed.")
+                    continue
+                LOG.info(f"ip[{ip}] download_config_file config index[{index}] finish")
+                if not self.check_k8s_config(ip, index, dir_path):
+                    self.check_flag = False
+                    LOG.error(f"ip[{ip}] check_k8s_config config index[{index}] failed.")
+                    continue
+                LOG.info(f"ip[{ip}] check_k8s_config config index[{index}] finish")
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("pre_check_link finish")
 
     def init_dr_option(self):
         dm_passwd = getpass.getpass("Please input device manager login passwd: ")
         storage_opt = StorageInf((self.dm_ip, self.dm_user, dm_passwd))
         storage_opt.login()
+        self.storage_opt = storage_opt
         self.dr_option = DRDeployCommon(storage_opt)
 
     def get_ulog_pair_info_list(self):
@@ -324,42 +407,43 @@ class K8sDRContainer:
             err_msg = f"No information was found for Domain name[{self.domain_name}]."
             LOG.error(err_msg)
             self.check_flag = False
-            self.check_flag_stat()
-            return
-        ulog_pair_info_list = []
+            raise Exception("Program pre check failed")
         vstore_pair_list = self.dr_option.query_hyper_metro_vstore_pair_info()
         for vstore_pair_info in vstore_pair_list:
             if vstore_pair_info.get("DOMAINID") == self.domain_id:
                 self.vstore_pair_list.append(vstore_pair_info)
-                ulog_pair_info_list += self.dr_option.query_ulog_filesystem_info_list(
+                pair_list = self.dr_option.query_ulog_filesystem_info_list(
                     vstore_pair_info.get("LOCALVSTOREID"))
-        self.ulog_pair_list = ulog_pair_info_list
+                for pair in pair_list:
+                    if pair.get("DOMAINID") == self.domain_id:
+                        self.ulog_pair_list.append(pair)
+        LOG.info("get_ulog_pair_info_list finish")
 
-    def match_config_and_pair_with_fs_name(self, ip, ulog_pair_info):
+    def match_config_and_pair_with_fs_name(self, ip, index, ulog_pair_info):
         log_fs_name = ulog_pair_info.get("LOCALOBJNAME").strip()
         vstore_id = ulog_pair_info.get("vstoreId").strip()
-        for value in self.server_value_map[ip]:
-            if value.get("storage_dbstore_fs") == log_fs_name and value.get("dbstore_fs_vstore_id") == vstore_id:
-                value["log_fs_id"] = ulog_pair_info.get("LOCALOBJID")
-                value["log_pair_id"] = ulog_pair_info.get("ID")
-                value["vstore_pair_id"] = ulog_pair_info.get("vstorePairId")
-                return value.get("server_path")
-        return ""
+        value = self.server_info[ip][index]
+        if value.get("storage_dbstore_fs") == log_fs_name and value.get("dbstore_fs_vstore_id") == vstore_id:
+            value["log_fs_id"] = ulog_pair_info.get("LOCALOBJID")
+            value["log_pair_id"] = ulog_pair_info.get("ID")
+            return True
+        return False
 
     def check_and_match_ulog_page_info(self):
+        LOG.info("begin to check_and_match_ulog_page_info")
         filter_server_info = {}
         for ulog_pair_info in self.ulog_pair_list:
             for ip in self.server_info:
-                for path in self.server_info[ip]:
-                    if ip in filter_server_info and path in filter_server_info[ip]:
+                for index, value in enumerate(self.server_info[ip]):
+                    if ip in filter_server_info and index in filter_server_info[ip]:
                         continue
-                    file_path = self.match_config_and_pair_with_fs_name(ip, ulog_pair_info)
-                    if file_path:
+                    if self.match_config_and_pair_with_fs_name(ip, index, ulog_pair_info):
                         if ip in filter_server_info:
-                            filter_server_info[ip].append(file_path)
+                            filter_server_info[ip].append(index)
                         else:
-                            filter_server_info[ip] = [file_path]
-                    break
+                            filter_server_info[ip] = [index]
+                        break
+        LOG.info("check_and_match_ulog_page_info finish")
 
     def check_hyper_metro_stat(self):
         domain_info = self.dr_option.query_hyper_metro_domain_info(self.domain_id)
@@ -372,111 +456,373 @@ class K8sDRContainer:
         self.check_hyper_metro_filesystem_pair_stat()
         self.check_replication_filesystem_pair_stat()
 
-
     def pre_check(self):
+        self.get_self_ip_info()
         self.pre_check_link()
+        self.check_flag_stat()
         self.init_dr_option()
         self.get_ulog_pair_info_list()
         self.check_and_match_ulog_page_info()
         if self.action == "switch_over":
             self.check_pod_stat()
             self.check_hyper_metro_stat()
+        if self.config_count != len(self.ulog_pair_list):
+            LOG.error("config count not match ulog pair list.")
+            self.check_flag = False
         self.check_flag_stat()
         LOG.info("success to pre check.")
 
-    def ssh_exec_cmd(self, ssh_client, cmd, expect, timeout=5):
+    def ssh_exec_cmd(self, ssh_client, cmd, timeout=10, islocal=False, err_log=True):
         try:
             cmd = f"{cmd}{self.ssh_cmd_end}"
-            res = ssh_client.execute_cmd(cmd, expect=expect, timeout=timeout)
-            res = res.split("\n")
-            if res[-1].strip().split("=")[-1] == 0:
-                return res[:-1], True
-            return res[:-1], False
+            err_msg = ""
+            if islocal:
+                _, res, err_msg = exec_popen(cmd, timeout)
+            else:
+                res = ssh_client.execute_cmd(cmd, expect=self.ssh_expect, timeout=timeout)
+            ret = res.strip().split("\n")
+            if "last_cmd=0" not in res:
+                if not err_log:
+                    return ret[:-1], False
+                if islocal:
+                    LOG.debug(f"execute cmd[{cmd}] failed err[{err_msg}]")
+                else:
+                    LOG.debug(f"execute cmd[{cmd}] failed err[{res}]")
+                return ret[:-1], False
+            return ret[:-1], True
         except Exception as e:
             err_msg = f"Failed to execute ssh command {cmd}. err[{e}]"
-            ssh_client.close_client()
+            if ssh_client:
+                ssh_client.close_client()
             raise Exception(err_msg)
 
-    def get_pod_list(self, ssh_client, namespace):
+    def get_pod_list(self, ssh_client, namespace, islocal=False):
         cmd = f"kubectl get pod -n {namespace} | grep -v NAME"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=10)
+        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
             err_msg = f"Failed to check pod stat, server ip[{ssh_client.ip}]."
             LOG.error(err_msg)
             return None
-        return res.split("\n")
+        return res
 
     def del_pods(self):
         for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                cantian_yaml = value.get("cantian_yaml")
+                config_yaml = value.get("config_yaml")
+                cmd = f"kubectl delete -f {cantian_yaml} {config_yaml}"
+                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                if not flag:
+                    err_msg = f"Failed to delete pod, cantian path[{cantian_yaml}] config path[{config_yaml}]."
+                    LOG.error(err_msg)
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("delete pods finish")
+
+    def del_pod(self, ip, cantian_yaml):
+        if ip in self.ip_info:
+            ssh_client = None
+            islocal = True
+        else:
             ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
             ssh_client.create_client()
-            for path in self.server_info[ip]:
-                cmd = f"kubectl delete -f {path}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=10)
-                if not flag:
-                    err_msg = f"Failed to delete pod ,path[{path}]"
-                    LOG.error(err_msg)
-            ssh_client.close_client()
-
-    def del_pod(self, ip, server_path):
-        ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-        ssh_client.create_client()
-        cmd = f"kubectl delete -f {server_path}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=10)
+            islocal = False
+        cmd = f"kubectl delete -f {cantian_yaml}"
+        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
-            err_msg = f"Failed to delete pod ,path[{server_path}]"
+            err_msg = f"Failed to delete pod ,path[{cantian_yaml}]"
             LOG.error(err_msg)
-        ssh_client.close_client()
+        if ssh_client is not None:
+            ssh_client.close_client()
 
     def apply_pods(self):
         for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                cantian_yaml = value.get("cantian_yaml", "")
+                config_yaml = value.get("config_yaml", "")
+                cmd = f"kubectl apply -f {config_yaml}"
+                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                if not flag:
+                    err_msg = f"Failed to apply pod ,path[{config_yaml}]"
+                    LOG.error(err_msg)
+                cmd = f"kubectl apply -f {cantian_yaml}"
+                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                if not flag:
+                    err_msg = f"Failed to apply pod ,path[{cantian_yaml}]"
+                    LOG.error(err_msg)
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("apply pods finish")
+
+    def apply_pod(self, ip, cantian_yaml, config_yaml):
+        if ip in self.ip_info:
+            ssh_client = None
+            islocal = True
+        else:
             ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
             ssh_client.create_client()
-            for path in self.server_info[ip]:
-                cmd = f"kubectl apply -f {path}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=10)
-                if not flag:
-                    err_msg = f"Failed to apply pod ,path[{path}]"
-                    LOG.error(err_msg)
+            islocal = False
+        cmd = f"kubectl apply -f {config_yaml}"
+        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        if not flag:
+            err_msg = f"Failed to apply pod ,path[{config_yaml}]"
+            LOG.error(err_msg)
+        cmd = f"kubectl apply -f {cantian_yaml}"
+        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        if not flag:
+            err_msg = f"Failed to apply pod ,path[{cantian_yaml}]"
+            LOG.error(err_msg)
+        if ssh_client is not None:
             ssh_client.close_client()
 
-    def apply_pod(self, ip, server_path):
-        ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-        ssh_client.create_client()
-        cmd = f"kubectl apply -f {server_path}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=10)
-        if not flag:
-            err_msg = f"Failed to apply pod ,path[{server_path}]"
-            LOG.error(err_msg)
-        ssh_client.close_client()
+    def del_pods_with_change_file(self):
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                cantian_yaml = value.get("dst_cantian_yaml")
+                config_yaml = value.get("dst_config_yaml")
+                cantian_del = False
+                config_del = False
+                count = 0
+                while True:
+                    if not config_del:
+                        cmd = f"kubectl delete -f {config_yaml}"
+                        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                        if not flag:
+                            err_msg = f"Failed to delete pod, path[{config_yaml}]"
+                            LOG.error(err_msg)
+                        else:
+                            config_del = True
+                    if not cantian_del:
+                        cmd = f"kubectl delete -f {cantian_yaml}"
+                        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                        if not flag:
+                            err_msg = f"Failed to delete pod, path[{cantian_yaml}]"
+                            LOG.error(err_msg)
+                        else:
+                            cantian_del = True
+                    if config_del and cantian_del:
+                        break
+                    if count == 5:
+                        LOG.error(f"ip[{ip}] delete pod err, please check.")
+                    count += 1
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("delete pods with change config finish")
 
-    def check_pod_stat(self, timeout=1200):
-        for ip in self.server_value_map:
-            ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-            ssh_client.create_client()
-            for value in self.server_value_map[ip]:
+    def change_config_and_apply_pod(self):
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                timestamp = get_now_timestamp()
+                server_dir = value.get("server_path")
+                source_cantian_yaml = os.path.join(server_dir, "cantian.yaml")
+                source_config_yml = os.path.join(server_dir, "configMap.yaml")
+                dst_cantian_yaml = os.path.join("/home", f"cantian-{timestamp}.yaml")
+                dst_config_yaml = os.path.join("/home", f"configMap-{timestamp}.yaml")
+                cantian_flag = False
+                cantian_apply = False
+                config_apply = False
+                config_flag = False
+                count = 0
+                while True:
+                    if islocal:
+                        value["dst_cantian_yaml"] = source_cantian_yaml
+                        value["dst_config_yaml"] = source_config_yml
+                        if not config_apply:
+                            cmd = f"kubectl apply -f {source_config_yml}"
+                            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                            if not flag:
+                                err_msg = f"Failed to apply pod ,path[{source_config_yml}]"
+                                LOG.error(err_msg)
+                            else:
+                                config_apply = True
+                        if not cantian_apply:
+                            cmd = f"kubectl apply -f {source_cantian_yaml}"
+                            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                            if not flag:
+                                err_msg = f"Failed to apply pod ,path[{source_cantian_yaml}]"
+                                LOG.error(err_msg)
+                            else:
+                                cantian_apply = True
+                    else:
+                        if not config_flag:
+                            ssh_client.upload_file(source_config_yml, dst_config_yaml)
+                            value["dst_config_yaml"] = dst_config_yaml
+                            config_flag = True
+                        if not config_apply:
+                            cmd = f"kubectl apply -f {dst_config_yaml}"
+                            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                            if not flag:
+                                err_msg = f"Failed to apply pod ,path[{dst_config_yaml}]"
+                                LOG.error(err_msg)
+                            else:
+                                config_apply = True
+                        if not cantian_flag:
+                            ssh_client.upload_file(source_cantian_yaml, dst_cantian_yaml)
+                            value["dst_cantian_yaml"] = dst_cantian_yaml
+                            config_flag = True
+                        if not cantian_apply:
+                            cmd = f"kubectl apply -f {dst_cantian_yaml}"
+                            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                            if not flag:
+                                err_msg = f"Failed to apply pod ,path[{dst_cantian_yaml}]"
+                                LOG.error(err_msg)
+                            else:
+                                cantian_apply = True
+                    if config_apply and cantian_apply:
+                        break
+                    if count == 5:
+                        LOG.error(f"ip[{ip}] copy file and apply err, please check.")
+                        raise Exception("copy_file or apply error")
+                    count += 1
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("apply pods with change config finish")
+
+    def check_pod_del(self, timeout=300):
+        exist_pod = []
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                LOG.info(f"check IP[{ip}]pods delete stat, please waiting ...")
                 namespace = value.get("namespace")
                 pod_name_list = value.get("pod_name")
                 run_time = 0
                 while True:
                     check_pod_list = []
-                    data_list = self.get_pod_list(ssh_client, namespace)
+                    if run_time > timeout:
+                        err_msg = f" check pod del timeout"
+                        LOG.error(err_msg)
+                        return False
+                    for pod_name in pod_name_list:
+                        cmd = f"kubectl get pod -n {namespace} | grep -v NAME | grep {pod_name}"
+                        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal, err_log=False)
+                        if not flag:
+                            check_pod_list.append(pod_name)
+                            continue
+                        if not res:
+                            for data in res:
+                                info = data.split()
+                                if not info:
+                                    continue
+                                if (split_pod_name(info[0]) in pod_name_list and
+                                        info[1] == "1/1" and info[2] == "Running"):
+                                    exist_pod.append(pod_name)
+                    if len(check_pod_list) == len(pod_name_list):
+                        break
+                    time.sleep(10)
+                    run_time += 10
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("check pod delete finish")
+        if exist_pod:
+            return False
+        else:
+            return True
+
+    def check_pod_stat(self, timeout=1200):
+        time_over = False
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
+                LOG.info(f"check IP[{ip}]pods apply stat, please waiting ...")
+                namespace = value.get("namespace")
+                pod_name_list = value.get("pod_name")
+                run_time = 0
+                while True:
+                    check_pod_list = []
+                    if run_time > timeout:
+                        err_msg = f"IP[{ip}], namespace[{namespace}], pod name[{pod_name_list}], Abnormal status"
+                        LOG.error(err_msg)
+                        time_over = True
+                        break
+                    data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
                     if not data_list:
-                        time.sleep(60)
+                        if time_over:
+                            LOG.error(f"IP[{ip}], namespace[{namespace}], "
+                                      f"pod name[{pod_name_list}], get pod list failed")
+                            break
+                        time.sleep(5)
                         continue
                     for data in data_list:
-                        info = data.strip()
+                        info = data.split()
+                        if not info:
+                            continue
                         if split_pod_name(info[0]) in pod_name_list:
                             if info[1] == "1/1" and info[2] == "Running":
                                 check_pod_list.append(info[0])
                                 continue
                     if len(check_pod_list) == len(pod_name_list):
                         break
-                    if run_time > timeout:
+                    if time_over:
                         break
-                    run_time += 60
-                    time.sleep(60)
-            ssh_client.close_client()
+                    run_time += 30
+                    time.sleep(30)
+                if time_over:
+                    err_msg = (f"IP[{ip}], namespace[{namespace}], "
+                               f"pod name[{pod_name_list}], Abnormal status")
+                    LOG.error(err_msg)
+                    if ip not in self.abnormal_pod:
+                        self.abnormal_pod[ip] = [err_msg]
+                    else:
+                        self.abnormal_pod[ip].append(err_msg)
+
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("check pod stat finish")
+
+    def check_standby_pod_stat(self):
+        if not self.abnormal_pod:
+            return True
+        warning("Warning:")
+        war_msg = ("\tThere are currently multiple nodes with abnormal status.\n"
+                   "\tIf you want to continue executing 'fail over', "
+                   "it may cause business interruption, data loss, and other phenomena\n"
+                   "\tThe following nodes currently have abnormal states:\n")
+        warning(war_msg)
+        for ip in self.abnormal_pod:
+            for msg in self.abnormal_pod[ip]:
+                LOG.info(msg)
+        return confirm()
 
     def check_hyper_metro_filesystem_pair_info(self):
         err_flag = False
@@ -490,27 +836,30 @@ class K8sDRContainer:
                 err_flag = True
         if err_flag:
             raise Exception("Data is inconsistent, please check.")
+        LOG.info("check hyper metro filesystem pair finish")
 
     def check_hyper_metro_filesystem_pair_stat(self):
         for ulog_pair_info in self.ulog_pair_list:
             run_stat = ulog_pair_info.get("RUNNINGSTATUS")
-            if run_stat == FilesystemPairRunningStatus.Normal:
+            if run_stat != FilesystemPairRunningStatus.Normal:
                 err_msg = "ulog pair is not Abnormal, please check, pair_id[%s]." % ulog_pair_info.get("ID")
                 LOG.error(err_msg)
                 self.check_flag = False
+        LOG.info("check hyper metro filesystem pair stat finish")
 
     def check_replication_filesystem_pair_stat(self):
-        for ip in self.server_value_map:
-            for value in self.server_value_map[ip]:
-                page_fs_info = self.dr_option.query_filesystem_info(value.get("storage_dbstore_page_fs"))
-                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))
+        for ip in self.server_info:
+            for value in self.server_info[ip]:
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_pair_id = page_pair_info.get("ID")
                 value["page_pair_id"] = page_pair_id
                 run_stat = page_pair_info.get("RUNNINGSTATUS")
-                if run_stat == ReplicationRunningStatus.Normal:
-                    err_msg = "page pair is not Abnormal, please check, pair_id[%s]." % page_pair_id
+                if run_stat != ReplicationRunningStatus.Split:
+                    err_msg = "page pair is not Split, please check, pair_id[%s]." % page_pair_id
                     LOG.error(err_msg)
                     self.check_flag = False
+        LOG.info("check replication filesystem pair stat finish")
 
     def query_sync_status(self, timeout=600):
         flag = False
@@ -563,21 +912,20 @@ class K8sDRContainer:
             self.dr_option.change_fs_hyper_metro_domain_second_access(self.domain_id, DomainAccess.ReadOnly)
             self.dr_option.join_fs_hyper_metro_domain(self.domain_id)
             self.query_sync_status()
-            return True
         LOG.info("Success to recover hyper metro domain.")
-        return False
 
     def switch_replication_pair_role(self):
-        for ip in self.server_value_map:
-            for value in self.server_value_map[ip]:
-                page_fs_info = self.dr_option.query_filesystem_info(value.get("storage_dbstore_page_fs"))
-                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))
+        for ip in self.server_info:
+            for value in self.server_info[ip]:
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_role = page_pair_info.get("ISPRIMARY")
                 pair_id = page_pair_info.get("ID")
                 if page_role == "true":
                     self.dr_option.swap_role_replication_pair(pair_id)
                 else:
                     LOG.info("Page fs rep pair is already standby site, pair_id[%s].", pair_id)
+        LOG.info("switch replication pair finish.")
 
     def do_fail_over(self):
         domain_info = self.dr_option.query_hyper_metro_domain_info(self.domain_id)
@@ -590,50 +938,76 @@ class K8sDRContainer:
         if running_status == MetroDomainRunningStatus.Normal:
             self.dr_option.split_filesystem_hyper_metro_domain(self.domain_id)
         self.dr_option.change_fs_hyper_metro_domain_second_access(self.domain_id, DomainAccess.ReadAndWrite)
+        LOG.info("fail over finish.")
 
-    def pod_exe_cmd(self, pod_name, namespace, cmd, ssh_client, timeout=30):
+    def pod_exe_cmd(self, pod_name, namespace, cmd, ssh_client, timeout=30, islocal=False):
         exe_cmd = f"kubectl exec -it {pod_name} -n {namespace} -- {cmd}"
-        return self.ssh_exec_cmd(ssh_client, exe_cmd, "]#", timeout=timeout)
+        return self.ssh_exec_cmd(ssh_client, exe_cmd, timeout=timeout, islocal=islocal)
 
-    def query_database_role(self, pod_name, namespace, cmd, ssh_client, timeout=600):
+    def query_database_role(self, pod_name, namespace, cmd, ssh_client, timeout=600, islocal=False):
         run_time = 0
         while True:
-            stdout, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client)
+            exe_cmd = f"kubectl exec -it {pod_name} -n {namespace} -- sh -c \"{cmd}{self.ssh_cmd_end}\""
+            try:
+                if islocal:
+                    _, res, _ = exec_popen(exe_cmd, timeout)
+                else:
+                    res = ssh_client.execute_cmd(exe_cmd, expect=self.ssh_expect, timeout=timeout)
+                ret = res.strip()
+                if "last_cmd=0" not in res:
+                    flag = False
+                else:
+                    flag = True
+            except Exception as e:
+                err_msg = f"Failed to execute ssh command {cmd}. err[{e}]"
+                if ssh_client:
+                    ssh_client.close_client()
+                raise Exception(err_msg)
             if not flag:
-                err_msg = "Query database role failed, error:%s." % stdout
+                err_msg = "Query database role failed, error:%s." % ret
                 LOG.error(err_msg)
                 raise Exception(err_msg)
-            if "PRIMARY" in stdout:
-                LOG.info("The current site database role is primary.")
+            if "PRIMARY" in ret:
+                LOG.info(f"The pod name[{pod_name}] current site database role is primary.")
                 return True
-            LOG.info("The current site database role is {}".format(stdout))
+            LOG.info(f"The pod name[{pod_name}] current site database role is standby, please wait...")
             run_time += 20
             if run_time >= timeout:
-                LOG.error(f"The current site database role is {stdout} but timed out, pod_name[{pod_name}], namespace[{namespace}].")
+                LOG.error(f"The current site database role is {ret} but timed out,"
+                          f" pod_name[{pod_name}], namespace[{namespace}].")
                 return False
             time.sleep(20)
 
     def check_database_role(self, timeout=1200):
-        for ip in self.server_value_map:
-            ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-            ssh_client.create_client()
-            for value in self.server_value_map[ip]:
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
                 run_user = value.get("run_user")
-                check_cmd = CANTIAN_DATABASE_ROLE_CHECK.format(run_user=run_user, exe_sql=EXEC_SQL)
+                check_cmd = CANTIAN_DATABASE_ROLE_CHECK % (run_user, EXEC_SQL)
                 namespace = value.get("namespace")
                 pod_name_list = value.get("pod_name")
                 run_time = 0
                 while True:
                     check_pod_list = []
-                    data_list = self.get_pod_list(ssh_client, namespace)
+                    data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
                     if not data_list:
                         time.sleep(10)
                         continue
                     for data in data_list:
-                        info = data.strip()
+                        info = data.split()
+                        if not info:
+                            continue
                         if split_pod_name(info[0]) in pod_name_list:
-                            check_pod_list.append(info[0])
-                            if self.query_database_role(info[0].strip(), namespace, check_cmd, ssh_client):
+                            if info[2] != "Running":
+                                continue
+                            if self.query_database_role(info[0].strip(), namespace, check_cmd,
+                                                        ssh_client, islocal=islocal):
                                 check_pod_list.append(info[0])
                                 continue
                             else:
@@ -645,7 +1019,9 @@ class K8sDRContainer:
                         break
                     run_time += 20
                     time.sleep(20)
-            ssh_client.close_client()
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("check database role finish.")
 
     def hyper_metro_status_check(self, running_status, config_role):
         if running_status != MetroDomainRunningStatus.Normal and running_status != MetroDomainRunningStatus.Split:
@@ -659,65 +1035,86 @@ class K8sDRContainer:
             LOG.error(err_msg)
             raise Exception(err_msg)
 
-    def get_single_write_flag(self, ssh_client, pod_name, namespace, cluster_name):
-        cmd = "sh %s getbase %s" % (DBSTORE_CHECK_VERSION_FILE, cluster_name)
-        ret, flag = self.ssh_exec_cmd(ssh_client, cmd, "]#", timeout=30)
-        if not flag:
-            err_msg = f"server ip[{ssh_client.ip}], pod_name[{pod_name}] Execute command[{cmd}] failed."
-            LOG.error(err_msg)
-        else:
-            msg = f"server ip[{ssh_client.ip}], pod_name[{pod_name}] Execute command[{cmd}] success."
-            LOG.info(msg)
-        return ret
+    def get_single_write_flag(self, ssh_client, pod_name, namespace, cluster_name, islocal=False, timeout=60):
+        get_cmd = "sh %s getbase %s" % (DBSTORE_CHECK_VERSION_FILE, cluster_name)
+        cmd = f"single=$(kubectl exec -it {pod_name} -n {namespace} -- {get_cmd}); echo single=$single"
+        try:
+            ret_err = ""
+            if islocal:
+                _, res, ret_err = exec_popen(cmd, timeout)
+            else:
+                res = ssh_client.execute_cmd(cmd, expect=self.ssh_expect, timeout=timeout)
+            if "single=0" in res:
+                return 0
+            elif "single=1" in res:
+                return 1
+            else:
+                if ssh_client:
+                    err_msg = (f"server ip[{ssh_client.ip}], pod_name[{pod_name}] "
+                               f"Execute command[{cmd}], err[{res}] failed.")
+                else:
+                    err_msg = (f"server ip[{self.ip_info}], pod_name[{pod_name}] "
+                               f"Execute command[{cmd}], err[{ret_err}] failed.")
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+        except Exception as e:
+            err_msg = f"Failed to execute ssh command {cmd}. err[{e}]"
+            if ssh_client:
+                ssh_client.close_client()
+            raise Exception(err_msg)
 
-    def write_single_flag(self, ip, single, server_path):
-        if os.path.exists(self.single_file_path):
-            config = get_json_config(self.single_file_path)
-        else:
-            config = copy.deepcopy(self.server_value_map)
-        for value in config[ip]:
-            if value.get("server_path") == server_path:
-                value["single"] = str(single)
-                break
+    def write_single_flag(self, ip, single, index):
+        value = self.server_info[ip][index]
+        value["single"] = str(single)
         with open(self.single_file_path, "w") as f:
             f.truncate()
-            f.write(json.dumps(config))
+            json.dump(self.server_info, f, indent=4)
 
     def check_dbstor_init(self, timeout=600):
-        check_cmd = "cat /opt/cantian/deploy/deploy.log | grep 'init dbstor success.' | wc -l"
-        for ip in self.server_value_map:
-            ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-            ssh_client.create_client()
-            for value in self.server_value_map[ip]:
+        check_cmd = "cat /opt/cantian/deploy/deploy.log | grep 'init dbstor success.'"
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for index, value in enumerate(self.server_info[ip]):
                 namespace = value.get("namespace")
                 pod_name_list = value.get("pod_name")
                 run_time = 0
+                check_flag = False
                 while True:
-                    data_list = self.get_pod_list(ssh_client, namespace)
+                    data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
                     if not data_list:
                         time.sleep(5)
                         continue
-                    ret = 0
-                    pod_name = ""
-                    for data in data_list:
-                        info = data.strip()
-                        if split_pod_name(info[0]) in pod_name_list:
-                            pod_name = info[0].strip()
-                            ret, flag = self.pod_exe_cmd(pod_name, namespace, check_cmd, ssh_client)
-                            if not flag:
-                                continue
-                            break
-                    if int(ret) >= 1:
-                        single = self.get_single_write_flag(ssh_client, pod_name, namespace, value.get("cluster_name"))
-                        self.write_single_flag(ip, single, value.get("server_path"))
-                        break
                     if run_time > timeout:
-                        err_msg = "Failed to check_dbstor_init, execute timeout"
+                        err_msg = f"IP[{ip}] pod name[{pod_name_list}] Failed to check_dbstor_init, execute timeout"
                         LOG.error(err_msg)
-                        return
+                        break
                     run_time += 5
                     time.sleep(5)
-            ssh_client.close_client()
+                    pod_name = ""
+                    for data in data_list:
+                        info = data.split()
+                        if not info:
+                            continue
+                        if split_pod_name(info[0]) in pod_name_list:
+                            pod_name = info[0].strip()
+                            ret, check_flag = self.pod_exe_cmd(pod_name, namespace, check_cmd, ssh_client, islocal=islocal)
+                            if not check_flag:
+                                continue
+                            break
+                    if check_flag:
+                        single = self.get_single_write_flag(ssh_client, pod_name, namespace,
+                                                            value.get("cluster_name"), islocal=islocal)
+                        self.write_single_flag(ip, single, index)
+                        break
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("check pod init finish.")
 
     def switch_hyper_metro_domain_role_recover(self):
         domain_info = self.dr_option.query_hyper_metro_domain_info(self.domain_id)
@@ -729,8 +1126,9 @@ class K8sDRContainer:
                 self.dr_option.change_fs_hyper_metro_domain_second_access(
                     self.domain_id, DomainAccess.ReadAndWrite)
                 self.dr_option.swap_role_fs_hyper_metro_domain(self.domain_id)
-            self.apply_pods()
+            self.change_config_and_apply_pod()
             self.check_dbstor_init()
+            self.del_pods_with_change_file()
             self.dr_option.change_fs_hyper_metro_domain_second_access(self.domain_id, DomainAccess.ReadOnly)
             try:
                 self.dr_option.join_fs_hyper_metro_domain(self.domain_id)
@@ -738,9 +1136,10 @@ class K8sDRContainer:
                 LOG.error("Fail to recover hyper metro domain, details: %s", str(_er))
         else:
             self.apply_pods()
-            LOG.info("The current hyper_metro_status running_status not is Split.")
+            LOG.info("The current hyper_metro_status running_status is not Split.")
             return
         self.query_sync_status()
+        LOG.info("switch hyper metro domain with recover finish.")
 
     def wait_remote_replication_pair_sync(self, pair_id):
         pair_info = self.dr_option.query_remote_replication_pair_info_by_pair_id(pair_id)
@@ -754,7 +1153,7 @@ class K8sDRContainer:
             time.sleep(10)
 
     def execute_replication_steps(self, running_status, server_info, pair_id):
-        LOG.info(f"Execute replication steps. pair id[{pair_id}] Singel_write: {server_info.get("single")}")
+        LOG.info(f"Execute replication steps. pair id[{pair_id}] Singel_write: {server_info.get('single')}")
         if server_info.get("single") == "1":
             if running_status != ReplicationRunningStatus.Synchronizing:
                 self.dr_option.sync_remote_replication_filesystem_pair(pair_id=pair_id,
@@ -771,50 +1170,56 @@ class K8sDRContainer:
         single_config = get_json_config(self.single_file_path)
         for ip in single_config:
             for value in single_config[ip]:
-                page_fs_info = self.dr_option.query_filesystem_info(value.get("storage_dbstore_page_fs"))
-                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_role = page_pair_info.get("ISPRIMARY")
                 running_status = page_pair_info.get("RUNNINGSTATUS")
                 pair_id = page_pair_info.get("ID")
-                if ip not in self.single_pod:
-                    if value["single"] == "1":
-                        self.single_pod[ip] = [value]
-                        self.del_pod(ip, value["server_path"])
-                else:
-                    if value["single"] == "1":
-                        self.single_pod[ip].append(value)
-                        self.del_pod(ip, value["server_path"])
                 if page_role == "true":
+                    if ip not in self.single_pod:
+                        if value["single"] == "1":
+                            self.single_pod[ip] = [value]
+                            self.del_pod(ip, value["cantian_yaml"])
+                    else:
+                        if value["single"] == "1":
+                            self.single_pod[ip].append(value)
+                            self.del_pod(ip, value["cantian_yaml"])
                     self.dr_option.swap_role_replication_pair(pair_id)
                     self.dr_option.remote_replication_filesystem_pair_set_secondary_write_lock(pair_id)
                     self.execute_replication_steps(running_status, value, pair_id=pair_id)
                 else:
-                    LOG.info("Page fs rep pair is already standby site.")
+                    LOG.info(f"Page fs rep pair[{pair_id}] is already standby site.")
                     if running_status == ReplicationRunningStatus.Split:
-                        self.apply_pod(ip, value["server_path"])
                         continue
                     elif running_status == ReplicationRunningStatus.Normal or \
                             running_status == ReplicationRunningStatus.Synchronizing:
                         self.wait_remote_replication_pair_sync(pair_id)
                         self.dr_option.split_remote_replication_filesystem_pair(pair_id)
-                        self.apply_pod(ip, value["server_path"])
                     else:
                         err_msg = f"Remote replication filesystem pair is not in normal status, pair_id[{pair_id}]."
                         LOG.error(err_msg)
                         err_flag = True
         if err_flag:
             raise Exception("Remote replication filesystem pair is not in normal status.")
+        LOG.info("switch replication pair with recover finish.")
+
+    def delete_config_file(self):
+        pass
 
     def ctbackup_purge_log(self):
-        cmd = "source ~/.bashrc && su -s /bin/bash - %s -c \"ctbackup --purge-logs\""
-        for ip in self.server_value_map:
-            ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-            ssh_client.create_client()
-            for value in self.server_value_map[ip]:
+        for ip in self.server_info:
+            if ip in self.ip_info:
+                ssh_client = None
+                islocal = True
+            else:
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
+                ssh_client.create_client()
+                islocal = False
+            for value in self.server_info[ip]:
                 namespace = value.get("namespace")
                 pod_name_list = value.get("pod_name")
                 while True:
-                    data_list = self.get_pod_list(ssh_client, namespace)
+                    data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
                     if not data_list:
                         time.sleep(5)
                         continue
@@ -822,12 +1227,17 @@ class K8sDRContainer:
                     exe_flag = False
                     pod_name = ""
                     for data in data_list:
-                        info = data.strip()
+                        info = data.split()
+                        if not info:
+                            continue
                         if split_pod_name(info[0]) in pod_name_list:
                             pod_name = info[0].strip()
                             if info[1] == "1/1" and info[2] == "Running":
                                 exe_flag = True
-                                ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client, timeout=600)
+                                cmd = ("su -s /bin/bash - %s -c "
+                                       "'source ~/.bashrc && ctbackup --purge-logs'") % value.get("run_user")
+                                ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd,
+                                                             ssh_client, timeout=600, islocal=islocal)
                                 if not flag:
                                     continue
                                 break
@@ -839,9 +1249,13 @@ class K8sDRContainer:
                                        f"Execute command[ctbackup --purge-logs] failed.")
                         LOG.error(err_msg)
                     break
+            if ssh_client is not None:
+                ssh_client.close_client()
+        LOG.info("ctbackup_purge_log finish.")
 
     def switch_over(self):
         self.del_pods()
+        self.check_pod_del()
         self.switch_hyper_metro_domain_role()
         self.switch_replication_pair_role()
         self.apply_pods()
@@ -849,6 +1263,9 @@ class K8sDRContainer:
 
     def fail_over(self):
         self.check_pod_stat()
+        if not self.check_standby_pod_stat():
+            LOG.info("standby pods stat abnormal, exit.")
+            return
         self.do_fail_over()
         self.check_database_role()
 
@@ -861,6 +1278,8 @@ class K8sDRContainer:
 
     def delete(self):
         self.del_pods()
+        self.check_pod_del()
+        LOG.info("delete pods finish")
 
     def check_flag_stat(self):
         if not self.check_flag:
@@ -872,6 +1291,9 @@ class K8sDRContainer:
             LOG.error(err_msg)
             raise Exception(err_msg)
         self.action = sys.argv[1]
+        if self.action not in self.action_list:
+            LOG.error(f"Action {self.action} not supported, supported actions are: {self.action_list}")
+            return
         if not self.warning_tip():
             return
         self.init_k8s_config()
@@ -889,5 +1311,6 @@ if __name__ == '__main__':
     try:
         K8sDRContainer().run()
     except Exception as err:
-        LOG.error(str(err))
+        LOG.error(f"err[{err}], [{traceback.format_exc(limit=-1)}]")
+        raise err
 

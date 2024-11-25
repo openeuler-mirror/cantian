@@ -338,6 +338,7 @@ case "$ACTION" in
             logAndEchoError "Input errors, please check."
             exit 1
         fi
+        
         do_deploy ${START_NAME} ${INSTALL_TYPE}
         ret=$?
         if [[ -f /opt/cantian/stop.enable ]];then
