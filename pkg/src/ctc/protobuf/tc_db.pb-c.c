@@ -1750,7 +1750,7 @@ const ProtobufCMessageDescriptor tc_db__ctc_ddltable_key_part__descriptor =
   (ProtobufCMessageInit) tc_db__ctc_ddltable_key_part__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor tc_db__ctc_ddltable_key__field_descriptors[10] =
+static const ProtobufCFieldDescriptor tc_db__ctc_ddltable_key__field_descriptors[11] =
 {
   {
     "user",
@@ -1872,6 +1872,18 @@ static const ProtobufCFieldDescriptor tc_db__ctc_ddltable_key__field_descriptors
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "parallelism",
+    11,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(TcDb__CtcDDLTableKey, parallelism),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned tc_db__ctc_ddltable_key__field_indices_by_name[] = {
   5,   /* field[5] = algorithm */
@@ -1881,6 +1893,7 @@ static const unsigned tc_db__ctc_ddltable_key__field_indices_by_name[] = {
   6,   /* field[6] = is_func */
   4,   /* field[4] = key_type */
   2,   /* field[2] = name */
+  10,   /* field[10] = parallelism */
   3,   /* field[3] = space */
   1,   /* field[1] = table */
   0,   /* field[0] = user */
@@ -1888,7 +1901,7 @@ static const unsigned tc_db__ctc_ddltable_key__field_indices_by_name[] = {
 static const ProtobufCIntRange tc_db__ctc_ddltable_key__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 10 }
+  { 0, 11 }
 };
 const ProtobufCMessageDescriptor tc_db__ctc_ddltable_key__descriptor =
 {
@@ -1898,7 +1911,7 @@ const ProtobufCMessageDescriptor tc_db__ctc_ddltable_key__descriptor =
   "TcDb__CtcDDLTableKey",
   "tc_db",
   sizeof(TcDb__CtcDDLTableKey),
-  10,
+  11,
   tc_db__ctc_ddltable_key__field_descriptors,
   tc_db__ctc_ddltable_key__field_indices_by_name,
   1,  tc_db__ctc_ddltable_key__number_ranges,

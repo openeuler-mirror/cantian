@@ -2241,6 +2241,7 @@ static int ctc_fill_add_index(sql_stmt_t *stmt, knl_altable_def_t **altable_def_
             def->pctfree = CT_PCT_FREE;
             def->cr_mode = CR_PAGE;
         }
+        def->parallelism = alter_key->parallelism;
         knl_close_dc(&dc);
         altable_def->index_def = def;
         (*altable_def_ptr)++;
