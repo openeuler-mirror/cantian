@@ -233,6 +233,8 @@ typedef struct st_database {
 #define DB_IS_OPEN(session)   ((session)->kernel->db.status == DB_STATUS_OPEN)
 #define DB_STATUS(session)    ((session)->kernel->db.status)
 
+#define DB_THREAD_STACK_SIZE SIZE_M(2)
+
 typedef struct st_proc_name_node {
     uint16 name_len;
     char name[CT_NAME_BUFFER_SIZE];

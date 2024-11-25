@@ -327,7 +327,7 @@ status_t init_dtc_mq_instance(void)
 
     for (loop = 0; loop < g_mes.profile.work_thread_num; loop++) {
         g_mes.mes_ctx.work_thread_idx[loop] = loop;
-        if (CT_SUCCESS != cm_create_thread(dtc_task_proc, 0, &g_mes.mes_ctx.work_thread_idx[loop],
+        if (CT_SUCCESS != cm_create_thread(dtc_task_proc, DB_THREAD_STACK_SIZE, &g_mes.mes_ctx.work_thread_idx[loop],
                                            &g_mes.mq_ctx.tasks[loop].thread)) {
             CT_LOG_RUN_ERR("create work thread %u failed.", loop);
             return CT_ERROR;
