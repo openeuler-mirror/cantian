@@ -727,7 +727,7 @@ static status_t db_start_writer(knl_instance_t *kernel, ckpt_context_t *ckpt)
     }
 
     // start checkpoint thread
-    if (cm_create_thread(ckpt_proc, 0, kernel->sessions[SESSION_ID_DBWR], &kernel->ckpt_ctx.thread) != CT_SUCCESS) {
+    if (cm_create_thread(ckpt_proc, DB_THREAD_STACK_SIZE, kernel->sessions[SESSION_ID_DBWR], &kernel->ckpt_ctx.thread) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
