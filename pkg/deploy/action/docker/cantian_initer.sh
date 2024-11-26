@@ -545,8 +545,8 @@ function execute_cantian_numa() {
     python3 /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
     # /usr/local/bin/cantian-numa
     if [ $? -ne 0 ]; then
-        echo "Error occurred in cantian-numa execution."
-        return 0
+        logAndEchoError "Error occurred in cantian-numa execution."
+        exit_with_log
     fi
 
     python3 ${CURRENT_PATH}/../cantian/bind_cpu_config.py
