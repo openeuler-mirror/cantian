@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 # coding=utf-8
+import json
 import os
 import time
+import argparse
 
 from logic.common_func import read_json_config, get_status, exec_popen
 from logic.storage_operate import StorageInf
@@ -22,6 +24,11 @@ CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
                                          'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
 DBSTORE_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
+
+
+def load_json_file(file_path):
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 
 class SwitchOver(object):
@@ -181,22 +188,22 @@ class SwitchOver(object):
             LOG.error(err_msg)
             raise Exception(err_msg)
 
-    def standby_cancel_iof(self):
+    def standby_set_iof(self, iof=0):
         """
         recover 阵列正常状态，cantian拉起前需要用户手动执行命令进行iof
             0： 取消iof
             1： 设置iof
         :return:
         """
-        LOG.info("Standby cancel iof.")
+        LOG.info(f"Standby set iof[{iof}].")
         cmd = "su -s /bin/bash - %s -c \"source ~/.bashrc && "\
-              "dbstor --set-ns-forbidden 0\"" % self.run_user
+              "dbstor --set-ns-forbidden %s\"" % (self.run_user, iof)
         return_code, output, stderr = exec_popen(cmd, timeout=60)
         if return_code:
-            err_msg = "Cantian start failed, error:%s." % output + stderr
+            err_msg = "set iof failed, error:%s." % output + stderr
             LOG.error(err_msg)
             raise Exception(err_msg)
-        LOG.info("Standby cancel iof success.")
+        LOG.info(f"Standby set iof[{iof}] success.")
 
     def init_storage_opt(self):
         """
@@ -249,8 +256,7 @@ class SwitchOver(object):
         :return:
         """
         LOG.info("Active/standby switch start.")
-        node_id = self.deploy_params.get("node_id")
-        self.check_cluster_status(target_node=node_id)
+        self.check_cluster_status(target_node=self.node_id)
         self.init_storage_opt()
         pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(self.ulog_fs_pair_id)
         local_data_status = pair_info.get("LOCALDATASTATE")
@@ -278,13 +284,12 @@ class SwitchOver(object):
             self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(self.hyper_domain_id, DomainAccess.ReadOnly)
             self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
             self.query_sync_status()
-            pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
-                self.page_fs_pair_id)
+            pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.page_fs_pair_id)
             page_role = pair_info.get("ISPRIMARY")
             if page_role == "true":
                 self.dr_deploy_opt.swap_role_replication_pair(self.page_fs_pair_id)
             else:
-                LOG.info("Page fs rep pair is already standby site.")
+                LOG.info("Page fs rep pair is already standby site, pair_id[%s].", self.page_fs_pair_id)
             if not self.metadata_in_cantian:
                 meta_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
                     self.meta_fs_pair_id)
@@ -388,10 +393,13 @@ class DRRecover(SwitchOver):
 
     def do_dbstore_baseline(self):
         cmd = "sh %s getbase %s" % (DBSTORE_CHECK_VERSION_FILE, self.cluster_name)
+        LOG.info("begin to execute command[%s].", cmd)
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
             err_msg = "Execute command[%s] failed." % cmd
             LOG.error(err_msg)
+        else:
+            LOG.info("Execute command[%s] success.", cmd)
         return output
 
     def rep_pair_recover(self, pair_id: str) -> None:
@@ -500,7 +508,7 @@ class DRRecover(SwitchOver):
             self.rep_pair_recover(self.meta_fs_pair_id)
         self.standby_logicrep_stop()
         time.sleep(10)
-        self.standby_cancel_iof()
+        self.standby_set_iof()
         self.standby_cms_res_start()
         self.check_cluster_status()
         if self.repl_success_flag:

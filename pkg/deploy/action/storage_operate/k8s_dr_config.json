@@ -1,0 +1,37 @@
+{
+  "domain_name": "",
+  "dm_ip": "",
+  "dm_user": "",
+  "server": {
+    "ip1": [
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      },
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      }
+    ],
+    "ip2": [
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      },
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      }
+    ],
+    "ip3": [
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      },
+      {
+        "cantian_yaml": "cantian_yaml_path",
+        "config_yaml": "config_yaml_path"
+      }
+    ]
+  }
+}

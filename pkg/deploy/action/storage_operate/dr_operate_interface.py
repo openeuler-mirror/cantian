@@ -10,16 +10,16 @@ from storage_operate.dr_deploy_operate.dr_deploy_progress_query import ProgressQ
 from storage_operate.dr_deploy_operate.dr_deploy_switchover import SwitchOver, DRRecover, FailOver
 from storage_operate.dr_deploy_operate.update_dr_params import UpdateDRParams
 
-HELP_MSG = "example:\n" \
-           "        sh appctl.sh dr_operate pre_check active/standby --conf=config_file_path\n" \
-           "        sh appctl.sh dr_operate deploy standby/active -" \
-           "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n" \
-           "        sh appctl.sh dr_operate progress_query --action=deploy --display=table/json\n" \
-           "        sh appctl.sh dr_operate undeploy active/standby\n" \
-           "        sh appctl.sh dr_operate switch_over\n" \
-           "        sh appctl.sh dr_operate recover\n" \
-           "        sh appctl.sh dr_operate fail_over\n" \
-           "        sh appctl.sh dr_operate update_conf\n"
+HELP_MSG = ("example:\n"
+            "        sh appctl.sh dr_operate pre_check active/standby --conf=config_file_path\n"
+            "        sh appctl.sh dr_operate deploy standby/active -"
+            "-mysql_cmd='/usr/local/mysql/bin/mysql' --mysql_user=myuser\n"
+            "        sh appctl.sh dr_operate progress_query --action=deploy --display=table/json\n"
+            "        sh appctl.sh dr_operate undeploy active/standby\n"
+            "        sh appctl.sh dr_operate switch_over\n"
+            "        sh appctl.sh dr_operate recover\n"
+            "        sh appctl.sh dr_operate fail_over\n"
+            "        sh appctl.sh dr_operate update_conf\n")
 
 
 class DRDeployOperate(object):
