@@ -3,8 +3,7 @@
 import os
 import re
 import sys
-import fcntl
-import json
+import time
 
 sys.path.append('/ctdb/cantian_install/cantian_connector/action')
 
@@ -15,6 +14,8 @@ from docker_common.file_utils import open_and_lock_json, write_and_unlock_json
 
 NUMA_INFO_PATH = "/root/.kube/NUMA-INFO/numa-pod.json"
 TIME_OUT = 100
+MAX_CHECK_TIME = 120  # 最大检查时间
+CHECK_INTERVAL = 3   # 每次检查的间隔
 
 
 class CPUAllocator:
@@ -376,18 +377,21 @@ def main():
     try:
         all_pod_info = k8s_service.get_all_pod_info()
         if not all_pod_info:
-            LOG.error("No Pods found in the cluster.")
-            return
+            err_msg = "No Pods found in the cluster."
+            LOG.error(err_msg)
+            raise Exception(err_msg)
     except Exception as e:
-        LOG.error(f"Error fetching pod information: {e}")
-        return
+        err_msg = f"Error fetching pod information: {e}"
+        LOG.error(err_msg)
+        raise Exception(err_msg)
 
     # 获取 NUMA 信息和初始化 JSON 数据
     try:
         total_cpus, numa_nodes, cpu_info = cpu_allocator.get_numa_info()
     except Exception as e:
-        LOG.error(f"Error fetching NUMA info: {e}")
-        return
+        err_msg = f"Error fetching NUMA info: {e}"
+        LOG.error(err_msg)
+        raise Exception(err_msg)
 
     numa_data, file_handle = open_and_lock_json(NUMA_INFO_PATH)
 
@@ -396,21 +400,33 @@ def main():
     cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
 
     # 找到与当前 short_hostname 匹配的 Pod 全名，并执行绑定操作
-    pod_name_full = get_pod_name_from_info(all_pod_info, short_hostname)
-    if pod_name_full:
-        cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
-    else:
-        LOG.info(f"Pod with hostname {short_hostname} not found in the cluster.")
+    start_time = time.time()
+    while True:
+        try:
+            pod_name_full = get_pod_name_from_info(all_pod_info, short_hostname)
+            if pod_name_full:
+                cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
+                LOG.info("CPU binding executed successfully.")
+                break
+        except Exception as e:
+            err_msg = f"Error during CPU binding: {e}"
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+
+        if time.time() - start_time >= MAX_CHECK_TIME:
+            err_msg = "Pod not found in the cluster."
+            LOG.error(err_msg)
+            raise Exception("Pod not found in the cluster.")
+        else:
+            all_pod_info = k8s_service.get_all_pod_info()
+            time.sleep(CHECK_INTERVAL)
 
     write_and_unlock_json(numa_data, file_handle)
     LOG.info("NUMA information updated successfully.")
 
 
 if __name__ == "__main__":
-    try:
-        if len(sys.argv) > 1 and sys.argv[1] == "show":
-            show_numa_binding_info(NUMA_INFO_PATH)
-        else:
-            main()
-    except Exception as _err:
-        LOG.error(f"An error occurred: {_err}")
+    if len(sys.argv) > 1 and sys.argv[1] == "show":
+        show_numa_binding_info(NUMA_INFO_PATH)
+    else:
+        main()

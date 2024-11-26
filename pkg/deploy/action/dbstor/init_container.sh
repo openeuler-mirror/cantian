@@ -26,11 +26,14 @@ function set_dbstor_config() {
     elif [[ "${cantian_vlan_name}" == *"|"* ]]; then
         separator="|"
     else
-        echo "Unsupported delimiter in cantian_vlan_name. Must contain ';' or '|'."
-        exit 1
+        separator=""
     fi
 
-    IFS="${separator}" read -ra vlan_names <<< "${cantian_vlan_name}"
+    if [[ -n "${separator}" ]]; then
+        IFS="${separator}" read -ra vlan_names <<< "${cantian_vlan_name}"
+    else
+        vlan_names=("${cantian_vlan_name}")
+    fi
 
     for vlan_name in "${vlan_names[@]}"; do
         if [[ ${vlan_name} =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
