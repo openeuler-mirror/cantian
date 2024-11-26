@@ -6,6 +6,7 @@ import os
 import argparse
 import re
 import shutil
+import sys
 
 from pre_install import PreInstall
 from logic.storage_operate import StorageInf
@@ -18,6 +19,7 @@ from om_log import LOGGER as LOG
 from get_config_info import get_env_info
 from obtains_lsid import LSIDGenerate
 from logic.common_func import exec_popen, read_json_config, write_json_config, get_status
+
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 DR_DEPLOY_PARAM_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
@@ -42,17 +44,17 @@ def get_config_values(key):
 
 
 class DRDeployPreCheck(object):
-    def __init__(self):
+    def __init__(self, password=None, conf=None):
         self.deploy_operate = None
         self.storage_opt = None
         self.deploy_params = None
         self.remote_vstore_id = None
-        self.conf = None
+        self.conf = conf
         self.local_conf_params = dict()
         self.remote_conf_params = dict()
         self.remote_device_id = None
         self.site = None
-        self.dm_login_passwd = None
+        self.dm_login_passwd = password
         self.remote_operate = None
         self.run_user = get_env_info("cantian_user")
         self.domain_name = None
@@ -255,6 +257,7 @@ class DRDeployPreCheck(object):
         if node_id != "0":
             return err_msg
         LOG.info("Check standby filesystem nums start.")
+        cantian_in_container = self.deploy_params.get("cantian_in_container")
         metadata_fs_name = self.local_conf_params.get("storage_metadata_fs")
         dbstore_page_fs = self.local_conf_params.get("storage_dbstore_page_fs")
         metadata_in_cantian = self.local_conf_params.get("mysql_metadata_in_cantian")
@@ -263,14 +266,18 @@ class DRDeployPreCheck(object):
             dbstore_page_fs = RepFileSystemNameRule.NamePrefix + dbstore_page_fs + name_suffix
         if name_suffix and not metadata_in_cantian:
             metadata_fs_name = RepFileSystemNameRule.NamePrefix + metadata_fs_name + name_suffix
+        remote_fs_vstore_id = self.remote_conf_params.get("dbstore_fs_vstore_id")
         if self.ulog_fs_pair_id is None:
             dbstore_fs = self.local_conf_params.get("storage_dbstore_fs")
-            remote_fs_vstore_id = self.remote_conf_params.get("dbstore_fs_vstore_id")
+
             remote_ulog_fs_info = self.remote_operate.\
                 query_remote_filesystem_info(fs_name=dbstore_fs, vstore_id=remote_fs_vstore_id)
             if remote_ulog_fs_info:
                 err_msg.append("Standby dbstore filesystem[%s] exist, filesystem id[%s]." %
                     (dbstore_fs, remote_ulog_fs_info.get("ID")))
+        else:
+            if cantian_in_container == "0":
+                err_msg.append("Standby vstore[%s] exist filesystems." % remote_fs_vstore_id)
 
         if self.page_fs_pair_id is None:
             remote_dbstore_page_fs_info = self.remote_operate.\
@@ -278,13 +285,19 @@ class DRDeployPreCheck(object):
             if remote_dbstore_page_fs_info:
                 err_msg.append("Standby dbstore page filesystem[%s] exist, filesystem id[%s]." %
                     (dbstore_page_fs, remote_dbstore_page_fs_info.get("ID")))
-    
+        else:
+            if cantian_in_container == "0":
+                err_msg.append("Standby dbstore page filesystem[%s] exist." % dbstore_page_fs)
+
         if self.meta_fs_pair_id is None:
             remote_metadata_fs_info = self.remote_operate.\
                 query_remote_filesystem_info(fs_name=metadata_fs_name, vstore_id="0")
             if remote_metadata_fs_info and not metadata_in_cantian:
                 err_msg.append("Standby metadata filesystem[%s] exist, filesystem id[%s]." %
                     (metadata_fs_name, remote_metadata_fs_info.get("ID")))
+        else:
+            if cantian_in_container == "0":
+                err_msg.append("Standby metadata filesystem[%s] exist." % metadata_fs_name)
         LOG.info("Check standby filesystem nums success.")
         return err_msg
 
@@ -336,10 +349,14 @@ class DRDeployPreCheck(object):
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
         domain_name = self.local_conf_params.get("domain_name", "")
         if domain_name == "":
-            err_msg.append(f"deploy_param.json parameter[{domain_name}] error.")
+            err_msg.append("The 'domain_name' parameter of the 'deploy_param.json' file is empty.")
         domain_exist = False
+        cantian_in_container = self.deploy_params.get("cantian_in_container")
         for domain_info in domain_infos:
             if domain_info.get("NAME") == domain_name:
+                if cantian_in_container == "0":
+                    err_msg.append("Domain name[%s] is exist." % domain_name)
+                    break
                 remote_esn = self.remote_conf_params.get("esn")
                 for remote_info in json.loads(domain_info.get("REMOTEDEVICES")):
                     if remote_info.get("devESN") == remote_esn:
@@ -359,23 +376,35 @@ class DRDeployPreCheck(object):
             err_msg.append("The number of HyperMetro domains has reached the upper limit %s." % DOMAIN_LIMITS)
         page_pair_info = self.deploy_operate.query_remote_replication_pair_info(page_fs_id)
         if page_pair_info:
-            if len(page_pair_info) == 1 and page_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
-                self.page_fs_pair_id = page_pair_info[0].get("ID")
+            if cantian_in_container == "0":
+                err_msg.append("Filesystem[%s] replication pair is exist." % dbstore_page_fs)
             else:
-                _err_msg = "Filesystem[%s] replication pair is exist, details: %s" % (dbstore_page_fs, page_pair_info)
-                err_msg.append(_err_msg)
+                if len(page_pair_info) == 1 and page_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                    self.page_fs_pair_id = page_pair_info[0].get("ID")
+                else:
+                    _err_msg = ("Filesystem[%s] replication pair is exist, but match failed, "
+                                "details: %s") % (dbstore_page_fs, page_pair_info)
+                    err_msg.append(_err_msg)
         vstore_pair_infos = self.deploy_operate.query_hyper_metro_vstore_pair_info()
         for vstore_pair_info in vstore_pair_infos:
             exist_remote_vstoreid = vstore_pair_info.get("REMOTEVSTOREID")
             exist_local_vstoreid = vstore_pair_info.get("LOCALVSTOREID")
             if exist_local_vstoreid == dbstore_fs_vstore_id and remote_dbstore_fs_vstore_id == exist_remote_vstoreid:
-                if vstore_pair_info.get("DOMAINNAME") == domain_name:
-                    self.vstore_pair_id = vstore_pair_info.get("ID")
-                    LOG.info("Vstore[%s] metro pair is exist." % dbstore_fs_vstore_id)
+                if cantian_in_container == "0":
+                    err_msg.append("Vstore[%s] metro pair is exist." % dbstore_fs_vstore_id)
                 else:
-                    _err_msg = "Vstore[%s] metro pair is exist, " \
-                               "but domain name[%s] matching failed." % (dbstore_fs_vstore_id, domain_name)
-                    err_msg.append(_err_msg)
+                    if vstore_pair_info.get("DOMAINNAME") == domain_name:
+                        domain_id = vstore_pair_info.get("DOMAINID")
+                        if domain_id != self.hyper_domain_id:
+                            _err_msg = "Vstore[%s] metro pair is exist, " \
+                                       "but domain id[%s] matching failed." % (dbstore_fs_vstore_id, domain_id)
+                            err_msg.append(_err_msg)
+                        self.vstore_pair_id = vstore_pair_info.get("ID")
+                        LOG.info("Vstore[%s] metro pair is exist." % dbstore_fs_vstore_id)
+                    else:
+                        _err_msg = "Vstore[%s] metro pair is exist, " \
+                                   "but domain name[%s] matching failed." % (dbstore_fs_vstore_id, domain_name)
+                        err_msg.append(_err_msg)
                 break
         else:
             system_count = self.remote_operate.query_remote_storage_vstore_filesystem_num(remote_dbstore_fs_vstore_id)
@@ -385,23 +414,29 @@ class DRDeployPreCheck(object):
         
         ulog_pair_info = self.deploy_operate.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
         if ulog_pair_info:
-            pair_info = ulog_pair_info[0]
-            if pair_info.get("DOMAINNAME") == domain_name:
-                self.ulog_fs_pair_id = pair_info.get("ID")
-                LOG.info("Filesystem[%s] metro pair is exist." % dbstore_fs)
+            if cantian_in_container == "0":
+                err_msg.append("Filesystem[%s] metro pair is exist." % dbstore_fs)
             else:
-                _err_msg = "Filesystem[%s] metro pair is exist, " \
-                           "but domain name[%s] matching failed." % (dbstore_fs, domain_name)
-                err_msg.append(_err_msg)
+                pair_info = ulog_pair_info[0]
+                if pair_info.get("DOMAINNAME") == domain_name:
+                    self.ulog_fs_pair_id = pair_info.get("ID")
+                    LOG.info("Filesystem[%s] metro pair is exist." % dbstore_fs)
+                else:
+                    _err_msg = "Filesystem[%s] metro pair is exist, " \
+                               "but domain name[%s] matching failed." % (dbstore_fs, domain_name)
+                    err_msg.append(_err_msg)
 
         deploy_mode = self.local_conf_params.get("deploy_mode")
         if metadata_in_cantian and deploy_mode != "dbstor":
             meta_pair_info = self.deploy_operate.query_remote_replication_pair_info(metadata_fs_id)
             if meta_pair_info:
-                if len(meta_pair_info) == 1 and meta_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
-                    self.meta_fs_pair_id = meta_pair_info[0].get("ID")
-                else:
+                if cantian_in_container == "0":
                     err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
+                else:
+                    if len(meta_pair_info) == 1 and meta_pair_info[0].get("REMOTEDEVICEID") == self.remote_device_id:
+                        self.meta_fs_pair_id = meta_pair_info[0].get("ID")
+                    else:
+                        err_msg.append("Filesystem[%s] replication pair is exist." % metadata_fs)
 
         LOG.info("Check disaster status success.")
         return err_msg
@@ -521,8 +556,10 @@ class DRDeployPreCheck(object):
         parse_params.add_argument("-l", "--conf", dest="conf", required=True)
         args = parse_params.parse_args()
         self.site = args.site
-        self.conf = args.conf
-        self.dm_login_passwd = input()
+        if self.conf is None:
+            self.conf = args.conf
+        if self.dm_login_passwd is None:
+            self.dm_login_passwd = input()
 
     def check_active_params(self):
         check_result = []
@@ -634,7 +671,7 @@ class DRDeployPreCheck(object):
         """
         check_result = []
         conf_params = read_json_config(self.conf)
-        if self.site == "active" or conf_params.get("cantian_in_container") == "1":
+        if self.site == "active" or conf_params.get("cantian_in_container") != "0":
             return check_result
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"

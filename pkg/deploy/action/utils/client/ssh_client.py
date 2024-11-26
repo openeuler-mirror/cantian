@@ -24,10 +24,11 @@ def convert(code):
 
 
 class SshClient(object):
-    def __init__(self, ip, username, passwd, root_passwd=None, port=22):
+    def __init__(self, ip, username, passwd=None, root_passwd=None, port=22, private_key_file=None):
         self.username = username
         self.passwd = passwd
         self.root_pwd = root_passwd
+        self.private_key_file = private_key_file
         self.ip = ip
         self.port = port
         self.ssh_client = dict()
@@ -68,7 +69,7 @@ class SshClient(object):
                 continue
             output += convert(session.recv(SSH_RECV_BUFFER).decode('utf-8')).\
                 replace(' \r', '\r').replace('\r', '')
-        return output
+        return output.split(cmd)[-1]
 
     def close_client(self):
         try:
@@ -85,7 +86,11 @@ class SshClient(object):
         logger.info("Create ssh client host[%s]" % self.ip)
         trans = paramiko.Transport((self.ip, self.port))
         try:
-            trans.connect(username=self.username, password=self.passwd)
+            if self.passwd:
+                trans.connect(username=self.username, password=self.passwd)
+            else:
+                private_key = paramiko.RSAKey.from_private_key_file(self.private_key_file)
+                trans.connect(username=self.username, pkey=private_key)
         except Exception as err:
             err_mgs = "Create ssh client failed, details: %s" % str(err)
             logger.info(err_mgs)
@@ -106,3 +111,38 @@ class SshClient(object):
         self.ssh_client['stdout'] = stdout
         logger.info("Create ssh client host[%s] success" % self.ip)
         return trans
+
+    def upload_file(self, source, dest):
+        """
+        :param source: abs file path
+        :param dest: abs file path
+        :return:
+        """
+        try:
+            sftp = paramiko.SFTPClient.from_transport(self.ssh_client['client'])
+            sftp.put(source, dest)
+        except Exception as err:
+            err_msg = f"Upload failed from {source} to {dest}, details: {err}"
+            logger.error(err_msg)
+            raise err
+
+    def down_file(self, source, dest, filename=None):
+        """
+        :param source: abs file path
+        :param dest: abs file path
+        :param filename: dest file name
+        :return:
+        """
+        if filename is None:
+            filename = os.path.basename(source)
+        dest = os.path.join(dest, filename)
+        if os.path.exists(dest):
+            os.remove(dest)
+        try:
+            sftp = paramiko.SFTPClient.from_transport(self.ssh_client['client'])
+            sftp.get(source, dest)
+        except Exception as err:
+            err_msg = f"download failed from {source} to {dest}, details: {err}"
+            logger.error(err_msg)
+            raise err
+

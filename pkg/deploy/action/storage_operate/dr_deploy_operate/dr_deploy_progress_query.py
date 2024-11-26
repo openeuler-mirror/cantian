@@ -133,9 +133,11 @@ class DrStatusCheck(object):
             if vstore_pair_info:
                 vstore_running_status = vstore_pair_info.get("RUNNINGSTATUS")
                 if (vstore_running_status == VstorePairRunningStatus.Normal and
-                        vstore_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal and
-                        vstore_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal):
-                    return "Normal"
+                        vstore_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal):
+                    if vstore_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Synchronizing:
+                        return "Running"
+                    if vstore_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal:
+                        return "Normal"
                 else:
                     return "Abnormal"
             return "Unknown"
@@ -150,9 +152,11 @@ class DrStatusCheck(object):
             if filesystem_pair_info:
                 ulog_fs_running_status = filesystem_pair_info.get("RUNNINGSTATUS")
                 if (ulog_fs_running_status == VstorePairRunningStatus.Normal and
-                        filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal and
-                        filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal):
-                    return "Normal"
+                        filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal):
+                    if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Synchronizing:
+                        return "Runing"
+                    if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal:
+                        return "Normal"
                 else:
                     return "Abnormal"
             return "Unknown"
@@ -172,6 +176,32 @@ class DrStatusCheck(object):
                     return "Abnormal"
             return "Unknown"
         except Exception:
+            return "Unknown"
+
+    def query_dr_status_file(self):
+        file_dir = "/opt/cantian/config"
+        file_name = "dr_deploy_param.json"
+        try:
+            if not os.path.exists(os.path.join(file_dir, file_name)):
+                return "Abnormal"
+            deploy_mode = self.dr_deploy_info.get("deploy_mode")
+            deploy_user = self.dr_deploy_info.get("deploy_user").strip().split(":")[0]
+            if deploy_mode == "dbstor":
+                storage_fs = self.dr_deploy_info.get("storage_share_fs")
+                cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --query-file "
+                       f"--fs-name={storage_fs} --file-path=/' | grep 'dr_deploy_param.json' | wc -l")
+            else:
+                storage_fs = self.dr_deploy_info.get("storage_metadata_fs")
+                if os.path.exists(f"/mnt/dbdata/remote/metadata_{storage_fs}/dr_deploy_param.json"):
+                    return "Normal"
+                return "Abnormal"
+            code, count, err = exec_popen(cmd)
+            if code:
+                return "Unknown"
+            if count == "1":
+                return "Normal"
+            return "Abnormal"
+        except Exception as ignor:
             return "Unknown"
 
     def update_dr_status_file(self, statuses: dict):
@@ -195,6 +225,7 @@ class DrStatusCheck(object):
             "vstore_pair_status": "Unknown",
             "ulog_fs_pair_status": "Unknown",
             "page_fs_pair_status": "Unknown",
+            "dr_status_file": "Unknown",
             "dr_status": "Abnormal"
         }
 
@@ -204,12 +235,12 @@ class DrStatusCheck(object):
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
         statuses["vstore_pair_status"] = self.query_vstore_pair_status()
-        if statuses["vstore_pair_status"] in ["Unknown", "Abnormal"]:
+        if statuses["vstore_pair_status"] in ["Unknown", "Abnormal", "Running"]:
             self.update_dr_status_file(statuses)
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
         statuses["ulog_fs_pair_status"] = self.query_ulog_fs_pair_status()
-        if statuses["ulog_fs_pair_status"] in ["Unknown", "Abnormal"]:
+        if statuses["ulog_fs_pair_status"] in ["Unknown", "Abnormal", "Running"]:
             self.update_dr_status_file(statuses)
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
@@ -218,8 +249,15 @@ class DrStatusCheck(object):
             self.update_dr_status_file(statuses)
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
+        statuses["dr_status_file"] = self.query_dr_status_file()
+        if statuses["dr_status_file"] in ["Abnormal"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
         if all(status == "Normal" for status in list(statuses.values())[:-1]):
             statuses["dr_status"] = "Normal"
+        if any(status == "Running" for status in list(statuses.values())[:-1]):
+            statuses["dr_status"] = "Running"
 
         self.update_dr_status_file(statuses)
 
@@ -263,20 +301,24 @@ class FullSyncProgress(DrDeployQuery):
 
 class ProgressQuery(object):
     @staticmethod
-    def execute():
+    def execute(action=None, display=None):
         parse_params = argparse.ArgumentParser()
         parse_params.add_argument("--action", dest="action", required=False, default="deploy")
         parse_params.add_argument("--display", dest="display", required=False, default="json")
         args = parse_params.parse_args()
-        if args.action == "deploy":
+        if action is None:
+            action = args.action
+        if display is None:
+            display = args.display
+        if action == "deploy":
             dr_deploy_progress = DrDeployQuery()
-            result = dr_deploy_progress.execute(args.display)
-        elif args.action == "check":
+            result = dr_deploy_progress.execute(display)
+        elif action == "check":
             dr_deploy_progress = DrStatusCheck()
-            result = dr_deploy_progress.execute(args.display)
-        elif args.action == "full_sync":
+            result = dr_deploy_progress.execute(display)
+        elif action == "full_sync":
             full_sync_progress = FullSyncProgress()
-            result = full_sync_progress.execute(args.display)
+            result = full_sync_progress.execute(display)
         else:
             result = "Invalid input."
         print(result)
