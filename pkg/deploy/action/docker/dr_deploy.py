@@ -7,7 +7,6 @@ import importlib.util
 import signal
 import subprocess
 import traceback
-import getpass
 
 from get_config_info import get_value
 from resolve_pwd import resolve_kmc_pwd
@@ -196,7 +195,7 @@ def dr_deploy(role=None, dm_password=None, mysql_pwd=''):
     if os.path.exists(dr_process_file):
         os.remove(dr_process_file)
 
-    cmd = (f"echo -e '{dm_password}\n{mysql_pwd}\n' | sh {SCRIPT_PATH}/appctl.sh dr_operate deploy {role} "
+    cmd = (f"echo -e '{dm_password}\n{mysql_pwd}' | sh {SCRIPT_PATH}/appctl.sh dr_operate deploy {role} "
            f"--mysql_cmd='mysql' --mysql_user=root")
     execute_command(cmd, print_screen=True, raise_flag=True)
 
@@ -284,11 +283,13 @@ def main():
         "start": dr_start_deploy
     }
     mysql_pwd = ''
+    if len(sys.argv) == 1:
+        mysql_pwd = input("Please input mysql login passwd: ")
 
     if len(sys.argv) > 1:
         if sys.argv[1] in action_dict:
             return action_dict[sys.argv[1]]()
-    dr_deploy()
+    dr_deploy(mysql_pwd=mysql_pwd)
 
 
 if __name__ == "__main__":
