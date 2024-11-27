@@ -296,6 +296,7 @@ class K8sDRContainer:
 
     def change_config(self, dir_path):
         config_yaml_path = os.path.join(dir_path, "configMap.yaml")
+        config_list = []
         with open(config_yaml_path, 'r') as f:
             configs = yaml.safe_load_all(f)
             for config in configs:
@@ -304,9 +305,10 @@ class K8sDRContainer:
                     deploy_param["dr_action"] = self.action
                     new_deploy_param_str = json.dumps(deploy_param)
                     config.get("data")["deploy_param.json"] = new_deploy_param_str
-            with open(config_yaml_path, 'w') as file:
-                file.truncate()
-                yaml.dump(configs, file)
+                    config_list.append(config)
+                with open(config_yaml_path, 'w') as file:
+                    file.truncate()
+                    yaml.dump(config, file)
 
     def download_config_file(self, ssh_client, ip, index, dir_path):
         value = self.server_info[ip][index]
@@ -517,7 +519,7 @@ class K8sDRContainer:
             for value in self.server_info[ip]:
                 cantian_yaml = value.get("cantian_yaml")
                 config_yaml = value.get("config_yaml")
-                cmd = f"kubectl delete -f {cantian_yaml} {config_yaml}"
+                cmd = f"kubectl delete -f {cantian_yaml} -f {config_yaml}"
                 res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                 if not flag:
                     err_msg = f"Failed to delete pod, cantian path[{cantian_yaml}] config path[{config_yaml}]."

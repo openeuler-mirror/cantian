@@ -7,6 +7,7 @@ import argparse
 import re
 import shutil
 import sys
+import time
 
 from pre_install import PreInstall
 from logic.storage_operate import StorageInf
@@ -18,6 +19,7 @@ from utils.config.rest_constant import SystemRunningStatus, \
 from om_log import LOGGER as LOG
 from get_config_info import get_env_info
 from obtains_lsid import LSIDGenerate
+from cantian_common.mysql_shell import MysqlShell
 from logic.common_func import exec_popen, read_json_config, write_json_config, get_status
 
 
@@ -748,13 +750,21 @@ class ParamCheck(object):
         """
         执行查询命令检查mysql密码是否正确
         """
-        mysql_check_cmd = "%s -u'%s' -p'%s' -e \"show engines;\"" % (self.mysql_cmd, self.mysql_user, mysql_pwd)
-        return_code, output, stderr = exec_popen(mysql_check_cmd)
-        if return_code:
-            stderr = str(stderr).replace(mysql_pwd, "***")
-            err_msg = "Check mysql login failed, details:%s" % stderr
-            LOG.error(err_msg)
-            raise Exception(err_msg)
+        err_flag = False
+        err = ""
+        for i in range(3):
+            try:
+                time.sleep(10)
+                mysql_shell = MysqlShell(self.mysql_cmd, user=self.mysql_user, password=mysql_pwd)
+                mysql_shell.start_session()
+                mysql_shell.close_session()
+                break
+            except Exception as err:
+                err = str(err).replace(mysql_pwd, "***")
+                LOG.error("Check mysql login failed, details:%s", err)
+                err_flag = True
+        if err_flag:
+            raise Exception(err)
 
     def execute(self):
         parse_params = argparse.ArgumentParser()

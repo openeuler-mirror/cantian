@@ -12,6 +12,7 @@ node_id=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "node_id"`
 storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
 storage_dbstore_page_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_page_fs"`
 metadata_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
+dr_setup=`python3 ${CURRENT_PATH}/docker/get_config_info.py "dr_deploy.dr_setup"`
 
 source ${CURRENT_PATH}/env.sh
 source ${CURRENT_PATH}/log4sh.sh
