@@ -46,7 +46,8 @@ class LSIDGenerate(object):
     def generate_lsid(self):
         # 返回lsid十六进制
         return int(str(bin(self.n_type))[2:].rjust(2, "0")
-                   + str(bin(self.cluster_id))[2:].rjust(8, "0")
+                   + str(bin(3))[2:].rjust(2, "0")
+                   + str(bin(self.cluster_id))[2:].rjust(6, "0")
                    + str(bin(self.random_seed))[2:].rjust(8, "0")
                    + str(bin(self.process_id))[2:].rjust(4, "0") + "00"
                    + str(bin(self.node_id))[2:].rjust(8, "0"), 2)
