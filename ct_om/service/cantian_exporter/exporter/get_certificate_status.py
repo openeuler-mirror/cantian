@@ -11,8 +11,8 @@ def file_reader(file_path):
 
 
 def get_certificate_status():
-    cert_file_path = "/opt/cantian/common/config/certficates/mes.crt"
-    crl_file_path = "/opt/cantian/common/config/certficates/mes.crl"
+    cert_file_path = "/opt/cantian/common/config/certificates/mes.crt"
+    crl_file_path = "/opt/cantian/common/config/certificates/mes.crl"
     with open(cert_file_path, "rb") as cert_file:
         cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
     current_time = datetime.now(tz=timezone.utc)
