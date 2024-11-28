@@ -35,7 +35,7 @@ function main()
     if [[ -f /opt/cantian/youmai_demo ]];then
         return
     fi
-    /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/dbstor/log/install.log
+    /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/log/dbstor/install.log
     if [[ $? -ne 0 ]];then
         cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
         if [[ $? -eq 0 ]];then

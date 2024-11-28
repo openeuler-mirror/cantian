@@ -6,7 +6,7 @@ DORADO_CONF_PATH="${CURRENT_PATH}/../../config/container_conf/dorado_conf"
 INIT_CONFIG_PATH="${CURRENT_PATH}/../../config/container_conf/init_conf"
 SYS_PASS="sysPass"
 CERT_PASS="certPass"
-CANTIAN_INSTALL_LOG_FILE="/opt/cantian/cantian/log/cantian_deploy.log"
+CANTIAN_INSTALL_LOG_FILE="/opt/cantian/log/cantian/cantian_deploy.log"
 CANTIAN_CONFIG_NAME="cantiand.ini"
 CLUSTER_CONFIG_NAME="cluster.ini"
 CTSQL_CONFIG_NAME="ctsql.ini"
@@ -31,7 +31,7 @@ storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadat
 primary_keystore="/opt/cantian/common/config/primary_keystore_bak.ks"
 standby_keystore="/opt/cantian/common/config/standby_keystore_bak.ks"
 mysql_data_dir="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}"
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${CANTIAN_INSTALL_LOG_FILE}

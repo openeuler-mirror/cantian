@@ -23,7 +23,7 @@ OLD_CANTIAND_DATA_SAVE_PATH = Path(cur_abs_path, 'cantiand_report_data_saves.jso
 DEPLOY_PARAM_PATH = '/opt/cantian/config/deploy_param.json'
 INSTALL_CONFIG_PATH = '/opt/cantian/action/cantian/install_config.json'
 CANTIAND_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini'
-CANTIAND_LOG_PATH = '/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog'
+CANTIAND_LOG_PATH = '/opt/cantian/log/cantian/run/cantiand.rlog'
 CTSQL_INI_PATH = '/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
 PRIMARY_KEYSTORE = "/opt/cantian/common/config/primary_keystore_bak.ks"
 STANDBY_KEYSTORE = "/opt/cantian/common/config/standby_keystore_bak.ks"
@@ -202,7 +202,7 @@ class GetNodesInfo:
             "write failed"
         """
         check_cmd = "zgrep -E \"(cms_disk_lock timeout.|read failed|write failed)\" " \
-                    "/opt/cantian/cms/log/run/* | grep -oE \"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]+\" | sort"
+                    "/opt/cantian/log/cms/run/* | grep -oE \"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]+\" | sort"
         _, output, _ = _exec_popen(check_cmd)
         # 存在加解锁失败问题
         if output:

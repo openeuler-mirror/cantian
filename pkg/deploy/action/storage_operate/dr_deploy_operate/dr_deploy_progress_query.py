@@ -71,7 +71,7 @@ class DrDeployQuery(object):
                 error["code"] = -1
                 if description == "":
                     error["description"] = "The process exits abnormally," \
-                                           "see /opt/cantian/deploy/om_deploy/dr_deploy.log for more details."
+                                           "see /opt/cantian/log/deploy/om_deploy/dr_deploy.log for more details."
             table_data = self.table_format(process_data)
             json_data = json.dumps(process_data, indent=4)
             return json_data if is_json_display else table_data
@@ -291,7 +291,7 @@ class FullSyncProgress(DrDeployQuery):
                 error["code"] = -1
                 if description == "":
                     error["description"] = "The process exits abnormally," \
-                                           "see /opt/cantian/deploy/om_deploy/dr_deploy.log for more details."
+                                           "see /opt/cantian/log/deploy/om_deploy/dr_deploy.log for more details."
             table_data = self.table_format(process_data)
             json_data = json.dumps(process_data, indent=4)
             return json_data if is_json_display else table_data

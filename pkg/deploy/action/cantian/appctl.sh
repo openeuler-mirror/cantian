@@ -44,9 +44,10 @@ UPGRADE_NAME="upgrade.sh"
 ROLLBACK_NAME="rollback.sh"
 INIT_CONTAINER_NAME="init_container.sh"
 source ${CURRENT_PATH}/cantiand_cgroup_calculate.sh
-LOG_FILE="/opt/cantian/cantian/log/cantian_deploy.log"
+LOG_FILE="/opt/cantian/log/cantian/cantian_deploy.log"
 
 cantian_home=/opt/cantian/cantian
+cantian_log=/opt/cantian/log
 cantian_local=/mnt/dbdata/local/cantian
 cantian_scripts=/opt/cantian/action/cantian
 storage_metadata_fs=$(python3 ${CURRENT_PATH}/../get_config_info.py "storage_metadata_fs")
@@ -644,9 +645,14 @@ function check_and_create_cantian_home()
         chown ${cantian_user} -hR ${cantian_home}
     fi
 
-    if [ ! -d ${cantian_home}/log ]; then
-        mkdir -m 750 -p ${cantian_home}/log
-        chown ${cantian_user} -hR ${cantian_home}/log
+    if [ ! -d ${cantian_log} ]; then
+        mkdir -m 750 -p ${cantian_log}
+        chown ${cantian_user} -hR ${cantian_log}
+    fi
+
+    if [ ! -d ${cantian_log}/cantian ]; then
+        mkdir -m 750 -p ${cantian_log}/cantian
+        chown ${cantian_user} -hR ${cantian_log}/cantian
     fi
 
     if [ ! -d ${cantian_home}/cfg ]; then
@@ -657,7 +663,7 @@ function check_and_create_cantian_home()
     if [ ! -f ${LOG_FILE} ]; then
         touch ${LOG_FILE}
         chmod 640 ${LOG_FILE}
-        chown ${cantian_user} -hR /opt/cantian/cantian > /dev/null 2>&1
+        chown ${cantian_user} -hR /opt/cantian/log > /dev/null 2>&1
     fi
 
     if [ ! -d ${cantian_local} ]; then

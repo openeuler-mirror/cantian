@@ -170,6 +170,7 @@ class DefaultConfigValue(object):
         "NODE_ID": 0,
         "GCC_HOME": "", #generate by installer
         "GCC_TYPE": "", #generate by installer
+        "CMS_LOG": "/opt/cantian/log/cms",
         "_PORT": 14587,
         "_IP": "", #input by user in command line parameter, same as CANTIAND_CONFIG#LSNR_ADDR
         "_LOG_LEVEL": 7,

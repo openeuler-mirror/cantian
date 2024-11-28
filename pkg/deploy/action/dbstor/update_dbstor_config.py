@@ -53,8 +53,8 @@ class Options(object):
         self.section = 'CLIENT'
         self.dbstor_config = {}
         self.inipath = "/mnt/dbdata/remote/share_"
-        self.log_path = "/opt/cantian/dbstor/log"
-        self.log_file = "/opt/cantian/dbstor/log/update.log"
+        self.log_path = "/opt/cantian/log/dbstor"
+        self.log_file = "/opt/cantian/log/dbstor/update.log"
         self.js_conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
         self.note_id = ""
         self.local_ini_path = "/mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/dbstor_config.ini"

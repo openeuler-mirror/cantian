@@ -1,8 +1,8 @@
 #!/bin/bash
 set +x
 
-OM_DEPLOY_LOG_PATH=/opt/cantian/deploy
-OM_DEPLOY_LOG_FILE=/opt/cantian/deploy/deploy_daemon.log
+OM_DEPLOY_LOG_PATH=/opt/cantian/log/deploy
+OM_DEPLOY_LOG_FILE=/opt/cantian/log/deploy/deploy_daemon.log
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
 LOG_MOD=640

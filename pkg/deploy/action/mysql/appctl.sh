@@ -69,6 +69,13 @@ function chown_mod_scripts()
     echo -e "\nInstall User:${deploy_user}   Scripts Owner:${owner} "
     current_path_reg=$(echo $CURRENT_PATH | sed 's/\//\\\//g')
     scripts=$(ls ${CURRENT_PATH} | sed '/appctl.sh/d' | sed '/chmod_file.sh/d' | sed "s/^/${current_path_reg}\/&/g")
+    MYSQL_LOG_PATH=/opt/cantian/log/mysql
+    if [ ! -d ${MYSQL_LOG_PATH} ];then
+        mkdir -p ${MYSQL_LOG_PATH}
+    fi
+    touch ${MYSQL_LOG_PATH}/install.log
+    chmod 600 ${MYSQL_LOG_PATH}/install.log
+    chown -hR ${deploy_user}:${deploy_group} ${MYSQL_LOG_PATH}
     chown -h ${deploy_user}:${deploy_group} ${scripts}
     chown -hR ${deploy_user}:${deploy_group} /opt/cantian/image/cantian_connector/for_mysql_official/
     chmod -R 400 ${CURRENT_PATH}

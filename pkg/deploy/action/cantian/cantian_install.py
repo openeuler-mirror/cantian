@@ -78,7 +78,7 @@ JS_CONF_FILE = os.path.join(PKG_DIR, "action", "cantian", "install_config.json")
 CANTIAN_CONF_FILE = os.path.join("/opt/cantian/cantian", "cfg", "cantian_config.json")
 CONFIG_PARAMS_FILE = os.path.join(PKG_DIR, "config", "deploy_param.json")
 CANTIAN_START_STATUS_FILE = os.path.join("/opt/cantian/cantian", "cfg", "start_status.json")
-CANTIAN_INSTALL_LOG_FILE = "/opt/cantian/cantian/log/cantian_deploy.log"
+CANTIAN_INSTALL_LOG_FILE = "/opt/cantian/log/cantian/cantian_deploy.log"
 CANTIAND_INI_FILE = "/mnt/dbdata/local/cantian/tmp/data/cfg/cantiand.ini"
 CTSQL_INI_FILE = '/mnt/dbdata/local/cantian/tmp/data/cfg/*sql.ini'
 
@@ -1027,7 +1027,8 @@ class Installer:
             LOGGER.error(err_msg)
             raise Exception(err_msg)
         if len(self.cantiand_configs.get("LOG_HOME")) == 0:
-            self.cantiand_configs["LOG_HOME"] = os.path.join(self.data, "log")
+            log_path=os.path.dirname(g_opts.log_file)
+            self.cantiand_configs["LOG_HOME"] = log_path
         if len(self.cantiand_configs.get("SHARED_PATH")) == 0:
             self.cantiand_configs["SHARED_PATH"] = os.path.join(self.data, "data")
         if g_opts.use_dbstor:
@@ -1983,7 +1984,7 @@ class Installer:
             os.environ['LD_LIBRARY_PATH'] = ("%s:%s" % (
                 os.path.join(self.install_path, "lib"),
                 os.path.join(self.install_path, "add-ons"),))
-        os.environ["CTDB_HOME"] = self.install_path
+        os.environ["CTDB_HOME"] = self.cantiand_configs["LOG_HOME"]
         os.environ["CTDB_DATA"] = self.data
 
         # Clean the env about ssl cert

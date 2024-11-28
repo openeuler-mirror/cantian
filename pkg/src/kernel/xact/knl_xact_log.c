@@ -161,7 +161,7 @@ void rd_undo_write(knl_session_t *session, log_entry_t *log)
 
     /* undo_data->size is less than page size(8192), the sum will not exceed max value of uint16 */
     actual_size = (uint16)(UNDO_ROW_HEAD_SIZE + temp->data_size);
-    if (actual_size != 0) {
+    if (actual_size > 0) {
         errno_t errcode = memcpy_sp(row, actual_size, temp, actual_size);
         knl_securec_check(errcode);
     }

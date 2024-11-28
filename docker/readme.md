@@ -263,8 +263,16 @@ sh Makefile.sh mysql_release no_shm=1
 ```Bash  
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/cantiandba/logs
+
 # -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
+# 单节点：
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
+
+# 如果是双节点，先拉起节点0，后拉节点1
+# 双节点 节点0:
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql_in_cluster -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000 -W 192.168.0.1 -N 0
+# 双节点 节点1:
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql_in_cluster -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000 -W 192.168.0.1 -N 1 
 ```
 卸载清理命令和[双进程卸载清理](#section3)一致。
 <a id="section5"></a>
@@ -290,6 +298,8 @@ gdb --args /usr/local/mysql/bin/mysqld --defaults-file=/home/regress/cantian-con
 等待mysqld卡住后，执行以下命令进行cantian创库操作
 su - cantiandba
 /home/cantiandba/install/bin/ctsql / as sysdba -q -D /home/cantiandba/data -f "home/cantiandba/install/admin/scripts/create_database.sample.sql"'
+
+具体可参考documents/Cantian引擎debug单进程安装部署.md
 ```
 
 如果有进程coredump问题，需要解析内存转储文件分析堆栈

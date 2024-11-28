@@ -28,6 +28,7 @@
 
 #include "pthread.h"
 #include "semaphore.h"
+#include "knl_common.h"
 
 #ifdef __cplusplus
 extern "C" {

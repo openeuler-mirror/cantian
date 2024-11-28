@@ -28,7 +28,8 @@ PYTHON242 = "2.4.2"
 PYTHON25 = "2.5"
 gPyVersion = platform.python_version()
 CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
-LOG_FILE = "/opt/cantian/cms/log/cms_deploy.log"
+LOG_FILE = "/opt/cantian/log/cms/cms_deploy.log"
+CMS_LOG_PATH = os.path.dirname(LOG_FILE)
 
 sys.dont_write_bytecode = True
 FORCE_UNINSTALL = None
@@ -358,6 +359,7 @@ CMS_CONFIG = {
     "GCC_HOME": "",  # generate by installer
     "GCC_DIR": "",  # generate by installer
     "GCC_TYPE": "",
+    "CMS_LOG": "/opt/cantian/log/cms",
     "_PORT": 14587,
     "_IP": "",  # input by user in command line parameter, same as CANTIAND_CONFIG#LSNR_ADDR
     "_LOG_LEVEL": 7,
@@ -678,7 +680,7 @@ class CmsCtl(object):
         common_parameters = {
             "GCC_HOME": gcc_home,
             "REPORT_FILE": LOG_FILE,
-            "STATUS_LOG": os.path.join(self.cms_home, "log", "CmsStatus.log"),
+            "STATUS_LOG": os.path.join(CMS_LOG_PATH, "CmsStatus.log"),
             "LD_LIBRARY_PATH": ld_library_path,
             "USER_HOME": self.user_home,
             "USE_DBSTOR": self.use_dbstor,
