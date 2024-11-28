@@ -1,10 +1,5 @@
 #!/bin/bash
 MYSQL_LOG_PATH=/opt/cantian/log/mysql
-if [ ! -d ${MYSQL_LOG_PATH} ];then
-    mkdir -p ${MYSQL_LOG_PATH}
-fi
-touch ${MYSQL_LOG_PATH}/install.log
-chmod 600 ${MYSQL_LOG_PATH}/install.log
 
 sh -x /opt/cantian/image/cantian_connector/for_mysql_official/patch.sh > ${MYSQL_LOG_PATH}/install.log 2>&1
 if [ $? -ne 0 ]; then
