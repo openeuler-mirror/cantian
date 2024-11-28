@@ -5,7 +5,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
+DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 source ${CURRENT_PATH}/../../action/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 NFS_TIMEO=50

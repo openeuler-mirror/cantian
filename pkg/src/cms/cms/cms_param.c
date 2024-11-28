@@ -53,6 +53,7 @@ config_item_t g_cms_params[] = {
     { "GCC_DIR",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "FS_NAME",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "CLUSTER_NAME",           CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    { "CMS_LOG",                CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "_IP",                    CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     { "_PORT",                  CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     {"_LOG_BACKUP_FILE_COUNT",  CT_TRUE,  ATTR_NONE, "10",        NULL, NULL,          "-",       "[0,128]",  "CT_TYPE_INTEGER", NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
@@ -550,7 +551,15 @@ status_t cms_load_param(int64* time_stamp)
     }
     ret = strncpy_sp(g_param.gcc_home, CMS_FILE_NAME_BUFFER_SIZE, value, CMS_MAX_FILE_NAME_LEN);
     MEMS_RETURN_IFERR(ret);
-
+    
+    value = cm_get_config_value(&cfg, "CMS_LOG");
+    if (value == NULL) {
+        CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'CMS_LOG'");
+        return CT_ERROR;
+    }
+    ret = strncpy_sp(g_param.cms_log, CMS_PATH_BUFFER_SIZE, value, CT_MAX_PATH_LEN);
+    MEMS_RETURN_IFERR(ret);
+    
     value = cm_get_config_value(&cfg, "GCC_DIR");
     if (value == NULL) {
         CT_THROW_ERROR(ERR_CTSTORE_INVALID_PARAM, "invalid parameter value of 'GCC_DIR'");

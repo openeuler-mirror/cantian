@@ -12,16 +12,16 @@ su - "${cantian_user}" -s /bin/bash -c "chmod 640 /mnt/dbdata/local/cantian/tmp/
 su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/cms/dbstor" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/ -type d -print0 | xargs -0 chmod 750" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chmod 640 /opt/cantian/cms/dbstor/data/logs/run/*" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chmod 640 /opt/cantian/cms/log/run/*" > /dev/null 2>&1
-su - "${deploy_user}" -s /bin/bash -c "chmod 640 /opt/cantian/mysql/log/*" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chmod 640 /opt/cantian/log/cms/run/*" > /dev/null 2>&1
+su - "${deploy_user}" -s /bin/bash -c "chmod 640 /opt/cantian/log/mysql/*" > /dev/null 2>&1
 
 su - "${deploy_user}" -s /bin/bash -c "chgrp ${cantian_common_group} /mnt/dbdata/remote/metadata_*/*/mysql/*.log" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/ct_om/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/log/ct_om" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chown $:${cantian_common_group} /opt/cantian/dbstor/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/dbstor/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/log/dbstor" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chown :${cantian_common_group} /opt/cantian/cantian/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/cantian/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/log/cantian" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chown :${cantian_common_group} /opt/cantian/cms/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/cms/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/log/cms" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chown :${cantian_common_group} /opt/cantian/mysql" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/mysql/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -hR :${cantian_common_group} /opt/cantian/log/mysql" > /dev/null 2>&1

@@ -4,7 +4,7 @@ set -e
 CURRENT_PATH=$(dirname $(readlink -f $0))
 source ${CURRENT_PATH}/log4sh.sh
 source "${CURRENT_PATH}"/env.sh
-OM_DEPLOY_LOG_FILE=/opt/cantian/deploy/deploy.log
+OM_DEPLOY_LOG_FILE=/opt/cantian/log/deploy/deploy.log
 CHECK_POINT_FILE=${CURRENT_PATH}/cantian/upgrade_checkpoint.sh
 CHECK_POINT_FLAG=/opt/cantian/check_point.success
 node_zore_ip="127.0.0.1"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOG_PATH=${LOG_PATH:-"/opt/cantian/deploy"}
+LOG_PATH=${LOG_PATH:-"/opt/cantian/log/deploy"}
 LOG_FILE=${LOG_FILE:-"${LOG_PATH}/deploy.log"}
 
 init_deploy_logging() {
