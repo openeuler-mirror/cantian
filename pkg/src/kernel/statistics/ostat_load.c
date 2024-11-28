@@ -2310,9 +2310,11 @@ void knl_cache_cbo_text2variant(dc_entity_t *entity, uint32 col_id, text_t *colu
             ret = memset_sp(ret_val->v_str, CBO_STRING_MAX_LEN, 0, CBO_STRING_MAX_LEN);
             knl_securec_check(ret);
             uint32 copy_size = MIN(column->len, CBO_STRING_MAX_LEN - 1);
-            ret = memcpy_sp(ret_val->v_str, copy_size, column->str, copy_size);
-            knl_securec_check(ret);
-            CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %s", ret_val->v_str);
+            if (copy_size > 0) {
+                ret = memcpy_sp(ret_val->v_str, copy_size, column->str, copy_size);
+                knl_securec_check(ret);
+                CT_LOG_DEBUG_INF("[Histgram ep_value Print]ep_value: %s", ret_val->v_str);
+            }
             break;
         }
         default:
