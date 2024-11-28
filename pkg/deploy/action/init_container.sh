@@ -75,6 +75,18 @@ function check_gcc_file() {
             logAndEchoError "query cluster name failed, please check whether cluster config parameters conflict."
             exit 1
         fi
+
+        if [[ x"${deploy_mode}" == x"dbstor" ]]; then
+            start_file=$(su -s /bin/bash - "${cantian_user}" \
+                -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "onlyStart.file" | wc -l)
+        else
+            start_file=$(su -s /bin/bash - "${cantian_user}" \
+                -c "ls -l ${metadata_path}" | grep "onlyStart.file" | wc -l)
+        fi
+        if [[ x"${dr_setup}" == x"True" ]] && [[ start_file -gt 0 ]]; then
+            logAndEchoError "do not support the automatic disaster recovery process for Cantian that has already been deployed"
+            exit 1
+        fi
         if [[ x"${deploy_mode}" == x"dbstor" ]]; then
             mkdir -p "${metadata_path}"
             chown "${cantian_user}":"${cantian_group}" "${metadata_path}"

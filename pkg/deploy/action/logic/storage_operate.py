@@ -266,6 +266,18 @@ class StorageInf(object):
         err_msg = f"Failed to query lf info"
         return self.result_parse(err_msg, res)
 
+    def query_logical_port_info_by_vstore_id(self, vstore_id="0"):
+        """
+        根据租户批量查询逻辑端口信息
+        :param vstore_id: 租户id, 默认是系统租户
+        :return:
+        """
+        query_url = Constant.QUERY_LOGIC_PORT_INFO.format(deviceId=self.rest_client.device_id)
+        url = query_url + f"?vstoreId={vstore_id}"
+        res = self.rest_client.normal_request(url, "get")
+        err_msg = f"Failed to query lf info"
+        return self.result_parse(err_msg, res)
+
     def create_file_system(self, data):
         """
         params data:
