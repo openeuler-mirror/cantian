@@ -401,8 +401,16 @@ static void ctc_write_lock_info_into_rd(rd_lock_info_4mysql_ddl *rd_lock_info, c
 {
     rd_lock_info->sql_type = lock_info->sql_type;
     rd_lock_info->mdl_namespace = lock_info->mdl_namespace;
-    memcpy_sp(rd_lock_info->buff, rd_lock_info->db_name_len, lock_info->db_name, rd_lock_info->db_name_len);
-    memcpy_sp(rd_lock_info->buff + rd_lock_info->db_name_len, rd_lock_info->table_name_len, lock_info->table_name, rd_lock_info->table_name_len);
+    status_t ret;
+    if (rd_lock_info->db_name_len > 0) {
+        ret = memcpy_sp(rd_lock_info->buff, rd_lock_info->db_name_len, lock_info->db_name, rd_lock_info->db_name_len);
+        knl_securec_check(ret);
+    }
+    if (rd_lock_info->table_name_len > 0) {
+        ret = memcpy_sp(rd_lock_info->buff + rd_lock_info->db_name_len, rd_lock_info->table_name_len,
+                        lock_info->table_name, rd_lock_info->table_name_len);
+        knl_securec_check(ret);
+    }
 }
 
 int ctc_lock_table_impl(ctc_handler_t *tch, knl_handle_t knl_session, const char *db_name,
@@ -447,6 +455,8 @@ static void ctc_write_rd_lock_info_4mysql_ddl(knl_session_t *knl_session, ctc_lo
         uint32_t table_name_size = strlen(lock_info->table_name);
         uint32_t rd_size = sizeof(rd_lock_info_4mysql_ddl) + db_name_size + table_name_size;
         rd_lock_info_4mysql_ddl *redo = (rd_lock_info_4mysql_ddl *)cm_malloc(rd_size);
+        status_t ret = memset_sp(redo, rd_size, 0, rd_size);
+        knl_securec_check(ret);
         redo->op_type = op_type;
         redo->db_name_len = db_name_size;
         redo->table_name_len = table_name_size;
@@ -520,10 +530,15 @@ static void ctc_write_rd_invalid_dd_4mysql_ddl(knl_session_t *knl_session, ctc_i
     if (knl_db_is_primary(knl_session) && DB_ATTR_MYSQL_META_IN_DACC(knl_session)) {
         uint32_t rd_size = sizeof(rd_invalid_dd_4mysql_ddl) + broadcast_req->buff_len;
         rd_invalid_dd_4mysql_ddl *redo = (rd_invalid_dd_4mysql_ddl *)cm_malloc(rd_size);
+        status_t ret = memset_sp(redo, rd_size, 0, rd_size);
+        knl_securec_check(ret);
         redo->op_type = RD_INVALID_DD_FOR_MYSQL_DDL;
         redo->buff_len = broadcast_req->buff_len;
         redo->is_dcl = broadcast_req->is_dcl;
-        memcpy_sp(redo->buff, broadcast_req->buff_len, broadcast_req->buff, broadcast_req->buff_len);
+        if (broadcast_req->buff_len > 0) {
+            ret = memcpy_sp(redo->buff, broadcast_req->buff_len, broadcast_req->buff, broadcast_req->buff_len);
+            knl_securec_check(ret);
+        }
         CT_LOG_DEBUG_INF("[ctc_write_rd_invalid_dd_4mysql_ddl] redo op_type = %d, redo buff = %s, "
                          "buff_len = %d, is_dcl = %u",
                          redo->op_type, broadcast_req->buff, broadcast_req->buff_len, broadcast_req->is_dcl);
