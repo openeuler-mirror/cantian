@@ -74,7 +74,7 @@
 #define DBS_CRAETE_FILE_PRAMA_NUM 3
 #define DBS_COPY_FILE_PRAMA_NUM 4
 #define DBS_DELETE_FILE_PRAMA_NUM 2
-#define DBS_QUERY_FILE_PRAMA_NUM 2
+#define DBS_QUERY_FILE_PRAMA_NUM 3
 
 #define DBS_NO_CHECK_PRAMA_NUM 0
 #define DBS_ARCH_EXPORT_PRAMA_CHECK_NUM 1
@@ -1242,21 +1242,22 @@ int32 dbs_delete_path_or_file(int32 argc, char *argv[])
     return CT_SUCCESS;
 }
 
-// dbstor --query-file --fs-name=xxx --file-path=xxx
+// dbstor --query-file --fs-name=xxx --file-path=xxx [--vstore_id=*]
 int32 dbs_query_file(int32 argc, char *argv[])
 {
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
     char file_path[MAX_DBS_FILE_PATH_LEN] = {0};
+    char vstore_id[MAX_DBS_VSTORE_ID_LEN] = {0};
 
-    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_PATH};
-    char *results[] = {fs_name, file_path};
-    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN};
+    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_FILE_PATH, DBS_TOOL_PARAM_VSTORE_ID};
+    char *results[] = {fs_name, file_path, vstore_id};
+    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_VSTORE_ID_LEN};
     params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}, {DBS_TOOL_PARAM_FILE_PATH, file_path}};
     params_list_t params_list = {params, results, result_lens, check_list, DBS_QUERY_FILE_PRAMA_NUM,
                                  DBS_QUERY_FILE_CHECK_PRAMA_NUM};
 
     if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
-        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx\n");
+        printf("Invalid command.\nUsage: --query-file --fs-name=xxx --file-path=xxx [--vstore-id=*]\n");
         return CT_ERROR;
     }
 
@@ -1267,39 +1268,73 @@ int32 dbs_query_file(int32 argc, char *argv[])
     dbs_device_info_t query_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
     MEMS_RETURN_IFERR(strncpy_s(query_info.path, MAX_DBS_FS_FILE_PATH_LEN, full_path, strlen(full_path)));
 
-    if (cm_exist_device_dir(query_info.type, query_info.path) != CT_TRUE) {
-        printf("Directory does not exist: %s\n", query_info.path);
-        return CT_ERROR;
-    }
+    if (strlen(vstore_id) > 0) {
+        uint32 vstore_id_uint = (uint32)atoi(vstore_id);
 
-    void *file_list = NULL;
-    uint32 file_num = 0;
+        void *file_list = NULL;
+        uint32 file_num = 0;
 
-    if (cm_malloc_file_list(query_info.type, &file_list) != CT_SUCCESS) {
-        printf("Failed to allocate memory for file list.\n");
-        return CT_ERROR;
-    }
+        if (cm_malloc_file_list(query_info.type, &file_list) != CT_SUCCESS) {
+            printf("Failed to allocate memory for file list.\n");
+            return CT_ERROR;
+        }
 
-    status_t ret = cm_query_device(query_info.type, query_info.path, file_list, &file_num);
-    if (ret != CT_SUCCESS) {
-        printf("Failed to query files in directory: %s\n", query_info.path);
-        cm_free_file_list(&file_list);
-        return CT_ERROR;
-    }
+        status_t ret = cm_dbs_query_dir_vstore_id(vstore_id_uint, query_info.path, file_list, &file_num);
+        if (ret != CT_SUCCESS) {
+            printf("Failed to query files in directory: %s with vstore-id: %s\n", query_info.path, vstore_id);
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
 
-    if (file_num == 0) {
-        printf("No files found in directory: %s\n", query_info.path);
-    } else {
-        printf("Files in directory %s:\n", query_info.path);
-        for (uint32 i = 0; i < file_num; i++) {
-            char *file_name = cm_get_name_from_file_list(query_info.type, file_list, i);
-            if (file_name != NULL) {
-                printf("%s\n", file_name);
+        if (file_num == 0) {
+            printf("No files found in directory: %s with vstore-id: %s\n", query_info.path, vstore_id);
+        } else {
+            printf("Files in directory %s with vstore-id %s:\n", query_info.path, vstore_id);
+            for (uint32 i = 0; i < file_num; i++) {
+                char *file_name = cm_get_name_from_file_list(query_info.type, file_list, i);
+                if (file_name != NULL) {
+                    printf("%s\n", file_name);
+                }
             }
         }
+
+        cm_free_file_list(&file_list);
+    } else {
+        if (cm_exist_device_dir(query_info.type, query_info.path) != CT_TRUE) {
+            printf("Directory does not exist: %s\n", query_info.path);
+            return CT_ERROR;
+        }
+
+        void *file_list = NULL;
+        uint32 file_num = 0;
+
+        if (cm_malloc_file_list(query_info.type, &file_list) != CT_SUCCESS) {
+            printf("Failed to allocate memory for file list.\n");
+            return CT_ERROR;
+        }
+
+        status_t ret = cm_query_device(query_info.type, query_info.path, file_list, &file_num);
+        if (ret != CT_SUCCESS) {
+            printf("Failed to query files in directory: %s\n", query_info.path);
+            cm_free_file_list(&file_list);
+            return CT_ERROR;
+        }
+
+        if (file_num == 0) {
+            printf("No files found in directory: %s\n", query_info.path);
+        } else {
+            printf("Files in directory %s:\n", query_info.path);
+            for (uint32 i = 0; i < file_num; i++) {
+                char *file_name = cm_get_name_from_file_list(query_info.type, file_list, i);
+                if (file_name != NULL) {
+                    printf("%s\n", file_name);
+                }
+            }
+        }
+
+        cm_free_file_list(&file_list);
     }
 
-    cm_free_file_list(&file_list);
     return CT_SUCCESS;
 }
 

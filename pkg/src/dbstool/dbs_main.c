@@ -118,7 +118,7 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
         "\tparams: --fs-name=* --file-name=*"},
     {{"--query-file", "*[PARAM]"}, dbs_query_file,
         "\tUsage: query the dir in the file system.\n"
-        "\tparams: --fs-name=* --file-path=*"},
+        "\tparams: --fs-name=* --file-path=* [--vstore_id=*]"},
     {{"--ulog-data", "*[PARAM]"}, dbs_ulog_export,
         "\tUsage: export ulog file for debug.\n"
         "\tparams: [node] [target-dir] [start-lsn] [len(optional)]"},
