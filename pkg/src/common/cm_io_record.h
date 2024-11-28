@@ -159,7 +159,7 @@ status_t record_io_stat_init(void);
 void record_io_stat_begin(uint64_t *tv_begin, atomic_t *start);
 static inline void cantian_record_io_stat_begin(io_record_event_t event, uint64_t *tv_begin)
 {
-    if (!g_cm_cantian_event_tracking_open) {
+    if (SECUREC_LIKELY(!g_cm_cantian_event_tracking_open)) {
         return;
     }
     *tv_begin = rdtsc();
@@ -171,7 +171,7 @@ void record_io_stat_end(uint64_t *tv_begin, io_record_detail_t *detail);
 
 static inline void cantian_record_io_stat_end(io_record_event_t event, uint64_t *tv_begin)
 {
-    if (!g_cm_cantian_event_tracking_open) {
+    if (SECUREC_LIKELY(!g_cm_cantian_event_tracking_open)) {
         return;
     }
     io_record_detail_t *detail = &(g_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail);

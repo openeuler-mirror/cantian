@@ -2253,7 +2253,6 @@ status_t sql_notify_event_tracking_stats(event_tracking_module module, bool32 *p
     
     PRTS_RETURN_IFERR(snprintf_s(value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "ON"));
     if ((bool32)value[0] && !(*param)) {
-        *param = true;
         if (module == CANTIAN_EVENT_TRACKING) {
             ret = record_io_stat_reset();
         } else if (module == CTC_EVENT_TRACKING) {
@@ -2268,6 +2267,7 @@ status_t sql_notify_event_tracking_stats(event_tracking_module module, bool32 *p
             CT_THROW_ERROR(ERR_GENERIC_INTERNAL_ERROR, ": failed to get cpu frequency.");
             return CT_ERROR;
         }
+        *param = true;
     }
     
     CT_LOG_RUN_WAR("[IO RECORD] Performance Statistic recording is OPEN. It will SEVERELY degrade performance.");
