@@ -38,6 +38,7 @@
 mes_instance_t g_mes;
 
 mes_stat_t g_mes_stat[MES_CMD_CEIL];
+char g_mes_cpu_info[CT_MES_MAX_CPU_STR];
 mes_elapsed_stat_t g_mes_elapsed_stat;
 
 message_timeout_check_func g_message_need_timeout_early = NULL;
@@ -82,6 +83,10 @@ mes_instance_t *get_g_mes(void)
 mes_stat_t *get_g_mes_stat(void)
 {
     return g_mes_stat;
+}
+char *get_g_mes_cpu_info(void)
+{
+    return g_mes_cpu_info;
 }
 
 bool32 mes_message_need_timeout(void)
@@ -791,6 +796,7 @@ status_t mes_set_profile(mes_profile_t *profile)
     g_mes.profile.channel_version = profile->channel_version;
     g_mes.profile.upgrade_time_ms = profile->upgrade_time_ms;
     g_mes.profile.degrade_time_ms = profile->degrade_time_ms;
+    g_mes.profile.set_cpu_affinity = profile->set_cpu_affinity;
 
     // mq
     g_mes.mq_ctx.task_num = g_mes.profile.work_thread_num;

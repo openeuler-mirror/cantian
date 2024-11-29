@@ -1078,6 +1078,15 @@ status_t srv_load_cluster_params(void)
         return CT_ERROR;
     }
 
+    char *cpu_info = get_g_mes_cpu_info();
+    char *cpu_info_param = srv_get_param("MES_CPU_INFO");
+    if (cpu_info_param != NULL) {
+        CT_PRINT_IFERR(memcpy_s(cpu_info, CT_MES_MAX_CPU_STR, cpu_info_param, strlen(cpu_info_param) + 1),
+                       "MES_CPU_INFO", CT_MES_MAX_CPU_STR - 1);
+    } else {
+        cpu_info_param = NULL;
+    }
+
     CT_RETURN_IFERR(srv_get_param_uint32("CANTIAN_TASK_NUM", &g_dtc->profile.task_num));
     if ((g_dtc->profile.task_num < CT_DTC_MIN_TASK_NUM) || (CT_DTC_MAX_TASK_NUM < g_dtc->profile.task_num)) {
         CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CANTIAN_TASK_NUM");

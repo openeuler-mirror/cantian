@@ -375,6 +375,7 @@ status_t cms_init_mes_profile_attr(mes_profile_t *profile)
     profile->reactor_thread_num = REACTOR_THREAD_NUM;
     profile->conn_by_profile = CT_TRUE;
     profile->inst_count = cms_get_gcc_node_count();
+    profile->set_cpu_affinity = CT_FALSE;
     return (profile->inst_count >= CT_MAX_INSTANCES ? CT_ERROR : CT_SUCCESS);
 }
 
