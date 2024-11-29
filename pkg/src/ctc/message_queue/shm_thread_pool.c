@@ -224,7 +224,12 @@ int shm_create_thread_pool(CREATE_SHM_THREAD_POOL_PARAMS_T *params, SHM_THREAD_P
         return -1;
     }
     status_t err = memset_s(thread_pool_temp, sizeof(SHM_THREAD_POOL_T), 0, sizeof(SHM_THREAD_POOL_T));
-    knl_securec_check(err);
+    if (err != EOK) {
+        LOG_SHM_ERROR("[tpool] create tpool failed, tpool memset error");
+        free(thread_pool_temp);
+        thread_pool_temp = NULL;
+        return -1;
+    }
     thread_pool_temp->max_thread_num = thread_num;
     thread_pool_temp->running_thread_num = 0;
     thread_pool_temp->status = SHM_STATUS_INIT;
