@@ -2,7 +2,7 @@
   {
     "type": "file",
     "size": "2",
-    "dir": "/opt/cantian/ct_om/log/exporter.log",
+    "dir": "/opt/cantian/log/ct_om/exporter.log",
     "tar_name": "cantian_exporter.log.tar.gz",
     "generate_type": "task generated"
   },
@@ -42,7 +42,7 @@
   {
     "type": "file",
     "size": "4",
-    "dir": "/opt/cantian/dbstor/log/install.log",
+    "dir": "/opt/cantian/log/dbstor/install.log",
     "tar_name": "dbstor_install.tar.gz",
     "generate_type": "task generated"
   },
@@ -50,7 +50,7 @@
   {
     "type": "file",
     "size": "4",
-    "dir": "/opt/cantian/dbstor/log/uninstall.log",
+    "dir": "/opt/cantian/log/dbstor/uninstall.log",
     "tar_name": "dbstor_uninstall.tar.gz",
     "generate_type": "task generated"
   },
@@ -58,7 +58,7 @@
   {
     "type": "file",
     "size": "4",
-    "dir": "/opt/cantian/dbstor/log/backup.log",
+    "dir": "/opt/cantian/log/dbstor/backup.log",
     "tar_name": "dbstor_backup.tar.gz",
     "generate_type": "task generated"
   },
@@ -66,7 +66,7 @@
   {
     "type": "file",
     "size": "4",
-    "dir": "/opt/cantian/dbstor/log/update.log",
+    "dir": "/opt/cantian/log/dbstor/update.log",
     "tar_name": "dbstor_update.tar.gz",
     "generate_type": "task generated"
   },
@@ -83,7 +83,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/opt/cantian/cantian/log/cantian_deploy.log",
+    "dir": "/opt/cantian/log/cantian/cantian_deploy.log",
     "tar_name": "cantian_deploy.log.tar.gz",
     "generate_type": "task generated"
   },
@@ -91,7 +91,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/mnt/dbdata/local/cantian/tmp/data/log/run/cantiand.rlog",
+    "dir": "/opt/cantian/log/cantian/run/cantiand.rlog",
     "tar_name": "cantiand.tar.gz",
     "generate_type": "task generated"
   },
@@ -107,7 +107,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/opt/cantian/cms/log/run/cms_adm.rlog",
+    "dir": "/opt/cantian/log/cms/run/cms_adm.rlog",
     "tar_name": "cms_adm.rlog.tar.gz",
     "generate_type": "task generated"
   },
@@ -115,7 +115,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/opt/cantian/cms/log/run/cms_srv.rlog",
+    "dir": "/opt/cantian/log/cms/run/cms_srv.rlog",
     "tar_name": "cms_srv.rlog.tar.gz",
     "generate_type": "task generated"
   },
@@ -132,7 +132,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/opt/cantian/cms/log/cms_deploy.log",
+    "dir": "/opt/cantian/log/cms/cms_deploy.log",
     "tar_name": "cms_deploy.tar.gz",
     "generate_type": "task generated"
   },
@@ -147,7 +147,7 @@
   {
     "type": "file",
     "size": "30",
-    "dir": "/opt/cantian/mysql/log/install.log",
+    "dir": "/opt/cantian/log/mysql/install.log",
     "tar_name": "mysql_install.tar.gz",
     "generate_type": "task generated"
   }

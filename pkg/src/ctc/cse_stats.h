@@ -48,7 +48,7 @@ typedef enum {
 
 EXTER_ATTACK static inline void mysql_record_io_stat_begin(enum CTC_FUNC_TYPE type, uint64_t *tv_begin)
 {
-    if (!g_cm_ctc_event_tracking_open) {
+    if (SECUREC_LIKELY(!g_cm_ctc_event_tracking_open)) {
         return;
     }
     *tv_begin = rdtsc();
@@ -58,7 +58,7 @@ EXTER_ATTACK static inline void mysql_record_io_stat_begin(enum CTC_FUNC_TYPE ty
 
 EXTER_ATTACK static inline void mysql_record_io_stat_end(enum CTC_FUNC_TYPE event, uint64_t *tv_begin)
 {
-    if (!g_cm_ctc_event_tracking_open) {
+    if (SECUREC_LIKELY(!g_cm_ctc_event_tracking_open)) {
         return;
     }
     io_record_detail_t *detail = &(g_ctc_io_record_event_wait[event][EVENT_TRACKING_HASH(*tv_begin)].detail);

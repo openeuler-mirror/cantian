@@ -168,7 +168,7 @@ do
     if [ -f ${LOGICREP_START_FLAG} ];then
         logicrep_pid=$(ps -ef | grep "/opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N" | grep -v grep | awk 'NR==1 {print $2}')
         if [[ -z ${logicrep_pid} ]];then
-            su -s /bin/bash - ${cantian_user} -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/deploy/deploy_daemon.log 2>&1
+            su -s /bin/bash - ${cantian_user} -c "nohup sh /opt/software/tools/logicrep/watchdog_logicrep.sh -n logicrep -N ${node_count} &" >> /opt/cantian/log/deploy/deploy_daemon.log 2>&1
         fi
     fi
 
@@ -199,7 +199,7 @@ do
                     iptables -I OUTPUT -p tcp --sport 14587 -j ACCEPT -w 60
                 fi
                 logAndEchoInfo "[cantian daemon] begin to start cms use ${cantian_user}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/deploy/deploy_daemon.log 2>&1 &
+                su -s /bin/bash - ${cantian_user} -c "sh /opt/cantian/action/cms/cms_start2.sh -start" >> /opt/cantian/log/deploy/deploy_daemon.log 2>&1 &
                 logAndEchoInfo "[cantian daemon] starting cms in backstage ${CMS_COUNT} times. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             fi
         fi

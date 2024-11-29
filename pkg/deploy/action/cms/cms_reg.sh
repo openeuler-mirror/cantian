@@ -4,7 +4,7 @@ set +x
 source ~/.bashrc > /dev/null 2>&1
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CMS_ENABLE_FLAG=/opt/cantian/cms/cfg/cms_enable
-CMS_DEPLOY_LOG_FILE=/opt/cantian/cms/log/cms_deploy.log
+CMS_DEPLOY_LOG_FILE=/opt/cantian/log/cms/cms_deploy.log
 # 返回结果前等待1s
 LOOP_TIME=1
 

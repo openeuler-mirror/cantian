@@ -1516,6 +1516,7 @@ class Installer:
         self.cmsConfigs["_IP"] = self.cantiandConfigs["LSNR_ADDR"]
         self.cmsConfigs["GCC_HOME"] = os.path.join(self.data, "gcc_home")
         self.cmsConfigs["GCC_TYPE"] = "FILE"
+        self.cmsConfigs["CMS_LOG"] = self.cantiandConfigs["LOG_HOME"]
         
         if g_opts.use_gss:
             self.cantiandConfigs["CONTROL_FILES"] = "(+vg1/ctrl1, +vg1/ctrl2, +vg1/ctrl3)"

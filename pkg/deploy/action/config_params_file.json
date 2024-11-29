@@ -12,7 +12,6 @@
   "metadata_logic_ip": "127.0.0.1",
   "storage_logic_ip": "127.0.0.1",
   "mes_ssl_switch": true,
-  "mysql_metadata_in_cantian": true,
   "MAX_ARCH_FILES_SIZE": "300G",
   "redo_num": "6",
   "redo_size": "5G"

@@ -5,7 +5,7 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_INSTALL_PY_NAME="cantian_install.py"
 RPM_UNPACK_PATH="/opt/cantian/image/Cantian-RUN-CENTOS-64bit"
 
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 CANTIAN_INSTALL_CONFIG=/opt/cantian/cantian/cfg
 
 function log() {
@@ -60,8 +60,8 @@ function cantian_install()
     fi
     chmod 750 /mnt/dbdata/local/cantian/tmp
 
-    if [ ! -d /opt/cantian/cantian/log ]; then
-        mkdir -p -m 750 /opt/cantian/cantian/log
+    if [ ! -d /opt/cantian/log/cantian ]; then
+        mkdir -p -m 750 /opt/cantian/log/cantian
     fi
 
     cp -rf ${RPM_UNPACK_PATH}/add-ons /opt/cantian/cantian/server/

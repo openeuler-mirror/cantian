@@ -13,8 +13,8 @@ LOG = setup("ct_om")
 # 检查ntp服务器有没有开启
 # 检查某个路径的flag有没有 告警提示 打印多节点时间不相同的时间差时间点。也就是打印跳变。
 CHECK_PATTERN = "(\[NTP_TIME_WARN\])(.*)(us)"
-LOG_FILE_PATH = "/mnt/dbdata/local/cantian/tmp/data/log/run/*log"
-LOG_ZIP_FILE_PATH = "/mnt/dbdata/local/cantian/tmp/data/log/run/*tar.gz"
+LOG_FILE_PATH = "/opt/cantian/log/cantian/run/*log"
+LOG_ZIP_FILE_PATH = "/opt/cantian/log/cantian/run/*tar.gz"
 
 
 class NtpChecker:

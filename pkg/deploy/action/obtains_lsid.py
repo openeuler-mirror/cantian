@@ -8,7 +8,7 @@ from pathlib import Path
 
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 INSTALL_FILE = str(Path(os.path.join(CUR_PATH, "../config/deploy_param.json")))
-DBSTORE_UNIFY_FLAG = os.path.exists("/opt/cantian/deploy/.dbstor_unify_flag")
+DBSTORE_UNIFY_FLAG = os.path.exists("/opt/cantian/log/deploy/.dbstor_unify_flag")
 
 # 适配LLT
 if os.path.exists(INSTALL_FILE):
@@ -47,9 +47,9 @@ class LSIDGenerate(object):
         # 返回lsid十六进制
         return int(str(bin(self.n_type))[2:].rjust(2, "0")
                    + str(bin(3))[2:].rjust(2, "0")
-                   + str(bin(self.cluster_id))[2:].rjust(6, "0")
+                   + str(bin(self.cluster_id))[2:].rjust(8, "0")
                    + str(bin(self.random_seed))[2:].rjust(8, "0")
-                   + str(bin(self.process_id))[2:].rjust(4, "0") + "00"
+                   + str(bin(self.process_id))[2:].rjust(4, "0")
                    + str(bin(self.node_id))[2:].rjust(8, "0"), 2)
 
     def execute(self):

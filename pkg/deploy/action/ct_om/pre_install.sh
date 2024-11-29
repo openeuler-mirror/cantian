@@ -2,7 +2,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CT_OM_PATH=/opt/cantian/action/ct_om
-CT_OM_LOG_PATH=/opt/cantian/ct_om/log
+CT_OM_LOG_PATH=/opt/cantian/log/ct_om
 CT_OM_CTMGR=/opt/cantian/ct_om/service/ctmgr
 ACTION_TYPE=$1
 
@@ -13,7 +13,7 @@ CT_OM_DIR_MOD=700
 CT_OM_FILE_MOD=400
 CTMGR_USER_FILE_LIST=('check_status.sh' 'start.sh' 'stop.sh')
 
-# 修改/opt/cantian/ct_om/log/日志文件属性
+# 修改/opt/cantian/log/ct_om/日志文件属性
 if [ -d ${CT_OM_LOG_PATH} ]; then
     chmod -Rf ${LOG_MOD} ${CT_OM_LOG_PATH}
     if [ $? -eq 0 ]; then
@@ -24,7 +24,7 @@ if [ -d ${CT_OM_LOG_PATH} ]; then
     fi
 fi
 
-# 修改/opt/cantian/ct_om/log/日志文件归属
+# 修改/opt/cantian/log/ct_om/日志文件归属
 if [ -d ${CT_OM_LOG_PATH} ]; then
     chmod 640 ${CT_OM_LOG_PATH}/om_deploy.log
     if [ $? -eq 0 ]; then

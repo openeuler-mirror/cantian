@@ -293,7 +293,7 @@ function do_rollback() {
         sh "${CURRENT_PATH}/${rollback_module}/appctl.sh" rollback ${ROLLBACK_MODE} ${backup_path}
         if [ $? -ne 0 ]; then
             logAndEchoError "rollback ${rollback_module} failed"
-            logAndEchoError "For details, see the /opt/cantian/${rollback_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${rollback_module}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
         logAndEchoInfo "rollback ${rollback_module} success"

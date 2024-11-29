@@ -147,8 +147,16 @@ static void ctc_copy_lock_info_from_rd(rd_lock_info_4mysql_ddl *rd_lock_info, ct
 {
     lock_info->sql_type = rd_lock_info->sql_type;
     lock_info->mdl_namespace = rd_lock_info->mdl_namespace;
-    memcpy_sp(lock_info->db_name, rd_lock_info->db_name_len, rd_lock_info->buff, rd_lock_info->db_name_len);
-    memcpy_sp(lock_info->table_name, rd_lock_info->table_name_len, rd_lock_info->buff + rd_lock_info->db_name_len, rd_lock_info->table_name_len);
+    errno_t ret;
+    if (rd_lock_info->db_name_len > 0) {
+        ret = memcpy_sp(lock_info->db_name, rd_lock_info->db_name_len, rd_lock_info->buff, rd_lock_info->db_name_len);
+        knl_securec_check(ret);
+    }
+    if (rd_lock_info->table_name_len > 0) {
+        ret = memcpy_sp(lock_info->table_name, rd_lock_info->table_name_len,
+                        rd_lock_info->buff + rd_lock_info->db_name_len, rd_lock_info->table_name_len);
+        knl_securec_check(ret);
+    }
     lock_info->db_name[rd_lock_info->db_name_len] = '\0';
     lock_info->table_name[rd_lock_info->table_name_len] = '\0';
     lock_info->user_name[0] = '\0';
@@ -216,7 +224,10 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
     tch.sess_addr = (uint64_t)session;
 
     ctc_invalidate_broadcast_request broadcast_req;
-    memcpy_sp(broadcast_req.buff, invalid_info->buff_len, invalid_info->buff, invalid_info->buff_len);
+    if (invalid_info->buff_len > 0) {
+        ret = memcpy_sp(broadcast_req.buff, invalid_info->buff_len, invalid_info->buff, invalid_info->buff_len);
+        knl_securec_check(ret);
+    }
     broadcast_req.buff[invalid_info->buff_len] = '\0';
     broadcast_req.buff_len = invalid_info->buff_len;
     broadcast_req.is_dcl = invalid_info->is_dcl;
@@ -250,8 +261,13 @@ status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uin
     }
 
     ret = memset_s(broadcast_req, sizeof(ctc_ddl_broadcast_request), 0, sizeof(ctc_ddl_broadcast_request));
-    memcpy_sp(broadcast_req->sql_str, sql_len, sql_text, sql_len);
-    memcpy_sp(broadcast_req->sql_str + sql_len, REFORM_LOG_DDL_TERM_SIZE, REFORM_LOG_DDL_TERM_DATA, REFORM_LOG_DDL_TERM_SIZE);
+    knl_securec_check(ret);
+    if (sql_len > 0) {
+        ret = memcpy_sp(broadcast_req->sql_str, sql_len, sql_text, sql_len);
+        knl_securec_check(ret);
+    }
+    ret = memcpy_sp(broadcast_req->sql_str + sql_len, REFORM_LOG_DDL_TERM_SIZE, REFORM_LOG_DDL_TERM_DATA, REFORM_LOG_DDL_TERM_SIZE);
+    knl_securec_check(ret);
     broadcast_req->mysql_inst_id = CT_INVALID_ID32 - 1;
 
     for (int i = 0; i < sql_len + REFORM_LOG_DDL_TERM_SIZE; i++) {

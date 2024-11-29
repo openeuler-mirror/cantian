@@ -9,7 +9,7 @@ function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1"
 }
 
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 
 # 判断是否存在对应的文件，不存在返回报错，存在则继续运行
 function cantian_pre_install()
@@ -19,8 +19,8 @@ function cantian_pre_install()
         return 1
     fi
 
-    if [ ! -d /opt/cantian/cantian/log ]; then
-        mkdir -p -m 750 /opt/cantian/cantian/log
+    if [ ! -d /opt/cantian/log/cantian ]; then
+        mkdir -p -m 750 /opt/cantian/log/cantian
     fi
 
     python3 ${CURRENT_PATH}/cantian_pre_install.py

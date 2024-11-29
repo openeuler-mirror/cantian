@@ -65,15 +65,14 @@ cms_log_def_t g_cms_log[] = {
 status_t cms_init_loggers(proc_type_t proc_type)
 {
     int32 iret_snprintf = 0;
-
     char file_name[CMS_FILE_NAME_BUFFER_SIZE];
     log_param_t *log_param = cm_log_param_instance();
     log_param->log_level = 0;
     // register error callback function
     cm_init_error_handler(cm_set_sql_error);
 
-    char *home = getenv(CMS_ENV_CMS_HOME);
-    iret_snprintf = snprintf_s(log_param->log_home, CMS_PATH_BUFFER_SIZE, CMS_MAX_PATH_LEN, "%s/log", home);
+    
+    iret_snprintf = memcpy_s(log_param->log_home, sizeof(log_param->log_home), g_cms_param->cms_log, sizeof(log_param->log_home));
     PRTS_RETURN_IFERR(iret_snprintf);
 
     if (!cm_dir_exist(log_param->log_home) || 0 != access(log_param->log_home, W_OK | R_OK)) {

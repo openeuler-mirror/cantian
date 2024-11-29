@@ -14,7 +14,7 @@ cluster_status_flag=""
 business_code_backup_path=""
 cluster_commit_flag=""
 modify_sys_table_success_flag=""
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
+DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 
 
 source "${CURRENT_PATH}"/log4sh.sh

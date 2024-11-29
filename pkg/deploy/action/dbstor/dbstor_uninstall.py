@@ -43,8 +43,8 @@ class Options(object):
     def __init__(self):
         self.install_user_privilege = "withoutroot"
         self.dbstor_log_path = "/opt/cantian/dbstor"
-        self.log_path = "/opt/cantian/dbstor/log"
-        self.log_file = "/opt/cantian/dbstor/log/uninstall.log"
+        self.log_path = "/opt/cantian/log/dbstor"
+        self.log_file = "/opt/cantian/log/dbstor/uninstall.log"
         self.ini_file = "/opt/cantian/dbstor/tools/dbstor_config.ini"
         self.docker_ini_file = "/home/regress/cantian_data"
         self.js_conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")

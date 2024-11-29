@@ -4,7 +4,7 @@ set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 CANTIAN_CHECK_STATUS_PY_NAME="cantian_check_status.py"
 
-CANTIAN_INSTALL_LOG_FILE=/opt/cantian/cantian/log/cantian_deploy.log
+CANTIAN_INSTALL_LOG_FILE=/opt/cantian/log/cantian/cantian_deploy.log
 # 判断是否存在对应的文件，不存在返回报错，存在则继续运行
 function check_cantian_status()
 {

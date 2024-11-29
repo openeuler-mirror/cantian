@@ -1,6 +1,6 @@
 #!/bin/bash
 set +x
-OM_DEPLOY_LOG_FILE=/opt/cantian/cantian_exporter/log/cantian_exporter.log
+OM_DEPLOY_LOG_FILE=/opt/cantian/log/cantian_exporter/cantian_exporter.log
 
 function log() {
   printf "[%s] %s\n" "`date -d today \"+%Y-%m-%d %H:%M:%S\"`" "$1" >> ${OM_DEPLOY_LOG_FILE} 2>&1

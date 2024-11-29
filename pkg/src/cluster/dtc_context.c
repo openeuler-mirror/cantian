@@ -59,6 +59,7 @@
 static dtc_instance_t g_dtc_instance;
 dtc_instance_t *g_dtc = &g_dtc_instance;
 dtc_processor_t g_processors[MES_CMD_CEIL] = {0};
+char dtc_mes_cpu_info_str[CT_MES_MAX_CPU_STR];
 
 // add function
 status_t dtc_register_proc_func(mes_command_t command_type, dtc_message_proc_t proc, bool32 is_enqueue, const char *func_name)
@@ -503,6 +504,7 @@ status_t dtc_set_mes_profile_attr(mes_profile_t *profile)
     profile->channel_version = CT_INVALID_ID64;
     profile->upgrade_time_ms = g_dtc->profile.upgrade_time_ms;
     profile->degrade_time_ms = g_dtc->profile.degrade_time_ms;
+    profile->set_cpu_affinity = CT_TRUE;
     return (profile->inst_count >= CT_MAX_INSTANCES ? CT_ERROR : CT_SUCCESS);
 }
 

@@ -49,7 +49,7 @@ CILENT_TEST_PATH="/opt/cantian/dbstor/tools"
 
 dbstor_home="/opt/cantian/dbstor"
 dbstor_scripts="/opt/cantian/action/dbstor"
-
+LOG_FILE="/opt/cantian/log/dbstor/install.log"
 cantian_user_and_group="${cantian_user}":"${cantian_group}"
 
 function usage()
@@ -106,23 +106,32 @@ function chown_pre_install_set()
     fi
     cp -arf ${CURRENT_PATH}/* /opt/cantian/action/dbstor/
 
-    if [ -d /opt/cantian/dbstor ]; then
-        chmod 750 /opt/cantian/dbstor
-        find /opt/cantian/dbstor/log -type f | xargs chmod 640
+    if [ ! -d /opt/cantian/dbstor ]; then
+        mkdir -m 750 -p /opt/cantian/dbstor
     fi
+
+    if [ ! -d /opt/cantian/log/dbstor ]; then
+        mkdir -m 750 -p /opt/cantian/log/dbstor
+    fi
+    
+    if [ ! -f ${LOG_FILE} ]; then
+        touch ${LOG_FILE}
+    fi
+
     for file in /opt/cantian/backup/files/*.ini
     do
         if [ -e "${file}" ];then
             chmod 600 "${file}"
         fi
     done
-    for file in /opt/cantian/dbstor/log/*.log
+    for file in /opt/cantian/log/dbstor/*.log
     do
         if [ -e "${file}" ];then
             chmod 640 "${file}"
         fi
     done
     chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/log/dbstor
 }
 
 # 预安装时提前检查是否存在信号量，如果有则删除
@@ -499,9 +508,9 @@ if [ $# -gt 2 ]; then
     ROLLBACK_PATH=$3
 fi
 
-if [ ! -d /opt/cantian/dbstor/log ]; then
-    mkdir -m 750 -p /opt/cantian/dbstor/log
-    chown ${cantian_user_and_group} -hR /opt/cantian/dbstor
+if [ ! -d /opt/cantian/log/dbstor ]; then
+    mkdir -m 750 -p /opt/cantian/log/dbstor
+    chown ${cantian_user_and_group} -hR /opt/cantian/log/dbstor
 fi
 
 case "$ACTION" in
@@ -527,8 +536,8 @@ case "$ACTION" in
         exit ${ret}
         ;;
     uninstall)
-        if [ -f /opt/cantian/dbstor/log/uninstall.log ];then
-            chmod 640 /opt/cantian/dbstor/log/uninstall.log
+        if [ -f /opt/cantian/log/dbstor/uninstall.log ];then
+            chmod 640 /opt/cantian/log/dbstor/uninstall.log
         fi
         rm -rf /dev/shm/cantian* /dev/shm/FDSA* /dev/shm/cpuinfo_shm /dev/shm/cputimeinfo_shm /dev/shm/diag_server_usr_lock
         do_deploy ${UNINSTALL_NAME} ${UNINSTALL_TYPE} ${FORCE_UNINSTALL}

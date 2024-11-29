@@ -23,6 +23,7 @@ mes_ssl_switch=`python3 ${CURRENT_PATH}/get_config_info.py "mes_ssl_switch"`
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
 gcc_home="/mnt/dbdata/remote/share_${storage_share_fs}/gcc_home"
 cms_gcc_bak="/mnt/dbdata/remote/archive_${storage_share_fs}"
+cms_log="/opt/cantian/log/cms"
 
 function set_cms_ip() {
     node_domain_0=`echo ${cms_ip} | awk '{split($1,arr,";");print arr[1]}'`
@@ -73,6 +74,7 @@ function set_cms_cfg() {
         sed -i -r "s:(_USE_DBSTOR = ).*:\1False:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
         sed -i -r "s:(_CMS_MES_PIPE_TYPE = ).*:\1TCP:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
+    sed -i -r "s:(_CMS_LOG = ).*:\1${cms_log}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
 }
 
 # 修改cms配置文件
