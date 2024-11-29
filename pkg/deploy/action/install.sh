@@ -12,7 +12,7 @@ ENV_FILE=${CURRENT_PATH}/env.sh
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 UPDATE_CONFIG_FILE_PATH="${CURRENT_PATH}"/update_config.py
 DBSTORE_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/deploy/.dbstor_unify_flag
+DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 config_install_type="override"
 pass_check='true'
 add_group_user_ceck='true'
@@ -402,19 +402,15 @@ EOF
 # 检查dbstor的user与pwd是否正确
 function check_dbstor_usr_passwd() {
     if [[ x"${deploy_mode}" != x"file" ]];then
-        logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "check username and password of dbstor and check filesystem. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
         install_result=$?
         if [ ${install_result} -ne 0 ]; then
-            logAndEchoError "check dbstor passwd failed, possible reasons:
-                1 username or password of dbstor storage service is incorrect.
-                2 cgw create link failed.
-                3 ip address of dbstor storage service is incorrect.
-                please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "check username and password of dbstor or check filesystem failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             uninstall
             exit 1
         else
-            logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoInfo "user and password of dbstor check and filesystem check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
     fi
 }
@@ -556,7 +552,7 @@ fi
 if [[ "${cantian_in_container}" != "1" && "${cantian_in_container}" != "2" ]]; then
     python3 ${PRE_INSTALL_PY_PATH} ${INSTALL_TYPE} ${CONFIG_FILE}
     if [ $? -ne 0 ]; then
-        logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/ct_om/log/om_deploy.log"
+        logAndEchoError "over all pre_install failed. For details, see the /opt/cantian/log/ct_om/om_deploy.log"
         exit 1
     fi
 else
@@ -669,7 +665,7 @@ do
     single_result=$?
     if [ ${single_result} -ne 0 ]; then
         logAndEchoError "[error] pre_install ${lib_name} failed"
-        logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         pass_check='false'
     fi
     logAndEchoInfo "pre_install ${lib_name} result is ${single_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -727,12 +723,12 @@ if [[ ${config_install_type} = 'override' ]]; then
       logAndEchoInfo "Auto create fs start"
       echo -e "${dm_login_user}\n${dm_login_pwd}" | python3 -B "${CURRENT_PATH}"/storage_operate/create_file_system.py --action="pre_check" --ip="${dm_login_ip}" >> ${OM_DEPLOY_LOG_FILE} 2>&1
       if [ $? -ne 0 ];then
-          logAndEchoError "Auto create fs pre check failed, for details see the /opt/cantian/deploy/om_deploy/rest_request.log"
+          logAndEchoError "Auto create fs pre check failed, for details see the /opt/cantian/log/deploy/om_deploy/rest_request.log"
           exit 1
       fi
       echo -e "${dm_login_user}\n${dm_login_pwd}" | python3 -B "${CURRENT_PATH}"/storage_operate/create_file_system.py --action="create" --ip="${dm_login_ip}" >> ${OM_DEPLOY_LOG_FILE} 2>&1
       if [ $? -ne 0 ];then
-          logAndEchoError "Auto create fs failed, for details see the /opt/cantian/deploy/om_deploy/rest_request.log"
+          logAndEchoError "Auto create fs failed, for details see the /opt/cantian/log/deploy/om_deploy/rest_request.log"
           uninstall
           exit 1
       fi
@@ -825,7 +821,7 @@ do
         logAndEchoInfo "install ${lib_name} result is ${install_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ ${install_result} -ne 0 ]; then
             logAndEchoError "cantian install failed."
-            logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             uninstall
             exit 1
         fi
@@ -835,10 +831,10 @@ do
         logAndEchoInfo "install ${lib_name} result is ${install_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ ${install_result} -ne 0 ]; then
             if [ ${install_result} -eq 2 ]; then
-                logAndEchoWarn "Failed to ping some remote ip, for details, see the /opt/cantian/${lib_name}/log."
+                logAndEchoWarn "Failed to ping some remote ip, for details, see the /opt/cantian/log/${lib_name}."
             else
                 logAndEchoError "dbstor install failed"
-                logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+                logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
                 uninstall
                 exit 1
             fi
@@ -854,7 +850,7 @@ do
         logAndEchoInfo "install ${lib_name} result is ${install_result}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         if [ ${install_result} -ne 0 ]; then
             logAndEchoError "${lib_name} install failed"
-            logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             uninstall
             exit 1
         fi
