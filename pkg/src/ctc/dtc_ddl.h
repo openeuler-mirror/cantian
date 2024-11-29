@@ -75,6 +75,14 @@ typedef struct st_msg_execute_ddl_req_t {
     bool                      allow_fail;
 } msg_execute_ddl_req_t;
 
+typedef struct st_msg_execute_set_opt_req_t {
+    mes_message_head_t        head;
+    ctc_set_opt_request       broadcast_req;
+    uint32_t                  thd_id;
+    uint32_t                  msg_num;
+    bool                      allow_fail;
+} msg_execute_set_opt_req_t;
+
 typedef struct st_msg_commit_ddl_req_t {
     mes_message_head_t      head;
     ctc_handler_t       tch;
@@ -112,6 +120,7 @@ typedef struct st_msg_update_dd_cache_req_t {
 
 EXTER_ATTACK void dtc_proc_msg_ctc_lock_table_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_ctc_execute_ddl_req(void *sess, mes_message_t *msg);
+EXTER_ATTACK void dtc_proc_msg_ctc_execute_set_opt_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_ctc_commit_ddl_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_ctc_close_mysql_conn_req(void *sess, mes_message_t *msg);
 EXTER_ATTACK void dtc_proc_msg_ctc_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg);

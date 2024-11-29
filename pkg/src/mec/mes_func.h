@@ -414,7 +414,8 @@ typedef struct st_mes_profile {
     bool32 ssl_verify_peer;
     bool8 need_mq_thread;     // to compile extproc
     bool8 use_ssl;
-    uint8 unused[2];          // reserved 3 bytes
+    bool8 set_cpu_affinity;
+    uint8 unused;          // reserved 3 bytes
 } mes_profile_t;
 
 typedef struct st_mes_instance {
@@ -495,6 +496,7 @@ static inline bool8 mes_verify_cks(uint16 old_cks, void *msg_data, uint16 msg_si
 
 mes_instance_t *get_g_mes(void);
 mes_stat_t *get_g_mes_stat(void);
+char *get_g_mes_cpu_info(void);
 status_t mes_set_profile(mes_profile_t *profile);
 status_t mes_set_uc_dpumm_config_path(const char *home_path);
 status_t mes_startup(void);

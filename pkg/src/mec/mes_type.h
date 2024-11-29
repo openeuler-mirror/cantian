@@ -218,6 +218,9 @@ typedef enum en_mes_command {
     MES_CMD_SET_INCREMENT_UNBLOCK_ACK,
     MES_CMD_VERIFY_REMASTER_PARAM,
 
+    MES_CMD_EXECUTE_SET_OPT_REQ,
+    MES_CMD_EXECUTE_SET_OPT_RSP,
+
     MES_CMD_CEIL
 } mes_command_t;
 

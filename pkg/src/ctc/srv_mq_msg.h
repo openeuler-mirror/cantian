@@ -433,6 +433,19 @@ struct execute_mysql_ddl_sql_request {
     bool allow_fail;
 };
 
+struct execute_mysql_set_opt_request {
+    ctc_set_opt_request broadcast_req;
+    int result;
+    bool allow_fail;
+};
+
+struct execute_set_opt_request {
+    ctc_set_opt_request broadcast_req;
+    ctc_handler_t tch;
+    int result;
+    bool allow_fail;
+};
+
 struct lock_instance_request {
     bool is_mysqld_starting;
     ctc_lock_table_mode_t lock_type;

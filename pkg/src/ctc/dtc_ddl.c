@@ -218,6 +218,51 @@ void dtc_proc_msg_ctc_execute_ddl_req(void *sess, mes_message_t *msg)
     mes_release_message_buf(msg->buffer);
 }
 
+void dtc_proc_msg_ctc_execute_set_opt_req(void *sess, mes_message_t *msg)
+{
+    void *prev = knl_get_curr_sess();
+    msg_execute_set_opt_req_t *req = (msg_execute_set_opt_req_t *)msg->buffer;
+    set_opt_info_t *set_opt_info = (set_opt_info_t *)(msg->buffer + sizeof(msg_execute_set_opt_req_t));
+    req->broadcast_req.set_opt_info = set_opt_info;
+    msg_ddl_rsp_t rsp = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+
+    if (sizeof(msg_execute_set_opt_req_t) + req->broadcast_req.opt_num * sizeof(set_opt_info_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("proc msg ctc execute ddl req msg size is invalid, msg size %u, struct size:%d",
+            msg->head->size, sizeof(msg_execute_set_opt_req_t));
+        dtc_ctc_ddl_msg_struct_not_match(&(req->head), MES_CMD_PREPARE_DDL_RSP, session);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+
+    if (is_exist_repeat_msg(&(req->head), session, MES_CMD_EXECUTE_SET_OPT_RSP, req->msg_num)) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT]: repeat msg, conn_id=%u", req->thd_id);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+
+    mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_EXECUTE_SET_OPT_RSP, sizeof(msg_ddl_rsp_t), session->id);
+    rsp.err_code = mysql_execute_set_opt(req->thd_id, &req->broadcast_req, req->allow_fail);
+    rsp.allow_fail = req->allow_fail;
+    if (rsp.err_code != CT_SUCCESS) {
+        strncpy_s(rsp.err_msg, ERROR_MESSAGE_LEN, req->broadcast_req.err_msg, strlen(req->broadcast_req.err_msg));
+        CT_LOG_RUN_ERR("[CTC_SET_OPT]: remote node execute set opt failed. ret=%u, conn_id=%u.", rsp.err_code, req->thd_id);
+    }
+
+    SYNC_POINT_GLOBAL_START(CTC_EXECUTE_DDL_REMOTE_ABORT, NULL, 0);
+    SYNC_POINT_GLOBAL_END;
+
+    cm_atomic_set(&g_ctc_msg_result_arr[req->head.src_inst].err_code, rsp.err_code);
+    cm_atomic_set(&g_ctc_msg_result_arr[req->head.src_inst].allow_fail, rsp.allow_fail);
+
+    if (mes_send_data(&rsp) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT]: mes_send_data failed, conn_id=%u.", req->thd_id);
+    }
+
+    knl_set_curr_sess2tls(prev);
+    mes_release_message_buf(msg->buffer);
+}
+
 void dtc_proc_msg_ctc_execute_rewrite_open_conn_req(void *sess, mes_message_t *msg)
 {
     void *prev = knl_get_curr_sess();

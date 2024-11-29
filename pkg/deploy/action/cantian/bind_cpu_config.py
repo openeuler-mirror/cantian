@@ -18,11 +18,14 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cpu_bind
 CPU_CONFIG_INFO = "/opt/cantian/cantian/cfg/cpu_config.json"
 CONFIG_DIR = "/mnt/dbdata/local/cantian/tmp/data"
 XNET_MODULE = "NETWORK_BIND_CPU"
+MES_MODULE = "MES_BIND_CPU"
+MES_CPU_INFO = "MES_CPU_INFO"
 CANTIAN_NUMA_INFO = "CANTIAN_NUMA_CPU_INFO"
 MYSQL_NUMA_INFO = "MYSQL_NUMA_CPU_INFO"
-MODULE_LIST = [XNET_MODULE] # 目前只支持xnet绑核，后续扩展秩序添加在这里即可
+MODULE_LIST = [XNET_MODULE, MES_MODULE]  # 目前只支持xnet, mes模块的绑核，后续扩展秩序添加在这里即可
 dbstor_file_module_dict = {
     "XNET_CPU": XNET_MODULE,
+    "MES_CPU": MES_MODULE,
     "IOD_CPU": "",
     "ULOG_CPU": ""
 }  # 用于更新dbstor.ini文件，后续扩展加上
@@ -124,6 +127,12 @@ def write_json_config_file(path, config):
 
 
 class NumaConfigBase:
+    def __init__(self):
+        self.all_cpu_list = []
+        self.available_cpu_for_binding_dict = {}
+        self.bind_cpu_list = []
+        self.bind_cpu_dict = {}
+
     def _exec_popen(self, cmd, values=None):
         """
         subprocess.Popen in python2 and 3.
@@ -205,9 +214,10 @@ class NumaConfigBase:
                 else:
                     update_dbstore_conf("remove", dbstor_file_key, None)
 
-    def update_cantian_config_file(self, mysql_cpu_info):
+    def update_cantian_config_file(self, cantiand_cpu_info):
         """
-        Updates the cantian configuration file with the provided MySQL CPU info.
+        Updates the cantian configuration file with the provided cantiand_cpu_info dictionary.
+        If a key is not present in the file, it appends the key-value pair to the end of the file.
         """
         cantian_conf_file = os.path.join(CONFIG_DIR, "cfg", "cantiand.ini")
 
@@ -215,32 +225,35 @@ class NumaConfigBase:
             LOGGER.warning(f"Configuration file {cantian_conf_file} does not exist.")
             return
 
-        shm_mysql_info = ";".join([mysql_cpu_info] * 6)
-        count = 0
-
         try:
             with open(cantian_conf_file, "r+", encoding="utf-8") as file:
                 config = file.readlines()
+                existing_keys = {line.split("=", maxsplit=1)[0].strip() for line in config if "=" in line}
 
+                updated_keys = set()
+
+                # Update existing keys or mark them as updated
                 for index, item in enumerate(config):
-                    if count >= 2:
-                        break
                     if "=" not in item:
                         continue
 
                     key, _ = item.split("=", maxsplit=1)
                     key = key.strip()
 
-                    if key == "SHM_MYSQL_CPU_GROUP_INFO":
-                        config[index] = f"{key} = {shm_mysql_info}\n"
-                        count += 1
-                    elif key == "SHM_CPU_GROUP_INFO":
-                        config[index] = f"{key} = {mysql_cpu_info}\n"
-                        count += 1
+                    if key in cantiand_cpu_info:
+                        config[index] = f"{key} = {cantiand_cpu_info[key]}\n"
+                        updated_keys.add(key)
+
+                for key, value in cantiand_cpu_info.items():
+                    if key not in existing_keys:
+                        config.append(f"{key} = {value}\n")
+                        updated_keys.add(key)
 
                 file.seek(0)
                 file.writelines(config)
                 file.truncate()
+
+                LOGGER.info(f"Updated keys in {cantian_conf_file}: {', '.join(updated_keys)}")
 
         except Exception as e:
             LOGGER.error(f"Failed to update {cantian_conf_file}: {e}")
@@ -249,10 +262,7 @@ class NumaConfigBase:
 class PhysicalCpuConfig(NumaConfigBase):
     def __init__(self):
         super().__init__()
-        self.all_cpu_list = []
-        self.available_cpu_for_binding_dict = {}
         self.numa_info_dict = {}
-        self.bind_cpu_list = []
 
     def check_cpu_list_invalid(self, bind_cpu_list):
         """
@@ -345,10 +355,9 @@ class PhysicalCpuConfig(NumaConfigBase):
 
             module_cpu_list = self.get_module_bind_cpu_list(module_info)
             bind_cpu_list.extend(module_cpu_list)
-            numa_config[module_id_key] = ",".join(map(str, module_cpu_list))
+            self.bind_cpu_dict[module_id_key] = ",".join(map(str, module_cpu_list))
 
         self.bind_cpu_list = bind_cpu_list
-        write_json_config_file(CONFIG_PATH, numa_config)
 
     def get_module_bind_cpu_list(self, module_thread_num):
         """ 获取模块绑核的 CPU 列表 """
@@ -396,29 +405,33 @@ class PhysicalCpuConfig(NumaConfigBase):
         """
         更新 CANTIAN_CPU_INFO 和 MYSQL_CPU_INFO，并更新 CPU_CONFIG_INFO 文件
         """
-        # 获取 module_id_key 和对应的绑定 CPU 列表
-        numa_config = get_json_config(CONFIG_PATH)
         cpu_config_info = {}
+        cantiand_cpu_info = {}
 
-        for module_name in MODULE_LIST:
-            module_id_key = f"{module_name}_ID"
-            bind_cpu = cpu_info_to_cpu_list(numa_config.get(module_id_key, ""))
+        for module_name, bind_cpu in self.bind_cpu_dict.items():
+            cpu_config_info[module_name] = bind_cpu
 
-            if bind_cpu:
-                cpu_config_info[module_id_key] = ",".join(map(str, bind_cpu))
-
-        # 更新CPU_CONFIG_INFO
+        # 更新dbstor_config.ini
         remaining_cpus = list(set(self.all_cpu_list) - set(self.bind_cpu_list))
         cantian_cpu_info = cpu_list_to_cpu_info(remaining_cpus)
 
         cpu_config_info[CANTIAN_NUMA_INFO] = cantian_cpu_info
         self.update_dbstor_config_file(cpu_config_info)
 
-        # 更新 MYSQL_CPU_INFO
+        # 更新cantiand.ini包括MYSQL_CPU_INFO
         mysql_cpu_info = self.get_mysql_cpu_info()
-        self.update_cantian_config_file(mysql_cpu_info)
-        cpu_config_info[MYSQL_NUMA_INFO] = mysql_cpu_info
+        shm_mysql_info = ";".join([mysql_cpu_info] * 6)
+        cantiand_cpu_info["SHM_CPU_GROUP_INFO"] = mysql_cpu_info
+        cantiand_cpu_info["SHM_MYSQL_CPU_GROUP_INFO"] = shm_mysql_info
+        # 如果存在 MES_MODULE，也需要写入cantiand.ini
+        mes_module_key = f"{MES_MODULE}_ID"
+        if cpu_config_info.get(mes_module_key):
+            cantiand_cpu_info[MES_CPU_INFO] = cpu_list_to_cpu_info(cpu_config_info[mes_module_key])
 
+        self.update_cantian_config_file(cantiand_cpu_info)
+
+        # 更新 cpu_config.json
+        cpu_config_info[MYSQL_NUMA_INFO] = mysql_cpu_info
         write_json_config_file(CPU_CONFIG_INFO, cpu_config_info)
 
     def update_numa_config_file(self):
@@ -431,9 +444,6 @@ class PhysicalCpuConfig(NumaConfigBase):
 class ContainerCpuConfig(NumaConfigBase):
     def __init__(self):
         super().__init__()
-        self.all_cpu_list = []
-        self.available_cpu_for_binding_dict = {}
-        self.bind_cpu_list = []
 
     def update_cpu_info(self):
         """ 获取容器中的所有 CPU 列表 """
@@ -484,10 +494,9 @@ class ContainerCpuConfig(NumaConfigBase):
 
             module_cpu_list = self.get_module_bind_cpu_list(module_info)
             bind_cpu_list.extend(module_cpu_list)
-            numa_config[module_id_key] = ",".join(map(str, module_cpu_list))
+            self.bind_cpu_dict[module_id_key] = ",".join(map(str, module_cpu_list))
 
         self.bind_cpu_list = bind_cpu_list
-        write_json_config_file(CONFIG_PATH, numa_config)
 
         return bind_cpu_list
 
@@ -530,29 +539,33 @@ class ContainerCpuConfig(NumaConfigBase):
         """
         更新 CANTIAN_CPU_INFO 和 MYSQL_CPU_INFO，并更新 CPU_CONFIG_INFO 文件
         """
-        # 获取 module_id_key 和对应的绑定 CPU 列表
-        numa_config = get_json_config(CONFIG_PATH)
         cpu_config_info = {}
+        cantiand_cpu_info = {}
 
-        for module_name in MODULE_LIST:
-            module_id_key = f"{module_name}_ID"
-            bind_cpu = cpu_info_to_cpu_list(numa_config.get(module_id_key, ""))
+        for module_name, bind_cpu in self.bind_cpu_dict.items():
+            cpu_config_info[module_name] = bind_cpu
 
-            if bind_cpu:
-                cpu_config_info[module_id_key] = ",".join(map(str, bind_cpu))
-
-        # 更新 CPU_CONFIG_INFO
+        # 更新 dbstor_config.ini
         remaining_cpus = list(set(self.all_cpu_list) - set(self.bind_cpu_list))
         cantian_cpu_info = cpu_list_to_cpu_info(remaining_cpus)
 
         cpu_config_info[CANTIAN_NUMA_INFO] = cantian_cpu_info
         self.update_dbstor_config_file(cpu_config_info)
 
-        # 更新 MYSQL_CPU_INFO
+        # 更新cantiand.ini包括MYSQL_CPU_INFO
         mysql_cpu_info = self.get_mysql_cpu_info()
-        self.update_cantian_config_file(mysql_cpu_info)
-        cpu_config_info[MYSQL_NUMA_INFO] = mysql_cpu_info
+        shm_mysql_info = ";".join([mysql_cpu_info] * 6)
+        cantiand_cpu_info["SHM_CPU_GROUP_INFO"] = mysql_cpu_info
+        cantiand_cpu_info["SHM_MYSQL_CPU_GROUP_INFO"] = shm_mysql_info
+        # 如果存在 MES_MODULE，也需要写入cantiand.ini
+        mes_module_key = f"{MES_MODULE}_ID"
+        if mes_module_key in cpu_config_info and cpu_config_info[mes_module_key]:
+            cantiand_cpu_info[MES_CPU_INFO] = cpu_list_to_cpu_info(cpu_config_info[mes_module_key])
 
+        self.update_cantian_config_file(cantiand_cpu_info)
+
+        # 更新 cpu_config.json
+        cpu_config_info[MYSQL_NUMA_INFO] = mysql_cpu_info
         write_json_config_file(CPU_CONFIG_INFO, cpu_config_info)
 
     def update_numa_config_file(self):
@@ -566,7 +579,7 @@ class ConfigManager:
         # 根据MODULE_LIST动态生成 numa_config
         numa_config = {}
         for module in MODULE_LIST:
-            numa_config[module] = ""
+            numa_config[module] = "off" if module == MES_MODULE else ""
 
         write_json_config_file(CONFIG_PATH, numa_config)
 
