@@ -355,18 +355,26 @@ status_t dtc_register_proc(void)
     knl_securec_check(dtc_register_proc_func(MES_CMD_SEND_PAGE_INFO_ACK, drc_process_remaster_recovery_task_ack,
                                              CT_FALSE, "send page info ack"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_REQ, dtc_proc_msg_ctc_lock_table_req, CT_TRUE,
-    "MES_CMD_PREPARE_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_RSP,
-    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_PREPARE_DDL_RSP"));
+                                             "MES_CMD_PREPARE_DDL_REQ"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_PREPARE_DDL_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
+                                             "MES_CMD_PREPARE_DDL_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_REQ, dtc_proc_msg_ctc_execute_ddl_req, CT_TRUE,
-    "MES_CMD_EXECUTE_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_RSP,
-    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_EXECUTE_DDL_RSP"));
+                                             "MES_CMD_EXECUTE_DDL_REQ"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_DDL_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
+                                             "MES_CMD_EXECUTE_DDL_RSP"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_SET_OPT_REQ, dtc_proc_msg_ctc_execute_set_opt_req, CT_TRUE,
+                                             "MES_CMD_EXECUTE_SET_OPT_REQ"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_EXECUTE_SET_OPT_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
+                                             "MES_CMD_EXECUTE_SET_OPT_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_REWRITE_OPEN_CONN_REQ,
-    dtc_proc_msg_ctc_execute_rewrite_open_conn_req, CT_TRUE, "MES_CMD_REWRITE_OPEN_CONN_REQ"));
+                                             dtc_proc_msg_ctc_execute_rewrite_open_conn_req, CT_TRUE,
+                                             "MES_CMD_REWRITE_OPEN_CONN_REQ"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_REWRITE_OPEN_CONN_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
-    "MES_CMD_REWRITE_OPEN_CONN_RSP"));
+                                             "MES_CMD_REWRITE_OPEN_CONN_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_REQ, dtc_proc_msg_ctc_commit_ddl_req, CT_TRUE,
-    "MES_CMD_COMMIT_DDL_REQ")); knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_RSP,
-    ctc_process_broadcast_ack_ex, CT_FALSE, "MES_CMD_COMMIT_DDL_RSP"));
+                                             "MES_CMD_COMMIT_DDL_REQ"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_COMMIT_DDL_RSP, ctc_process_broadcast_ack_ex, CT_FALSE,
+                                             "MES_CMD_COMMIT_DDL_RSP"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_BROADCAST_INVALIDATE_DC, dtc_process_broadcast_data, CT_TRUE,
                                              "broadcast invalidate dc"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_INVALID_DD_REQ, dtc_proc_msg_ctc_invalidate_dd_req, CT_TRUE,

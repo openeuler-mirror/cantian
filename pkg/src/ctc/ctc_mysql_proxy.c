@@ -75,6 +75,41 @@ EXTER_ATTACK int ctc_ddl_execute_update(uint32_t thd_id, ctc_ddl_broadcast_reque
     return result;
 }
 
+EXTER_ATTACK int ctc_ddl_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail)
+{
+    void* shm_inst_req = get_upstream_shm_inst();
+    void* shm_inst_info = get_upstream_shm_inst();
+    struct execute_mysql_set_opt_request *req =
+        (struct execute_mysql_set_opt_request*)alloc_share_mem(shm_inst_req, sizeof(struct execute_mysql_set_opt_request));
+    if (req == NULL) {
+        return ERR_GENERIC_INTERNAL_ERROR;
+    }
+    req->broadcast_req = *broadcast_req;
+    req->broadcast_req.set_opt_info = (set_opt_info_t *)alloc_share_mem(shm_inst_info, broadcast_req->opt_num * sizeof(set_opt_info_t));
+    if (req->broadcast_req.set_opt_info == NULL) {
+      free_share_mem(shm_inst_req, req);
+      return ERR_GENERIC_INTERNAL_ERROR;
+    }
+    errno_t err_s;
+    err_s = memcpy_s(req->broadcast_req.set_opt_info, broadcast_req->opt_num * sizeof(set_opt_info_t),
+                    broadcast_req->set_opt_info, broadcast_req->opt_num * sizeof(set_opt_info_t));
+    knl_securec_check(err_s);
+    req->result = 0;
+    req->allow_fail = allow_fail;
+    int result = ERR_GENERIC_INTERNAL_ERROR;
+    int ret = ctc_mq_deal_func(shm_inst_req, CTC_FUNC_TYPE_MYSQL_EXECUTE_SET_OPT, req);
+    broadcast_req->err_code = req->broadcast_req.err_code;
+    err_s = strncpy_s(broadcast_req->err_msg, ERROR_MESSAGE_LEN, req->broadcast_req.err_msg,
+        strlen(req->broadcast_req.err_msg));
+    knl_securec_check(err_s);
+    if (ret == CT_SUCCESS) {
+        result = req->result;
+    }
+    free_share_mem(shm_inst_info, req->broadcast_req.set_opt_info);
+    free_share_mem(shm_inst_req, req);
+    return result;
+}
+
 EXTER_ATTACK int close_mysql_connection(uint32_t thd_id, uint32_t mysql_inst_id)
 {
     void* shm_inst = get_upstream_shm_inst();

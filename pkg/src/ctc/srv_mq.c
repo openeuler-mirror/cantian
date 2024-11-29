@@ -133,7 +133,7 @@ mem_class_cfg_t g_mem_class_cfg[MEM_CLASS_NUM] = {
 };
 
 uint32_t g_support_ctc_client[] = {
-    0x0300   // Cantian 3.0 版本号
+    0x0301   // Cantian 3.0 版本号
 };
 
 EXTER_ATTACK static int check_ctc_client_version(uint32_t number)
@@ -1178,6 +1178,15 @@ EXTER_ATTACK int ctc_mq_execute_mysql_ddl_sql(dsw_message_block_t *message_block
     return req->result;
 }
 
+EXTER_ATTACK int ctc_mq_set_opt(dsw_message_block_t *message_block)
+{
+    int result;
+    struct execute_set_opt_request *req = message_block->seg_buf[0];
+    result = ctc_execute_set_opt(&req->tch, &req->broadcast_req, req->allow_fail);
+    req->result = result;
+    return req->result;
+}
+
 EXTER_ATTACK int ctc_mq_invalidate_mysql_dd_cache(dsw_message_block_t *message_block)
 {
     int result;
@@ -1373,6 +1382,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_TYPE_GET_SERIAL_VALUE,              ctc_mq_get_serial_value},
     {CTC_FUNC_TYPE_DROP_TABLE,                    ctc_mq_drop_table},
     {CTC_FUNC_TYPE_EXCUTE_MYSQL_DDL_SQL,          ctc_mq_execute_mysql_ddl_sql},
+    {CTC_FUNC_TYPE_SET_OPT,                       ctc_mq_set_opt},
     {CTC_FUNC_TYPE_BROADCAST_REWRITE_SQL,         ctc_mq_broadcast_rewrite_sql},
     {CTC_FUNC_TYPE_CREATE_TABLESPACE,             ctc_mq_create_tablespace},
     {CTC_FUNC_TYPE_ALTER_TABLESPACE,              ctc_mq_alter_tablespace},
@@ -1526,6 +1536,31 @@ static void ctc_mq_mysql_execute_update_callback(int proc_id, void *rsp, bool *i
     }
 }
 
+static void ctc_mq_mysql_execute_set_opt_callback(int proc_id, void *rsp, bool *is_continue_broadcast)
+{
+    *is_continue_broadcast = true;
+    if (rsp == NULL) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT]:rsp is null.");
+        return;
+    }
+    
+    struct execute_mysql_set_opt_request *tmp_rsp = (struct execute_mysql_set_opt_request *)rsp;
+    if (tmp_rsp->result != CT_SUCCESS) {
+        if (tmp_rsp->allow_fail == true) {
+            *is_continue_broadcast = false;
+            CT_LOG_RUN_ERR("[CTC_SET_OPT]:Fail at begining. result:%d, proc_id:%d, "
+                "err_code:%d, err_msg:%s, allow_fail:%d", tmp_rsp->result, proc_id,
+                tmp_rsp->broadcast_req.err_code, tmp_rsp->broadcast_req.err_msg,
+                tmp_rsp->allow_fail);
+            return;
+        }
+        CT_LOG_RUN_ERR("[CTC_SET_OPT]:remove client, proc_id:%d, err_code:%d,"
+            "allow_fail:%d", proc_id, tmp_rsp->broadcast_req.err_code, tmp_rsp->allow_fail);
+        remove_bad_client(proc_id);
+        tmp_rsp->result = CT_SUCCESS;
+    }
+}
+
 void ctc_mq_rewrite_open_conn_callback(int proc_id, void *rsp, bool *is_continue_broadcast)
 {
     *is_continue_broadcast = true;
@@ -1589,6 +1624,7 @@ static struct mq_send_msg_callback_map g_mq_send_msg_callback[] = {
     {CTC_FUNC_TYPE_UNLOCK_TABLES,                ctc_mq_unlock_tables_callback},
     {CTC_FUNC_TYPE_LOCK_TABLES,                  ctc_mq_lock_tables_callback},
     {CTC_FUNC_TYPE_EXECUTE_REWRITE_OPEN_CONN,    ctc_mq_rewrite_open_conn_callback},
+    {CTC_FUNC_TYPE_MYSQL_EXECUTE_SET_OPT,        ctc_mq_mysql_execute_set_opt_callback},
 };
 
 void mq_send_msg_callback(enum CTC_FUNC_TYPE func_type, int proc_id, void *rsp, bool *is_continue_broadcast)
