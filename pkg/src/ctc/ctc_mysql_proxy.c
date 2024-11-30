@@ -96,6 +96,7 @@ EXTER_ATTACK int ctc_ddl_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *b
     knl_securec_check(err_s);
     req->result = 0;
     req->allow_fail = allow_fail;
+    req->thd_id = thd_id;
     int result = ERR_GENERIC_INTERNAL_ERROR;
     int ret = ctc_mq_deal_func(shm_inst_req, CTC_FUNC_TYPE_MYSQL_EXECUTE_SET_OPT, req);
     broadcast_req->err_code = req->broadcast_req.err_code;
