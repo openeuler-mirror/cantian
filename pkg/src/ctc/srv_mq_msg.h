@@ -435,6 +435,7 @@ struct execute_mysql_ddl_sql_request {
 
 struct execute_mysql_set_opt_request {
     ctc_set_opt_request broadcast_req;
+    uint32_t thd_id;
     int result;
     bool allow_fail;
 };
