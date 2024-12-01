@@ -1205,48 +1205,104 @@ int32 compare_var_data_ins(char *data1, uint16 size1, char *data2, uint16 size2,
     }
 }
 
-cond_pushdown_result_t compare_cond_field_value(ctc_conds *cond, knl_cursor_t *cursor)
+operator_type_t get_ct_cond_opr(ctc_func_type_t ctc_func_type) {
+    switch (ctc_func_type) {
+        case CTC_MOD_FUNC:
+            return OPER_TYPE_MOD;
+        case CTC_PLUS_FUNC:
+            return OPER_TYPE_ADD;
+        case CTC_MINUS_FUNC:
+            return OPER_TYPE_SUB;
+        case CTC_MUL_FUNC:
+            return OPER_TYPE_MUL;
+        case CTC_DIV_FUNC:
+            return OPER_TYPE_DIV;
+        default:
+            return OPER_TYPE_CEIL;
+    }
+}
+
+void ctc_data2variant(variant_t *value, char *ptr, uint32 len, ct_type_t *type)
 {
-    char *ptr = (char *)cursor->row;
-    uint16 *offsets = cursor->offsets;
-    uint16 *lens = cursor->lens;
-
-    uint16 col = cond->field_info.field_no;
-    uint16 col_id = col;
-    if (cond->field_info.null_value) {
-        return compare_cond_field_null(cond, cursor);
-    } else if (check_column_field_is_null(cursor, col)) {
-        return CPR_FALSE;
+    value->type = *type;
+    
+    value->is_null = (len == CT_NULL_VALUE_LEN);
+    if (value->is_null) {
+        return;
     }
 
-    index_t *index = (index_t *)cursor->index;
-    if (index != NULL && cursor->index_only) {
-        col_id = index->desc.columns[col];
+    switch (*type) {
+        case CT_TYPE_UINT32:
+            VALUE(uint32, value) = *(uint32 *)ptr;
+            break;
+        case CT_TYPE_INTEGER:
+            VALUE(int32, value) = *(int32 *)ptr;
+            break;
+        case CT_TYPE_BOOLEAN:
+            VALUE(bool32, value) = *(bool32 *)ptr;
+            break;
+        case CT_TYPE_UINT64:
+            VALUE(uint64, value) = *(uint64*)ptr;
+            break;
+        case CT_TYPE_BIGINT:
+            VALUE(int64, value) = *(int64 *)ptr;
+            break;
+        case CT_TYPE_REAL:
+            VALUE(double, value) = *(double *)ptr;
+            break;
+        case CT_TYPE_NUMBER3:
+            VALUE(dec4_t, value) = *(dec4_t *)ptr;
+            break;
+        case CT_TYPE_CHAR:
+        case CT_TYPE_VARCHAR:
+        case CT_TYPE_STRING:
+            value->v_text.str = ptr;
+            value->v_text.len = len;
+            break;
+        case CT_TYPE_DATE_MYSQL:
+            VALUE(int64, value) = cm_cnvrt_date_from_binary_to_uint((const uchar *)ptr);
+            *type = CT_TYPE_BIGINT;
+            break;
+        case CT_TYPE_TIME_MYSQL:
+            VALUE(int64, value) = cm_cnvrt_time_from_binary_to_int((const uchar *)ptr);
+            *type = CT_TYPE_BIGINT;
+            break;
+        case CT_TYPE_DATETIME_MYSQL:
+            VALUE(int64, value) = cm_cnvrt_datetime_from_binary_to_int((const uchar *)ptr);
+            *type = CT_TYPE_BIGINT;
+            break;
+        case CT_TYPE_TIMESTAMP:
+        case CT_TYPE_DATE:
+            VALUE(int64, value) = *(int64 *)ptr;
+            *type = CT_TYPE_BIGINT;
+            break;
+        default:
+            break;
     }
-    ct_type_t ct_type = (ct_type_t)(dc_get_column((dc_entity_t *)cursor->dc_entity, col_id)->datatype);
-    void *fetch_value = NULL;
-    uint16 fetch_size = 0;
-    if (ct_type == CT_TYPE_CLOB) {
-        lob_locator_t* locator = (lob_locator_t *)(ptr + offsets[col]);
-        if (locator->head.is_outline) {
-            return CPR_TRUE;
-        }
-        fetch_value = locator->data;
-        fetch_size = locator->head.size;
-    } else {
-        fetch_value = ptr + offsets[col];
-        fetch_size = lens[col];
+    return;
+}
+
+
+static inline status_t ctc_opr_exec(operator_type_t oper,
+    const nlsparams_t *nls, variant_t *left, variant_t *right, variant_t *result)
+{
+    if (left->is_null || right->is_null) {
+        result->is_null = CT_TRUE;
+        return CT_SUCCESS;
     }
-    void *field_value = cond->field_info.field_value;
-    uint16 field_size = cond->field_info.field_size;
-    int32 cmp = 0;
-    cmp = var_compare_data_ex(fetch_value, fetch_size, field_value, field_size, ct_type, cond->field_info.collate_id);
-    return (cond_pushdown_result_t)check_value_is_compare(cond->func_type, cmp);
+    opr_operand_set_t op_set = { (nlsparams_t *)nls, left, right, result };
+    result->is_null = CT_FALSE;
+    return g_opr_execs[oper](&op_set);
 }
 
 cond_pushdown_result_t compare_cond_field_null(ctc_conds *cond, knl_cursor_t *cursor)
 {
-    int col = cond->field_info.field_no;
+    ctc_conds *field_cond = cond->cond_list->first;
+    if (field_cond == NULL) {
+        return CPR_TRUE;
+    }
+
+    int col = field_cond->field_info.field_no;
     switch (cond->func_type) {
         case CTC_EQUAL_FUNC:
         case CTC_ISNULL_FUNC:
@@ -1258,13 +1314,132 @@ cond_pushdown_result_t compare_cond_field_null(ctc_conds *cond, knl_cursor_t *cu
     }
 }
 
-cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id)
-{
+int ctc_cond_field_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res) {
     char *ptr = (char *)cursor->row;
     uint16 *offsets = cursor->offsets;
     uint16 *lens = cursor->lens;
 
-    int col = cond->field_info.field_no;
+    uint16 col = cond->field_info.field_no;
+    uint16 col_id = col;
+    if (check_column_field_is_null(cursor, col)) {
+        res->is_null = CT_TRUE;
+        return CT_SUCCESS;
+    }
+    index_t *index = (index_t *)cursor->index;
+    if (index != NULL && cursor->index_only) {
+        col_id = index->desc.columns[col];
+    }
+    ct_type_t ct_type = (ct_type_t)(dc_get_column((dc_entity_t *)cursor->dc_entity, col_id)->datatype);
+    void *fetch_value = NULL;
+    uint16 fetch_size = 0;
+    if (ct_type == CT_TYPE_CLOB) {
+        lob_locator_t* locator = (lob_locator_t *)(ptr + offsets[col]);
+        CT_RETVALUE_IFTRUE(locator->head.is_outline, CT_ERROR);
+        fetch_value = locator->data;
+        fetch_size = locator->head.size;
+    } else {
+        fetch_value = ptr + offsets[col];
+        fetch_size = lens[col];
+    }
+    ctc_data2variant(res, fetch_value, fetch_size, &ct_type);
+    return CT_SUCCESS;
+}
+
+int ctc_cond_value_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res) {
+    if (cond->field_info.null_value) {
+        res->is_null = CT_TRUE;
+        return CT_SUCCESS;
+    }
+    ct_type_t ct_type = get_ct_type_from_ctc_ddl_type(cond->field_info.field_type, cond->field_info.is_unsigned);
+    ctc_data2variant(res, cond->field_info.field_value, cond->field_info.field_size, &ct_type);
+    return CT_SUCCESS;
+}
+
+int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res_var) {
+    if (cond == NULL) {
+        CT_LOG_RUN_ERR("[dfs_compute_conds] failed to compute cond.");
+        return CT_ERROR;
+    }
+
+    if (cond->cond_type == CTC_FIELD_EXPR) {
+        CTC_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
+        CTC_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
+        return ctc_cond_field_var(cond, cursor, charset_id, res_var);
+    }
+    
+    if (cond->cond_type == CTC_CONST_EXPR) {
+        return ctc_cond_value_var(cond, cursor, charset_id, res_var);
+    }
+
+    operator_type_t oper_type = get_ct_cond_opr(cond->func_type);
+    if (oper_type == OPER_TYPE_CEIL) {
+        CT_LOG_RUN_ERR("[dfs_compute_conds]: unknown arithmatic operation: %u.",
+            (uint8)cond->func_type);
+        return CT_ERROR;
+    }
+
+    variant_t left = { 0 }, right = { 0 };
+    if (compute_cond_elements(cond, cursor, charset_id, &left, &right) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    if (ctc_opr_exec(oper_type, NULL, &left, &right, res_var) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[dfs_compute_conds]: failed to do arithmatic operation: %u.",
+            (uint8)cond->func_type);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+int compute_cond_elements(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
+                          variant_t *left, variant_t *right)
+{
+    // only support for condition with two operands
+    if (cond->cond_list->elements != 2) {
+        CT_LOG_RUN_ERR("[compute_cond_elements]: not supported condition, func type: %u.,cond type: %u.",
+            (uint8)cond->func_type, (uint8)cond->cond_type);
+        return CT_ERROR;
+    }
+    ctc_conds *left_node = cond->cond_list->first;
+    if (dfs_compute_conds(left_node, cursor, charset_id, left) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    ctc_conds *right_node = left_node->next;
+    if (dfs_compute_conds(right_node, cursor, charset_id, right) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id)
+{
+    if (cond == NULL || cond->cond_type != CTC_LIKE_EXPR) {
+        return CPR_TRUE;
+    }
+
+    // only support for condition with two operands
+    if (cond->cond_list->elements != 2) {
+        CT_LOG_RUN_ERR("[compute_cond_elements]: not supported condition, func type: %u.,cond type: %u.",
+            (uint8)cond->func_type, (uint8)cond->cond_type);
+        return CT_ERROR;
+    }
+
+    ctc_conds *field_cond = cond->cond_list->first;
+    if (field_cond == NULL) {
+        return CPR_TRUE;
+    }
+
+    ctc_conds *value_cond = field_cond->next;
+    if (value_cond == NULL) {
+        return CPR_TRUE;
+    }
+
+    char *ptr = (char *)cursor->row;
+    uint16 *offsets = cursor->offsets;
+    uint16 *lens = cursor->lens;
+
+    int col = field_cond->field_info.field_no;
     uint16 col_id = col;
     // return CPR_FALSE when data is NULL
     CT_RETVALUE_IFTRUE(check_column_field_is_null(cursor, col), CPR_FALSE);
@@ -1275,7 +1450,7 @@ cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cu
     }
     ct_type_t ct_type = (ct_type_t)(dc_get_column((dc_entity_t *)cursor->dc_entity, col_id)->datatype);
 
-    text_t field = {(char *)cond->field_info.field_value, cond->field_info.field_size};
+    text_t value = {(char *)value_cond->field_info.field_value, value_cond->field_info.field_size};
 
     text_t fetch;
     if (ct_type != CT_TYPE_CLOB) {
@@ -1290,11 +1465,11 @@ cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cu
     
     bool32 result = CT_TRUE;
     int32 cmp_ret = 0;
-    if (!cm_is_collate_sensitive(cond->field_info.collate_id)) {
-        if (cond->field_info.no_backslash) {
-            result = cm_text_like_ins(&fetch, &field, (charset_type_t)charset_id);
+    if (!cm_is_collate_sensitive(field_cond->field_info.collate_id)) {
+        if (value_cond->field_info.no_backslash) {
+            result = cm_text_like_ins(&fetch, &value, (charset_type_t)charset_id);
         } else {
-            if (cm_text_like_escape_ins(fetch.str, fetch.str + fetch.len, field.str, field.str + field.len,
+            if (cm_text_like_escape_ins(fetch.str, fetch.str + fetch.len, value.str, value.str + value.len,
                                     '\\', &cmp_ret, (charset_type_t)charset_id) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("cm_text_like_escape_ins FAIL, errno = %d.", ctc_get_and_reset_err());
                 return CPR_ERROR;
@@ -1302,10 +1477,10 @@ cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cu
             result = (cmp_ret == 0);
         }
     } else {
-        if (cond->field_info.no_backslash) {
-            result = cm_text_like(&fetch, &field, (charset_type_t)charset_id);
+        if (value_cond->field_info.no_backslash) {
+            result = cm_text_like(&fetch, &value, (charset_type_t)charset_id);
         } else {
-            if (cm_text_like_escape(fetch.str, fetch.str + fetch.len, field.str, field.str + field.len,
+            if (cm_text_like_escape(fetch.str, fetch.str + fetch.len, value.str, value.str + value.len,
                     '\\', &cmp_ret, (charset_type_t)charset_id) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("cm_text_like_escape FAIL, errno = %d.", ctc_get_and_reset_err());
                 return CPR_ERROR;
@@ -1314,6 +1489,36 @@ cond_pushdown_result_t compare_cond_field_like(ctc_conds *cond, knl_cursor_t *cu
         }
     }
     return (cond_pushdown_result_t)result;
+}
+
+cond_pushdown_result_t compare_cond_field_value(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id)
+{
+    if (cond == NULL || cond->cond_type == CTC_UNKNOWN_EXPR || cond->func_type == CTC_UNKNOWN_FUNC) {
+        return CPR_TRUE;
+    }
+
+    variant_t left = { 0 }, right = { 0 };
+    if (compute_cond_elements(cond, cursor, charset_id, &left, &right) != CT_SUCCESS) {
+        return CPR_TRUE;
+    }
+
+    if (left.is_null || right.is_null) {
+        // select * from tbl where col <=> null;
+        if (left.is_null && right.is_null && cond->func_type == CTC_EQUAL_FUNC) {
+            return CPR_TRUE;
+        }
+        return CPR_FALSE;
+    }
+
+    int cmp = 0;
+    if (CT_IS_STRING_TYPE(left.type)) {
+        cmp = var_compare_data_ex(left.v_text.str, left.v_text.len, right.v_text.str, right.v_text.len, left.type, cond->field_info.collate_id);
+    } else {
+        if (var_compare(NULL, &left, &right, &cmp) != CT_SUCCESS) {
+            return CPR_TRUE;
+        }
+    }
+    return (cond_pushdown_result_t)check_value_is_compare(cond->func_type, cmp);
 }
 
 cond_pushdown_result_t dfs_compare_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id)
@@ -1343,8 +1548,6 @@ cond_pushdown_result_t dfs_compare_conds(ctc_conds *cond, knl_cursor_t *cursor, 
             case CTC_XOR_FUNC:
                 ret ^= (bool)cur_result; // ret,cur_result value is (0,1)
                 break;
-            case CTC_NOT_FUNC:
-                return !cur_result;
             default:
                 return CPR_ERROR;
         }
@@ -1358,28 +1561,17 @@ cond_pushdown_result_t check_cond_match_one_line(ctc_conds *cond, knl_cursor_t *
     if (cond == NULL) {
         return CPR_TRUE;
     }
-    switch (cond->func_type) {
-        case CTC_COND_AND_FUNC:
-        case CTC_COND_OR_FUNC:
-        case CTC_XOR_FUNC:
-        case CTC_NOT_FUNC:
+    switch (cond->cond_type) {
+        case CTC_LOGIC_EXPR:
             return dfs_compare_conds(cond, cursor, charset_id);
-        case CTC_EQ_FUNC:
-        case CTC_EQUAL_FUNC:
-        case CTC_NE_FUNC:
-        case CTC_LT_FUNC:
-        case CTC_LE_FUNC:
-        case CTC_GE_FUNC:
-        case CTC_GT_FUNC:
-            CTC_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
-            CTC_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
-            return compare_cond_field_value(cond, cursor);
-        case CTC_ISNULL_FUNC:
-        case CTC_ISNOTNULL_FUNC:
+        case CTC_ARITHMATIC_EXPR:
+        case CTC_CMP_EXPR:
+            return compare_cond_field_value(cond, cursor, charset_id);
+        case CTC_NULL_EXPR:
             CTC_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
             CTC_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
             return compare_cond_field_null(cond, cursor);
-        case CTC_LIKE_FUNC:
+        case CTC_LIKE_EXPR:
             CTC_RET_IF_CPR_ERR(update_cond_field_col(cursor, &cond->field_info));
             CTC_RET_IF_CP_INVALID_COL(cond->field_info.index_only_invalid_col);
             return compare_cond_field_like(cond, cursor, charset_id);
@@ -1388,6 +1580,7 @@ cond_pushdown_result_t check_cond_match_one_line(ctc_conds *cond, knl_cursor_t *
             return CPR_ERROR;
     }
 }
+
 status_t ctc_open_dc(char *user_name, char *table_name, sql_stmt_t *stmt, knl_dictionary_t *dc)
 {
     knl_handle_t knl = &stmt->session->knl_session;
