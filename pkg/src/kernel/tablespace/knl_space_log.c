@@ -1511,8 +1511,18 @@ void rd_spc_create_datafile_cantian(knl_session_t *session, log_entry_t *log)
     }
 
     if (CANTIAN_REPLAY_NODE(session) && !cm_exist_device(redo->datafile.type, redo->datafile.name)) {
-        CT_LOG_RUN_ERR("replay create df %s failed, df device not exist when sync ddl", redo->datafile.name);
-        return;
+        if (redo->datafile.type == DEV_TYPE_FILE) {
+            uint32 times = 0;
+            while (!cm_file_exist(redo->datafile.name)) {
+                if (times >= CM_CHECK_FILE_TIMEOUT) {
+                    CM_ABORT(0, "replay create df %s failed, df device not exist when sync ddl", redo->datafile.name);
+                }
+                times++;
+                cm_sleep(100);  // sleep 100ms
+            }
+        } else {
+            CM_ABORT(0, "replay create df %s failed, df device not exist when sync ddl", redo->datafile.name);
+        }
     }
     page_id_t entry;
     entry.file = redo->datafile.id;
