@@ -4,6 +4,7 @@ CURRENT_PATH=$(dirname $(readlink -f $0))
 DBSTOOL_PATH='/opt/cantian/dbstor'
 LOG_NAME='cgwshowdev.log'
 DEL_DATABASE_SH='del_databasealldata.sh'
+dr_setup=`python3 ${CURRENT_PATH}/../docker/get_config_info.py "dr_deploy.dr_setup"`
 
 # 停止 cstool 进程
 function kill_process()
@@ -17,7 +18,6 @@ function kill_process()
 
 function execute_dbstor_query_file()
 {
-  echo "Begin to check file system $1"
   local fs=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "$1")
   if [ $1 == "storage_dbstore_fs" ];then
     local dbstore_fs_vstore_id=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id")
@@ -28,20 +28,22 @@ function execute_dbstor_query_file()
   if [[ $? -ne 0 ]];then
     echo "Fail to query file system [$1], please check if vstore id matches file system [$1]"
     exit 1
-  else
-    echo "File system $1 check pass"
   fi
 }
 
 function check_file_system()
 {
-  execute_dbstor_query_file "storage_dbstore_fs"
-  execute_dbstor_query_file "storage_dbstore_page_fs"
+  echo "Begin to check file system" >> /opt/cantian/log/dbstor/install.log
+  if [[ ! -f "${CURRENT_PATH}/../../config/dr_deploy_param.json" ]] && [[ x"${dr_setup}" != x"True" ]];then
+    execute_dbstor_query_file "storage_dbstore_fs"
+    execute_dbstor_query_file "storage_dbstore_page_fs"
+  fi
   deploy_mode=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_mode")
   if [[ ${deploy_mode} == "dbstor" ]];then
     execute_dbstor_query_file "storage_share_fs"
     execute_dbstor_query_file "storage_archive_fs"
   fi
+  echo "File system check pass" >> /opt/cantian/log/dbstor/install.log
 }
 
 function main()
@@ -64,7 +66,6 @@ function main()
     if [[ -f /opt/cantian/youmai_demo ]];then
         return
     fi
-    check_file_system
     /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/log/dbstor/install.log
     if [[ $? -ne 0 ]];then
         cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
@@ -86,6 +87,7 @@ function main()
                 please contact the engineer to solve."
         exit 1
     fi
+    check_file_system
 }
 
 main $@

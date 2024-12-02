@@ -39,6 +39,8 @@ def get_value(param):
     value = info
     try:
         for key in keys:
+            if value == "":
+                return value
             value = value.get(key, "")
         return value
     except (KeyError, TypeError):

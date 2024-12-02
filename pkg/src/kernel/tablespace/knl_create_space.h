@@ -32,6 +32,8 @@
 extern "C" {
 #endif
 
+#define CM_CHECK_FILE_TIMEOUT 1200
+
 bool32 spc_try_init_punch_head(knl_session_t *session, space_t *space);
 status_t spc_create_space_precheck(knl_session_t *session, knl_space_def_t *def);
 status_t spc_create_space(knl_session_t *session, knl_space_def_t *def, uint32 *id);

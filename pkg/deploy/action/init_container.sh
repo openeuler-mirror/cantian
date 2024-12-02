@@ -19,19 +19,15 @@ source ${CURRENT_PATH}/log4sh.sh
 
 # 检查dbstor的user与pwd是否正确
 function check_dbstor_usr_passwd() {
-    logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    logAndEchoInfo "check username and password of dbstor and check filesystem. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     chown -hR ${cantian_user}:${cantian_group} /opt/cantian/image/Cantian-RUN-CENTOS-64bit/cfg
     su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
     install_result=$?
     if [ ${install_result} -ne 0 ]; then
-        logAndEchoError "check dbstor passwd failed, possible reasons:
-            1 username or password of dbstor storage service is incorrect.
-            2 cgw create link failed.
-            3 ip address of dbstor storage service is incorrect.
-            please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "check username and password of dbstor or check filesystem failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         exit 1
     else
-        logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "user and password of dbstor check pass and filesystem check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     fi
 }
 
