@@ -153,13 +153,8 @@ function update_mysql_config() {
             else
                 # 处理普通键值对
                 if grep -q "^${key}=" "${my_cnf_file}"; then
-                    SPEC_NUM=$(grep "^${key}=" | cut -d= -f2)
-                    if [[ "${value}" -lt "${SPEC_NUM}" ]]; then
-                        sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
-                        logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
-                    else
-                        logAndEchoInfo "'${key}' up to limit."
-                    fi
+                    sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
+                    logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
                 else
                     echo -e "\n${key}=${value}" >> "${my_cnf_file}"
                     logAndEchoInfo "Added '${key}' with value '${value}' to my.cnf."

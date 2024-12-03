@@ -395,33 +395,35 @@ def main():
 
     numa_data, file_handle = open_and_lock_json(NUMA_INFO_PATH)
 
-    # 清理 JSON 中不再存在的 POD 信息
-    hostname_pattern = r'cantian.*-node.*'
-    cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
+    try:
+        # 清理 JSON 中不再存在的 POD 信息
+        hostname_pattern = r'cantian.*-node.*'
+        cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
 
-    # 找到与当前 short_hostname 匹配的 Pod 全名，并执行绑定操作
-    start_time = time.time()
-    while True:
-        try:
-            pod_name_full = get_pod_name_from_info(all_pod_info, short_hostname)
-            if pod_name_full:
-                cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
-                LOG.info("CPU binding executed successfully.")
-                break
-        except Exception as e:
-            err_msg = f"Error during CPU binding: {e}"
-            LOG.error(err_msg)
-            raise Exception(err_msg)
+        # 找到与当前 short_hostname 匹配的 Pod 全名，并执行绑定操作
+        start_time = time.time()
+        while True:
+            try:
+                pod_name_full = get_pod_name_from_info(all_pod_info, short_hostname)
+                if pod_name_full:
+                    cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
+                    break
+            except Exception as e:
+                err_msg = f"Error during CPU binding: {e}"
+                LOG.error(err_msg)
+                raise Exception(err_msg)
 
-        if time.time() - start_time >= MAX_CHECK_TIME:
-            err_msg = "Pod not found in the cluster."
-            LOG.error(err_msg)
-            raise Exception("Pod not found in the cluster.")
-        else:
-            all_pod_info = k8s_service.get_all_pod_info()
-            time.sleep(CHECK_INTERVAL)
+            if time.time() - start_time >= MAX_CHECK_TIME:
+                err_msg = "Pod not found in the cluster."
+                LOG.error(err_msg)
+                raise Exception("Pod not found in the cluster.")
+            else:
+                all_pod_info = k8s_service.get_all_pod_info()
+                time.sleep(CHECK_INTERVAL)
 
-    write_and_unlock_json(numa_data, file_handle)
+    finally:
+        write_and_unlock_json(numa_data, file_handle)
+
     LOG.info("NUMA information updated successfully.")
 
 
