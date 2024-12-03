@@ -58,7 +58,7 @@ class SshClient(object):
         time.sleep(1)
         t = 0
         interval = 0.5
-        while not output.endswith(expect) and t < timeout:
+        while not output.strip().endswith(expect.strip()) and t < timeout:
             time.sleep(interval)
             t += interval
             if session.closed:
@@ -118,6 +118,7 @@ class SshClient(object):
         :param dest: abs file path
         :return:
         """
+        sftp = None
         try:
             sftp = paramiko.SFTPClient.from_transport(self.ssh_client['client'])
             sftp.put(source, dest)
@@ -125,6 +126,9 @@ class SshClient(object):
             err_msg = f"Upload failed from {source} to {dest}, details: {err}"
             logger.error(err_msg)
             raise err
+        finally:
+            if sftp is not None:
+                sftp.close()
 
     def down_file(self, source, dest, filename=None):
         """
@@ -133,16 +137,20 @@ class SshClient(object):
         :param filename: dest file name
         :return:
         """
-        if filename is None:
-            filename = os.path.basename(source)
-        dest = os.path.join(dest, filename)
-        if os.path.exists(dest):
-            os.remove(dest)
+        sftp = None
         try:
+            if filename is None:
+                filename = os.path.basename(source)
+            dest = os.path.join(dest, filename)
+            if os.path.exists(dest):
+                os.remove(dest)
             sftp = paramiko.SFTPClient.from_transport(self.ssh_client['client'])
             sftp.get(source, dest)
         except Exception as err:
             err_msg = f"download failed from {source} to {dest}, details: {err}"
             logger.error(err_msg)
             raise err
+        finally:
+            if sftp is not None:
+                sftp.close()
 

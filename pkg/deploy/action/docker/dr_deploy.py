@@ -1,3 +1,4 @@
+import getpass
 import json
 import os
 import shutil
@@ -7,6 +8,8 @@ import importlib.util
 import signal
 import subprocess
 import traceback
+import pwd
+import grp
 
 from get_config_info import get_value
 from resolve_pwd import resolve_kmc_pwd
@@ -58,6 +61,16 @@ def get_file_json(file_path):
         return json.load(f)
 
 
+def chown(file_path, u_id, g_id):
+    os.chown(file_path, u_id, g_id)
+    if os.path.isdir(file_path):
+        for root, dirs, files in os.walk(file_path):
+            for dir in dirs:
+                chown(os.path.join(root, dir), u_id, g_id)
+            for file in files:
+                os.chown(os.path.join(root, file), u_id, g_id)
+
+
 def close_child_process(proc):
     try:
         os.killpg(proc.pid, signal.SIGKILL)
@@ -101,15 +114,15 @@ def exec_popen(cmd, timeout=None):
     return return_code, stdout, stderr
 
 
-def execute_command(command, print_screen=False, raise_flag=False, timeout=None):
+def execute_command(command, raise_flag=False, timeout=None):
     code, out, err = exec_popen(command, timeout=timeout)
     if code:
+        if "echo" in command:
+            command = command.split("|", 1)[1]
         LOG.error(f"execute cmd[{command}] failed, err[{err}], out[{out}].")
         if raise_flag:
             raise Exception(f"execute cmd[{command}] failed, err[{err}], out[{out}.")
-    if not code:
-        if print_screen:
-            print(out)
+    print(out)
     return code, out, err
 
 
@@ -131,7 +144,7 @@ def get_dr_status(dm_password=None):
         LOG.error("DM Password is empty.")
     cmd = (f"echo -e '{dm_password}' | sh {SCRIPT_PATH}/appctl.sh dr_operate progress_query "
            f"--action=check --display=table 2>&1 | grep -E '^\-|^\|'")
-    execute_command(cmd, print_screen=True, raise_flag=True, timeout=30)
+    execute_command(cmd, raise_flag=True, timeout=30)
     data_json = get_file_json(os.path.join(CONFIG_PATH, "dr_status.json"))
     return data_json.get("dr_status")
 
@@ -168,7 +181,12 @@ def check_dr_deploy_process_completed(role):
                     if last_status != status:
                         LOG.info(f"dr_deploy {key}: {status}")
                         last_status = status
-                    step = index
+                        step = index
+                        continue
+                    elif step != index:
+                        LOG.info(f"dr_deploy {key}: {status}")
+                        step = index
+                        continue
                     break
         else:
             LOG.info("Unexpected status for dr_deploy.")
@@ -188,7 +206,7 @@ def dr_deploy(role=None, dm_password=None, mysql_pwd=''):
         role = get_value("dr_deploy.role")
     cmd = (f"echo -e '{dm_password}' | sh {SCRIPT_PATH}/appctl.sh dr_operate pre_check {role} "
            f"--conf=/opt/cantian/config/deploy_param.json")
-    execute_command(cmd, print_screen=True, raise_flag=True, timeout=300)
+    execute_command(cmd, raise_flag=True, timeout=300)
     LOG.info("dr_operate pre_check success.")
 
     dr_process_file = os.path.join(CONFIG_PATH, "dr_process_record.json")
@@ -197,12 +215,25 @@ def dr_deploy(role=None, dm_password=None, mysql_pwd=''):
 
     cmd = (f"echo -e '{dm_password}\n{mysql_pwd}' | sh {SCRIPT_PATH}/appctl.sh dr_operate deploy {role} "
            f"--mysql_cmd='mysql' --mysql_user=root")
-    execute_command(cmd, print_screen=True, raise_flag=True)
+    execute_command(cmd, raise_flag=True)
 
     if check_dr_deploy_process_completed(role):
         LOG.info("dr_deploy succeeded.")
         sys.exit(0)
     sys.exit(1)
+
+
+def copy_version_yaml(deploy_user, deploy_group):
+    deploy_user_info = pwd.getpwnam(deploy_user)
+    deploy_group_info = grp.getgrnam(deploy_group)
+    u_id = deploy_user_info.pw_uid
+    g_id = deploy_group_info.gr_gid
+    version_file = os.path.join(SCRIPT_PATH, "../versions.yml")
+    chown(version_file, u_id, g_id)
+    storage_share_fs = get_value("storage_share_fs")
+    cmd = (f'su -s /bin/bash - "{deploy_user}" -c "dbstor --create-file '
+           f'--fs-name={storage_share_fs} --source-dir={version_file} --file-name=versions.yml"')
+    execute_command(cmd, timeout=180)
 
 
 def start_mysqld(deploy_user=None, deploy_group=None):
@@ -215,7 +246,7 @@ def start_mysqld(deploy_user=None, deploy_group=None):
            f"-B /opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit/install.py "
            f"-U {deploy_user}:{deploy_group} -l /home/{deploy_user}/logs/install.log "
            f"-M mysqld -m /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf -g withoutroot'")
-    execute_command(cmd, print_screen=True, raise_flag=True, timeout=300)
+    execute_command(cmd, raise_flag=True, timeout=300)
     LOG.info(f"start mysqld success.")
 
 
@@ -240,8 +271,11 @@ def dr_start_deploy():
         sys.exit(1)
 
     if int(count) > 0:
-        cmd = f"chown -R {deploy_user}:{deploy_group} {OPT_CONFIG_PATH}"
-        execute_command(cmd, timeout=10)
+        deploy_user_info = pwd.getpwnam(deploy_user)
+        deploy_group_info = grp.getgrnam(deploy_group)
+        u_id = deploy_user_info.pw_uid
+        g_id = deploy_group_info.gr_gid
+        os.chown(OPT_CONFIG_PATH, u_id, g_id)
         if deploy_mode == "dbstor":
             cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --copy-file --fs-name={storage_fs} "
                    f"--source-dir=/ --target-dir={OPT_CONFIG_PATH} --file-name=dr_deploy_param.json'")
@@ -256,15 +290,17 @@ def dr_start_deploy():
             LOG.error(msg)
 
         cmd = f"sh {SCRIPT_PATH}/appctl.sh start"
-        execute_command(cmd, print_screen=True, raise_flag=True, timeout=3600)
+        execute_command(cmd, raise_flag=True, timeout=3600)
         if get_value("cantian_in_container") == "1" and get_value("M_RUNING_MODE") != "cantiand_with_mysql_in_cluster":
             start_mysqld(deploy_user, deploy_group)
     else:
         if role == "active":
             cmd = f"sh {SCRIPT_PATH}/appctl.sh start"
-            execute_command(cmd, print_screen=True, raise_flag=True, timeout=3600)
-        if get_value("cantian_in_container") == "1" and get_value("M_RUNING_MODE") != "cantiand_with_mysql_in_cluster":
-            start_mysqld(deploy_user, deploy_group)
+            execute_command(cmd, raise_flag=True, timeout=3600)
+            if (get_value("cantian_in_container") == "1" and
+                    get_value("M_RUNING_MODE") != "cantiand_with_mysql_in_cluster"):
+                start_mysqld(deploy_user, deploy_group)
+            copy_version_yaml(deploy_user, deploy_group)
         LOG.info("dr_setup is True, executing dr_deploy tasks.")
         dr_deploy(role=role, dm_password=dm_password)
     LOG.info("DR_deploy Already executed.")
@@ -284,7 +320,7 @@ def main():
     }
     mysql_pwd = ''
     if len(sys.argv) == 1:
-        mysql_pwd = input("Please input mysql login passwd: ")
+        mysql_pwd = getpass.getpass("Please input mysql login passwd:")
 
     if len(sys.argv) > 1:
         if sys.argv[1] in action_dict:
