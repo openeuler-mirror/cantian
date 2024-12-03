@@ -34,6 +34,7 @@ modify_sys_table_flag=""
 deploy_user=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_user")
 deploy_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
 deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+CPU_CONFIG_INFO="/opt/cantian/cantian/cfg/cpu_config.json"
 CLUSTER_PREPARED=3
 NFS_TIMEO=50
 
@@ -429,6 +430,14 @@ function update_user_env() {
     fi
 }
 
+function check_and_update_cpu_config() {
+    # 检查 绑核 文件是否存在，适配旧版本升级后默认绑核失效的问题
+    if [ ! -f "${CPU_CONFIG_INFO}" ]; then
+        su -s /bin/bash - "${cantian_user}" -c "python3 ${CURRENT_PATH}/cantian/bind_cpu_config.py init_config"
+        su -s /bin/bash - "${cantian_user}" -c "python3 ${CURRENT_PATH}/cantian/bind_cpu_config.py"
+    fi
+}
+
 #  升级
 function do_upgrade() {
     logAndEchoInfo "begin to upgrade"
@@ -460,6 +469,7 @@ function do_upgrade() {
 
     uninstall_rpm
     install_rpm
+    check_and_update_cpu_config
 
     for upgrade_module in "${UPGRADE_ORDER[@]}";
     do

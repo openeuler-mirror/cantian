@@ -60,6 +60,10 @@ class UpdateDRParams(object):
                     err_msg = f"Execution of chown command failed, output: {output}, stderr: {stderr}"
                     LOG.error(err_msg)
                     raise Exception(err_msg)
+            else:
+                if os.path.exists(dr_deploy_param_file):
+                    os.remove(dr_deploy_param_file)
+                    LOG.info(f"Removing {dr_deploy_param_file}")
 
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
@@ -143,10 +147,15 @@ class UpdateDRParams(object):
         hyper_metro_vstore_pair_id = dr_deploy_params.get("vstore_pair_id")
         ulog_fs_pair_id = dr_deploy_params.get("ulog_fs_pair_id")
         dr_deploy_opt = DRDeployCommon(storage_operate)
+        LOG.info(f"begin to check hyper metro domain[{hyper_domain_id}]")
         dr_deploy_opt.query_hyper_metro_domain_info(hyper_domain_id)
+        LOG.info(f"begin to check hyper metro vstore pair[{hyper_metro_vstore_pair_id}]")
         dr_deploy_opt.query_hyper_metro_vstore_pair_info(hyper_metro_vstore_pair_id)
+        LOG.info(f"begin to check hyper metro filesystem pair[{ulog_fs_pair_id}]")
         dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(ulog_fs_pair_id)
+        LOG.info(f"begin to check remote replication pair[{page_fs_pair_id}]")
         dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(page_fs_pair_id)
         if not self.mysql_metadata_in_cantian:
+            LOG.info(f"begin to check remote replication pair[{meta_fs_pair_id}]")
             dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(meta_fs_pair_id)
 

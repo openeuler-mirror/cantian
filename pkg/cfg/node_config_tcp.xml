@@ -10,6 +10,7 @@
 		<!-- 配置umm -->
 		<umm>
 			<uprocess name='default'><!--进程类型名称-->
+				<dpmm_max_threadcache count='1024'/>
 				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
 				<page_num min_num="0" max_num='768000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
 				<req_num min_num="0" max_num='204800'/>
@@ -25,6 +26,7 @@
 		<!-- 配置umm -->
 		<umm>
 			<uprocess name='default'><!--进程类型名称-->
+				<dpmm_max_threadcache count='1024'/>
 				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
 				<page_num min_num="0" max_num='768000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
 				<req_num min_num="0" max_num='204800'/>
@@ -40,6 +42,7 @@
 		<!-- 配置umm -->
 		<umm>
 			<uprocess name='default'><!--进程类型名称-->
+				<dpmm_max_threadcache count='1024'/>
 				<process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
 				<page_num min_num="0" max_num='768000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
 				<req_num min_num="0" max_num='204800'/>
@@ -55,6 +58,7 @@
                 <!-- 配置umm -->
                 <umm>
                         <uprocess name='default'><!--进程类型名称-->
+								<dpmm_max_threadcache count='1024'/>
                                 <process_quota size='7185'/><!--进程总内存配额大小，以M为单位，最大不超过4G-->
                                 <page_num min_num="0" max_num='768000'/><!--配置page、sgl、req的数量，若不配置认为数量是0；预留的零页面会占用1个page数量-->
                                 <req_num min_num="0" max_num='204800'/>

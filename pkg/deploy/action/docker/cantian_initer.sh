@@ -153,13 +153,8 @@ function update_mysql_config() {
             else
                 # 处理普通键值对
                 if grep -q "^${key}=" "${my_cnf_file}"; then
-                    SPEC_NUM=$(grep "^${key}=" | cut -d= -f2)
-                    if [[ "${value}" -lt "${SPEC_NUM}" ]]; then
-                        sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
-                        logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
-                    else
-                        logAndEchoInfo "'${key}' up to limit."
-                    fi
+                    sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
+                    logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
                 else
                     echo -e "\n${key}=${value}" >> "${my_cnf_file}"
                     logAndEchoInfo "Added '${key}' with value '${value}' to my.cnf."
@@ -384,6 +379,39 @@ function set_version_file() {
     fi
 }
 
+function check_only_start_file() {
+    if [ x"${deploy_mode}" == x"dbstor" ]; then
+        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path=/' | grep "onlyStart.file" | wc -l)
+        if [ ${versions_no_nas} -eq 1 ]; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        if [[ -f "${VERSION_PATH}/onlyStart.file" ]]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
+
+function set_only_cantian_start_file() {
+    check_only_start_file
+    is_start_file_exist=$?
+    if [ ${is_start_file_exist} -eq 1 ]; then
+        if [ x"${deploy_mode}" == x"dbstor" ]; then
+            su -s /bin/bash - "${cantian_user}" -c 'dbstor --create-file --fs-name='"${storage_share_fs}"' --file-name=onlyStart.file'
+            if [ $? -ne 0 ]; then
+                logAndEchoError "Execute dbstor tool command: --create-file failed."
+                exit_with_log
+            fi
+        else
+            touch "${VERSION_PATH}/onlyStart.file"
+        fi
+    fi
+}
+
 function start_mysqld() {
     logAndEchoInfo "Begin to start mysqld. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     su -s /bin/bash - ${deploy_user} -c "python3 -B \
@@ -414,7 +442,8 @@ function init_start() {
     fi
     dr_action=$(python3 "${CURRENT_PATH}"/get_config_info.py "dr_action")
     if [[ x"${dr_action}" == x"recover" ]];then
-      exit 0
+      # 应对容灾主备切换，recover模式不去拉起参天，避免出现双写
+      tail -f /dev/null
     fi
     python3 ${PRE_INSTALL_PY_PATH} 'sga_buffer_check'
 
@@ -467,7 +496,7 @@ function init_start() {
         if [[ "${cantian_in_container}" == "1" ]] && [[ "${run_mode}" != "cantiand_with_mysql_in_cluster" ]]; then
             start_mysqld
         fi
-
+        set_only_cantian_start_file
     fi
 
     set_version_file

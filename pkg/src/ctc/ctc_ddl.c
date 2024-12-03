@@ -843,9 +843,6 @@ EXTER_ATTACK int ctc_execute_mysql_ddl_sql(ctc_handler_t *tch, ctc_ddl_broadcast
     if (DB_ATTR_MYSQL_META_IN_DACC(knl_session) && !(broadcast_req->sql_command == SQLCOM_SET_OPTION)) {
         return CT_SUCCESS;
     }
-    if (tch->query_id == session->query_id && broadcast_req->sql_command != SQLCOM_DROP_TABLE) {
-        return CT_SUCCESS;
-    }
     session->query_id = tch->query_id;
     
     if (broadcast_req->sql_command != SQLCOM_SET_OPTION && !ctc_check_db_exists(knl_session, broadcast_req->db_name)) {
