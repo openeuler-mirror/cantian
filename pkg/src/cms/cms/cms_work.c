@@ -1231,7 +1231,7 @@ void cms_proc_uds_msg_req_version(cms_packet_head_t* msg)
         CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_version_t buf failed.");
         return;
     }
-    if (sizeof(cms_tool_msg_res_version_t) > msg->msg_size) {
+    if (sizeof(cms_tool_msg_req_version_t) > msg->msg_size) {
         CMS_LOG_ERR("uds msg req version msg size %u is invalid.", msg->msg_size);
         return;
     }
@@ -2311,7 +2311,7 @@ void cms_proc_uds_msg_req_stop_srv(cms_packet_head_t* msg)
         return;
     }
 
-    if (sizeof(cms_tool_msg_res_stop_srv_t) > msg->msg_size) {
+    if (sizeof(cms_tool_msg_req_stop_srv_t) > msg->msg_size) {
         CMS_LOG_ERR("uds msg req stop srv msg size %u is invalid.", msg->msg_size);
         return;
     }
@@ -3106,7 +3106,7 @@ void cms_proc_msg_req_get_iostat(cms_packet_head_t *msg)
         CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_iostat_t buf failed.");
         return;
     }
-    if (sizeof(cms_tool_msg_res_iostat_t) > msg->msg_size) {
+    if (sizeof(cms_tool_msg_req_iostat_t) > msg->msg_size) {
         CMS_LOG_ERR("cms proc msg req get iostat msg size %u invalid.", msg->msg_size);
         return;
     }
@@ -3141,7 +3141,7 @@ void cms_proc_msg_req_reset_iostat(cms_packet_head_t *msg)
         CMS_LOG_ERR("cms malloc msg cms_tool_msg_res_reset_iostat_t buf failed.");
         return;
     }
-    if (sizeof(cms_tool_msg_res_reset_iostat_t) > msg->msg_size) {
+    if (sizeof(cms_tool_msg_req_reset_iostat_t) > msg->msg_size) {
         CMS_LOG_ERR("cms proc msg req reset iostat msg size %u invalid.", msg->msg_size);
         return;
     }
