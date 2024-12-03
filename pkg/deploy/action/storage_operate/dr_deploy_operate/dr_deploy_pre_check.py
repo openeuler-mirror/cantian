@@ -349,11 +349,16 @@ class DRDeployPreCheck(object):
         metadata_fs_id = metadata_fs_info.get("ID")
         page_fs_id = dbstore_page_fs_info.get("ID")
         domain_infos = self.deploy_operate.query_hyper_metro_domain_info()
-        domain_name = self.local_conf_params.get("domain_name", "")
+        cantian_in_container = self.deploy_params.get("cantian_in_container")
+        if cantian_in_container == "0":
+            random_seed = LSIDGenerate.generate_random_seed()
+            cluster_id = self.local_conf_params.get("cluster_id")
+            domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
+        else:
+            domain_name = self.local_conf_params.get("domain_name", "")
         if domain_name == "":
             err_msg.append("The 'domain_name' parameter of the 'deploy_param.json' file is empty.")
         domain_exist = False
-        cantian_in_container = self.deploy_params.get("cantian_in_container")
         for domain_info in domain_infos:
             if domain_info.get("NAME") == domain_name:
                 if cantian_in_container == "0":
@@ -490,9 +495,9 @@ class DRDeployPreCheck(object):
         local_site = self.site
         remote_site = ({"standby", "active"} - {self.site}).pop()
         local_dr_deploy_param = conf_params.get("dr_deploy").get(local_site)
-        local_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name")
+        local_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name", "")
         remote_dr_deploy_param = conf_params.get("dr_deploy").get(remote_site)
-        remote_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name")
+        remote_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name", "")
         remote_pool_id = conf_params.get("dr_deploy").get("standby").get("pool_id")
         remote_dbstore_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstore_fs_vstore_id")
         name_suffix = conf_params.get("dr_deploy").get("standby").get("name_suffix", "")

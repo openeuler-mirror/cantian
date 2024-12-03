@@ -364,7 +364,11 @@ class DRDeploy(object):
         remote_dev_name = self.dr_deploy_info.get("remote_dev_name")
         remote_dev_esn = self.dr_deploy_info.get("remote_dev_esn")
         remote_device_id = self.dr_deploy_info.get("remote_device_id")
-        domain_name = self.dr_deploy_info.get("domain_name")
+        if self.dr_deploy_info.get("cantian_in_container") == "0":
+            random_seed = LSIDGenerate.generate_random_seed()
+            domain_name = CANTIAN_DOMAIN_PREFIX % (cluster_id, random_seed)
+        else:
+            domain_name = self.dr_deploy_info.get("domain_name")
         if hyper_domain_id is None:
             domain_info = self.dr_deploy_opt.create_filesystem_hyper_metro_domain(
                 remote_dev_name, remote_dev_esn, remote_device_id, domain_name)
