@@ -162,12 +162,19 @@ function check_white_list() {
         fi
 
         if [ "${upgrade_mode}" == "offline" ]; then
-            # 如果首个节点离线升级，需要判断是否有其他节点在线
             if [ ! -d ${cluster_and_node_status_path} ]; then
-                cms_ret=`su -s /bin/bash - ${cantian_user} -c "cms stat" | awk '{print $3}' | grep "ONLINE" | wc -l`
+                cms_ret=$(su -s /bin/bash - ${cantian_user} -c "cms stat" | awk '{print $3}' | grep "ONLINE" | wc -l)
+
                 if [ ${cms_ret} -ne 0 ]; then
-                    err_info="current upgrade mode is offline, but ONLINE count is ${cms_ret}"
-                    return 1
+                    # 执行更新操作
+                    update_local_status_file_path_by_dbstor
+
+                    # 更新后直接检查文件是否正在升级，如果不是则报错退出
+                    if [ ! -d ${cluster_and_node_status_path} ]; then
+                        err_info="Current upgrade mode is offline, but ONLINE count is ${cms_ret}"
+                        echo "${err_info}"
+                        return 1
+                    fi
                 fi
             fi
         fi
