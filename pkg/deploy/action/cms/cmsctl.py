@@ -1405,6 +1405,12 @@ class CmsCtl(object):
                     if _stdout:
                         LOGGER.info("gcc_home occupied by a process:%s" % _stdout)
 
+    def delete_only_start_file(self):
+        cmd = "dbstor --delete-file --fs-name=%s --file-name=onlyStart.file" % self.storage_share_fs
+        ret_code, stdout, stderr = _exec_popen(cmd)
+        if ret_code:
+            LOGGER.error("Failed to delete onlyStart.file")
+
     def uninstall(self):
         """
         uninstall cms: environment values and app files
@@ -1423,6 +1429,7 @@ class CmsCtl(object):
                 str_cmd = "rm -rf %s && rm -rf %s && rm -rf %s" % (self.gcc_home, versions_yml, gcc_backup)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
             else:
+                self.delete_only_start_file()
                 str_cmd = "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml && " \
                           "dbstor --delete-file --fs-name=%s --file-name=gcc_backup" \
                           % (self.storage_share_fs, self.storage_archive_fs)
