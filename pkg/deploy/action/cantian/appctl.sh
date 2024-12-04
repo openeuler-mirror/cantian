@@ -47,7 +47,7 @@ source ${CURRENT_PATH}/cantiand_cgroup_calculate.sh
 LOG_FILE="/opt/cantian/log/cantian/cantian_deploy.log"
 
 cantian_home=/opt/cantian/cantian
-cantian_log=/opt/cantian/log
+cantian_log=/opt/cantian/log/cantian
 cantian_local=/mnt/dbdata/local/cantian
 cantian_scripts=/opt/cantian/action/cantian
 storage_metadata_fs=$(python3 ${CURRENT_PATH}/../get_config_info.py "storage_metadata_fs")
@@ -628,7 +628,10 @@ function check_old_install()
     #解决root包卸载残留问题
     chown ${cantian_user} -hR ${cantian_home}
     chmod 750 -R ${cantian_home}
-    find ${cantian_home}/log -type f | xargs chmod 640
+
+    chown ${cantian_user} -hR ${cantian_log}
+    chmod 750 -R ${cantian_log}
+    find ${cantian_log} -type f -print0 | xargs -0 chmod 640
 
     #解决root包卸载残留问题
     cantian_local_owner=$(stat -c %U ${cantian_local})
@@ -648,11 +651,6 @@ function check_and_create_cantian_home()
     if [ ! -d ${cantian_log} ]; then
         mkdir -m 750 -p ${cantian_log}
         chown ${cantian_user} -hR ${cantian_log}
-    fi
-
-    if [ ! -d ${cantian_log}/cantian ]; then
-        mkdir -m 750 -p ${cantian_log}/cantian
-        chown ${cantian_user} -hR ${cantian_log}/cantian
     fi
 
     if [ ! -d ${cantian_home}/cfg ]; then
