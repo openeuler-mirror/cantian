@@ -18,6 +18,7 @@ from get_config_info import get_env_info
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 CANTIAN_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
+DR_DEPLOY_REMOTE_CONFIG = os.path.join(CURRENT_PATH, "../../../config/remote/dr_deploy_param.json")
 UNINSTALL_TIMEOUT = 900
 
 
@@ -258,6 +259,9 @@ class UNDeploy(object):
     def clean_dr_config_file(self):
         if os.path.exists(DR_DEPLOY_CONFIG):
             os.remove(DR_DEPLOY_CONFIG)
+
+        if os.path.exists(DR_DEPLOY_REMOTE_CONFIG):
+            os.remove(DR_DEPLOY_REMOTE_CONFIG)
 
         if self.deploy_params.get("node_id") == "1":
             return

@@ -24,11 +24,5 @@
         "SNAPSHOTRESERVEPER": 20,
         "CAPACITYTHRESHOLD": 90,
         "CAPACITY": "300GB"
-    },
-    "storage_metadata_fs": {
-        "vstoreId": 0,
-        "SNAPSHOTRESERVEPER": 20,
-        "CAPACITYTHRESHOLD": 90,
-        "CAPACITY": "300GB"
     }
 }
