@@ -593,6 +593,7 @@ class ConfigManager:
         manager.pre_check()
         manager.update_numa_config_file()
 
+
 if __name__ == "__main__":
     try:
         config_manager = ConfigManager()
@@ -601,8 +602,6 @@ if __name__ == "__main__":
             if param == "init_config":
                 config_manager.init_numa_config()
         else:
-            if get_value("deploy_mode") != "dbstor":
-                sys.exit(0)
             config_manager.update_cpu_config()
     except Exception as e:
         LOGGER.error(f"An unexpected error occurred: {str(e)}")
