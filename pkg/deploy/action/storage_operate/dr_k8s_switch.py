@@ -40,7 +40,17 @@ class LogGer:
         self.file_name = file_name
 
     def get_logger(self):
+        ERROR_TO_FILE = 15
+        logging.addLevelName(ERROR_TO_FILE, "ERR")
+
         logger = logging.getLogger(self.name)
+
+        def error_to_file(logger, msg, *args, **kwargs):
+            if logger.isEnabledFor(ERROR_TO_FILE):
+                logger._log(ERROR_TO_FILE, msg, args, kwargs)
+
+        logging.Logger.error_to_file = error_to_file
+
         logger.setLevel(logging.DEBUG)
 
         file_handler = logging.FileHandler(self.file_name)
@@ -376,7 +386,7 @@ class K8sDRContainer:
             return True
         except Exception as e:
             LOG.error(f"change_config failed, err[{e}]")
-            LOG.debug(f"traceback: {traceback.format_exc(limit=-1)}")
+            LOG.error_to_file(f"traceback: {traceback.format_exc(limit=-1)}")
             return False
 
     def download_config_file(self, ssh_client, ip, index, dir_path):
@@ -392,7 +402,7 @@ class K8sDRContainer:
                 ssh_client.down_file(config_yaml, dir_path, "configMap.yaml")
         except Exception as e:
             LOG.error(f"Download config file failed, err[{e}]")
-            LOG.debug(f"traceback: {traceback.format_exc(limit=-1)}")
+            LOG.error_to_file(f"traceback: {traceback.format_exc(limit=-1)}")
             return False
         return True
 
@@ -461,8 +471,8 @@ class K8sDRContainer:
         LOG.info("pre_check_link finish")
 
     def init_dr_option(self):
-        ping_cmd = f"ping -c 1 {self.dm_ip}; echo l=$?"
-        code, out, err = exec_popen(ping_cmd)
+        ping_cmd = f"ping -c 1 -i 1 {self.dm_ip}"
+        code, out, err = exec_popen(ping_cmd, timeout=20)
         if code:
             err_msg = f"Fail to ping DM ip[{self.dm_ip}], maybe DM is fault."
             warning(err_msg)
@@ -573,7 +583,7 @@ class K8sDRContainer:
         self.get_ulog_pair_info_list()
         self.check_and_match_ulog_page_info()
         if self.action == "switch_over":
-            self.check_pod_stat()
+            self.exe_func(self.check_pod_stat)
             self.check_hyper_metro_stat()
         if self.config_count != len(self.ulog_pair_list):
             LOG.error(f"config count[{self.config_count}] not match ulog pair list[{len(self.ulog_pair_list)}].")
@@ -594,58 +604,69 @@ class K8sDRContainer:
                 if not err_log:
                     return ret[:-1], False
                 if islocal:
-                    LOG.debug(f"execute cmd[{cmd}] failed err[{err_msg}]")
+                    LOG.error_to_file(f"execute cmd[{cmd}] failed err[{err_msg}]")
                 else:
-                    LOG.debug(f"execute cmd[{cmd}] failed err[{res}]")
+                    LOG.error_to_file(f"execute cmd[{cmd}] failed err[{res}]")
                 return ret[:-1], False
             return ret[:-1], True
         except Exception as e:
             err_msg = f"Failed to execute ssh command {cmd}. err[{e}]"
-            LOG.debug(f"traceback: {traceback.format_exc(limit=-1)}")
+            LOG.error_to_file(f"traceback: {traceback.format_exc(limit=-1)}")
             if ssh_client:
                 ssh_client.close_client()
             raise Exception(err_msg)
 
     def get_pod_list(self, ssh_client, namespace, islocal=False):
-        cmd = f"kubectl get pod -n {namespace} | grep -v NAME"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
-        if not flag:
-            err_msg = f"Failed to check pod stat, server ip[{ssh_client.ip}]."
-            LOG.error(err_msg)
-            return None
-        return res
-
-    def get_pod_name_list_by_stat(self, ssh_client, namespace, pod_list, stat="default", islocal=False):
         count = 0
-        pod_name_list = []
         while True:
-            data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
-            if not data_list:
-                if count == 5:
-                    LOG.error("Failed to get the pod list more than 5 times.")
+            cmd = f"kubectl get pod -n {namespace}"
+            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+            if not flag:
+                if count == 3:
+                    err_msg = f"Failed to get the pod list more than 3 times."
+                    if not islocal:
+                        err_msg = f"Failed to get the pod list more than 3 times, server ip[{ssh_client.ip}]."
+                    LOG.error(err_msg)
                     return []
                 time.sleep(5)
                 count += 1
                 continue
-            for data in data_list:
-                info = data.split()
-                if not info:
-                    continue
-                pod_name = info[0].strip()
-                if split_pod_name(pod_name) not in pod_list:
-                    continue
-                if stat == "default":
+            get_flag = False
+            for i in res:
+                if "NAME" in i:
+                    get_flag = True
+            return res if get_flag else []
+
+    def get_pod_name_list_by_stat(self, ssh_client, namespace, pod_list, stat="default", islocal=False):
+        pod_name_list = []
+        data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
+        if not data_list:
+            if stat == "abnormal":
+                return pod_list
+            return []
+        for data in data_list:
+            info = data.split()
+            if not info:
+                continue
+            pod_name = info[0].strip()
+            if split_pod_name(pod_name) not in pod_list:
+                continue
+            if stat == "default":
+                pod_name_list.append(pod_name)
+                continue
+            elif stat == "running":
+                if info[2] == "Running":
                     pod_name_list.append(pod_name)
                     continue
-                elif stat == "running":
-                    if info[2] == "Running":
-                        pod_name_list.append(pod_name)
-                        continue
-                elif stat == "ready":
-                    if info[1] == "1/1" and info[2] == "Running":
-                        pod_name_list.append(pod_name)
-                        continue
-            return pod_name_list
+            elif stat == "ready":
+                if info[1] == "1/1" and info[2] == "Running":
+                    pod_name_list.append(pod_name)
+                    continue
+            elif stat == "abnormal":
+                if info[1] != "1/1" or info[2] != "Running":
+                    pod_name_list.append(pod_name)
+                    continue
+        return pod_name_list
 
     def del_all_pod(self, ip, ssh_client, value, islocal=False):
         cantian_yaml = value.get("cantian_yaml")
@@ -673,6 +694,7 @@ class K8sDRContainer:
             ssh_client.close_client()
 
     def apply_pods(self, ip, ssh_client, value, islocal=False):
+
         cantian_yaml = value.get("cantian_yaml", "")
         config_yaml = value.get("config_yaml", "")
         cmd = f"kubectl apply -f {config_yaml} -f {cantian_yaml}"
@@ -751,7 +773,7 @@ class K8sDRContainer:
                     cmd = f"kubectl apply -f {source_config_yml}"
                     res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
-                        err_msg = f"Failed to apply pod ,path[{source_config_yml}]"
+                        err_msg = f"Failed to apply pod, path[{source_config_yml}]"
                         LOG.error(err_msg)
                     else:
                         config_apply = True
@@ -759,7 +781,7 @@ class K8sDRContainer:
                     cmd = f"kubectl apply -f {source_cantian_yaml}"
                     res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
-                        err_msg = f"Failed to apply pod ,path[{source_cantian_yaml}]"
+                        err_msg = f"Failed to apply pod, path[{source_cantian_yaml}]"
                         LOG.error(err_msg)
                     else:
                         cantian_apply = True
@@ -772,7 +794,7 @@ class K8sDRContainer:
                     cmd = f"kubectl apply -f {dst_config_yaml}"
                     res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
-                        err_msg = f"Failed to apply pod ,path[{dst_config_yaml}]"
+                        err_msg = f"Failed to apply pod, path[{dst_config_yaml}]"
                         LOG.error(err_msg)
                     else:
                         config_apply = True
@@ -784,7 +806,7 @@ class K8sDRContainer:
                     cmd = f"kubectl apply -f {dst_cantian_yaml}"
                     res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
-                        err_msg = f"Failed to apply pod ,path[{dst_cantian_yaml}]"
+                        err_msg = f"Failed to apply pod, path[{dst_cantian_yaml}]"
                         LOG.error(err_msg)
                     else:
                         cantian_apply = True
@@ -841,11 +863,12 @@ class K8sDRContainer:
             if ssh_client is not None:
                 ssh_client.close_client()
 
-    def do_check_pod_stat(self, ip, ssh_client, value, islocal=False, time_over=False):
+    def do_check_pod_start(self, ip, ssh_client, value, islocal=False, time_over=False):
         namespace = value.get("namespace")
         pod_name_list = value.get("pod_name")
-        run_time = 0
-        count = 0
+        LOG.info(f"check IP[{ip}]pods apply stat, please waiting ...")
+        run_time = 180
+        time.sleep(180)
         timeout = 1200
         while True:
             if run_time > timeout:
@@ -854,26 +877,22 @@ class K8sDRContainer:
                 time_over = True
                 break
             LOG.info(f"check IP[{ip}]pods apply stat, please waiting ...")
-            check_pod_list = []
+            start_pod_list = []
             value["abnormal_pods"] = []
             data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
             if not data_list:
-                if count == 5:
-                    LOG.error("Failed to get the pod list more than 5 times.")
-                    return False
-                time.sleep(5)
-                count += 1
-                continue
+                LOG.error("Failed to get the pod list more than 3 times.")
+                return False
             for data in data_list:
                 info = data.split()
                 if not info:
                     continue
                 if split_pod_name(info[0]) in pod_name_list:
                     if info[1] == "1/1" and info[2] == "Running":
-                        check_pod_list.append(info[0])
+                        start_pod_list.append(info[0])
                         continue
                     value["abnormal_pods"].append(info[0])
-            if len(check_pod_list) == len(pod_name_list):
+            if len(start_pod_list) == len(pod_name_list):
                 break
             if time_over:
                 err_msg = (f"IP[{ip}], namespace[{namespace}], "
@@ -884,7 +903,7 @@ class K8sDRContainer:
             time.sleep(30)
         return time_over
 
-    def check_pod_stat(self):
+    def check_pod_start(self):
         time_over = False
         ssh_client = None
         try:
@@ -895,7 +914,7 @@ class K8sDRContainer:
                     ssh_client.create_client()
                     islocal = False
                 for value in self.server_info[ip]:
-                    time_over = self.do_check_pod_stat(ip, ssh_client, value, islocal=islocal, time_over=time_over)
+                    time_over = self.do_check_pod_start(ip, ssh_client, value, islocal=islocal, time_over=time_over)
                 if ssh_client is not None:
                     ssh_client.close_client()
                     ssh_client = None
@@ -905,6 +924,14 @@ class K8sDRContainer:
         finally:
             if ssh_client is not None:
                 ssh_client.close_client()
+
+    def check_pod_stat(self, ip, ssh_client, value, islocal=False):
+        namespace = value.get("namespace")
+        pod_name_list = value.get("pod_name")
+        value["abnormal_pods"] = []
+        pod_list = self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list, stat="abnormal",
+                                                  islocal=islocal)
+        value["abnormal_pods"] += pod_list
 
     def check_abnormal_pod_stat(self):
         abnormal_flag = False
@@ -1318,48 +1345,44 @@ class K8sDRContainer:
     def ctbackup_purge_log(self, ip, ssh_client, value, islocal=False):
         namespace = value.get("namespace")
         pod_name_list = value.get("pod_name")
-        while True:
-            flag = False
-            exe_flag = False
-            for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
-                                                           stat="ready", islocal=islocal):
-                exe_flag = True
-                cmd = ("su -s /bin/bash - %s -c "
-                       "'source ~/.bashrc && ctbackup --purge-logs'") % value.get("run_user")
-                ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd,
-                                             ssh_client, timeout=600, islocal=islocal)
-                if not flag:
-                    continue
-                break
+        flag = False
+        exe_flag = False
+        for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
+                                                       stat="ready", islocal=islocal):
+            exe_flag = True
+            cmd = ("su -s /bin/bash - %s -c "
+                   "'source ~/.bashrc && ctbackup --purge-logs'") % value.get("run_user")
+            ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd,
+                                         ssh_client, timeout=600, islocal=islocal)
             if not flag:
-                if not exe_flag:
-                    err_msg = "Failed to execute[ctbackup --purge-logs], because pod stat is abnormal."
-                else:
-                    err_msg = (f"server ip[{ip}], pod_name[{pod_name_list}], "
-                               f"Execute command[ctbackup --purge-logs] failed.")
-                LOG.error(err_msg)
+                continue
             break
+        if not flag:
+            if not exe_flag:
+                err_msg = "Failed to execute[ctbackup --purge-logs], because pod stat is abnormal."
+            else:
+                err_msg = (f"server ip[{ip}], pod_name[{pod_name_list}], "
+                           f"Execute command[ctbackup --purge-logs] failed.")
+            LOG.error(err_msg)
 
     def backup_pod_log(self, ip, ssh_client, value, islocal=False):
-        while True:
-            namespace = value.get("namespace")
-            pod_name_list = value.get("pod_name")
-            cluster_name = value.get("cluster_name")
-            cluster_id = value.get("cluster_id")
-            config_map = value.get("config_map")
-            run_user = value.get("run_user")
-            storage_metadata_fs = value.get("storage_metadata_fs")
-            for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
-                                                           stat="running", islocal=islocal):
-                node_id = get_node_id(config_map, pod_name)
-                LOG.info(f"Ip[{ip}] namespace[{namespace}] pod[{pod_name}] begin to backup pod logs.")
-                cmd = (f"sh /ctdb/cantian_install/cantian_connector/action/docker/log_backup.sh "
-                       f"{cluster_name} {cluster_id} {node_id} {run_user} {storage_metadata_fs}")
-                ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client, islocal=islocal)
-                if not flag:
-                    LOG.error(f"IP[{ip}] namespace[{namespace}] "
-                              f"pod_name[{pod_name}] back pod logs failed.")
-            break
+        namespace = value.get("namespace")
+        pod_name_list = value.get("pod_name")
+        cluster_name = value.get("cluster_name")
+        cluster_id = value.get("cluster_id")
+        config_map = value.get("config_map")
+        run_user = value.get("run_user")
+        storage_metadata_fs = value.get("storage_metadata_fs")
+        for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
+                                                       stat="running", islocal=islocal):
+            node_id = get_node_id(config_map, pod_name)
+            LOG.info(f"Ip[{ip}] namespace[{namespace}] pod[{pod_name}] begin to backup pod logs.")
+            cmd = (f"sh /ctdb/cantian_install/cantian_connector/action/docker/log_backup.sh "
+                   f"{cluster_name} {cluster_id} {node_id} {run_user} {storage_metadata_fs}")
+            ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client, islocal=islocal)
+            if not flag:
+                LOG.error(f"IP[{ip}] namespace[{namespace}] "
+                          f"pod_name[{pod_name}] back pod logs failed.")
         LOG.info(f"Ip[{ip}] namespace[{namespace}] backup_pod_log finish.")
 
     def exe_func(self, func):
@@ -1397,10 +1420,10 @@ class K8sDRContainer:
         self.switch_replication_pair_role()
         self.exe_func(self.apply_pods)
         LOG.info("apply pods finish")
-        self.check_pod_stat()
+        self.check_pod_start()
 
     def fail_over(self):
-        self.check_pod_stat()
+        self.exe_func(self.check_pod_stat)
         if not self.check_abnormal_pod_stat():
             LOG.info("standby pods stat abnormal, exit.")
             return
@@ -1414,7 +1437,7 @@ class K8sDRContainer:
             self.switch_replication_pair_role_recover()
             self.exe_func(self.apply_pods)
             LOG.info("apply pods finish")
-            self.check_pod_stat()
+            self.check_pod_start()
             self.exe_func(self.ctbackup_purge_log)
             LOG.info("ctbackup_purge_log finish.")
         except Exception as e:
