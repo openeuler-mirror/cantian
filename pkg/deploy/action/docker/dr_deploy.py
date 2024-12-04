@@ -61,12 +61,12 @@ def get_file_json(file_path):
         return json.load(f)
 
 
-def chown(file_path, u_id, g_id):
+def chown_path(file_path, u_id, g_id):
     os.chown(file_path, u_id, g_id)
     if os.path.isdir(file_path):
         for root, dirs, files in os.walk(file_path):
             for dir in dirs:
-                chown(os.path.join(root, dir), u_id, g_id)
+                chown_path(os.path.join(root, dir), u_id, g_id)
             for file in files:
                 os.chown(os.path.join(root, file), u_id, g_id)
 
@@ -196,7 +196,7 @@ def check_dr_deploy_process_completed(role):
     return False
 
 
-def dr_deploy(role=None, dm_password=None, mysql_pwd=''):
+def dr_deploy(role=None, dm_password=None, mysql_pwd='', delete_flag=False):
     if not dm_password:
         dm_password = get_dm_password()
     if dm_password == "":
@@ -219,6 +219,12 @@ def dr_deploy(role=None, dm_password=None, mysql_pwd=''):
 
     if check_dr_deploy_process_completed(role):
         LOG.info("dr_deploy succeeded.")
+        if delete_flag:
+            deploy_user = get_value("deploy_user")
+            storage_share_fs = get_value("storage_share_fs")
+            cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --delete-file "
+                   f"--fs-name={storage_share_fs} --file-name=onlyStart.file'")
+            execute_command(cmd, timeout=180)
         sys.exit(0)
     sys.exit(1)
 
@@ -229,7 +235,7 @@ def copy_version_yaml(deploy_user, deploy_group):
     u_id = deploy_user_info.pw_uid
     g_id = deploy_group_info.gr_gid
     version_file = os.path.join(SCRIPT_PATH, "../versions.yml")
-    chown(version_file, u_id, g_id)
+    chown_path(version_file, u_id, g_id)
     storage_share_fs = get_value("storage_share_fs")
     cmd = (f'su -s /bin/bash - "{deploy_user}" -c "dbstor --create-file '
            f'--fs-name={storage_share_fs} --source-dir={version_file} --file-name=versions.yml"')
@@ -319,13 +325,15 @@ def main():
         "start": dr_start_deploy
     }
     mysql_pwd = ''
+    delete_config = False
     if len(sys.argv) == 1:
         mysql_pwd = getpass.getpass("Please input mysql login passwd:")
+        delete_config = True
 
     if len(sys.argv) > 1:
         if sys.argv[1] in action_dict:
             return action_dict[sys.argv[1]]()
-    dr_deploy(mysql_pwd=mysql_pwd)
+    dr_deploy(mysql_pwd=mysql_pwd, delete_flag=delete_config)
 
 
 if __name__ == "__main__":

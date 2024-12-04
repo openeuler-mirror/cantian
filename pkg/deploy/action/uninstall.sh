@@ -34,6 +34,11 @@ function clear_residual_files() {
     if [[ -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json ]] && [[ "${node_id}" == "0" ]];then
         rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/deploy_param.json
     fi
+
+    if [[ -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/dr_deploy_param.json ]] && [[ "${node_id}" == "0" ]];then
+        rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/dr_deploy_param.json
+    fi
+
     if [[ -f /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/versions.yml ]] && [[ "${node_id}" == "0" ]]; then
         rm -rf /mnt/dbdata/remote/metadata_"${storage_metadata_fs}"/versions.yml
     fi
@@ -41,6 +46,7 @@ function clear_residual_files() {
     if [[ "${deploy_mode}" == "dbstor" ]];then
         su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=upgrade" > /dev/null 2>&1
         su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=versions.yml" > /dev/null 2>&1
+        su -s /bin/bash - "${cantian_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=dr_deploy_param.json" > /dev/null 2>&1
     fi
 }
 
@@ -93,7 +99,6 @@ function clear_security_limits() {
 # override模式下umount
 function umount_fs() {
     if [[ "$cantian_in_container" != "0" ]]; then
-        su -s /bin/bash - "${deploy_user}" -c "dbstor --delete-file --fs-name=${storage_share_fs} --file-name=dr_deploy_param.json" > /dev/null 2>&1
         return 0
     fi
 

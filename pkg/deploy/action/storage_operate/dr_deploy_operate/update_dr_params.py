@@ -115,8 +115,8 @@ class UpdateDRParams(object):
 
         target_path = "/opt/cantian"
         current_real_path = os.path.realpath(CURRENT_PATH)
-        target_real_path = os.path.realpath(target_path)
-        if os.path.dirname(current_real_path) != os.path.dirname(target_real_path):
+
+        if not current_real_path.startswith(target_path):
             try:
                 shutil.copy(DEPLOY_PARAM_FILE, os.path.join(CURRENT_PATH, "../../../config"))
             except Exception as _err:
@@ -125,7 +125,7 @@ class UpdateDRParams(object):
         dr_deploy_params["dm_pwd"] = encrypted_pwd
         write_json_config(DR_DEPLOY_CONFIG, dr_deploy_params)
         os.chmod(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), mode=0o644)
-        if os.path.dirname(current_real_path) != os.path.dirname(target_real_path):
+        if not current_real_path.startswith(target_path):
             try:
                 shutil.copy(DR_DEPLOY_CONFIG, "/opt/cantian/config")
             except Exception as _err:
