@@ -111,7 +111,7 @@ class ConfigTool:
         split_env = os.environ['LD_LIBRARY_PATH'].split(":")
         filtered_env = [single_env for single_env in split_env if "/opt/cantian/dbstor/lib" not in single_env]
         os.environ['LD_LIBRARY_PATH'] = ":".join(filtered_env)
-        for i in range(7,10):
+        for i in range(7,11):
             file_num = i - 6
             cmd = "python3 %s/../obtains_lsid.py %s %s %s %s"
             ret_code, stdout, stderr = _exec_popen(cmd % ("/opt/cantian/action/dbstor", 2, self.cluster_id, i, self.node_id))
