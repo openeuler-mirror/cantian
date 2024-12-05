@@ -5,6 +5,7 @@ DBSTOOL_PATH='/opt/cantian/dbstor'
 LOG_NAME='cgwshowdev.log'
 DEL_DATABASE_SH='del_databasealldata.sh'
 dr_setup=`python3 ${CURRENT_PATH}/../docker/get_config_info.py "dr_deploy.dr_setup"`
+NUMA_CONF_DIR="/opt/cantian/dbstor/conf/dbs"
 
 # 停止 cstool 进程
 function kill_process()
@@ -46,6 +47,51 @@ function check_file_system()
   echo "File system check pass" >> /opt/cantian/log/dbstor/install.log
 }
 
+function generate_numa_config() {
+    local node_numa_file="${NUMA_CONF_DIR}/node_numa.ini"
+    local numa_info_file="${NUMA_CONF_DIR}/numa_info.ini"
+
+    local success=true
+
+    mkdir -p "$NUMA_CONF_DIR" || { echo "Failed to create directory: $NUMA_CONF_DIR"; success=false; }
+
+    cpu_num=$(grep -c ^processor /proc/cpuinfo) || { echo "Failed to get CPU number from /proc/cpuinfo"; success=false; }
+
+    # 创建 numa_info.ini 文件
+    if [ ! -f "$numa_info_file" ]; then
+        numa_nodes=$(lscpu | grep -oP "NUMA node\(s\):\s+\K\d+") || { echo "Failed to get NUMA nodes from lscpu"; success=false; }
+
+        numa_cpu_ranges=$(lscpu | grep -oP "NUMA node\d+ CPU\(s\):\s+\K[0-9,-]+")
+
+        echo "[NUMA_PARTITION]" > "$numa_info_file" || { echo "Failed to write to $numa_info_file"; success=false; }
+        echo "cpu_num=$cpu_num" >> "$numa_info_file" || { echo "Failed to write cpu_num to $numa_info_file"; success=false; }
+        echo "numa_num=$numa_nodes" >> "$numa_info_file" || { echo "Failed to write numa_num to $numa_info_file"; success=false; }
+
+        for i in $(seq 0 $((numa_nodes - 1))); do
+            numa_range=$(echo "$numa_cpu_ranges" | sed -n "$((i + 1))p") || { echo "Failed to parse NUMA range for node $i"; success=false; }
+            echo "numa_${i}=$numa_range" >> "$numa_info_file" || { echo "Failed to write numa_${i} to $numa_info_file"; success=false; }
+        done
+    fi
+
+    if [ ! -f "$node_numa_file" ]; then
+        # 获取 NUMA 是否启用
+        numa_enabled=false
+        if lscpu | grep -q "NUMA node"; then
+            numa_enabled=true
+        fi
+
+        echo "[PROC_PARTITION]" > "$node_numa_file" || { echo "Failed to write to $node_numa_file"; success=false; }
+        echo "numa_enable=$numa_enabled" >> "$node_numa_file" || { echo "Failed to write numa_enable to $node_numa_file"; success=false; }
+        echo "numa_virtual_enable=false" >> "$node_numa_file" || { echo "Failed to write numa_virtual_enable to $node_numa_file"; success=false; }
+    fi
+
+    if [ "$success" = true ]; then
+        echo "NUMA configuration files created successfully."
+    else
+        echo "Failed to create NUMA configuration file."
+    fi
+}
+
 function main()
 {
     link_type=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type")
@@ -66,6 +112,9 @@ function main()
     if [[ -f /opt/cantian/youmai_demo ]];then
         return
     fi
+
+    generate_numa_config
+
     /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/log/dbstor/install.log
     if [[ $? -ne 0 ]];then
         cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
