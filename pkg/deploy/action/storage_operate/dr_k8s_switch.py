@@ -1,3 +1,4 @@
+import copy
 import getpass
 import json
 import os
@@ -820,6 +821,8 @@ class K8sDRContainer:
     def check_pod_del(self, timeout=300):
         exist_pod = False
         ssh_client = None
+        time.sleep(10)
+        run_time = 10
         try:
             for ip in self.server_info:
                 islocal = True
@@ -831,24 +834,23 @@ class K8sDRContainer:
                     LOG.info(f"check IP[{ip}]pods delete stat, please waiting ...")
                     namespace = value.get("namespace")
                     pod_name_list = value.get("pod_name")
-                    run_time = 0
                     count = 0
                     while True:
                         if run_time > timeout:
                             err_msg = f" check pod del timeout"
                             LOG.error(err_msg)
                             return False
-                        time.sleep(10)
-                        run_time += 10
                         pod_list = self.get_pod_name_list_by_stat(ssh_client, namespace,
                                                                   pod_name_list, islocal=islocal)
                         if len(pod_list) == 0:
                             break
                         else:
-                            if count == 5:
+                            if count == 10:
                                 exist_pod = True
                                 break
                             count += 1
+                        time.sleep(3)
+                        run_time += 3
                 if ssh_client is not None:
                     ssh_client.close_client()
                     ssh_client = None
@@ -863,26 +865,21 @@ class K8sDRContainer:
             if ssh_client is not None:
                 ssh_client.close_client()
 
-    def do_check_pod_start(self, ip, ssh_client, value, islocal=False, time_over=False):
+    def do_check_pod_start(self, ip, ssh_client, value, islocal=False, time_over=False, run_time=0, timeout=1200):
         namespace = value.get("namespace")
         pod_name_list = value.get("pod_name")
         LOG.info(f"check IP[{ip}]pods apply stat, please waiting ...")
-        run_time = 180
-        time.sleep(180)
-        timeout = 1200
         while True:
             if run_time > timeout:
                 err_msg = f"IP[{ip}], namespace[{namespace}], pod name[{pod_name_list}], Abnormal status"
                 LOG.error(err_msg)
-                time_over = True
                 break
-            LOG.info(f"check IP[{ip}]pods apply stat, please waiting ...")
             start_pod_list = []
             value["abnormal_pods"] = []
             data_list = self.get_pod_list(ssh_client, namespace, islocal=islocal)
             if not data_list:
                 LOG.error("Failed to get the pod list more than 3 times.")
-                return False
+                return run_time
             for data in data_list:
                 info = data.split()
                 if not info:
@@ -901,11 +898,14 @@ class K8sDRContainer:
                 break
             run_time += 30
             time.sleep(30)
-        return time_over
+        return run_time
 
     def check_pod_start(self):
         time_over = False
         ssh_client = None
+        time.sleep(180)
+        run_time = 180
+        timeout = 1200
         try:
             for ip in self.server_info:
                 islocal = True
@@ -914,7 +914,10 @@ class K8sDRContainer:
                     ssh_client.create_client()
                     islocal = False
                 for value in self.server_info[ip]:
-                    time_over = self.do_check_pod_start(ip, ssh_client, value, islocal=islocal, time_over=time_over)
+                    run_time = self.do_check_pod_start(ip, ssh_client, value, islocal=islocal,
+                                                       time_over=time_over, run_time=run_time)
+                    if run_time > timeout:
+                        time_over = True
                 if ssh_client is not None:
                     ssh_client.close_client()
                     ssh_client = None
@@ -953,7 +956,10 @@ class K8sDRContainer:
                         LOG.error(err_msg)
                         warning_flag = True
         if abnormal_flag:
-           LOG.error("pods stat abnormal, please check pod stat.")
+            LOG.error("pods stat abnormal, please check pod stat.")
+            if self.action == "switch_over":
+                LOG.warning("Please execute command [python3 dr_k8s_switch.py delete] on the active site first, "
+                            "and then execute command [python3 dr_k8s_switch.py fail_over] on the standby site.")
         else:
             if not warning_flag:
                 return True
@@ -1080,7 +1086,7 @@ class K8sDRContainer:
         exe_cmd = f"kubectl exec -it {pod_name} -n {namespace} -- {cmd}"
         return self.ssh_exec_cmd(ssh_client, exe_cmd, timeout=timeout, islocal=islocal)
 
-    def query_database_role(self, pod_name, namespace, cmd, ssh_client, timeout=600, islocal=False):
+    def query_database_role(self, pod_name, namespace, cmd, ssh_client, timeout=180, islocal=False):
         run_time = 0
         while True:
             exe_cmd = f"kubectl exec -it {pod_name} -n {namespace} -- sh -c \"{cmd}{self.ssh_cmd_end}\""
@@ -1107,11 +1113,11 @@ class K8sDRContainer:
                 LOG.info(f"The pod name[{pod_name}] current site database role is primary.")
                 return True
             LOG.info(f"The pod name[{pod_name}] current site database role is standby, please wait...")
-            run_time += 20
             if run_time >= timeout:
                 LOG.error(f"The current site database role is {ret} but timed out,"
                           f" pod_name[{pod_name}], namespace[{namespace}].")
                 return False
+            run_time += 20
             time.sleep(20)
 
     def check_database_role(self, ip, ssh_client, value, islocal=False):
@@ -1119,25 +1125,24 @@ class K8sDRContainer:
         check_cmd = CANTIAN_DATABASE_ROLE_CHECK % (run_user, EXEC_SQL)
         namespace = value.get("namespace")
         pod_name_list = value.get("pod_name")
-        run_time = 0
-        timeout = 1200
-        while True:
-            check_pod_list = []
-            for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
-                                                           stat="running", islocal=islocal):
-                if self.query_database_role(pod_name, namespace, check_cmd,
-                                            ssh_client, islocal=islocal):
-                    check_pod_list.append(pod_name)
-                    continue
-                else:
-                    err_msg = f"Failed to check database role, server_ip[{ip}] pod_name[{pod_name}]"
-                    LOG.error(err_msg)
-            if len(check_pod_list) == len(pod_name_list):
-                break
-            if run_time > timeout:
-                break
-            run_time += 20
-            time.sleep(20)
+        total_pod_list = copy.deepcopy(pod_name_list)
+        pod_list = self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
+                                                  stat="ready", islocal=islocal)
+        if not pod_list:
+            err_msg = f"Failed to check database role, server_ip[{ip}] pod_name[{pod_name_list}]"
+            LOG.error(err_msg)
+            return
+        for pod_name in pod_list:
+            total_pod_list.remove(split_pod_name(pod_name))
+            if self.query_database_role(pod_name, namespace, check_cmd,
+                                        ssh_client, islocal=islocal):
+                continue
+            else:
+                err_msg = f"Failed to check database role, server_ip[{ip}] pod_name[{pod_name}]"
+                LOG.error(err_msg)
+        for pod_name in total_pod_list:
+            LOG.error(f"Not checking database role, server_ip[{ip}] pod_name[{pod_name}], "
+                      f"because pod stat is abnormal.")
 
     def hyper_metro_status_check(self, running_status, config_role):
         if running_status != MetroDomainRunningStatus.Normal and running_status != MetroDomainRunningStatus.Split:
