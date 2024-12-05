@@ -42,6 +42,11 @@ typedef enum en_device_type {
     DEV_TYPE_DBSTOR_FILE = 6,
 } device_type_t;
 
+typedef enum {
+    DBS_FILE_INFO_VERSION_1 = 0,
+    DBS_FILE_INFO_VERSION_2 = 1,
+} file_info_version_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -181,6 +186,7 @@ typedef struct st_raw_device_op {
 void cm_raw_device_register(raw_device_op_t *device_op);
 void cm_free_file_list(void **file_list);
 status_t cm_malloc_file_list(device_type_t type, void **file_list);
+status_t cm_malloc_file_list_by_version_id(uint32 version, void **file_list);
 char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index);
 bool32 cm_check_dir_type_by_file_list(device_type_t type, void *list, int32 index);
 bool32 cm_match_arch_pattern(const char *filename);

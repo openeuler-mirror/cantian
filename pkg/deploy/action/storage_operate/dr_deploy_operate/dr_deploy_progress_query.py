@@ -189,7 +189,7 @@ class DrStatusCheck(object):
             if deploy_mode == "dbstor":
                 storage_fs = self.dr_deploy_info.get("storage_share_fs")
                 cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --query-file "
-                       f"--fs-name={storage_fs} --file-path=/' | grep 'dr_deploy_param.json' | wc -l")
+                       f"--fs-name={storage_fs} --file-dir=/' | grep 'dr_deploy_param.json' | wc -l")
             else:
                 storage_fs = self.dr_deploy_info.get("storage_metadata_fs")
                 if os.path.exists(f"/mnt/dbdata/remote/metadata_{storage_fs}/dr_deploy_param.json"):

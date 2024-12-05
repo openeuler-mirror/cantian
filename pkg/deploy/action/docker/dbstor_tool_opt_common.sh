@@ -38,14 +38,14 @@ function update_local_status_file_path_by_dbstor() {
     if [[ "${cantian_in_container}" != "0" ]];then
         # 容器内需要根据versions.yaml判断是否需要升级
         version_file=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-        --fs-name=${storage_share_fs} --file-path=/ | grep versions\.yml" | wc -l)
+        --fs-name=${storage_share_fs} --file-dir=/ | grep versions\.yml" | wc -l)
         if [[ ${version_file} -eq 0 ]];then
             return 0
         fi
         if [[ -f ${METADATA_FS_PATH}/versions.yml ]];then
             rm -rf "${METADATA_FS_PATH}"/versions.yml
         fi
-        su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --fs-name=${storage_share_fs} \
+        su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --export --fs-name=${storage_share_fs} \
         --source-dir=/ --target-dir=${METADATA_FS_PATH} --file-name=versions.yml"
         if [[ $? -ne 0 ]];then
             logAndEchoError "Copy versions.yml from fs to local failed."
@@ -53,7 +53,7 @@ function update_local_status_file_path_by_dbstor() {
         fi
     fi
     upgrade_dir=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-    --fs-name=${storage_share_fs} --file-path=/" | grep -E "^upgrade$" | grep -v grep | wc -l)
+    --fs-name=${storage_share_fs} --file-dir=/" | grep -E "upgrade$" | grep -v grep | wc -l)
 
     if [[ ${upgrade_dir} -eq 0 ]];then
         return 0
@@ -63,7 +63,7 @@ function update_local_status_file_path_by_dbstor() {
     fi
     mkdir -p -m 755 "${METADATA_FS_PATH}"/upgrade
     chown "${cantian_user}":"${cantian_group}" "${METADATA_FS_PATH}"/upgrade
-    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file \
+    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --export \
     --fs-name=${storage_share_fs} --source-dir=/upgrade/ --target-dir=${METADATA_FS_PATH}/upgrade/"
 
     if [[ $? -ne 0 ]];then
@@ -71,14 +71,14 @@ function update_local_status_file_path_by_dbstor() {
         exit 0
     fi
     upgrade_dir=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-    --fs-name=${storage_share_fs} --file-path=/upgrade" | grep -E "^cluster_and_node_status" | grep -v grep | wc -l)
+    --fs-name=${storage_share_fs} --file-dir=/upgrade" | grep -E "cluster_and_node_status" | grep -v grep | wc -l)
 
     if [[ ${upgrade_dir} -eq 0 ]];then
         return 0
     fi
     mkdir -p -m 755 "${METADATA_FS_PATH}"/upgrade/cluster_and_node_status
     chown "${cantian_user}":"${cantian_group}" "${METADATA_FS_PATH}"/upgrade/cluster_and_node_status
-    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --fs-name=${storage_share_fs} \
+    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --export --fs-name=${storage_share_fs} \
     --source-dir=/upgrade/cluster_and_node_status/ --target-dir=${METADATA_FS_PATH}/upgrade/cluster_and_node_status/"
 
     if [[ $? -ne 0 ]];then
@@ -93,16 +93,17 @@ function update_remote_status_file_path_by_dbstor() {
     fi
     cluster_or_node_status_file_path=$1
     file_name=$(basename ${cluster_or_node_status_file_path})
+    dir_path=$(dirname "${cluster_or_node_status_file_path}")
     chown -hR "${cantian_user}":"${cantian_group}" ${METADATA_FS_PATH}/upgrade
-    relative_path=$(realpath --relative-to="${METADATA_FS_PATH}"/upgrade "${cluster_or_node_status_file_path}")
+    relative_path=$(realpath --relative-to="${METADATA_FS_PATH}"/upgrade "${dir_path}")
     if [[ -d "${METADATA_FS_PATH}"/upgrade/"${relative_path}" ]];then
         chmod 755 "${METADATA_FS_PATH}"/upgrade/"${relative_path}"
     fi
     if [[ -f "${METADATA_FS_PATH}"/upgrade/"${relative_path}" ]];then
         chmod 600 "${METADATA_FS_PATH}"/upgrade/"${relative_path}"
     fi
-    su -s /bin/bash - "${cantian_user}" -c "dbstor --create-file --fs-name=${storage_share_fs} \
-    --file-name=/upgrade/${relative_path} --source-dir=${METADATA_FS_PATH}/upgrade/${relative_path}"
+    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --import --fs-name=${storage_share_fs} \
+    --source-dir=${METADATA_FS_PATH}/upgrade/${relative_path} --target-dir=/upgrade/${relative_path} --file-name=${file_name}"
 
     if [[ $? -ne 0 ]];then
         logAndEchoError "Copy upgrade path from local to fs failed."
@@ -119,7 +120,7 @@ function delete_fs_upgrade_file_or_path_by_dbstor() {
     declare -a upgrade_dirs
     # shellcheck disable=SC2207
     upgrade_dirs=($(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file --fs-name=${storage_share_fs} \
-    --file-path=/upgrade" | grep -E "${file_name}"))
+    --file-dir=/upgrade" | grep -E "${file_name}"))
 
     array_length=${#upgrade_dirs[@]}
     if [[ "${array_length}" -gt 0 ]];then
@@ -136,11 +137,11 @@ function update_version_yml_by_dbstor() {
         return 0
     fi
     chown "${cantian_user}":"${cantian_group}" "${PKG_PATH}/${VERSION_FILE}"
-    su -s /bin/bash - "${cantian_user}" -c "dbstor --create-file --fs-name=${storage_share_fs} \
-    --source-dir=${PKG_PATH}/${VERSION_FILE} --file-name=${VERSION_FILE}"
+    su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --import --fs-name=${storage_share_fs} \
+    --source-dir=${PKG_PATH} --target-dir=/ --file-name=${VERSION_FILE}"
 
     if [ $? -ne 0 ]; then
-        logAndEchoError "Execute dbstor tool command: --create-file failed."
+        logAndEchoError "Execute dbstor tool command: --copy-file failed."
         exit 1
     fi
 }
@@ -151,7 +152,7 @@ function upgrade_lock_by_dbstor() {
     fi
     node_lock_file=${lock_file_prefix}${node_id}
     upgrade_nodes=($(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file \
-    --fs-name=${storage_share_fs} --file-path=/upgrade" | grep -E "${lock_file_prefix}"))
+    --fs-name=${storage_share_fs} --file-dir=/upgrade" | grep -E "${lock_file_prefix}"))
     nodes_length=${#upgrade_nodes[@]}
     if [[ ${nodes_length} -gt 1 ]];then
         logAndEchoError "Exist upgrade node , details:${upgrade_nodes}"
@@ -165,7 +166,7 @@ function upgrade_lock_by_dbstor() {
         return 0
     fi
     su -s /bin/bash - "${cantian_user}" -c "dbstor --create-file --fs-name=${storage_share_fs} \
-    --file-name=/upgrade/${node_lock_file}"
+    --file-dir=/upgrade --file-name=${node_lock_file}"
     if [[ $? -ne 0 ]];then
         logAndEchoError "upgrade lock failed"
         exit 1
@@ -179,7 +180,7 @@ function upgrade_unlock_by_dbstor() {
     fi
     node_lock_file=${lock_file_prefix}${node_id}
     lock_file=$(su -s /bin/bash - "${cantian_user}" -c "dbstor --query-file --fs-name=${storage_share_fs} \
-    --file-path=/upgrade" | grep  "${node_lock_file}" | wc -l)
+    --file-dir=/upgrade" | grep  "${node_lock_file}" | wc -l)
 
     if [[ ${lock_file} -eq 0 ]];then
         return 0
