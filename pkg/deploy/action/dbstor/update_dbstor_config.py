@@ -303,7 +303,13 @@ def update_parameter():
     # update ini for cms
     update_file_parameter(db_opts.cms_ini_path, cms_dbstor_config)
     console_and_log("Successfully to updata dbstor config parameter.")
-
+    # update numa config for dbstor
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    cmd = f"sh {os.path.join(current_path, 'check_usr_pwd.sh')} update_numa_config"
+    logger.info("exec cmd: %s", cmd)
+    ret_code, stdout, stderr = _exec_popen(cmd)
+    if ret_code:
+        log_exit(f"Failed to execute command: {cmd}.")
 
 def verify_dbstor_usernm(in_type, passwd, shortest_len, longest_len):
     """

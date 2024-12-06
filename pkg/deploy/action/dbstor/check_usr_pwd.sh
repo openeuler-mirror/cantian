@@ -53,6 +53,11 @@ function generate_numa_config() {
 
     local success=true
 
+    if [[ -f "$node_numa_file" && -f "$numa_info_file" ]]; then
+        echo "NUMA configuration files already exist. Skipping update."
+        return 0
+    fi
+
     mkdir -p "$NUMA_CONF_DIR" || { echo "Failed to create directory: $NUMA_CONF_DIR"; success=false; }
 
     cpu_num=$(grep -c ^processor /proc/cpuinfo) || { echo "Failed to get CPU number from /proc/cpuinfo"; success=false; }
@@ -94,6 +99,11 @@ function generate_numa_config() {
 
 function main()
 {
+    if [[ "$1" == "update_numa_config" ]]; then
+        generate_numa_config
+        exit 0
+    fi
+
     link_type=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type")
     mkdir -p ${DBSTOOL_PATH}/conf/{dbs,infra/config}
     if [ ${link_type} == 1 ];then
