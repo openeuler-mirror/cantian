@@ -1262,6 +1262,67 @@ EXTER_ATTACK int ctc_mq_record_sql_for_cantian(dsw_message_block_t *message_bloc
     return req->result;
 }
 
+EXTER_ATTACK int ctc_mq_get_paral_schedule(dsw_message_block_t *message_block)
+{
+    struct get_paral_schedule_request *req = message_block->seg_buf[0];
+
+    req->result = ctc_get_paral_schedule(&req->tch, &req->query_scn, &req->ssn, &req->worker_count, req->paral_range);
+
+    return req->result;
+}
+
+EXTER_ATTACK int ctc_mq_get_index_paral_schedule(dsw_message_block_t *message_block)
+{
+    struct get_index_paral_schedule_request *req = message_block->seg_buf[0];
+
+    req->result = ctc_get_index_paral_schedule(&req->tch, &req->query_scn,
+        &req->worker_count, req->index_name, req->reverse, req->is_index_full, req->scan_range, req->index_paral_range);
+    return req->result;
+}
+
+EXTER_ATTACK int ctc_mq_pq_index_read(dsw_message_block_t *message_block)
+{
+    int result;
+    struct pq_index_read_request *req = message_block->seg_buf[0];
+
+    index_key_info_t index_key_info;
+    result = memset_s(&index_key_info, sizeof(index_key_info_t), 0, sizeof(index_key_info_t));
+    MEMS_RETURN_IFERR(result);
+    index_key_info.find_flag = req->find_flag;
+    index_key_info.action = req->action;
+    database_t *db = &g_instance->kernel.db;
+    index_key_info.sorted = req->sorted;
+    index_key_info.need_init = req->need_init;
+    index_key_info.key_num = req->key_num;
+    index_key_info.active_index = MAX_INDEXES;
+    index_key_info.index_skip_scan = req->index_skip_scan;
+    errno_t ret = memcpy_s(index_key_info.index_name, CTC_MAX_KEY_NAME_LENGTH + 1, req->index_name,
+                           strlen(req->index_name) + 1);
+    MEMS_RETURN_IFERR(ret);
+
+    if (req->key_num >= MAX_KEY_COLUMNS) {
+        CT_LOG_RUN_ERR("req->key_num is invalid, req->key_num(%d)", req->key_num);
+        return CT_ERROR;
+    }
+
+    record_info_t record_info = { req->record, 0 };
+    result = ctc_pq_index_read(&req->tch, &record_info, &index_key_info, req->scan_range, req->mode,
+        req->cond, req->is_replace, req->query_scn);
+    if (result == CT_SUCCESS) {
+        req->record_len = record_info.record_len;
+    }
+    req->result = result;
+    req->need_init = index_key_info.need_init;
+    return req->result;
+}
+
+EXTER_ATTACK int ctc_mq_set_cursor_range(dsw_message_block_t *message_block)
+{
+    struct set_cursor_range_requst *req = message_block->seg_buf[0];
+    req->result = ctc_pq_set_cursor_range(&req->tch, req->l_page, req->r_page, req->query_scn, req->ssn);
+    return req->result;
+}
+
 EXTER_ATTACK int ctc_mq_unlock_instance(dsw_message_block_t *message_block)
 {
     struct unlock_instance_request *req = message_block->seg_buf[0];
@@ -1275,7 +1336,7 @@ EXTER_ATTACK int ctc_mq_check_db_table_exists(dsw_message_block_t *message_block
     req->result = ctc_check_db_table_exists(req->db, req->name, &req->is_exists);
     return req->result;
 }
- 
+
 EXTER_ATTACK int ctc_mq_search_metadata_switch(dsw_message_block_t *message_block)
 {
     struct search_metadata_status_request *req = message_block->seg_buf[0];
@@ -1403,6 +1464,10 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_KILL_CONNECTION,                    ctc_mq_kill_session},
     {CTC_FUNC_TYPE_INVALIDATE_OBJECT,             ctc_mq_invalidate_mysql_dd_cache},
     {CTC_FUNC_TYPE_RECORD_SQL,                    ctc_mq_record_sql_for_cantian},
+    {CTC_FUNC_TYPE_GET_PARAL_SCHEDULE,            ctc_mq_get_paral_schedule},
+    {CTC_FUNC_TYPE_GET_INDEX_PARAL_SCHEDULE,      ctc_mq_get_index_paral_schedule},
+    {CTC_FUNC_TYPE_PQ_INDEX_READ,                 ctc_mq_pq_index_read},
+    {CTC_FUNC_TYPE_PQ_SET_CURSOR_RANGE,           ctc_mq_set_cursor_range},
     /* for instance registration, should be the last */
     {CTC_FUNC_TYPE_REGISTER_INSTANCE,             ctc_mq_register_instance},
     {CTC_FUNC_QUERY_SHM_FILE_NUM,                 ctc_mq_query_shm_file_num},

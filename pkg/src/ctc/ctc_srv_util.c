@@ -338,7 +338,7 @@ knl_cursor_t *ctc_alloc_session_cursor(session_t *session, uint32_t part_id, uin
     return cursor;
 }
 
-static void ctc_set_session_ssn_scn(knl_session_t *session, uint8_t *sql_stat_start)
+void ctc_set_session_ssn_scn(knl_session_t *session, uint8_t *sql_stat_start)
 {
     if (sql_stat_start == NULL) {
         return;
@@ -769,7 +769,8 @@ void ctc_init_index_scan(knl_cursor_t *cursor, bool32 is_equal, bool32 *need_ini
     return;
 }
 
-static inline void ctc_set_scan_range_flag(knl_cursor_t *cursor, const index_profile_t *profile, bool32 *index_contain_null)
+static inline void ctc_set_scan_range_flag(knl_cursor_t *cursor,
+                                           const index_profile_t *profile, bool32 *index_contain_null)
 {
     if (*index_contain_null == CT_FALSE && (profile->primary == CT_TRUE || profile->unique == CT_TRUE)) {
         cursor->scan_range.is_equal = CT_TRUE;
@@ -874,6 +875,45 @@ int ctc_set_index_scan_key(knl_cursor_t *cursor, uint32 col_id, bool32 *need_ini
     }
     return CT_SUCCESS;
 }
+
+int ctc_pq_set_scan_key(knl_cursor_t *cursor, ctc_scan_range_t scan_range, const index_key_info_t *index_key_info)
+{
+    index_t *cursor_index = (index_t *)cursor->index;
+    knl_index_desc_t *desc = INDEX_DESC(cursor_index);
+    if (desc->column_count <= 0) {
+        CT_LOG_RUN_ERR("ctc_index_read: count of index column must >= 1");
+        return ERR_INDEX_INVALID;
+    }
+
+    knl_init_index_scan(cursor, scan_range.is_equal);
+
+    int err = memcpy_sp(cursor->scan_range.l_buf, sizeof(char) * CT_KEY_BUF_SIZE,
+                        scan_range.l_buf, sizeof(char) * CT_KEY_BUF_SIZE);
+    knl_securec_check(err);
+    err = memcpy_sp(cursor->scan_range.l_key.flags, sizeof(uint8_t) * CT_MAX_INDEX_COLUMNS,
+                    scan_range.l_key.flags, sizeof(uint8_t)*CT_MAX_INDEX_COLUMNS);
+    knl_securec_check(err);
+    err = memcpy_sp(cursor->scan_range.l_key.offsets, sizeof(uint16_t) * CT_MAX_INDEX_COLUMNS,
+                    scan_range.l_key.offsets, sizeof(uint16_t) * CT_MAX_INDEX_COLUMNS);
+    knl_securec_check(err);
+
+    err = memcpy_sp(cursor->scan_range.r_buf, sizeof(char) * CT_KEY_BUF_SIZE,
+                    scan_range.r_buf, sizeof(char) * CT_KEY_BUF_SIZE);
+    knl_securec_check(err);
+    err = memcpy_sp(cursor->scan_range.r_key.flags, sizeof(uint8_t) * CT_MAX_INDEX_COLUMNS,
+                    scan_range.r_key.flags, sizeof(uint8_t) * CT_MAX_INDEX_COLUMNS);
+    knl_securec_check(err);
+    err = memcpy_sp(cursor->scan_range.r_key.offsets, sizeof(uint16_t) * CT_MAX_INDEX_COLUMNS,
+                    scan_range.r_key.offsets, sizeof(uint16_t) * CT_MAX_INDEX_COLUMNS);
+    knl_securec_check(err);
+
+    cursor->index_paral = CT_TRUE;
+    if (desc->column_count > BTREE_MIN_SKIP_COLUMNS && index_key_info->index_skip_scan) {
+        cursor->skip_index_match = CT_TRUE;
+    }
+    return CT_SUCCESS;
+}
+
 
 int ctc_get_index_info_and_set_scan_key(knl_cursor_t *cursor, const index_key_info_t *index_key_info)
 {

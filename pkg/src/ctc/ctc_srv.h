@@ -372,6 +372,10 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_KILL_CONNECTION,
     CTC_FUNC_TYPE_INVALIDATE_OBJECT,
     CTC_FUNC_TYPE_RECORD_SQL,
+    CTC_FUNC_TYPE_GET_PARAL_SCHEDULE,
+    CTC_FUNC_TYPE_GET_INDEX_PARAL_SCHEDULE,
+    CTC_FUNC_TYPE_PQ_INDEX_READ,
+    CTC_FUNC_TYPE_PQ_SET_CURSOR_RANGE,
     /* for instance registration, should be the last but before duplex */
     CTC_FUNC_TYPE_REGISTER_INSTANCE,
     CTC_FUNC_QUERY_SHM_FILE_NUM,
@@ -527,6 +531,48 @@ typedef struct en_ctc_cond_list_t {
     uint16_t elements;
 } ctc_cond_list;
 
+
+// parallel to knl_scan_key_t
+typedef struct en_ctc_scan_key {
+    uint8_t flags[CT_MAX_INDEX_COLUMNS]; // should be one of SCAN_KEY_NORMAL, SCAN_KEY_LEFT_INFINITE, .. etc
+    uint16_t offsets[CT_MAX_INDEX_COLUMNS]; // the offset of each column from buf[0];
+    char *buf;
+} ctc_scan_key_t;
+
+typedef union en_ctc_page_id {
+    uint32_t vmid;
+    struct {
+        uint32_t page;
+        uint16_t file;
+        uint16_t aligned;
+    };
+} ctc_page_id_t;
+
+typedef struct en_ctc_scan_range {
+    union {
+        struct {
+            char l_buf[CT_KEY_BUF_SIZE];
+            char r_buf[CT_KEY_BUF_SIZE];
+            char org_buf[CT_KEY_BUF_SIZE];
+            ctc_scan_key_t l_key;
+            ctc_scan_key_t r_key;
+            ctc_scan_key_t org_key;
+            uint32_t is_equal;
+        };
+
+        struct {
+            ctc_page_id_t l_page;
+            ctc_page_id_t r_page;
+        };
+    };
+} ctc_scan_range_t;
+
+// by-page scan shall also be wrapped in this as response type
+typedef struct en_ctc_index_paral_range {
+    uint32_t workers;
+    ctc_scan_range_t *index_range[CT_MAX_PARAL_QUERY];
+} ctc_index_paral_range_t;
+
 typedef struct {
     uint64_t ignore : 1;
     uint64_t no_foreign_key_check : 1;
@@ -593,6 +639,19 @@ int ctc_general_fetch(ctc_handler_t *tch, record_info_t *record_info);
 int ctc_general_prefetch(ctc_handler_t *tch, uint8_t *records, uint16_t *record_lens,
                          uint32_t *recNum, uint64_t *rowids, int32_t max_row_size);
 int ctc_free_session_cursors(ctc_handler_t *tch, uint64_t *cursors, int32_t csize);
+
+/* Parallel Query Interface */
+int ctc_get_index_paral_schedule(ctc_handler_t *tch, uint64_t *query_scn, int *worker_count,
+    char* index_name, bool reverse, bool is_index_full,
+    ctc_scan_range_t *origin_scan_range, ctc_index_paral_range_t *sub_ranges);
+int ctc_pq_index_read(ctc_handler_t *tch, record_info_t *record_info,
+    index_key_info_t *index_info, ctc_scan_range_t scan_range,
+    ctc_select_mode_t mode, ctc_conds *cond, const bool is_replace, uint64_t query_scn);
+
+int ctc_get_paral_schedule(ctc_handler_t *tch, uint64_t *query_scn, uint64_t *ssn, int *worker_count,
+    ctc_index_paral_range_t *paral_range);
+int ctc_pq_set_cursor_range(ctc_handler_t *tch, ctc_page_id_t l_page, ctc_page_id_t r_page, uint64_t query_scn,
+    uint64_t ssn);
 
 /* Transaction Related Interface */
 int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context, bool is_mysql_local);

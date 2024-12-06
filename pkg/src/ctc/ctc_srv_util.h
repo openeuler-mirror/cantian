@@ -202,6 +202,7 @@ cond_pushdown_result_t check_cond_match_one_line(ctc_conds *cond, knl_cursor_t *
 
 void ctc_init_index_scan(knl_cursor_t *cursor, bool32 is_equal, bool32 *need_init_index);
 int ctc_get_index_info_and_set_scan_key(knl_cursor_t *cursor, const index_key_info_t *index_key_info);
+int ctc_pq_set_scan_key(knl_cursor_t *cursor, ctc_scan_range_t scan_range, const index_key_info_t *index_key_info);
 
 void ctc_pre_set_cursor_for_scan(uint32 index_set_count, knl_cursor_t *cursor, uint16_t active_index);
 int ctc_count_rows(session_t *session, knl_dictionary_t *dc, knl_session_t *knl_session,
@@ -218,6 +219,7 @@ void ctc_set_no_use_other_sess4thd(session_t *session);
 void ctc_get_index_from_name(knl_dictionary_t *dc, char *index_name, uint16_t *active_index);
 status_t ctc_check_index_column_count(uint32_t column_cnt);
 void ctc_sql_str_remove_escape_chars(char *str, size_t len);
+void ctc_set_session_ssn_scn(knl_session_t *session, uint8_t *sql_stat_start);
 
 #define CTC_HANDLE_KNL_FETCH_FAIL_LIMIT(session, tch)                                                    \
     do {                                                                                                    \
