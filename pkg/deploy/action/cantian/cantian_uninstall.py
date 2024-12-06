@@ -661,7 +661,8 @@ def clean_environment():
                   gen_reg_string(g_opts.install_path_l)))
     # Clear environment variable CTDB_HOME
     home_cmd = r"/^\s*export\s*CTDB_HOME=\".*\"$/d"
-
+    # Clear environment variable CANTIANLOG
+    cantianlog_cmd = r"/^\s*export\s*CANTIANLOG=.*$/d"
     # Clear environment ssl cert
     ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
     cert_cmd = r"/^\s*export\s*CTSQL_SSL_CERT=.*$/d"
@@ -669,7 +670,7 @@ def clean_environment():
     mode_cmd = r"/^\s*export\s*CTSQL_SSL_MODE=.*$/d"
     cipher_cmd = r"/^\s*export\s*CTSQL_SSL_KEY_PASSWD=.*$/d"
 
-    cmds = [path_cmd, lib_cmd, home_cmd,
+    cmds = [path_cmd, lib_cmd, home_cmd, cantianlog_cmd,
             ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
     flags = os.O_RDONLY
     modes = stat.S_IWUSR | stat.S_IRUSR

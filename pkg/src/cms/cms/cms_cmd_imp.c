@@ -65,21 +65,18 @@ int32 g_lockConfigHandle = CT_INVALID_HANDLE; // TODO???
 
 status_t cm_get_and_flock_conf_file(char *config_name)
 {
-    char dbs_conf_dir_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
-    int32_t ret = sprintf_s(dbs_conf_dir_path, CT_FILE_NAME_BUFFER_SIZE, "%s/dbstor/conf/dbs", g_cms_param->cms_home);
-    if (ret == -1) {
-        printf("Failed to assemble the dbstor conf dir path by instance home(%s).", g_cms_param->cms_home);
-        return CT_ERROR;
-    }
+    char dbs_conf_dir_path[CT_FILE_NAME_BUFFER_SIZE] = "/opt/cantian/dbstor/conf/dbs";
+
     DIR *dir_ptr;
     struct dirent *entry;
 
     dir_ptr = opendir(dbs_conf_dir_path);
     if (dir_ptr == NULL) {
-        printf("open dbs_conf_dir_path failed!");
+        printf("open dbs_conf_dir_path failed!\n");
         return CT_ERROR;
     }
 
+    int32 ret = 0;
     char dbs_conf_file_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
     while ((entry = readdir(dir_ptr)) != NULL) {
         if (strstr(entry->d_name, "tool") == NULL) {
@@ -92,7 +89,7 @@ status_t cm_get_and_flock_conf_file(char *config_name)
         }
         ret = sprintf_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s", dbs_conf_dir_path, entry->d_name);
         if (ret == -1) {
-            printf("Failed to assemble the dbstor conf file path by instance home(%s).", g_cms_param->cms_home);
+            printf("Failed to assemble the dbstor conf file path by instance home(%s).\n", dbs_conf_dir_path);
             break;
         }
         if (cm_open_file(dbs_conf_file_path, O_RDWR, &g_lockConfigHandle) != CT_SUCCESS) {

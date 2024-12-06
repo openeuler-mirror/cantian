@@ -149,8 +149,7 @@ status_t cms_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
 {
     char file_path[CMS_FILE_NAME_BUFFER_SIZE];
     char line[CMS_DBS_CONFIG_MAX_PARAM];
-    errno_t ret = sprintf_s(file_path, CMS_FILE_NAME_BUFFER_SIZE, "%s/dbstor/conf/dbs/%s",
-                            g_cms_param->cms_home, cfg_name);
+    errno_t ret = sprintf_s(file_path, CMS_FILE_NAME_BUFFER_SIZE, "/opt/cantian/dbstor/conf/dbs/%s", cfg_name);
     PRTS_RETURN_IFERR(ret);
     FILE* fp = fopen(file_path, "r");
     if (fp == NULL) {
@@ -167,7 +166,7 @@ status_t cms_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
             lsid_t.len = strlen(lsid_t.str);
             cm_trim_text(&lsid_t);
             CT_RETURN_IFERR(cm_str2uint32((const char *)lsid_t.str, lsid));
-        } else if (strstr(line, "CMS_TOOL_UUID") != NULL) {
+        } else if (strstr(line, "DBS_TOOL_UUID") != NULL) {
             text_t uuid_t;
             uuid_t.str = strtok_s(line, "=", &context);
             uuid_t.str = strtok_s(NULL, "\n", &context);

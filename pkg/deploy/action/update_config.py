@@ -141,9 +141,7 @@ def update_dbstore_conf(action, key, value=None):
 def update_cantian_conf(action, key, value):
     file_path = "/opt/cantian/cantian/cfg/cantian_config.json"
     config = read_deploy_conf(file_path=file_path)
-    config["USER"] = "cantian"
-    config["GROUP"] = "cantian"
-    config["USER_HOME"] = "/home/cantian"
+    config["LOG_HOME"] = "/opt/cantian/log/cantian"
     write_config_file(file_path, config)
 
 
@@ -168,6 +166,8 @@ def update_ini_conf(file_path, action, key, value):
         if key in item:
             if action == "update":
                 config[i] = f"{key} = {value}\n"
+            if action == "del":
+                del config[i]
             break
     if action == "add" and key not in str(config):
         config.append(f"{key} = {value}\n")

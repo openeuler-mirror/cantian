@@ -742,7 +742,6 @@ if [[ ${config_install_type} = 'override' ]]; then
   storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
 
   # 创建公共路径
-  mkdir -m 755 -p /opt/cantian/logs
   mkdir -m 755 -p /opt/cantian/image
   mkdir -m 750 -p /opt/cantian/common/data
   mkdir -m 755 -p /opt/cantian/common/socket

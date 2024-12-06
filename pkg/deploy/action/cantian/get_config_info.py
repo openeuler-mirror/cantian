@@ -20,7 +20,7 @@ kernel_params_list = ['SHM_CPU_GROUP_INFO', 'LARGE_POOL_SIZE', 'CR_POOL_COUNT', 
                       'TEMP_POOL_NUM', 'BUF_POOL_NUM', 'LOG_BUFFER_SIZE', 'LOG_BUFFER_COUNT',
                       'SHARED_POOL_SIZE', 'DATA_BUFFER_SIZE', 'TEMP_BUFFER_SIZE', 'SESSIONS',
                       'SHM_MEMORY_REDUCTION_RATIO', "VARIANT_MEMORY_AREA_SIZE", "DTC_RCY_PARAL_BUF_LIST_SIZE"]
-mysql_kernel_params_list = ['max_connections']
+mysql_kernel_params_list = ['max_connections', 'table_open_cache', 'table_open_cache_instances']
 numa_params_list = ["CANTIAN_NUMA_CPU_INFO", "MYSQL_NUMA_CPU_INFO"]
 MEM_SPEC = {
     "0": {
@@ -33,7 +33,9 @@ MEM_SPEC = {
         "SHM_MEMORY_REDUCTION_RATIO": "8",
         "VARIANT_MEMORY_AREA_SIZE": "256M",
         "CR_POOL_SIZE": "256M",
-        "max_connections": "128"
+        "max_connections": "128",
+        "table_open_cache": "5120",
+        "table_open_cache_instances": "4"
     },
     "1": {
         "SESSIONS": "1024",
@@ -45,7 +47,9 @@ MEM_SPEC = {
         "SHM_MEMORY_REDUCTION_RATIO": "8",
         "VARIANT_MEMORY_AREA_SIZE": "256M",
         "CR_POOL_SIZE": "512M",
-        "max_connections": "1024"
+        "max_connections": "1024",
+        "table_open_cache": "10240",
+        "table_open_cache_instances": "8"
     },
     "2": {
         "SESSIONS": "2048",
@@ -57,7 +61,9 @@ MEM_SPEC = {
         "SHM_MEMORY_REDUCTION_RATIO": "4",
         "VARIANT_MEMORY_AREA_SIZE": "512M",
         "CR_POOL_SIZE": "1G",
-        "max_connections": "2048"
+        "max_connections": "2048",
+        "table_open_cache": "20480",
+        "table_open_cache_instances": "16"
     },
     "3": {
         "SESSIONS": "4096",
@@ -69,7 +75,9 @@ MEM_SPEC = {
         "SHM_MEMORY_REDUCTION_RATIO": "2",
         "VARIANT_MEMORY_AREA_SIZE": "1G",
         "CR_POOL_SIZE": "2G",
-        "max_connections": "4096"
+        "max_connections": "4096",
+        "table_open_cache": "40960",
+        "table_open_cache_instances": "32"
     }
 }
 
