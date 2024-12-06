@@ -315,6 +315,10 @@ class PhysicalCpuConfig(NumaConfigBase):
             valid_cpu_list = [cpu for cpu in cpu_list if cpu >= 12]  # 只保留 ID >= 12 的 CPU
             self.available_cpu_for_binding_dict[numa_id] = valid_cpu_list
 
+        if not self.available_cpu_for_binding_dict or any(
+                not valid_cpu_list for valid_cpu_list in self.available_cpu_for_binding_dict.values()):
+            raise Exception("No valid CPU binding available for any NUMA node or some NUMA nodes have no valid CPUs.")
+
     def update_bind_cpu_info(self):
         """ 获取绑定的 CPU 列表，支持手动配置 """
         numa_config = get_json_config(CONFIG_PATH)
