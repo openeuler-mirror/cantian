@@ -1984,8 +1984,9 @@ class Installer:
             os.environ['LD_LIBRARY_PATH'] = ("%s:%s" % (
                 os.path.join(self.install_path, "lib"),
                 os.path.join(self.install_path, "add-ons"),))
-        os.environ["CTDB_HOME"] = self.cantiand_configs["LOG_HOME"]
+        os.environ["CTDB_HOME"] = self.install_path
         os.environ["CTDB_DATA"] = self.data
+        os.environ["CANTIANLOG"] = self.cantiand_configs["LOG_HOME"]
 
         # Clean the env about ssl cert
         # Avoid remaining environmental variables interfering
@@ -2309,7 +2310,8 @@ class Installer:
                       self.genregstring(self.install_path)))
         # Clear environment variable CTDB_HOME
         home_cmd = r"/^\s*export\s*CTDB_HOME=.*$/d"
-        # Clear environment variable CMS_HOME
+       # Clear environment variable CANTIANLOG
+        cantianlog_cmd = r"/^\s*export\s*CANTIANLOG=.*$/d"
 
         # Clear environment ssl cert
         ca_cmd = r"/^\s*export\s*CTSQL_SSL_CA=.*$/d"
@@ -2318,7 +2320,7 @@ class Installer:
         mode_cmd = r"/^\s*export\s*CTSQL_SSL_MODE=.*$/d"
         cipher_cmd = r"/^\s*export\s*CTSQL_SSL_KEY_PASSWD=.*$/d"
 
-        cmds = [path_cmd, lib_cmd, home_cmd,
+        cmds = [path_cmd, lib_cmd, home_cmd, cantianlog_cmd,
                 ca_cmd, cert_cmd, key_cmd, mode_cmd, cipher_cmd]
         if self.option == self.INS_ALL:
             cmds.insert(0, data_cmd)
