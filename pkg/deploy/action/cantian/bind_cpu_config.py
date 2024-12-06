@@ -578,8 +578,12 @@ class ConfigManager:
     def init_numa_config(self):
         # 根据MODULE_LIST动态生成 numa_config
         numa_config = {}
-        for module in MODULE_LIST:
-            numa_config[module] = "off" if module == MES_MODULE else ""
+        if get_value("cantian_in_container") != "0":
+            for module in MODULE_LIST:
+                numa_config[module] = "off"
+        else:
+            for module in MODULE_LIST:
+                numa_config[module] = "off" if module == MES_MODULE else ""
 
         write_json_config_file(CONFIG_PATH, numa_config)
 
