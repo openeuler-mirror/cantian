@@ -68,7 +68,7 @@ PRIMARY_KEYSTORE = r"/opt/cantian/common/config/primary_keystore_bak.ks"
 STANDBY_KEYSTORE = r"/opt/cantian/common/config/standby_keystore_bak.ks"
 CANTIAN_CONFIG = os.path.join(CURRENT_PATH, "..", "..", "config", "deploy_param.json")
 
-LOG_FILE = r"/opt/cantian/logicrep/log/logicrep_deploy.log"
+LOG_FILE = r"/opt/cantian/log/logicrep/logicrep_deploy.log"
 RETRY_TIMES = 20
 
 

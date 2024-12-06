@@ -74,7 +74,7 @@ function set_cms_cfg() {
         sed -i -r "s:(_USE_DBSTOR = ).*:\1False:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
         sed -i -r "s:(_CMS_MES_PIPE_TYPE = ).*:\1TCP:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
-    sed -i -r "s:(_CMS_LOG = ).*:\1${cms_log}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+    sed -i -r "s:(CMS_LOG = ).*:\1${cms_log}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
 }
 
 # 修改cms配置文件

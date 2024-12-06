@@ -46,3 +46,8 @@ then
     chmod 550 /opt/cantian/mysql/install/mysql/bin/mysql
 fi
 chmod 600 /opt/cantian/log/mysql/install.log
+
+if [ -f /opt/cantian/mysql/log/install.log ]
+then
+    chmod 600 /opt/cantian/mysql/log/install.log
+fi

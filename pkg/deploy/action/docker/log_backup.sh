@@ -67,7 +67,7 @@ function main() {
     check_path_and_copy /opt/software/tools/logicrep/log logicrep/
     check_path_and_copy /opt/software/tools/logicrep/logicrep/run logicrep/
     check_path_and_copy /opt/software/tools/logicrep/logicrep/perf logicrep/
-    check_path_and_copy /opt/cantian/logicrep/log/logicrep_deploy.log logicrep/
+    check_path_and_copy /opt/cantian/log/logicrep/logicrep_deploy.log logicrep/
     logAndEchoInfo "Backup log complete."
 }
 

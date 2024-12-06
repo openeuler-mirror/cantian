@@ -40,8 +40,9 @@ LOGICREP_PKG="${CURRENT_PATH}/../../zlogicrep/build/Cantian_PKG/file"
 
 tools_home='/opt/cantian/logicrep'
 tools_scripts='/opt/cantian/action/logicrep'
+tools_log_path='/opt/cantian/log/logicrep'
 
-LOG_FILE="${tools_home}/log/logicrep_deploy.log"
+LOG_FILE="${tools_log_path}/logicrep_deploy.log"
 FLAG_FILE="${LOGICREP_HOME}/start.success"
 ENABLE_FILE="${LOGICREP_HOME}/enable.success"
 #在首次安装和无logicrep版本离线升级时使用
@@ -185,12 +186,12 @@ function check_and_create_home()
     if [ ! -d ${tools_home} ]; then
         mkdir -m 755 -p ${tools_home}
     fi
-    if [ ! -d ${tools_home}/log ]; then
-        mkdir -m 750 -p ${tools_home}/log
+    if [ ! -d ${tools_log_path} ]; then
+        mkdir -m 750 -p ${tools_log_path}
         touch ${LOG_FILE}
         chmod 640 ${LOG_FILE}
     fi
-    chown "${cantian_user}":"${cantian_group}" -hR ${tools_home}/log
+    chown "${cantian_user}":"${cantian_group}" -hR ${tools_log_path}
 }
 
 # 检查获取最新so

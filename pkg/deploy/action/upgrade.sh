@@ -323,6 +323,14 @@ function update_config() {
     # 更新ks路径
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=KMC_KEY_FILES --value='(/opt/cantian/common/config/primary_keystore_bak.ks, /opt/cantian/common/config/standby_keystore_bak.ks)'"
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=KMC_KEY_FILES --value='(/opt/cantian/common/config/primary_keystore_bak.ks, /opt/cantian/common/config/standby_keystore_bak.ks)'"
+
+    
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cms_ini --action=add --key=CMS_LOG --value=/opt/cantian/log/cms"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=update --key=LOG_HOME --value=/opt/cantian/log/cantian"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=del --key=DAAC_TASK_NUM --value=256"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=CANTIAN_TASK_NUM --value=256"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian --action=add --key=LOG_HOME --value=/opt/cantian/log/cantian"
+
 }
 
 function install_dbstore(){
