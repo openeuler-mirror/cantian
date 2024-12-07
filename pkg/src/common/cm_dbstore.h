@@ -226,6 +226,7 @@ typedef struct cm_dbstor_fs_info {
     uint8 fs_type;
     uint8 is_gfs;
     uint8 fs_type_verify_switch;
+    uint8 fs_status;
     bool is_dedup;
     bool is_compress;
 } dbstor_fs_info;
