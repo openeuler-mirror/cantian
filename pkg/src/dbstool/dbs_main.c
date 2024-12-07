@@ -139,6 +139,9 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--query-fs-info", "*[PARAM]"}, dbs_query_fs_info,
         "\tUsage: query the information for file system.\n"
         "\tparams: --fs-name=* --vstore_id=*"},
+    {{"--perf-show", "*[PARAM]"}, dbs_perf_show,
+        "\tUsage: show dbstor perf.\n"
+        "\tparams: [--interval=*] [--times=*]"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])

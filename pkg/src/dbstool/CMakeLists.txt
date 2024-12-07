@@ -2,6 +2,7 @@ include_directories(
         "${CANTIANDB_LIBRARY}/dbstor"
         "${CANTIANDB_LIBRARY}/xnet/include"
         "${CANTIANDB_SRC}/dbstool"
+        "${CANTIANDB_SRC}/cms/interface"
 )
 
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/ DBS_SRC)
