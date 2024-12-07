@@ -40,6 +40,7 @@
 #define NUM_EIGHT   8
 #define NUM_NINE    9
 #define DEFAULT_LINK_CHECK_TIMEOUT 5
+#define LINK_STATE_UNKNOWN 7
 
 status_t dbstool_init();
 int32 dbs_arch_import(int32 argc, char *argv[]);

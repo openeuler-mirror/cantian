@@ -1814,16 +1814,22 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
     return ret;
 }
 
-char* link_state_to_string(uint32_t link_state) {
-    switch (link_state) {
-        case 0: return "LINK_STATE_CONNECT_OK";
-        case 1: return "LINK_STATE_CONNECTING";
-        case 2: return "LINK_STATE_CONNECT_FAIL";
-        case 3: return "LINK_STATE_AUTH_FAIL";
-        case 4: return "LINK_STATE_REJECT_AUTH";
-        case 5: return "LINK_STATE_OVER_SIZE";
-        case 6: return "LINK_STATE_LSID_EXIST";
-        default: return "LINK_STATE_UNKNOWN";
+const char* link_state_to_string(uint32_t link_state) {
+    static const char* link_state_strings[] = {
+        "LINK_STATE_CONNECT_OK",
+        "LINK_STATE_CONNECTING",
+        "LINK_STATE_CONNECT_FAIL",
+        "LINK_STATE_AUTH_FAIL",
+        "LINK_STATE_REJECT_AUTH",
+        "LINK_STATE_OVER_SIZE",
+        "LINK_STATE_LSID_EXIST",
+        "LINK_STATE_UNKNOWN"
+    };
+
+    if (link_state < sizeof(link_state_strings) / sizeof(link_state_strings[0])) {
+        return link_state_strings[link_state];
+    } else {
+        return link_state_strings[LINK_STATE_UNKNOWN];
     }
 }
 
@@ -1991,6 +1997,7 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
     int32 ret = dbs_global_handle()->dbs_query_fs_info(fs_name, vstore_id, fs_info);
     if (ret != CT_SUCCESS) {
         printf("Quuery fs info failed(%d), fs_name(%s), vstore_id(%u).\n", ret, fs_name, vstore_id);
+        free(fs_info);
         return ret;
     }
     dbs_fs_info_display(fs_name, vstore_id, fs_info);

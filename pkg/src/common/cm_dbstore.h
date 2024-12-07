@@ -213,22 +213,21 @@ void dbs_close_lib(void);
 void dbs_tool_close_lib(void);
 
 typedef struct cm_dbstor_fs_info {
+    uint64 actual_size;
+    uint64 total_capacity;
+    uint64 used_size;
     uint32 fs_id;
     uint32 cluster_id;
     uint32 pool_id;
-    int8 fs_status;
-    uint64 actual_size;
-    uint64 total_capacity;
+    uint32 grain_size;
+    uint32 block_size;
+    uint32 work_load_type_id;
     uint8 fs_mode;
     uint8 fs_type;
-    uint32 grain_size;
-    uint32 work_load_type_id;
+    uint8 is_gfs;
+    uint8 fs_type_verify_switch;
     bool is_dedup;
     bool is_compress;
-    uint32 block_size;
-    uint8 is_gfs;
-    uint64 used_size;
-    bool fs_type_verify_switch;
 } dbstor_fs_info;
 
 #ifdef __cplusplus
