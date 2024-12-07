@@ -75,6 +75,7 @@
 #define DBS_COPY_FILE_PRAMA_NUM 4
 #define DBS_DELETE_FILE_PRAMA_NUM 2
 #define DBS_QUERY_FILE_PRAMA_NUM 3
+#define DBS_QUERY_FS_INFO_PRAMA_NUM 2
 
 #define DBS_NO_CHECK_PRAMA_NUM 0
 #define DBS_ARCH_EXPORT_PRAMA_CHECK_NUM 1
@@ -85,6 +86,7 @@
 #define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
 #define DBS_DELETE_FILE_CHECK_PRAMA_NUM 2
 #define DBS_QUERY_FILE_CHECK_PRAMA_NUM 2
+#define DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM 2
 
 typedef bool32 (*file_filter_func)(const char *);
 typedef struct {
@@ -1812,6 +1814,25 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
     return ret;
 }
 
+const char* link_state_to_string(uint32_t link_state) {
+    static const char* link_state_strings[] = {
+        "LINK_STATE_CONNECT_OK",
+        "LINK_STATE_CONNECTING",
+        "LINK_STATE_CONNECT_FAIL",
+        "LINK_STATE_AUTH_FAIL",
+        "LINK_STATE_REJECT_AUTH",
+        "LINK_STATE_OVER_SIZE",
+        "LINK_STATE_LSID_EXIST",
+        "LINK_STATE_UNKNOWN"
+    };
+
+    if (link_state < sizeof(link_state_strings) / sizeof(link_state_strings[0])) {
+        return link_state_strings[link_state];
+    } else {
+        return link_state_strings[LINK_STATE_UNKNOWN];
+    }
+}
+
 // dbstor --dbs-link-check
 int32 dbs_link_check(int32 argc, char *argv[])
 {
@@ -1837,16 +1858,149 @@ int32 dbs_link_check(int32 argc, char *argv[])
     uint32 link_state = 0;
     for (uint32 i = 0; i < link_num; i++) {
         (void)dbs_global_handle()->dbs_check_single_link(ip_pairs[i].local_ip, ip_pairs[i].remote_ip, &link_state);
-        printf("%-24s %-24s %-12u\n", ip_pairs[i].local_ip, ip_pairs[i].remote_ip, link_state);
+        printf("%-24s %-24s %-30s\n", ip_pairs[i].local_ip, ip_pairs[i].remote_ip, link_state_to_string(link_state));
     }
-    printf("\nNotice:\n");
-    printf("CGW_LINK_STATE_CONNECT_OK   = 0\n");
-    printf("CGW_LINK_STATE_CONNECTING   = 1\n");
-    printf("CGW_LINK_STATE_CONNECT_FAIL = 2\n");
-    printf("CGW_LINK_STATE_AUTH_FAIL    = 3\n");
-    printf("CGW_LINK_STATE_REJECT_AUTH  = 4\n");
-    printf("CGW_LINK_STATE_OVER_SIZE    = 5\n");
-    printf("CGW_LINK_STATE_LSID_EXIT    = 6\n");
     free(ip_pairs);
     return CT_SUCCESS;
+}
+
+// dbstor --io--status
+int32 dbs_get_ns_io_forbidden_stat(int32 argc, char *argv[])
+{
+    if (dbs_global_handle()->dbs_get_ns_io_forbidden_stat == NULL) {
+        printf("dbs_get_ns_io_forbidden_stat is not support\n");
+        return CT_ERROR;
+    }
+
+    if (argc != NUM_TWO) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("Usage: dbstor --get-ns-forbidden-stat\n");
+        return CT_ERROR;
+    }
+    bool isForbidden = 0;
+    int32 ret = dbs_global_handle()->dbs_get_ns_io_forbidden_stat(g_dbs_fs_info.cluster_name, &isForbidden);
+    if (ret != CT_SUCCESS) {
+        printf("Get ns forbidden state failed(%d).\n", ret);
+        return ret;
+    }
+    printf("Ns IO forbidden state is %u, 0: OFF, 1: ON.\n", isForbidden);
+    return ret;
+}
+
+// 从文件中读取 "LINK_CHECK_CNT =" 后面的值
+status_t dbs_read_link_timeout(uint32 *linkTimeOut, char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        printf("Open file %s failed\n", path);
+        return CT_ERROR;
+    }
+
+    char buffer[DBS_LINK_CHECK_PARAM_LEN];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        if (strstr(buffer, DBS_LINK_CHECK_CNT)) {
+            // 找到包含 "LINK_CHECK_CNT" 的行
+            char *equal_sign = strchr(buffer, '=');
+            if (equal_sign != NULL) {
+                // 跳过 "=" 后面的空白字符
+                equal_sign++;
+                while (*equal_sign == ' ' || *equal_sign == '\t') {
+                    equal_sign++;
+                }
+
+                // 解析整数值
+                *linkTimeOut = (uint32)strtol(equal_sign, NULL, 10);
+                fclose(file);
+                return CT_SUCCESS;
+            }
+        }
+    }
+
+    fclose(file);
+    printf("LINK_CHECK_CNT not found in file %s, using default value: %d\n", path, DEFAULT_LINK_CHECK_TIMEOUT);
+    return CT_SUCCESS;
+}
+
+// dbstor --get-link-timeout
+int32 dbs_get_link_timeout(int32 argc, char *argv[])
+{
+    if (argc != NUM_TWO) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("dbstor --get-link-timeout\n");
+        return CT_ERROR;
+    }
+
+    uint32 linkTimeOut = (uint32)DEFAULT_LINK_CHECK_TIMEOUT;
+    status_t ret = dbs_read_link_timeout(&linkTimeOut, DBS_CANTIAN_CONFIG_PATH);
+    if (ret == CT_SUCCESS) {
+        printf("Link timeout is: %u\n", linkTimeOut);
+    } else {
+        printf("Failed to read link timeout.\n");
+    }
+    return ret;
+}
+
+void dbs_fs_info_display(char *fs_name, uint32 vstore_id, dbstor_fs_info *fs_info)
+{
+    printf("fs_name = %s\n", fs_name);
+    printf("vstore_id = %u\n", vstore_id);
+    printf("fs_id = %u\n", fs_info->fs_id);
+    printf("cluster_id = %u\n", fs_info->cluster_id);
+    printf("pool_id = %u\n", fs_info->pool_id);
+    printf("fs_status = %u\n", fs_info->fs_status);
+    printf("actual_size = %llu\n", fs_info->actual_size);
+    printf("total_capacity = %llu\n", fs_info->total_capacity);
+    printf("fs_mode = %u\n", fs_info->fs_mode);
+    printf("fs_type = %u\n", fs_info->fs_type);
+    printf("grain_size = %u\n", fs_info->grain_size);
+    printf("work_load_type_id = %u\n", fs_info->work_load_type_id);
+    printf("is_dedup = %u\n", fs_info->is_dedup);
+    printf("is_compress = %u\n", fs_info->is_compress);
+    printf("block_size = %u\n", fs_info->block_size);
+    printf("is_gfs = %u\n", fs_info->is_gfs);
+    printf("used_size = %llu\n", fs_info->used_size);
+    printf("fs_type_verify_switch = %u\n", fs_info->fs_type_verify_switch);
+}
+
+// dbstor --query-fs-info --fs-name= --vstore_id=
+int32 dbs_query_fs_info(int32 argc, char *argv[])
+{
+    char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
+    char vstore_id_str[MAX_DBS_VSTORE_ID_LEN] = { 0 };
+    uint32 vstore_id = 0;
+
+    const char *params[] = { DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_VSTORE_ID };
+    char *results[] = { fs_name, vstore_id_str };
+    size_t result_lens[] = { MAX_DBS_FS_NAME_LEN, MAX_DBS_VSTORE_ID_LEN };
+    params_check_list_t check_list[] = { { DBS_TOOL_PARAM_FS_NAME, fs_name } };
+    params_list_t params_list = {
+        params, results, result_lens, check_list, DBS_QUERY_FS_INFO_PRAMA_NUM, DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM
+    };
+
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
+        return CT_ERROR;
+    }
+
+    if (strlen(vstore_id_str) > 0) {
+        vstore_id = (uint32)atoi(vstore_id_str);
+    } else {
+        printf("Invalid vstore_id.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
+    }
+
+    dbstor_fs_info *fs_info = (dbstor_fs_info *)malloc(sizeof(dbstor_fs_info));
+    if (fs_info == NULL) {
+        printf("Failed to malloc fs_info.\n");
+        return CT_ERROR;
+    }
+
+    int32 ret = dbs_global_handle()->dbs_query_fs_info(fs_name, vstore_id, fs_info);
+    if (ret != CT_SUCCESS) {
+        printf("Quuery fs info failed(%d), fs_name(%s), vstore_id(%u).\n", ret, fs_name, vstore_id);
+        free(fs_info);
+        return ret;
+    }
+    dbs_fs_info_display(fs_name, vstore_id, fs_info);
+    free(fs_info);
+    return ret;
 }
