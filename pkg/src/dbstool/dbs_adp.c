@@ -26,6 +26,11 @@
 #include <stdio.h>
 #include <sys/file.h>
 #include <dirent.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+#include <pthread.h>
 #include "dbs_adp.h"
 #include "cm_date.h"
 #include "cm_error.h"
@@ -37,6 +42,7 @@
 #include "cm_config.h"
 #include "cm_utils.h"
 #include "cm_dbs_file.h"
+#include "cms_socket.h"
 
 #define DBS_CONFIG_FILE_NAME_LEN 32
 #define DBS_WAIT_CONFIG_RETRY_NUM 2
@@ -59,6 +65,8 @@
 #define DBS_TOOL_PARAM_FILE_NAME "--file-name="
 #define DBS_TOOL_PARAM_FILE_PATH "--file-path="
 #define DBS_TOOL_PARAM_VSTORE_ID "--vstore_id="
+#define DBS_PERF_SHOW_INTERVAL "--interval="
+#define DBS_PERF_SHOW_TIMES "--times="
 #define MAX_VALUE_UINT32 "4294967295"
 #define DBS_LINK_CHECK_CNT "LINK_CHECK_CNT"
 #define DBS_LINK_CHECK_PARAM_LEN 64
@@ -75,6 +83,7 @@
 #define DBS_COPY_FILE_PRAMA_NUM 4
 #define DBS_DELETE_FILE_PRAMA_NUM 2
 #define DBS_QUERY_FILE_PRAMA_NUM 3
+#define DBS_QUERY_FS_INFO_PRAMA_NUM 2
 
 #define DBS_NO_CHECK_PRAMA_NUM 0
 #define DBS_ARCH_EXPORT_PRAMA_CHECK_NUM 1
@@ -85,6 +94,8 @@
 #define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
 #define DBS_DELETE_FILE_CHECK_PRAMA_NUM 2
 #define DBS_QUERY_FILE_CHECK_PRAMA_NUM 2
+#define DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM 2
+#define DBS_PERF_SHOW_PRAMA_NUM 2
 
 typedef bool32 (*file_filter_func)(const char *);
 typedef struct {
@@ -1812,6 +1823,25 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
     return ret;
 }
 
+const char* link_state_to_string(uint32_t link_state) {
+    static const char* link_state_strings[] = {
+        "LINK_STATE_CONNECT_OK",
+        "LINK_STATE_CONNECTING",
+        "LINK_STATE_CONNECT_FAIL",
+        "LINK_STATE_AUTH_FAIL",
+        "LINK_STATE_REJECT_AUTH",
+        "LINK_STATE_OVER_SIZE",
+        "LINK_STATE_LSID_EXIST",
+        "LINK_STATE_UNKNOWN"
+    };
+
+    if (link_state < sizeof(link_state_strings) / sizeof(link_state_strings[0])) {
+        return link_state_strings[link_state];
+    } else {
+        return link_state_strings[LINK_STATE_UNKNOWN];
+    }
+}
+
 // dbstor --dbs-link-check
 int32 dbs_link_check(int32 argc, char *argv[])
 {
@@ -1837,16 +1867,353 @@ int32 dbs_link_check(int32 argc, char *argv[])
     uint32 link_state = 0;
     for (uint32 i = 0; i < link_num; i++) {
         (void)dbs_global_handle()->dbs_check_single_link(ip_pairs[i].local_ip, ip_pairs[i].remote_ip, &link_state);
-        printf("%-24s %-24s %-12u\n", ip_pairs[i].local_ip, ip_pairs[i].remote_ip, link_state);
+        printf("%-24s %-24s %-30s\n", ip_pairs[i].local_ip, ip_pairs[i].remote_ip, link_state_to_string(link_state));
     }
-    printf("\nNotice:\n");
-    printf("CGW_LINK_STATE_CONNECT_OK   = 0\n");
-    printf("CGW_LINK_STATE_CONNECTING   = 1\n");
-    printf("CGW_LINK_STATE_CONNECT_FAIL = 2\n");
-    printf("CGW_LINK_STATE_AUTH_FAIL    = 3\n");
-    printf("CGW_LINK_STATE_REJECT_AUTH  = 4\n");
-    printf("CGW_LINK_STATE_OVER_SIZE    = 5\n");
-    printf("CGW_LINK_STATE_LSID_EXIT    = 6\n");
     free(ip_pairs);
     return CT_SUCCESS;
+}
+
+// dbstor --io--status
+int32 dbs_get_ns_io_forbidden_stat(int32 argc, char *argv[])
+{
+    if (dbs_global_handle()->dbs_get_ns_io_forbidden_stat == NULL) {
+        printf("dbs_get_ns_io_forbidden_stat is not support\n");
+        return CT_ERROR;
+    }
+
+    if (argc != NUM_TWO) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("Usage: dbstor --get-ns-forbidden-stat\n");
+        return CT_ERROR;
+    }
+    bool isForbidden = 0;
+    int32 ret = dbs_global_handle()->dbs_get_ns_io_forbidden_stat(g_dbs_fs_info.cluster_name, &isForbidden);
+    if (ret != CT_SUCCESS) {
+        printf("Get ns forbidden state failed(%d).\n", ret);
+        return ret;
+    }
+    printf("Ns IO forbidden state is %u, 0: OFF, 1: ON.\n", isForbidden);
+    return ret;
+}
+
+// 从文件中读取 "LINK_CHECK_CNT =" 后面的值
+status_t dbs_read_link_timeout(uint32 *linkTimeOut, char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        printf("Open file %s failed\n", path);
+        return CT_ERROR;
+    }
+
+    char buffer[DBS_LINK_CHECK_PARAM_LEN];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        if (strstr(buffer, DBS_LINK_CHECK_CNT)) {
+            // 找到包含 "LINK_CHECK_CNT" 的行
+            char *equal_sign = strchr(buffer, '=');
+            if (equal_sign != NULL) {
+                // 跳过 "=" 后面的空白字符
+                equal_sign++;
+                while (*equal_sign == ' ' || *equal_sign == '\t') {
+                    equal_sign++;
+                }
+
+                // 解析整数值
+                *linkTimeOut = (uint32)strtol(equal_sign, NULL, 10);
+                fclose(file);
+                return CT_SUCCESS;
+            }
+        }
+    }
+
+    fclose(file);
+    printf("LINK_CHECK_CNT not found in file %s, using default value: %d\n", path, DEFAULT_LINK_CHECK_TIMEOUT);
+    return CT_SUCCESS;
+}
+
+// dbstor --get-link-timeout
+int32 dbs_get_link_timeout(int32 argc, char *argv[])
+{
+    if (argc != NUM_TWO) {
+        printf("Invalid input, arg num %d\n", argc);
+        printf("dbstor --get-link-timeout\n");
+        return CT_ERROR;
+    }
+
+    uint32 linkTimeOut = (uint32)DEFAULT_LINK_CHECK_TIMEOUT;
+    status_t ret = dbs_read_link_timeout(&linkTimeOut, DBS_CANTIAN_CONFIG_PATH);
+    if (ret == CT_SUCCESS) {
+        printf("Link timeout is: %u\n", linkTimeOut);
+    } else {
+        printf("Failed to read link timeout.\n");
+    }
+    return ret;
+}
+
+void dbs_fs_info_display(char *fs_name, uint32 vstore_id, dbstor_fs_info *fs_info)
+{
+    printf("fs_name = %s\n", fs_name);
+    printf("vstore_id = %u\n", vstore_id);
+    printf("fs_id = %u\n", fs_info->fs_id);
+    printf("cluster_id = %u\n", fs_info->cluster_id);
+    printf("pool_id = %u\n", fs_info->pool_id);
+    printf("fs_status = %u\n", fs_info->fs_status);
+    printf("actual_size = %llu\n", fs_info->actual_size);
+    printf("total_capacity = %llu\n", fs_info->total_capacity);
+    printf("fs_mode = %u\n", fs_info->fs_mode);
+    printf("fs_type = %u\n", fs_info->fs_type);
+    printf("grain_size = %u\n", fs_info->grain_size);
+    printf("work_load_type_id = %u\n", fs_info->work_load_type_id);
+    printf("is_dedup = %u\n", fs_info->is_dedup);
+    printf("is_compress = %u\n", fs_info->is_compress);
+    printf("block_size = %u\n", fs_info->block_size);
+    printf("is_gfs = %u\n", fs_info->is_gfs);
+    printf("used_size = %llu\n", fs_info->used_size);
+    printf("fs_type_verify_switch = %u\n", fs_info->fs_type_verify_switch);
+}
+
+// dbstor --query-fs-info --fs-name= --vstore_id=
+int32 dbs_query_fs_info(int32 argc, char *argv[])
+{
+    char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
+    char vstore_id_str[MAX_DBS_VSTORE_ID_LEN] = { 0 };
+    uint32 vstore_id = 0;
+
+    const char *params[] = { DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_VSTORE_ID };
+    char *results[] = { fs_name, vstore_id_str };
+    size_t result_lens[] = { MAX_DBS_FS_NAME_LEN, MAX_DBS_VSTORE_ID_LEN };
+    params_check_list_t check_list[] = { { DBS_TOOL_PARAM_FS_NAME, fs_name } };
+    params_list_t params_list = {
+        params, results, result_lens, check_list, DBS_QUERY_FS_INFO_PRAMA_NUM, DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM
+    };
+
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
+        return CT_ERROR;
+    }
+
+    if (strlen(vstore_id_str) > 0) {
+        vstore_id = (uint32)atoi(vstore_id_str);
+    } else {
+        printf("Invalid vstore_id.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
+    }
+
+    dbstor_fs_info *fs_info = (dbstor_fs_info *)malloc(sizeof(dbstor_fs_info));
+    if (fs_info == NULL) {
+        printf("Failed to malloc fs_info.\n");
+        return CT_ERROR;
+    }
+
+    int32 ret = dbs_global_handle()->dbs_query_fs_info(fs_name, vstore_id, fs_info);
+    if (ret != CT_SUCCESS) {
+        printf("Quuery fs info failed(%d), fs_name(%s), vstore_id(%u).\n", ret, fs_name, vstore_id);
+        free(fs_info);
+        return ret;
+    }
+    dbs_fs_info_display(fs_name, vstore_id, fs_info);
+    free(fs_info);
+    return ret;
+}
+
+void dbs_perf_display(dbs_stat_item_query* items, uint32 item_num)
+{
+    printf("-------------------------------------------------------------\n");
+    printf("%-32s %-24s %-24s %-24s %-24s %-24s %-24s %-24s\n",
+        "ItemName", "SuccCnt", "ErrCnt", "MaxDelay", "MinDelay", "AvgDelay", "Iops", "BandWidth");
+    for (uint32 i = 0; i < item_num; i++)
+    {
+        printf("%-32s %-24u %-24u %-24u %-24u %-24u %-24u %-24u\n",
+            items[i].name, items[i].item.success_cnt, items[i].item.fail_cnt, items[i].item.max_delay,
+            items[i].item.min_delay, items[i].avg_delay, items[i].iops, items[i].bandWidth);
+    }
+    printf("-------------------------------------------------------------\n");
+}
+
+void get_perf_io_info(dbs_uds_rsp_comm_msg* rsp_msg)
+{
+    if (rsp_msg->result != CT_SUCCESS) {
+        printf("Get perf info failed.\n");
+        return;
+    }
+    dbs_stat_item_query* items = (dbs_stat_item_query*)rsp_msg->buffer;
+    dbs_perf_display(items, rsp_msg->item_num);
+}
+
+status_t dbs_socket_send(socket_t sockfd, dbs_uds_req_comm_msg* msg, int32 timeout_ms)
+{
+    int32 ret = CT_SUCCESS;
+    int32 msg_size = sizeof(dbs_uds_req_comm_msg);
+    ret = cms_socket_send_bytes(sockfd, (char*)msg, &msg_size, timeout_ms);
+    if (ret != CT_SUCCESS) {
+        printf("Send msg failed, ret %d, len %d. \n", ret, msg_size);
+        return ret;
+    }
+    return CT_SUCCESS;
+}
+
+status_t dbs_socket_recv(socket_t sockfd, dbs_uds_rsp_comm_msg* msg, int32 timeout_ms)
+{
+    status_t ret = CT_SUCCESS;
+    int32 msg_size = sizeof(dbs_uds_rsp_comm_msg);
+    ret = cms_socket_recv_bytes(sockfd, (char*)msg, &msg_size, timeout_ms, false);
+    if (ret != CT_SUCCESS) {
+        printf("Receive msg failed, ret %d, len %d. \n", ret, msg_size);
+        return ret;
+    }
+    return CT_SUCCESS;
+}
+
+void* dbs_socket_send_heartbeat_msg(void* arg)
+{
+    socket_t* socket = (socket_t*)arg;
+    dbs_uds_req_comm_msg* heartbeat_msg = (dbs_uds_req_comm_msg*)malloc(sizeof(dbs_uds_req_comm_msg));
+    if (heartbeat_msg == NULL) {
+        printf("Failed to malloc heartbeat msg. \n");
+        return NULL;
+    }
+    heartbeat_msg->opcode = DBS_UDS_MSG_TYPE_HEARTBEAT;
+    while(true) {
+        if (dbs_socket_send(*socket, heartbeat_msg, DBS_UDS_MSG_TIMEOUT_MS) != CT_SUCCESS) {
+            printf("Failed to send heartbeat message to UDS server. \n");
+            break; // 如果发送失败，退出循环
+        }
+        sleep(DBS_UDS_HEARTBEAT_MS);
+    }
+    free(heartbeat_msg);
+    return NULL;
+}
+
+status_t dbs_uds_connect(const char* pszName, socket_t* dbs_sock)
+{
+    int32 ret = cms_uds_connect(pszName, dbs_sock);
+    if (ret == CT_ERROR || *dbs_sock == CMS_IO_INVALID_SOCKET) {
+        printf("Failed to connect to UDS server at %s \n", pszName);
+        return CT_ERROR;
+    }
+
+    // 开一个子线程定时发心跳消息
+    pthread_t thread;
+    ret = pthread_create(&thread, NULL, dbs_socket_send_heartbeat_msg, (void *)dbs_sock);
+    if (ret != CT_SUCCESS) {
+        printf("Failed to create heartbeat thread. \n");
+        return CT_ERROR;
+    }
+    return ret;
+}
+
+status_t dbs_socket_process(dbs_uds_req_comm_msg* req_msg, uint32 interval, uint32 send_times, void (*func)(dbs_uds_rsp_comm_msg*))
+{
+    // 1. 初始化套接字
+    socket_t dbs_sock = CMS_IO_INVALID_SOCKET;
+    const char *dbs_socket_path = "/tmp/dbs_server_sock"; // 服务端 UDS 路径
+
+    // 2. 尝试连接到 UDS 服务端
+    int32 ret = dbs_uds_connect(dbs_socket_path, &dbs_sock);
+    if (ret == CT_ERROR || dbs_sock == CMS_IO_INVALID_SOCKET) {
+        CT_LOG_RUN_ERR("Failed to connect to UDS server at %s", dbs_socket_path);
+        return CT_ERROR;
+    }
+
+    // 3. 初始化rsp消息
+    dbs_uds_rsp_comm_msg* rsp_msg = (dbs_uds_rsp_comm_msg*)malloc(sizeof(dbs_uds_rsp_comm_msg));
+    if (rsp_msg == NULL) {
+        printf("Failed to malloc rsp msg. \n");
+        return CT_ERROR;
+    }
+
+    // 4. 持续循环，每 interval 秒发送一次请求
+    uint32 send_cnt = 0;
+    while (true) {
+        memset(rsp_msg, 0, sizeof(dbs_uds_rsp_comm_msg));
+        // 发送消息到服务端
+        if (dbs_socket_send(dbs_sock, req_msg, DBS_UDS_MSG_TIMEOUT_MS) != CT_SUCCESS) {
+            printf("Failed to send message to UDS server. \n");
+            break;  // 如果发送失败，退出循环
+        }
+
+        // 等待服务端响应
+        ret = dbs_socket_recv(dbs_sock, rsp_msg, DBS_UDS_MSG_TIMEOUT_MS);
+        if (ret == CT_SUCCESS) {
+            // 调用回调函数处理rsp消息
+            func(rsp_msg);
+        } else {
+            printf("Timeout or error receiving message from UDS server. \n");
+        }
+
+        // interval等于0的时候, 只发送一次
+        if (interval == 0) {
+            break;
+        }
+        send_cnt++;
+        // send_times为send_times时无限次发送
+        if (send_cnt >= send_times && send_times != CT_INVALID_ID32) {
+            break;
+        }
+
+        // 每隔interval秒后轮询发送请求
+        sleep(interval);
+    }
+
+    // 5. 关闭套接字连接并退出
+    if (dbs_sock != CMS_IO_INVALID_SOCKET) {
+        close(dbs_sock);
+        printf("Dbs UDS connection closed. \n");
+    }
+    if (rsp_msg != NULL) {
+        free(rsp_msg);
+    }
+
+    return CT_SUCCESS;
+}
+
+void parse_uint_params_list(int32 argc, char *argv[], const char *param_key, uint32 *param_value)
+{
+    for (uint32 i = 0; i < argc; i++) {
+        if (strncmp(argv[i], param_key, strlen(param_key)) == 0) {
+            char *equal_sign = strchr(argv[i], '=');
+            if (equal_sign != NULL) {
+                *param_value = strtoul(equal_sign + 1, NULL, 10);
+                return;
+            }
+        }
+    }
+    printf("param %s is not found. \n", param_key);
+}
+
+// dbstor --perf-show [--interval=] [--times=]
+int32 dbs_perf_show(int32 argc, char *argv[])
+{
+    uint32 interval = 0;
+    uint32 times = CT_INVALID_ID32;
+    int32 ret = CT_SUCCESS;
+
+    // 获取参数
+    parse_uint_params_list(argc, argv, DBS_PERF_SHOW_INTERVAL, &interval);
+    parse_uint_params_list(argc, argv, DBS_PERF_SHOW_TIMES, &times);
+
+    dbs_uds_req_comm_msg* req_msg = (dbs_uds_req_comm_msg*)malloc(sizeof(dbs_uds_req_comm_msg));
+    if (req_msg == NULL) {
+        printf("Failed to malloc req msg. \n");
+        return CT_ERROR;
+    }
+    do {
+        memset(req_msg, 0, sizeof(dbs_uds_req_comm_msg));
+        req_msg->opcode = DBS_UDS_MSG_TYPE_PERF_REQ;
+
+        ret = memcpy_s(req_msg->buffer, sizeof(uint32), &interval, sizeof(uint32));
+        if (ret != EOK) {
+            printf("Failed to memcpy_s req msg. \n");
+            break;
+        }
+
+        ret = dbs_socket_process(req_msg, interval, times, get_perf_io_info);
+        if (ret != CT_SUCCESS) {
+            printf("Excute dbs uds socket process failed, interval(%u), times(%u)\n", interval, times);
+            break;
+        }
+    } while (0);
+
+    if (req_msg != NULL) {
+        free(req_msg);
+    }
+    return ret;
 }

@@ -61,6 +61,7 @@ typedef int (*create_namespace_t)(char *, NameSpaceAttr *);
 typedef int (*open_namespace_t)(char *, NameSpaceAttr *);
 typedef int (*set_term_access_mode_for_ns_t)(char *, TermAccessAttr *);
 typedef int (*dbs_ns_io_forbidden_t)(char *, bool);
+typedef int (*dbs_get_ns_io_forbidden_stat_t)(char *, bool *);
 
 // dbs
 typedef int (*dbs_client_set_uuid_lsid_t)(const char *, uint32_t);
@@ -92,6 +93,7 @@ typedef int (*dbs_ulog_archive_t)(object_id_t *, object_id_t *, ulog_archive_opt
 typedef int (*dbs_get_ip_pairs_t)(dbs_ip_pairs *, uint32_t *);
 typedef int (*dbs_create_link_t)(char *, char *);
 typedef int (*dbs_check_single_link_t)(char *, char *, uint32_t *);
+typedef int (*dbs_query_fs_info_t)(char *, uint32_t, void *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -127,6 +129,7 @@ typedef struct st_dbs_interface {
     open_namespace_t open_namespace;
     set_term_access_mode_for_ns_t set_term_access_mode_for_ns;
     dbs_ns_io_forbidden_t dbs_ns_io_forbidden;
+    dbs_get_ns_io_forbidden_stat_t dbs_get_ns_io_forbidden_stat;
 
     // dbs
     dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
@@ -158,6 +161,7 @@ typedef struct st_dbs_interface {
     dbs_get_ip_pairs_t dbs_get_ip_pairs;
     dbs_create_link_t dbs_create_link;
     dbs_check_single_link_t dbs_check_single_link;
+    dbs_query_fs_info_t dbs_query_fs_info;
 
     // pagepool
     create_pagepool_t create_pagepool;
@@ -207,6 +211,25 @@ status_t dbs_init_lib(void);
 status_t dbs_tool_init_lib(void);
 void dbs_close_lib(void);
 void dbs_tool_close_lib(void);
+
+typedef struct cm_dbstor_fs_info {
+    uint64 actual_size;
+    uint64 total_capacity;
+    uint64 used_size;
+    uint32 fs_id;
+    uint32 cluster_id;
+    uint32 pool_id;
+    uint32 grain_size;
+    uint32 block_size;
+    uint32 work_load_type_id;
+    uint8 fs_mode;
+    uint8 fs_type;
+    uint8 is_gfs;
+    uint8 fs_type_verify_switch;
+    uint8 fs_status;
+    bool is_dedup;
+    bool is_compress;
+} dbstor_fs_info;
 
 #ifdef __cplusplus
 }
