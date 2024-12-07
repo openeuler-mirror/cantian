@@ -39,6 +39,7 @@
 #define NUM_SEVEN   7
 #define NUM_EIGHT   8
 #define NUM_NINE    9
+#define DEFAULT_LINK_CHECK_TIMEOUT 5
 
 status_t dbstool_init();
 int32 dbs_arch_import(int32 argc, char *argv[]);
@@ -56,3 +57,6 @@ int32 dbs_page_export(int32 argc, char *argv[]);
 int32 dbs_set_link_timeout(int32 argc, char *argv[]);
 int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[]);
 int32 dbs_link_check(int32 argc, char *argv[]);
+int32 dbs_get_ns_io_forbidden_stat(int32 argc, char *argv[]);
+int32 dbs_get_link_timeout(int32 argc, char *argv[]);
+int32 dbs_query_fs_info(int32 argc, char *argv[]);
