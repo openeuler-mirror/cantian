@@ -742,47 +742,8 @@ int ctc_ddl_execute_and_broadcast(ctc_handler_t *tch, ctc_ddl_broadcast_request 
     return CT_SUCCESS;
 }
 
-int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, knl_session_t *knl_session, bool allow_fail)
-{
-    uint32_t req_size = sizeof(msg_execute_set_opt_req_t) + (broadcast_req->opt_num * sizeof(set_opt_info_t));
-    void *req = cm_push(knl_session->stack, req_size);
-    if (req == NULL) {
-        CT_LOG_RUN_ERR("msg failed to malloc memory");
-        return CT_ERROR;
-    }
-    ctc_fill_execute_set_opt_req(req, tch->thd_id, broadcast_req, allow_fail);
-    errno_t err_s;
-    err_s = memcpy_s(req + sizeof(msg_execute_set_opt_req_t), broadcast_req->opt_num * sizeof(set_opt_info_t),
-                    broadcast_req->set_opt_info, broadcast_req->opt_num * sizeof(set_opt_info_t));
-    knl_securec_check(err_s);
-    msg_execute_set_opt_req_t *msg_req = (msg_execute_set_opt_req_t *)req;
-    mes_init_send_head(&msg_req->head, MES_CMD_EXECUTE_SET_OPT_REQ, req_size,
-                       CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
-    knl_panic(req_size < MES_512K_MESSAGE_BUFFER_SIZE);
-
-    int error_code = ctc_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, req, &broadcast_req->err_msg);
-    if (!knl_db_is_primary(knl_session)) {
-        // Repeatedlly try to execute on current node.
-        if (error_code != CT_SUCCESS) {
-            CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform set opt at mysqld on remote node, "
-                    "err_code:%d, err_msg:%s, conn_id:%u, ctc_instance_id:%u, allow_fail:%d",
-                    broadcast_req->err_code, broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
-            cm_sleep(1000);
-            CT_LOG_RUN_INF("Retrying to reform this set opt on remote node......");
-            error_code = ctc_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
-        }
-    }
-    CT_LOG_DEBUG_INF("[Disaster Recovery] In ctc_set_opt_and_broadcast, broadcast err_code: %d", error_code);
-    if (error_code != CT_SUCCESS) {
-        broadcast_req->err_code = error_code;
-        cm_pop(knl_session->stack);
-        CT_LOG_RUN_ERR("[CTC_DDL_REWRITE]:execute on other mysqld fail. error_code:%d", error_code);
-        return CT_ERROR;
-    }
-    cm_pop(knl_session->stack);
-
+int mysql_set_opt_and_retry(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, knl_session_t *knl_session, bool allow_fail){
     status_t ret = mysql_execute_set_opt(tch->thd_id, broadcast_req, allow_fail);
-
     if (!knl_db_is_primary(knl_session)) {
         // Repeatedlly try to execute on current node.
         if (ret != CT_SUCCESS) {
@@ -802,6 +763,63 @@ int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast
             "err_code:%d, err_msg:%s, conn_id:%u, ctc_instance_id:%u, allow_fail:%d",
             ret, broadcast_req->err_code, broadcast_req->err_msg,
             tch->thd_id, tch->inst_id, allow_fail);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+int set_opt_broadcast_and_retry(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req,
+                                knl_session_t *knl_session, void *req, bool allow_fail){
+    int error_code = ctc_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, req, &broadcast_req->err_msg);
+    if (!knl_db_is_primary(knl_session)) {
+        // Repeatedlly try to execute on current node.
+        if (error_code != CT_SUCCESS) {
+            CT_LOG_DEBUG_INF("[Disaster Recovery] Failed to reform set opt at mysqld on remote node, "
+                    "err_code:%d, err_msg:%s, conn_id:%u, ctc_instance_id:%u, allow_fail:%d",
+                    broadcast_req->err_code, broadcast_req->err_msg, tch->thd_id, tch->inst_id, allow_fail);
+            cm_sleep(1000);
+            CT_LOG_RUN_INF("Retrying to reform this set opt on remote node......");
+            error_code = ctc_broadcast_and_recv(knl_session, MES_BROADCAST_ALL_INST, &req, &broadcast_req->err_msg);
+        }
+    }
+    CT_LOG_DEBUG_INF("[Disaster Recovery] In ctc_set_opt_and_broadcast, broadcast err_code: %d", error_code);
+    if (error_code != CT_SUCCESS) {
+        broadcast_req->err_code = error_code;
+        CT_LOG_RUN_ERR("[SET_OPT_BROADCAST_AND_RETRY]:execute on other mysqld fail. error_code:%d", error_code);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
+int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, knl_session_t *knl_session, bool allow_fail)
+{
+    uint32_t req_size = sizeof(msg_execute_set_opt_req_t) + (broadcast_req->opt_num * sizeof(set_opt_info_t));
+    void *req = cm_push(knl_session->stack, req_size);
+    if (req == NULL) {
+        CT_LOG_RUN_ERR("msg failed to malloc memory");
+        return CT_ERROR;
+    }
+    ctc_fill_execute_set_opt_req(req, tch->thd_id, broadcast_req, allow_fail);
+    errno_t err_s;
+    err_s = memcpy_s(req + sizeof(msg_execute_set_opt_req_t), broadcast_req->opt_num * sizeof(set_opt_info_t),
+                    broadcast_req->set_opt_info, broadcast_req->opt_num * sizeof(set_opt_info_t));
+    knl_securec_check(err_s);
+    msg_execute_set_opt_req_t *msg_req = (msg_execute_set_opt_req_t *)req;
+    mes_init_send_head(&msg_req->head, MES_CMD_EXECUTE_SET_OPT_REQ, req_size,
+                       CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
+    knl_panic(req_size < MES_512K_MESSAGE_BUFFER_SIZE);
+
+    status_t ret = CT_SUCCESS;
+    ret = set_opt_broadcast_and_retry(tch, broadcast_req, knl_session, req, allow_fail);
+    cm_pop(knl_session->stack);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT_AND_BROADCAST]:failed to execute broadcast and retry, ret:%d", ret);
+        return CT_ERROR;
+    }
+
+    ret = mysql_set_opt_and_retry(tch, broadcast_req, knl_session, allow_fail);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT_AND_BROADCAST]:failed to execute set opt and retry in mysql, ret:%d", ret);
         return CT_ERROR;
     }
     return CT_SUCCESS;
