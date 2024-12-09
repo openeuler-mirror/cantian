@@ -59,6 +59,8 @@ wait_for_cms_start() {
 		if [ -n "${current_pid}" ] && [ "${current_pid}" -eq "${cms_srv_pid}" ]; then
 			cms stat -server ${NODE_ID}| grep -q "TRUE"
 		else
+			log "another cms[${current_pid}] is running. current process[${cms_srv_pid}] EXIT."
+			log `pgrep -f "cms server -start"`
 			exit 1
 		fi
 	}
@@ -67,12 +69,9 @@ wait_for_cms_start() {
 
 start_cms() {
 	log "=========== start cms ${NODE_ID} ================"
-#	wait_for_node_in_cluster
-
 	nohup cms server -start >> ${STATUS_LOG} 2>&1 &
 	cms_srv_pid=$!
-
-	log "=========== wait for cms server start ================"
+	log "=========== wait for cms server start, pid[${cms_srv_pid}]================"
 	wait_for_cms_start
 	log "=========== start cantian ${NODE_ID} ================"
 	cms res -start db -node ${NODE_ID}
