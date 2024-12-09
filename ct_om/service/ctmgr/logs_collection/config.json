@@ -136,14 +136,7 @@
     "tar_name": "cms_deploy.tar.gz",
     "generate_type": "task generated"
   },
-  {
-    "type": "file",
-    "size": "30",
-    "is_repeat_generate": true,
-    "dir": "/mnt/dbdata/remote/metadata_*/*/mysql/*.log",
-    "tar_name": "mysql_container.tar.gz",
-    "generate_type": "task generated"
-  },
+
   {
     "type": "file",
     "size": "30",
