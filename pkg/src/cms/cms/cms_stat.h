@@ -323,7 +323,7 @@ status_t cms_init_file_dbs(object_id_t *handle, const char *filename);
 status_t cms_vote_file_init(void);
 status_t cms_res_lock_init(void);
 status_t cms_get_start_lock(cms_disk_lock_t *lock, bool32 *cms_get_lock);
-void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, io_record_stat_t stat);
+void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, status_t stat);
 status_t cms_get_res_start_lock(uint32 res_id);
 void cms_release_res_start_lock(uint32 res_id);
 void try_lock_start_lock(void);
@@ -339,6 +339,9 @@ status_t cms_get_cluster_res_list_4tool(uint32 res_id, cms_tool_res_stat_list_t 
 status_t cms_get_gcc_info_4tool(cms_tool_msg_res_get_gcc_t* gcc_info);
 bool32 cms_cli_is_tool(uint8 msg_type);
 status_t cms_uds_set_session_seq(cms_packet_head_t* head);
+status_t cms_record_io_stat_reset(void);
+void cms_record_io_stat_begin(cms_io_record_event_t event, timeval_t *tv_begin);
+void cms_record_io_stat_end(cms_io_record_event_t event, timeval_t *tv_begin, status_t stat);
 #ifdef __cplusplus
 }
 #endif

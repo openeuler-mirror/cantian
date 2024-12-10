@@ -28,7 +28,6 @@
 #include "cm_thread.h"
 #include "cms_client.h"
 #include "cms_syncpoint_inject.h"
-#include "cm_io_record.h"
 #include "cms_msg_def.h"
 #include "cms_interface.h"
 

@@ -59,6 +59,7 @@ uint32 g_tool_session_count = CMS_MAX_RESOURCE_COUNT;
 thread_lock_t g_session_lock;
 thread_lock_t g_node_lock[CMS_MAX_NODE_COUNT];
 cms_channel_info_t *g_channel_info = NULL;
+cms_io_record_wait_t g_cms_io_record_event_wait[CMS_IO_COUNT];
 
 #define CMS_NODE_DISK_HB_POS(node_id) (CMS_CLUSTER_STAT_OFFSET + \
     ((size_t) &(((cms_cluster_stat_t*)NULL)->node_inf[node_id].node_disk_hb)))
@@ -2072,11 +2073,61 @@ status_t cms_elect_res_reformer(uint32 res_id, uint8 reformer, uint8* new_reform
     return CT_SUCCESS;
 }
 
+status_t cms_record_io_stat_reset(void)
+{
+    status_t ret = CT_SUCCESS;
+    cms_io_record_wait_t *event_wait;
+    for (uint32 i = 0; i < CMS_IO_COUNT; i++) {
+        event_wait = &g_cms_io_record_event_wait[i];
+        ret = memset_s(&(event_wait->detail), sizeof(cms_io_record_detail_t), 0, sizeof(cms_io_record_detail_t));
+        if (ret != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[io record] init io record failed, event %u", i);
+            return ret;
+        }
+        event_wait->detail.min_time = CT_INVALID_ID64;
+    }
+    return ret;
+}
+
+void cms_record_io_stat_begin(cms_io_record_event_t event, timeval_t *tv_begin)
+{   
+    atomic_t *start = &(g_cms_io_record_event_wait[event].detail.start);
+    (void)cm_gettimeofday(tv_begin);
+    cm_atomic_inc(start);
+}
+
+void cms_record_io_stat_end(cms_io_record_event_t event, timeval_t *tv_begin, status_t stat)
+{
+    cms_io_record_detail_t *detail = &(g_cms_io_record_event_wait[event].detail);
+    if (cm_atomic_get(&(detail->start)) == 0) {
+        return;
+    }
+
+    timeval_t tv_end;
+    (void)cm_gettimeofday(&tv_end);
+    uint64 cost_time = TIMEVAL_DIFF_US(tv_begin, &tv_end);
+
+    cm_atomic_add(&(detail->total_time), cost_time);
+    if (detail->max_time < cost_time) {
+        cm_atomic_set(&(detail->max_time), cost_time);
+    }
+    if (detail->min_time > cost_time) {
+        cm_atomic_set(&(detail->min_time), cost_time);
+    }
+    if (stat == CT_SUCCESS) {
+        cm_atomic_add(&(detail->total_good_time), cost_time);
+        cm_atomic_inc(&(detail->back_good));
+    } else {
+        cm_atomic_add(&(detail->total_bad_time), cost_time);
+        cm_atomic_inc(&(detail->back_bad));
+    }
+}
+
 status_t cms_try_be_master(void)
 {
     cms_res_reformer_t reformers;
-    uint64_t tv_begin;
-    cantian_record_io_stat_begin(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin);
+    timeval_t tv_begin;
+    cms_record_io_stat_begin(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin);
     CT_RETURN_IFERR(cms_disk_lock_get_data(&g_cms_inst->master_lock, (char *)&reformers, sizeof(cms_res_reformer_t)));
 
     for (uint32 res_id = 0; res_id < CMS_MAX_RESOURCE_COUNT; res_id++) {
@@ -2103,7 +2154,7 @@ status_t cms_try_be_master(void)
         (inst_id != g_cms_param->node_id)) {
         CMS_LOG_INF("cms master changed, old master %llu, new master %u", inst_id, g_cms_param->node_id);
     }
-    cantian_record_io_stat_end(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin);
+    cms_record_io_stat_end(CMS_IO_RECORD_TRY_BE_MASTER, &tv_begin, CT_SUCCESS);
     return CT_SUCCESS;
 }
 
@@ -2187,13 +2238,12 @@ status_t cms_get_res_session(cms_res_session_t* sessions, uint32 size)
     return CT_SUCCESS;
 }
 
-void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, io_record_stat_t stat)
+void cms_record_io_aync_hb_gap_end(biqueue_node_t *node_hb_aync, status_t stat)
 {
     if (node_hb_aync != NULL) {
+        cm_atomic_inc(&(g_cms_io_record_event_wait[CMS_IO_RECORD_HB_AYNC_TIME_GAP].detail.start));
         cms_hb_aync_start_t *hb_write_aync = (cms_hb_aync_start_t *)cms_que_node_data(node_hb_aync);
-        uint64_t sec = (uint64_t)hb_write_aync->hb_time_aync_start.tv_sec;
-        cm_atomic_inc(&(g_io_record_event_wait[CMS_IO_RECORD_HB_AYNC_TIME_GAP][EVENT_TRACKING_HASH(sec)].detail.start));
-        cantian_record_io_stat_end(CMS_IO_RECORD_HB_AYNC_TIME_GAP, &sec);
+        cms_record_io_stat_end(CMS_IO_RECORD_HB_AYNC_TIME_GAP, &(hb_write_aync->hb_time_aync_start), stat);
         cms_que_free_node(node_hb_aync);
     }
 }
@@ -2214,7 +2264,7 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
         CMS_LOG_ERR("read state fail, node_id=%u, res_id=%u", g_cms_param->node_id, res_id);
         cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
         cm_thread_unlock(&g_res_session[res_id].lock);
-        cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_FAILED);
+        cms_record_io_aync_hb_gap_end(node_hb_aync, CT_ERROR);
         return CT_ERROR;
     }
     res_stat_disk->hb_time = res_stat->hb_time;
@@ -2224,12 +2274,12 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
         CMS_LOG_ERR("aync_write res failed, res_id=%u", res_id);
         cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
         cm_thread_unlock(&g_res_session[res_id].lock);
-        cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_FAILED);
+        cms_record_io_aync_hb_gap_end(node_hb_aync, CT_ERROR);
         return CT_ERROR;
     }
     cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
     cm_thread_unlock(&g_res_session[res_id].lock);
-    cms_record_io_aync_hb_gap_end(node_hb_aync, IO_STAT_SUCCESS);
+    cms_record_io_aync_hb_gap_end(node_hb_aync, CT_SUCCESS);
     return CT_SUCCESS;
 }
 
