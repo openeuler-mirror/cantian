@@ -1422,16 +1422,18 @@ int32 cms_stat_server(int32 argc, char* argv[])
 
 void cms_print_iostat_inner(cms_tool_msg_res_iostat_t *res, char *msg_name, uint8 msg_type)
 {
-    if ((res->detail[msg_type].start) != 0) {
-        printf("%-35s  %-12lld  %-20lld  %-20lld\n",
-            msg_name, res->detail[msg_type].start,
-            res->detail[msg_type].total_time / res->detail[msg_type].start,
-            res->detail[msg_type].total_time);
+    if ((res->detail[msg_type].back_good + res->detail[msg_type].back_bad) != 0) {
+        printf("%-35s  %-12lld  %-12lld  %-12lld  %-20lld  "
+            "%-20lld  %-20lld  %-20lld \n",
+            msg_name, res->detail[msg_type].start, res->detail[msg_type].back_good, res->detail[msg_type].back_bad,
+            res->detail[msg_type].total_time / (res->detail[msg_type].back_good + res->detail[msg_type].back_bad),
+            res->detail[msg_type].max_time, res->detail[msg_type].min_time, res->detail[msg_type].total_time);
     } else {
-        printf("%-35s  %-12lld  %-20lld  %-20lld\n",
-            msg_name, res->detail[msg_type].start,
-            res->detail[msg_type].total_time / res->detail[msg_type].start,
-            res->detail[msg_type].total_time);
+        printf("%-35s  %-12lld  %-12lld  %-12lld  %-20lld  "
+            "%-20lld  %-20lld  %-20lld \n",
+            msg_name, res->detail[msg_type].start, res->detail[msg_type].back_good, res->detail[msg_type].back_bad,
+            res->detail[msg_type].total_time / (res->detail[msg_type].back_good + res->detail[msg_type].back_bad + 1),
+            res->detail[msg_type].max_time, res->detail[msg_type].min_time, res->detail[msg_type].total_time);
     }
 }
 

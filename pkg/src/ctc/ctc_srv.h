@@ -87,8 +87,6 @@ extern "C" {
 #define CTC_AUTOINC_NEW_STYLE_LOCKING 1
 #define CTC_AUTOINC_NO_LOCKING 2
 
-#define CTC_MAX_VAR_VALUE_LEN 1024
-
 typedef int64 date_t;
 
 typedef struct {
@@ -222,7 +220,7 @@ typedef struct {
 typedef struct {
     char base_name[SMALL_RECORD_SIZE];
     char var_name[SMALL_RECORD_SIZE];
-    char var_value[CTC_MAX_VAR_VALUE_LEN];
+    char var_value[MAX_DDL_SQL_LEN];
     uint32_t options;
     bool var_is_int;
 } set_opt_info_t;

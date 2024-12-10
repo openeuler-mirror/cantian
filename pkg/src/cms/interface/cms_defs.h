@@ -121,7 +121,7 @@ typedef enum en_cms_dev_type {
     CMS_DEV_TYPE_NFS    = 3,  // nfs
     CMS_DEV_TYPE_DBS    = 4,  // dbstor
     CMS_DEV_TYPE_BUTT
-}cms_dev_type_t;
+} cms_dev_type_t;
 
 typedef enum en_cms_split_brain_type {
     CMS_OPEN_WITH_SPLIT_BRAIN = 1,
@@ -129,18 +129,18 @@ typedef enum en_cms_split_brain_type {
 } cms_split_brain_type_t;
 
 typedef enum en_cms_io_record_event {
-    CMS_IO_RECORD_UDS_GET_STAT_LIST1 = 0,
-    CMS_IO_RECORD_UDS_SET_DATA_NEW,
-    CMS_IO_RECORD_UDS_GET_DATA_NEW,
-    CMS_IO_RECORD_UDS_CLI_HB,
-    CMS_IO_RECORD_UDS_IOF_KICK_RES,
-    CMS_IO_RECORD_UDS_UNREGISTER,
-    CMS_IO_RECORD_UDS_SET_WORK_STAT,
+    CMS_IO_RECORD_GET_STAT_LIST1 = 0,
+    CMS_IO_RECORD_SET_DATA_NEW,
+    CMS_IO_RECORD_GET_DATA_NEW,
+    CMS_IO_RECORD_CLI_HB,
+    CMS_IO_RECORD_IOF_KICK_RES,
+    CMS_IO_RECORD_UNREGISTER,
+    CMS_IO_RECORD_SET_WORK_STAT,
     CMS_IO_RECORD_TRY_BE_MASTER,
     CMS_IO_RECORD_DETECT_DISK,
     CMS_IO_RECORD_HB_AYNC_TIME_GAP,
     CMS_IO_COUNT,
-}cms_io_record_event;
+} cms_io_record_event_t;
 
 typedef struct st_cms_err_info {
     char err_info[CMS_INFO_BUFFER_SIZE];

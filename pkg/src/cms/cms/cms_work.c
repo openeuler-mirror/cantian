@@ -1953,10 +1953,10 @@ void cms_proc_msg_req_update_local_gcc(cms_packet_head_t* msg)
 void cms_proc_msg_req_dis_conn(cms_packet_head_t *msg)
 {
     status_t ret = CT_SUCCESS;
-    uint64_t tv_begin;
+    timeval_t tv_begin;
 
     CMS_LOG_INF("begin proc disconnect req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_UNREGISTER, &tv_begin);
+    cms_record_io_stat_begin(CMS_IO_RECORD_UNREGISTER, &tv_begin);
     if (sizeof(cms_cli_msg_req_dis_conn_t) > msg->msg_size) {
         CMS_LOG_ERR("res disconnect msg size %u is invalid.", msg->msg_size);
         return;
@@ -1965,7 +1965,7 @@ void cms_proc_msg_req_dis_conn(cms_packet_head_t *msg)
     req->res_type[CMS_MAX_RES_TYPE_LEN - 1] = 0;
     biqueue_node_t* node = cms_que_alloc_node(sizeof(cms_cli_msg_res_dis_conn_t));
     if (node == NULL) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_UNREGISTER, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_UNREGISTER, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("cms malloc msg cms_cli_msg_res_dis_conn_t buf failed.");
         return;
     }
@@ -1973,11 +1973,11 @@ void cms_proc_msg_req_dis_conn(cms_packet_head_t *msg)
 
     ret = cms_res_dis_conn(req->res_type, req->inst_id);
     if (ret != CT_SUCCESS) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_UNREGISTER, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_UNREGISTER, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("res disconnect failed, inst id %u, msg type %u, msg req %llu", req->inst_id, msg->msg_type,
             msg->msg_seq);
     } else {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_UNREGISTER, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_UNREGISTER, &tv_begin, CT_SUCCESS);
     }
 
     res->result = ret;
@@ -1996,8 +1996,8 @@ void cms_proc_msg_req_dis_conn(cms_packet_head_t *msg)
 void cms_proc_msg_req_set_work_stat(cms_packet_head_t *msg)
 {
     CMS_LOG_INF("begin proc set work stat req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
-    uint64_t tv_begin;
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_SET_WORK_STAT, &tv_begin);
+    timeval_t tv_begin;
+    cms_record_io_stat_begin(CMS_IO_RECORD_SET_WORK_STAT, &tv_begin);
     if (sizeof(cms_cli_msg_req_set_work_stat_t) > msg->msg_size) {
         CMS_LOG_ERR("proc set work stat req msg size %u is invalid.", msg->msg_size);
         return;
@@ -2008,7 +2008,7 @@ void cms_proc_msg_req_set_work_stat(cms_packet_head_t *msg)
 
     biqueue_node_t* node = cms_que_alloc_node(sizeof(cms_cli_msg_res_set_work_stat_t));
     if (node == NULL) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_WORK_STAT, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_WORK_STAT, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("cms malloc msg cms_cli_msg_res_set_work_stat_t buf failed.");
         return;
     }
@@ -2021,9 +2021,9 @@ void cms_proc_msg_req_set_work_stat(cms_packet_head_t *msg)
     res->result = cms_res_set_workstat(req->res_type, req->inst_id, req->work_stat);
 
     if (res->result != CT_SUCCESS) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_WORK_STAT, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_WORK_STAT, &tv_begin, CT_ERROR);
     } else {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_WORK_STAT, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_WORK_STAT, &tv_begin, CT_SUCCESS);
     }
     res->head.dest_node = -1;
     res->head.src_node = g_cms_param->node_id;
@@ -2161,13 +2161,13 @@ void cms_proc_msg_req_cli_hb(cms_packet_head_t* msg)
 
 void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg)
 {
-    uint64_t tv_begin;
+    timeval_t tv_begin;
     status_t ret = CT_SUCCESS;
 
     CMS_LOG_DEBUG_INF("begin proc get res stat req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_GET_STAT_LIST1, &tv_begin);
+    cms_record_io_stat_begin(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin);
     if (sizeof(cms_cli_msg_req_get_res_stat_t) > msg->msg_size) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_STAT_LIST1, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("proc get res stat req msg size %u is invalid.", msg->msg_size);
         return;
     }
@@ -2176,7 +2176,7 @@ void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg)
 
     biqueue_node_t* node = cms_que_alloc_node(sizeof(cms_cli_msg_res_get_res_stat_t));
     if (node == NULL) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_STAT_LIST1, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("cms malloc msg cms_cli_msg_res_get_res_stat_t buf failed.");
         return;
     }
@@ -2194,11 +2194,11 @@ void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg)
     ret = cms_get_cluster_stat_bytype(req->res_type, 0, &res->stat);
     CMS_SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_STAT_LIST1, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("get all res stat failed, ret %d, res type %s, msg type %u, msg req %llu", ret, req->res_type,
             msg->msg_type, msg->msg_seq);
     } else {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_STAT_LIST1, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin, CT_SUCCESS);
     }
     res->result = ret;
     cms_enque(&g_cms_inst->cli_send_que, node);
@@ -2208,23 +2208,23 @@ void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg)
 void cms_proc_msg_req_set_res_data(cms_packet_head_t* msg)
 {
     CMS_LOG_INF("begin proc set res data req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
-    uint64_t tv_begin;
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+    timeval_t tv_begin;
+    cms_record_io_stat_begin(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin);
     if (sizeof(cms_cli_msg_req_set_data_t) - CMS_MAX_RES_DATA_SIZE > msg->msg_size) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("proc set res data req msg size %u is invalid.", msg->msg_size);
         return;
     }
     cms_cli_msg_req_set_data_t* req = (cms_cli_msg_req_set_data_t*)msg;
     req->res_type[CMS_MAX_RES_TYPE_LEN - 1] = 0;
     if (sizeof(cms_cli_msg_req_set_data_t) - (sizeof(req->data) - req->data_size) != msg->msg_size) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("proc set res data req msg size %u is invalid.", msg->msg_size);
         return;
     }
     biqueue_node_t* node = cms_que_alloc_node(sizeof(cms_cli_msg_res_set_data_t));
     if (node == NULL) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("cms malloc msg cms_cli_msg_res_set_data_t buf failed.");
         return;
     }
@@ -2241,9 +2241,9 @@ void cms_proc_msg_req_set_res_data(cms_packet_head_t* msg)
     CMS_LOG_INF("begin proc set res data req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
     if (res->result != CT_SUCCESS) {
         CMS_LOG_ERR("cms stat set res data failed");
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin, CT_ERROR);
     } else {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_SET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_SET_DATA_NEW, &tv_begin, CT_SUCCESS);
     }
     CMS_LOG_DEBUG_INF("end proc set res data req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
     cms_enque(&g_cms_inst->cli_send_que, node);
@@ -2252,10 +2252,10 @@ void cms_proc_msg_req_set_res_data(cms_packet_head_t* msg)
 void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg)
 {
     CMS_LOG_DEBUG_INF("begin proc get res data req, msg type %u, msg req %llu", msg->msg_type, msg->msg_seq);
-    uint64_t tv_begin;
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+    timeval_t tv_begin;
+    cms_record_io_stat_begin(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin);
     if (sizeof(cms_cli_msg_req_get_data_t) > msg->msg_size) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("proc get res data req msg size %u is invalid.", msg->msg_size);
         return;
     }
@@ -2263,7 +2263,7 @@ void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg)
     req->res_type[CMS_MAX_RES_TYPE_LEN - 1] = 0;
     biqueue_node_t* node = cms_que_alloc_node(sizeof(cms_cli_msg_res_get_data_t));
     if (node == NULL) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("cms malloc msg cms_cli_msg_res_get_data_t buf failed.");
         return;
     }
@@ -2272,7 +2272,7 @@ void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg)
     if (err != EOK) {
         CMS_LOG_ERR("memset failed, ret %d, msg type %u, msg req %llu, msg size %u", err, msg->msg_type,
             msg->msg_seq, msg->msg_size);
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin, CT_ERROR);
         cms_que_free_node(node);
         return;
     }
@@ -2292,11 +2292,11 @@ void cms_proc_msg_req_get_res_data(cms_packet_head_t* msg)
         res->head.src_msg_seq);
 
     if (res->result != CT_SUCCESS) {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin, CT_ERROR);
         CMS_LOG_ERR("proc get res data failed, ret %d, msg type %u, msg req %llu.",
             res->result, msg->msg_type, msg->msg_seq);
     } else {
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_GET_DATA_NEW, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_DATA_NEW, &tv_begin, CT_SUCCESS);
     }
     cms_enque(&g_cms_inst->cli_send_que, node);
 }
@@ -3012,8 +3012,8 @@ void cms_proc_msg_req_iof_kick(cms_packet_head_t* msg)
 
 void cms_proc_msg_res_client_iof_kick(cms_packet_head_t* msg)
 {
-    uint64_t tv_begin;
-    cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_IOF_KICK_RES, &tv_begin);
+    timeval_t tv_begin;
+    cms_record_io_stat_begin(CMS_IO_RECORD_IOF_KICK_RES, &tv_begin);
     if (sizeof(cms_cli_msg_res_iof_kick_t) > msg->msg_size) {
         CMS_LOG_ERR("iof kick msg size %u is invalid.", msg->msg_size);
         return;
@@ -3024,7 +3024,7 @@ void cms_proc_msg_res_client_iof_kick(cms_packet_head_t* msg)
         return;
     }
     cms_finish_iof_kick();
-    cantian_record_io_stat_end(CMS_IO_RECORD_UDS_IOF_KICK_RES, &tv_begin);
+    cms_record_io_stat_end(CMS_IO_RECORD_IOF_KICK_RES, &tv_begin, CT_SUCCESS);
     CMS_LOG_DEBUG_INF("recv client iof kick response succ");
 }
 
@@ -3120,15 +3120,14 @@ void cms_proc_msg_req_get_iostat(cms_packet_head_t *msg)
     res->head.src_msg_seq = req->head.msg_seq;
     res->head.uds_sid = msg->uds_sid;
     for (uint8 i = 0; i < CMS_IO_COUNT; i++) {
-        uint64 total_count = 0;
-        uint64 event_total_time = 0;
-        for (uint32 hash_id = 0; hash_id < EVENT_TRACKING_GROUP; hash_id++) {
-            total_count += g_io_record_event_wait[i][hash_id].detail.start;
-            event_total_time += g_io_record_event_wait[i][hash_id].detail.total_time;
-        }
-
-        res->detail[i].total_time = event_total_time;
-        res->detail[i].start = total_count;
+        res->detail[i].back_bad = g_cms_io_record_event_wait[i].detail.back_bad;
+        res->detail[i].back_good = g_cms_io_record_event_wait[i].detail.back_good;
+        res->detail[i].total_good_time = g_cms_io_record_event_wait[i].detail.total_good_time;
+        res->detail[i].total_bad_time = g_cms_io_record_event_wait[i].detail.total_bad_time;
+        res->detail[i].max_time = g_cms_io_record_event_wait[i].detail.max_time;
+        res->detail[i].min_time = g_cms_io_record_event_wait[i].detail.min_time;
+        res->detail[i].total_time = g_cms_io_record_event_wait[i].detail.total_time;
+        res->detail[i].start = g_cms_io_record_event_wait[i].detail.start;
     }
     res->result = CT_SUCCESS;
     cms_enque(&g_cms_inst->cli_send_que, node);
@@ -3154,7 +3153,7 @@ void cms_proc_msg_req_reset_iostat(cms_packet_head_t *msg)
     res->head.msg_seq = cm_now();
     res->head.src_msg_seq = msg->msg_seq;
     res->head.uds_sid = msg->uds_sid;
-    status_t ret = record_io_stat_reset();
+    status_t ret = cms_record_io_stat_reset();
     res->result = ret;
     cms_enque(&g_cms_inst->cli_send_que, node);
 }
@@ -4100,12 +4099,12 @@ void cms_uds_hb_entry(thread_t* thread)
 
         msg = (cms_packet_head_t*)cms_que_node_data(node);
         CMS_LOG_DEBUG_INF("uds hb entry get hb msg to proc, msg type %u, msg seg %llu", msg->msg_type, msg->msg_seq);
-        uint64_t tv_begin;
-        cantian_record_io_stat_begin(CMS_IO_RECORD_UDS_CLI_HB, &tv_begin);
+        timeval_t tv_begin;
+        cms_record_io_stat_begin(CMS_IO_RECORD_CLI_HB, &tv_begin);
         start = cm_monotonic_now();
         cms_proc_msg_req_cli_hb(msg);
         end = cm_monotonic_now();
-        cantian_record_io_stat_end(CMS_IO_RECORD_UDS_CLI_HB, &tv_begin);
+        cms_record_io_stat_end(CMS_IO_RECORD_CLI_HB, &tv_begin, CT_SUCCESS);
         CMS_LOG_DEBUG_INF("uds hb entry proc hb msg succ, msg type %u, msg seg %llu, msg src seq %llu, "
             "msg exec time %lld", msg->msg_type, msg->msg_seq, msg->src_msg_seq,
             (end - start) / MICROSECS_PER_MILLISEC);

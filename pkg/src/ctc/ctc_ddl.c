@@ -794,6 +794,10 @@ int set_opt_broadcast_and_retry(ctc_handler_t *tch, ctc_set_opt_request *broadca
 int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, knl_session_t *knl_session, bool allow_fail)
 {
     uint32_t req_size = sizeof(msg_execute_set_opt_req_t) + (broadcast_req->opt_num * sizeof(set_opt_info_t));
+    if (req_size >= MES_512K_MESSAGE_BUFFER_SIZE) {
+        CT_LOG_RUN_ERR("[CTC_SET_OPT_AND_BROADCAST]:message too large, size:%d", req_size);
+        return CT_ERROR;
+    }
     void *req = cm_push(knl_session->stack, req_size);
     if (req == NULL) {
         CT_LOG_RUN_ERR("msg failed to malloc memory");
@@ -807,7 +811,6 @@ int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast
     msg_execute_set_opt_req_t *msg_req = (msg_execute_set_opt_req_t *)req;
     mes_init_send_head(&msg_req->head, MES_CMD_EXECUTE_SET_OPT_REQ, req_size,
                        CT_INVALID_ID32, DCS_SELF_INSTID(knl_session), 0, knl_session->id, CT_INVALID_ID16);
-    knl_panic(req_size < MES_512K_MESSAGE_BUFFER_SIZE);
 
     status_t ret = CT_SUCCESS;
     ret = set_opt_broadcast_and_retry(tch, broadcast_req, knl_session, req, allow_fail);

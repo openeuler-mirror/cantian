@@ -32,7 +32,6 @@
 #include "cms_client.h"
 #include "cms_disk_lock.h"
 #include "cm_defs.h"
-#include "cm_io_record.h"
 
 // Message definition of the CMS server
 // server msg type
@@ -475,9 +474,25 @@ typedef struct st_cms_tool_msg_req_iostat_t {
     cms_packet_head_t  head;
 } cms_tool_msg_req_iostat_t;
 
+typedef struct {
+    atomic_t start;
+    atomic_t back_good;
+    atomic_t back_bad;
+    atomic_t total_time;
+    atomic_t total_good_time;
+    atomic_t total_bad_time;
+    atomic_t max_time;
+    atomic_t min_time;
+} cms_io_record_detail_t;
+
+typedef struct {
+    cms_io_record_detail_t detail;
+} cms_io_record_wait_t;
+
+extern cms_io_record_wait_t g_cms_io_record_event_wait[CMS_IO_COUNT];
 typedef struct st_cms_toll_msg_res_iostat_t {
     cms_packet_head_t  head;
-    io_record_detail_t detail[CMS_IO_COUNT];
+    cms_io_record_detail_t detail[CMS_IO_COUNT];
     status_t           result;
 } cms_tool_msg_res_iostat_t;
 
