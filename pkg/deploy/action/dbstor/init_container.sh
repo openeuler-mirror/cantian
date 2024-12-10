@@ -19,6 +19,7 @@ function set_dbstor_config() {
     
     cantian_vlan_name=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cantian_vlan_ip"`
     cantian_vlan_ip=""
+    dbstor_log_path="opt/cantian/log/dbstor"
 
     # vlan_ip分割符支持分号（;）和竖线（|）
     if [[ "${cantian_vlan_name}" == *";"* ]]; then
@@ -70,6 +71,7 @@ function set_dbstor_config() {
     sed -i -r "s:(NODE_ID = ).*:\1${node_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(DBS_LOG_PATH = ).*:\1${dbstor_log_path}:g" ${DBSTOR_CONFIG_PATH}
     python3 ${CURRENT_PATH}/init_unify_config.py
 }
 

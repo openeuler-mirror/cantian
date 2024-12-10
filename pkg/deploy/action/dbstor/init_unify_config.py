@@ -79,6 +79,7 @@ class ConfigTool:
         self.dbstore_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
+        self.dbstor_log_path="/opt/cantian/log/dbstor"
         self.dbstor_config_tmp = {  # dbstor_config.ini default parameters
             "NAMESPACE_FSNAME": "",
             "NAMESPACE_PAGE_FSNAME": "",
@@ -142,6 +143,7 @@ class ConfigTool:
             config.set('CLIENT', 'CLUSTER_UUID', str(self.cluster_uuid))
             config.set('CLIENT', 'INST_ID', inst_id)      
             config.set('CLIENT', 'DBS_TOOL_UUID', dbs_tool_uuid)
+            config.set('CLIENT', 'DBS_LOG_PATH', self.dbstor_log_path)
             flags = os.O_CREAT | os.O_RDWR
             modes = stat.S_IWUSR | stat.S_IRUSR
             file_path = "%s/conf/dbs/dbstor_config_tool_%s.ini" % (self.dbstor_home, str(file_num))
