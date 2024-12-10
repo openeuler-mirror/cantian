@@ -108,62 +108,6 @@ function change_mtu() {
     ifconfig net2 mtu 5500
 }
 
-function update_mysql_config() {
-    local mysql_config_file="${INIT_CONFIG_PATH}/mysql_config.json"
-    local my_cnf_file="/opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf"
-
-    logAndEchoInfo "update my.cnf with mem_spec."
-    mysql_param=("max_connections" "table_open_cache" "table_open_cache_instances")
-    for param_name in "${mysql_param[@]}"; do
-        param_value=$(python3 "${CURRENT_PATH}/../cantian/get_config_info.py" "${param_name}")
-        if [ "${param_value}" != "None" ]; then
-            if grep -q "^${param_name}=" "${my_cnf_file}"; then
-                sed -i "s/^${param_name}=.*/${param_name}=${param_value}/" "${my_cnf_file}"
-            else
-                echo -e "\n${param_name}=${param_value}" >> "${my_cnf_file}"
-            fi
-        fi
-    done    
-    
-    if [ -f "${mysql_config_file}" ]; then
-        logAndEchoInfo "mysql_config.json found, updating my.cnf..."
-
-        # 读取 mysql_config.json 更新 my.cnf 置项
-        while IFS="=" read -r key value; do
-            key=$(echo $key | xargs | tr -d '"')
-            value=$(echo $value | xargs | tr -d '"')
-
-            # 处理特定值的逻辑
-            if [[ "$value" == "+add" ]]; then
-                if grep -q "^${key}" "${my_cnf_file}"; then
-                    logAndEchoInfo "Option '${key}' already exists in my.cnf, skipping."
-                else
-                    echo -e "\n${key}" >> "${my_cnf_file}"
-                    logAndEchoInfo "Added '${key}' to my.cnf."
-                fi
-            elif [[ "$value" == "-del" || "$value" == "-delete" || "$value" == "-remove" ]]; then
-                if grep -q "^${key}" "${my_cnf_file}"; then
-                    sed -i "/^${key}/d" "${my_cnf_file}"
-                    logAndEchoInfo "Removed '${key}' from my.cnf."
-                else
-                    logAndEchoInfo "Option '${key}' not found in my.cnf, nothing to remove."
-                fi
-            else
-                # 处理普通键值对
-                if grep -q "^${key}=" "${my_cnf_file}"; then
-                    sed -i "s/^${key}=.*/${key}=${value}/" "${my_cnf_file}"
-                    logAndEchoInfo "Updated '${key}' with value '${value}' in my.cnf."
-                else
-                    echo -e "\n${key}=${value}" >> "${my_cnf_file}"
-                    logAndEchoInfo "Added '${key}' with value '${value}' to my.cnf."
-                fi
-            fi
-        done < <(jq -r 'to_entries|map("\(.key)=\(.value|tostring)")|.[]' "${mysql_config_file}")
-
-        logAndEchoInfo "my.cnf updated successfully."
-    fi
-}
-
 function wait_config_done() {
     current_domain=$1
     # 等待pod网络配置完成
@@ -448,7 +392,8 @@ function init_start() {
     check_init_status
 
     # 更新 MySQL 配置文件,存在则更新
-    update_mysql_config
+    python3 "${CURRENT_PATH}"/update_config.py "mem_spec"
+    python3 "${CURRENT_PATH}"/update_config.py  "mysql_config"
 
     # Cantian启动前先执行升级流程
     sh ${CURRENT_PATH}/container_upgrade.sh

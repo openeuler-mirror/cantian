@@ -3,8 +3,16 @@
 import os
 import json
 import csv
-import fcntl
 import signal
+import fcntl
+import shutil
+import sys
+import pwd
+import grp
+import stat
+CUR_PATH = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(CUR_PATH, "../../"))
+from cantian.get_config_info import get_value
 
 
 def timeout_handler():
@@ -113,3 +121,86 @@ def write_and_unlock_csv(rows, file):
     finally:
         LockFile.unlock(file)
         file.close()
+
+
+def read_file(filepath):
+    """
+    Read the content of a file if it exists, otherwise return an empty list.
+    """
+    try:
+        if os.path.exists(filepath):
+            flags = os.O_RDONLY
+            with os.fdopen(os.open(filepath, flags), 'r') as f:
+                fcntl.flock(f, fcntl.LOCK_SH)
+                content = f.readlines()
+                fcntl.flock(f, fcntl.LOCK_UN)
+            return content
+        return []
+    except Exception as e:
+        raise RuntimeError(f"Failed to read file {filepath}: {e}")
+
+
+def write_file(filepath, content):
+    """
+    Write content to a file safely:
+    - Use a temporary file.
+    - Lock the file during write.
+    - Preserve original permissions and ownership.
+    """
+    temp_file = f"{filepath}.tmp"
+    try:
+        if os.path.exists(filepath):
+            stat_info = os.stat(filepath)
+            original_mode = stat_info.st_mode
+            original_uid = stat_info.st_uid
+            original_gid = stat_info.st_gid
+        else:
+            original_mode = stat.S_IWUSR | stat.S_IRUSR
+            original_uid = os.getuid()
+            original_gid = os.getgid()
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        modes = original_mode
+
+        with os.fdopen(os.open(temp_file, flags, modes), 'w') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.writelines(content)
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+        # Replace the original file with the temporary file
+        shutil.move(temp_file, filepath)
+
+        # Restore permissions and ownership
+        os.chmod(filepath, original_mode)
+        os.chown(filepath, original_uid, original_gid)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to write file {filepath}: {e}")
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
+
+def mkdir(path, permissions=0o750):
+    """
+    Ensure the directory for the given path exists, creating it if necessary.
+
+    :param path: The path to ensure exists (file or directory).
+    :param permissions: The permissions to set on the created directory (default: 0o750).
+    :raises: RuntimeError if directory creation or permission setting fails.
+    """
+    try:
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+            os.chmod(path, permissions)
+
+            deploy_user = get_value("deploy_user")
+            deploy_group = get_value("deploy_group")
+
+            if deploy_user and deploy_group:
+                uid = pwd.getpwnam(deploy_user).pw_uid
+                gid = grp.getgrnam(deploy_group).gr_gid
+                os.chown(path, uid, gid)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to create directory '{path}': {e}")
