@@ -15,7 +15,6 @@ sys.path.append(str(pathlib.Path(CUR_PATH).parent))
 
 from logic.storage_operate import StorageInf
 from utils.client.rest_client import read_helper, write_helper
-from utils.client.ssh_client import SshClient
 from utils.client.response_parse import ResponseParse
 from om_log import REST_LOG as LOG
 
@@ -67,7 +66,6 @@ class CreateFS(object):
     def __init__(self, login_tuple):
         self.ip_addr, self.user_name, self.passwd = login_tuple
         self.storage_opt = StorageInf(login_tuple)
-        self.ssh_client = SshClient(*login_tuple)
         self.fs_info = self._init_params()
         self.pre_check_result = list()
         self.deploy_info = DEPLOY_PARAM
@@ -404,39 +402,6 @@ class CreateFS(object):
         """
         data = self._get_share_client_info(nfs_share_id, fs_type)
         return self.storage_opt.add_nfs_client(data)
-
-    def _config_mandatory_lock_switch(self, vstore_id):
-        """
-        配置租户强制锁
-
-        :param vstore_id: 租户ID
-        :return:
-        """
-        def _exec_cmd():
-            _cmd = f"change vstore view id={vstore_id}"
-            res = self.ssh_client.execute_cmd(_cmd, expect=":/>", timeout=10)
-            if "Command executed successfully." in res:
-                LOG.info("Execute cmd[%s] success", _cmd)
-            else:
-                err_msg = "Execute cmd[%s], details:%s" % (_cmd, res)
-                LOG.error(err_msg)
-                raise Exception(err_msg)
-            _cmd = "change service nfs_config nfsv4_mandatory_lock_switch=enable"
-            self.ssh_client.execute_cmd(_cmd, expect="(y/n)", timeout=10)
-            _cmd = "y"
-            self.ssh_client.execute_cmd(_cmd, expect=":/>", timeout=10)
-            if "Command executed successfully." in res:
-                LOG.info("Execute cmd[%s] success", _cmd)
-            else:
-                err_msg = "Execute cmd[%s], details:%s" % (_cmd, res)
-                LOG.error(err_msg)
-                raise Exception(err_msg)
-        self.ssh_client.create_client()
-        try:
-            _exec_cmd()
-        finally:
-            self.ssh_client.close_client()
-
 
 def main():
     create_parser = argparse.ArgumentParser()
