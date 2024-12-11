@@ -1172,8 +1172,8 @@ class DRDeploy(object):
             # 切换到指定用户并执行 dbstor 命令
             dbstor_command = (
                 f'su -s /bin/bash - "{run_user}" -c \''
-                f'dbstor --create-file --fs-name="{self.share_fs}" '
-                f'--source-dir="{dr_deploy_param_path}" '
+                f'dbstor --copy-file --import --fs-name="{self.share_fs}" '
+                f'--source-dir="{os.path.dirname(dr_deploy_param_path)}" target-dir=/ '
                 f'--file-name="dr_deploy_param.json"\''
             )
             LOG.info(f"Executing command: {dbstor_command}")

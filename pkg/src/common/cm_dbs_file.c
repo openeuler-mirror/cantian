@@ -847,8 +847,11 @@ status_t cm_dbs_query_dir_vstore_id(uint32 vstore_id, const char *name, void *fi
             return CT_ERROR;
         }
     }
-
-    ret = dbs_global_handle()->dbs_file_get_list(&dir_obj_id, file_list, file_num);
+    if (dbs_global_handle()->dbs_file_get_list_detail != NULL) {
+        ret = dbs_global_handle()->dbs_file_get_list_detail(&dir_obj_id, file_list, file_num);
+    } else {
+        ret = dbs_global_handle()->dbs_file_get_list(&dir_obj_id, file_list, file_num);
+    }
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file list, ret %d, file dir %s", ret, file_dir);
         return CT_ERROR;

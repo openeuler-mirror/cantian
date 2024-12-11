@@ -1015,6 +1015,40 @@ status_t cm_malloc_file_list(device_type_t type, void **file_list)
     return CT_SUCCESS;
 }
 
+status_t cm_malloc_file_list_by_version_id(file_info_version_t version, void **file_list)
+{
+    if (version == DBS_FILE_INFO_VERSION_1) {
+        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info));
+        if (*file_list == NULL) {
+            CT_LOG_RUN_ERR("malloc dbstor arch file list array failed");
+            return CT_ERROR;
+        }
+        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM,
+                                    0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
+        if (mem_ret != EOK) {
+            CT_LOG_RUN_ERR("memset dbstor arch file list array failed");
+            cm_free_file_list(file_list);
+            return CT_ERROR;
+        }
+    } else if (version == DBS_FILE_INFO_VERSION_2) {
+        *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info_detail));
+        if (*file_list == NULL) {
+            CT_LOG_RUN_ERR("malloc dbstor arch file list array failed");
+            return CT_ERROR;
+        }
+        errno_t mem_ret = memset_sp(*file_list, sizeof(dbstor_file_info_detail) * DBS_DIR_MAX_FILE_NUM,
+                                    0, sizeof(dbstor_file_info_detail) * DBS_DIR_MAX_FILE_NUM);
+        if (mem_ret != EOK) {
+            CT_LOG_RUN_ERR("memset dbstor arch file list array failed");
+            cm_free_file_list(file_list);
+            return CT_ERROR;
+        }
+    } else {
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index)
 {
     if (type == DEV_TYPE_DBSTOR_FILE) {

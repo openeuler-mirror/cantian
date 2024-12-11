@@ -195,7 +195,7 @@ function mount_fs() {
 
 function check_version_file() {
     if [ x"${deploy_mode}" == x"dbstor" ]; then
-        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path=/' | grep versions.yml | wc -l)
+        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-dir=/' | grep versions.yml | wc -l)
         if [ ${versions_no_nas} -eq 1 ]; then
             return 0
         else
@@ -306,9 +306,10 @@ function set_version_file() {
     if [ ${is_version_file_exist} -eq 1 ]; then
         if [ x"${deploy_mode}" == x"dbstor" ]; then
             chown "${cantian_user}":"${cantian_group}" "${PKG_PATH}/${VERSION_FILE}"
-            su -s /bin/bash - "${cantian_user}" -c 'dbstor --create-file --fs-name='"${storage_share_fs}"' --source-dir='"${PKG_PATH}/${VERSION_FILE}"' --file-name='"${VERSION_FILE}"''
+            su -s /bin/bash - "${cantian_user}" -c "dbstor --copy-file --import --fs-name=${storage_share_fs} \
+            --source-dir=${PKG_PATH} --target-dir=/ --file-name=${VERSION_FILE}"
             if [ $? -ne 0 ]; then
-                logAndEchoError "Execute dbstor tool command: --create-file failed."
+                logAndEchoError "Execute dbstor tool command: --copy-file failed."
                 exit_with_log
             fi
         else
@@ -323,7 +324,7 @@ function set_version_file() {
 
 function check_only_start_file() {
     if [ x"${deploy_mode}" == x"dbstor" ]; then
-        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path=/' | grep "onlyStart.file" | wc -l)
+        versions_no_nas=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-dir=/' | grep "onlyStart.file" | wc -l)
         if [ ${versions_no_nas} -eq 1 ]; then
             return 0
         else
@@ -452,7 +453,7 @@ function exit_with_log() {
     # 首次初始化失败，清理gcc_file
     if [ ${node_id} -eq 0 ]; then
         if [[ x"${deploy_mode}" == x"dbstor" ]] && [[ -f ${CMS_CONTAINER_FLAG} ]]; then
-            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
+            local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-dir="gcc_home"' | grep gcc_file | wc -l)
             if [[ ${is_gcc_file_exist} -ne 0 ]]; then
                 su -s /bin/bash - "${cantian_user}" -c 'cms gcc -del'
             fi

@@ -88,6 +88,7 @@ typedef int (*dbs_file_open_by_path_t)(object_id_t *, char *, uint32_t, object_i
 typedef int (*dbs_file_rename_t)(object_id_t *, char *, char *);
 typedef int (*dbs_file_get_num_t)(object_id_t *, uint32_t *);
 typedef int (*dbs_file_get_list_t)(object_id_t *, void *, uint32_t *);
+typedef int (*dbs_file_get_list_detail_t)(object_id_t *, void *, uint32_t *);
 typedef int (*dbs_get_file_size_t)(object_id_t *, uint64 *);
 typedef int (*dbs_ulog_archive_t)(object_id_t *, object_id_t *, ulog_archive_option_t *, ulog_archive_result_t *);
 typedef int (*dbs_get_ip_pairs_t)(dbs_ip_pairs *, uint32_t *);
@@ -156,6 +157,7 @@ typedef struct st_dbs_interface {
     dbs_file_rename_t dbs_file_rename;
     dbs_file_get_num_t dbs_file_get_num;
     dbs_file_get_list_t dbs_file_get_list;
+    dbs_file_get_list_detail_t dbs_file_get_list_detail;
     dbs_get_file_size_t dbs_get_file_size;
     dbs_ulog_archive_t dbs_ulog_archive;
     dbs_get_ip_pairs_t dbs_get_ip_pairs;
@@ -204,6 +206,20 @@ typedef struct cm_dbstor_file_info {
     cs_file_type type;
     object_id_t handle;
 } dbstor_file_info;
+
+typedef struct cm_dbstor_file_info_detail {
+    char file_name[CSS_MAX_NAME_LEN];
+    cs_file_type type;
+    object_id_t handle;
+    uint32_t file_size;
+    uint32_t mode;
+    uint32_t uid;
+    uint32_t gid;
+    uint64_t mtimeSec;
+    uint64_t mtimeNsec;
+    uint64_t crtimeSec;
+    uint64_t crtimeNsec;
+} dbstor_file_info_detail;
 
 dbs_interface_t *dbs_global_handle(void);
 dbs_tool_interface_t *dbs_tool_global_handle(void);
