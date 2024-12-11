@@ -22,6 +22,9 @@ def update_my_cnf_with_mem_spec():
     """
     my_cnf_content = read_file(MY_CNF_FILE)
 
+    if my_cnf_content and not my_cnf_content[-1].endswith("\n"):
+        my_cnf_content[-1] += "\n"
+
     my_cnf_content = [line for line in my_cnf_content if line.strip()]
 
     for param_name in MYSQL_PARAMS:
@@ -45,6 +48,9 @@ def update_my_cnf_with_config():
     Update my.cnf based on the settings in mysql_config.json.
     """
     my_cnf_content = read_file(MY_CNF_FILE)
+
+    if my_cnf_content and not my_cnf_content[-1].endswith("\n"):
+        my_cnf_content[-1] += "\n"
 
     # Remove empty lines
     my_cnf_content = [line for line in my_cnf_content if line.strip()]
