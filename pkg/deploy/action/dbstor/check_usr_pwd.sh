@@ -127,7 +127,7 @@ function main()
 
     /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/log/dbstor/install.log
     if [[ $? -ne 0 ]];then
-        cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
+        cat /opt/cantian/log/dbstor/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
         if [[ $? -eq 0 ]];then
             echo "Notice:
         CGW_LINK_STATE_CONNECT_OK   = 0

@@ -75,7 +75,7 @@
     "type": "file",
     "size": "30",
     "is_repeat_generate": true,
-    "dir": "/mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs/*/*dsware_*_0.log*",
+    "dir": "/opt/cantian/log/dbstor/*/*dsware_*_0.log*",
     "tar_name": "dsware_cantiand.tar.gz",
     "generate_type": "task generated"
   },
@@ -124,7 +124,7 @@
     "type": "file",
     "size": "30",
     "is_repeat_generate": true,
-    "dir": "/opt/cantian/cms/dbstor/data/logs/run/*dsware_cms_0.log*",
+    "dir": "/opt/cantian/log/dbstor/run/*dsware_cms_0.log*",
     "tar_name": "dsware_cms.log.tar.gz",
     "generate_type": "task generated"
   },

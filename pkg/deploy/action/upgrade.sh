@@ -330,6 +330,7 @@ function update_config() {
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=del --key=DAAC_TASK_NUM --value=256"
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian_ini --action=add --key=CANTIAN_TASK_NUM --value=256"
     su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=cantian --action=add --key=LOG_HOME --value=/opt/cantian/log/cantian"
+    su -s /bin/bash - "${cantian_user}" -c "python3 -B ${UPDATE_CONFIG_FILE_PATH} --component=dbstor --action=add --key=DBS_LOG_PATH --value=/opt/cantian/log/dbstor"
 
 }
 

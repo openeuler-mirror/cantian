@@ -57,7 +57,7 @@ function main() {
     check_path_and_copy /opt/cantian/cantian_exporter cantian/opt
     check_path_and_copy /opt/cantian/common/config cantian/opt
     check_path_and_copy /opt/cantian/log/cms cms/
-    check_path_and_copy /mnt/dbdata/local/cantian/tmp/data/dbstor/data/logs dbstor/mnt
+    check_path_and_copy /opt/cantian/log/dbstor dbstor/mnt
     check_path_and_copy /opt/cantian/cms/dbstor/data/logs dbstor/opt
     check_path_and_copy /opt/cantian/dbstor/data/logs dbstor/install
     check_path_and_copy /mnt/dbdata/local/cantian/tmp/data/dbstor/data/ftds/ftds/data/stat dbstor/ftds
