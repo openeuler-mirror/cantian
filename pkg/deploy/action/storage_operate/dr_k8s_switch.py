@@ -368,6 +368,8 @@ class K8sDRContainer:
         return True
 
     def change_config(self, dir_path):
+        if self.action != "recover":
+            return True
         try:
             config_yaml_path = os.path.join(dir_path, "configMap.yaml")
             config_list = []
@@ -485,7 +487,17 @@ class K8sDRContainer:
             raise Exception(f"DM ip[{self.dm_ip}] can't be login.")
         dm_passwd = getpass.getpass("Please input device manager login passwd: ")
         self.storage_opt = StorageInf((self.dm_ip, self.dm_user, dm_passwd))
-        self.storage_opt.login()
+        try:
+            self.storage_opt.login()
+        except Exception as e:
+            if self.action != "delete":
+                raise e
+            if "user name or password is incorrect" in str(e) or "verification code is not entered" in str(e):
+                raise e
+            if confirm():
+                self.skip_login = True
+                return
+
         self.dr_option = DRDeployCommon(self.storage_opt)
 
     def get_dm_logic_ip(self):
@@ -845,7 +857,7 @@ class K8sDRContainer:
                         if len(pod_list) == 0:
                             break
                         else:
-                            if count == 10:
+                            if count == 20:
                                 exist_pod = True
                                 break
                             count += 1
@@ -1252,9 +1264,9 @@ class K8sDRContainer:
             try:
                 self.check_dbstor_init()
             except Exception as e:
-                self.exe_func(self.del_pods_with_change_file)
                 raise e
-            self.exe_func(self.del_pods_with_change_file)
+            finally:
+                self.exe_func(self.del_pods_with_change_file)
             LOG.info("delete pods with change config finish")
             self.dr_option.change_fs_hyper_metro_domain_second_access(self.domain_id, DomainAccess.ReadOnly)
             try:
