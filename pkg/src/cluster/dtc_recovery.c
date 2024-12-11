@@ -3907,7 +3907,8 @@ status_t dtc_rcy_init_context(knl_session_t *session, dtc_rcy_context_t *dtc_rcy
     }
     errno_t ret = memset_sp(dtc_rcy->rcy_nodes, count * sizeof(dtc_rcy_node_t), 0, count * sizeof(dtc_rcy_node_t));
     knl_securec_check(ret);
-
+    ret = memset_s(dtc_rcy->rcy_create_users, sizeof(dtc_rcy->rcy_create_users), 0, sizeof(dtc_rcy->rcy_create_users));
+    knl_securec_check(ret);
     if (full_recovery) {
         session->dtc_session_type = dtc_rcy->paral_rcy ? DTC_FULL_RCY_PARAL : DTC_FULL_RCY;
     } else {
