@@ -1091,7 +1091,11 @@ status_t dc_create_user_reform(knl_session_t *session, rd_user_t *rd)
     } else {
         user = ctx->users[rd->uid];
     }
-
+    if (CANTIAN_PARTIAL_RECOVER_SESSION(session))
+    {
+        dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+        dtc_rcy->rcy_create_users[rd->uid] = 1;
+    }
     user->status = USER_STATUS_NORMAL;
     dc_redo_info_to_user(rd, user);
     dc_insert_into_user_index(ctx, user);
@@ -1247,9 +1251,12 @@ void rd_drop_user(knl_session_t *session, log_entry_t *log)
         dc_context_t *ctx = &session->kernel->dc_ctx;
         dc_user_t *dc_user = ctx->users[rd->uid];
         if (dc_user->status != USER_STATUS_LOCKED) {
-            CT_LOG_RUN_ERR("[DB] failed to replay drop user %u, user is not locked", rd->uid);
-            cm_spin_unlock(&session->kernel->db.replay_logic_lock);
-            return;
+            dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
+            if (!(dtc_rcy->rcy_create_users[rd->uid] == 1 && dc_user->status == USER_STATUS_NORMAL)) {
+                CT_LOG_RUN_ERR("[DB] failed to replay drop user %u, user is not locked", rd->uid);
+                cm_spin_unlock(&session->kernel->db.replay_logic_lock);
+                return;
+            }
         }
         dtc_try_clean_user_lock(session, dc_user);
     }

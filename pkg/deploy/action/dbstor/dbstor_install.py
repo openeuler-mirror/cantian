@@ -286,6 +286,7 @@ class DBStor:
         self.dbstore_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
+        self.dbstor_log="/opt/cantian/log/dbstor"
 
     def check_ini(self):
         """
@@ -576,6 +577,7 @@ class DBStor:
                 raise ValueError("create config file failed")
             logger.info("Successfully to get user name and password")
             logger.info("Generate DBstor Config File.")
+            self.dbstor_config['DBS_LOG_PATH'] = self.dbstor_log
             self.set_dbstor_conf(self.dbstor_config, self.dbstor_conf_file, True)
         except ValueError as error:
             log_exit(str(error))
@@ -594,6 +596,8 @@ class DBStor:
                 self.dbstor_config["LOG_VSTOR"] = self.dbstore_fs_vstore_id
             if "PAGE_VSTOR" not in self.dbstor_config.keys():
                 self.dbstor_config["PAGE_VSTOR"] = self.dbstor_page_fs_vstore_id
+            if "DBS_LOG_PATH" not in self.dbstor_config.keys():
+                self.dbstor_config["DBS_LOG_PATH"] = self.dbstor_log
             logger.info("Generate DBstor Config File.")
             self.set_dbstor_conf(self.dbstor_config, self.dbstor_conf_file, False)
         except Exception as error:

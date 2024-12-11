@@ -241,6 +241,7 @@ typedef struct st_dtc_rcy_context {
     uint8 recovery_status;
     uint32 pcn_is_equal_num;
     int32 need_analysis_leave_page_cnt;
+    bool8 rcy_create_users[CT_MAX_USERS];
 } dtc_rcy_context_t;
 
 status_t dtc_recover(knl_session_t *session);

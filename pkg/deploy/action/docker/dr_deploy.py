@@ -236,9 +236,10 @@ def copy_version_yaml(deploy_user, deploy_group):
     g_id = deploy_group_info.gr_gid
     version_file = os.path.join(SCRIPT_PATH, "../versions.yml")
     chown_path(version_file, u_id, g_id)
+    version_dir = os.path.dirname(version_file)
     storage_share_fs = get_value("storage_share_fs")
-    cmd = (f'su -s /bin/bash - "{deploy_user}" -c "dbstor --create-file '
-           f'--fs-name={storage_share_fs} --source-dir={version_file} --file-name=versions.yml"')
+    cmd = (f'su -s /bin/bash - "{deploy_user}" -c "dbstor --copy-file --import '
+           f'--fs-name={storage_share_fs} --source-dir={version_dir} --target-dir=/ --file-name=versions.yml"')
     execute_command(cmd, timeout=180)
 
 
@@ -266,7 +267,7 @@ def dr_start_deploy():
     if deploy_mode == "dbstor":
         storage_fs = get_value("storage_share_fs")
         cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --query-file "
-               f"--fs-name={storage_fs} --file-path=/' | grep 'dr_deploy_param.json' | wc -l")
+               f"--fs-name={storage_fs} --file-dir=/' | grep 'dr_deploy_param.json' | wc -l")
         code, count, err = execute_command(cmd, timeout=180)
     else:
         storage_fs = get_value("storage_metadata_fs")
@@ -283,7 +284,7 @@ def dr_start_deploy():
         g_id = deploy_group_info.gr_gid
         os.chown(OPT_CONFIG_PATH, u_id, g_id)
         if deploy_mode == "dbstor":
-            cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --copy-file --fs-name={storage_fs} "
+            cmd = (f"su -s /bin/bash - {deploy_user} -c 'dbstor --copy-file --export --fs-name={storage_fs} "
                    f"--source-dir=/ --target-dir={OPT_CONFIG_PATH} --file-name=dr_deploy_param.json'")
             execute_command(cmd, timeout=180)
         else:

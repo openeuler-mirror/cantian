@@ -67,10 +67,10 @@ class UpdateDRParams(object):
 
             dbstor_command = (
                 f'su -s /bin/bash - "{RUN_USER}" -c \''
-                f'dbstor --copy-file --fs-name="{self.storage_share_fs}" '
+                f'dbstor --copy-file --export --fs-name="{self.storage_share_fs}" '
                 f'--source-dir="/" '
                 f'--target-dir="{remote_dir}" '
-                f'--file-name="/dr_deploy_param.json"\''
+                f'--file-name="dr_deploy_param.json"\''
             )
             LOG.info(f"Executing command: {dbstor_command}")
             return_code, output, stderr = exec_popen(dbstor_command, timeout=100)

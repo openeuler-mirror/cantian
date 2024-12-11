@@ -54,19 +54,19 @@ function check_gcc_file() {
     logAndEchoInfo "begin to check versions.yaml and gcc file."
     if [[ x"${deploy_mode}" == x"dbstor" ]]; then
         version_file=$(su -s /bin/bash - "${cantian_user}" \
-            -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "versions.yml" | wc -l)
+            -c "dbstor --query-file --fs-name=${storage_share_fs} --file-dir=/" | grep "versions.yml" | wc -l)
     else
         version_file=$(su -s /bin/bash - "${cantian_user}" \
             -c "ls -l ${metadata_path}" | grep "versions.yml" | wc -l)
     fi
     local is_gcc_file_exist=$(su -s /bin/bash - "${cantian_user}" \
-        -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-path="gcc_home"' | grep gcc_file | wc -l)
+        -c 'dbstor --query-file --fs-name='"${storage_share_fs}"' --file-dir="gcc_home"' | grep gcc_file | wc -l)
     if [[ ${version_file} -gt 0 ]] && [[ ${is_gcc_file_exist} -gt 0 ]];then
         logAndEchoInfo "versions.yaml and gcc file is exists."
 
         logAndEchoInfo "begin to check cluster name."
         is_cluster_name_exist=$(su -s /bin/bash - "${cantian_user}" \
-            -c 'dbstor --query-file --fs-name='"${storage_dbstore_page_fs}"' --file-path=/' | grep "^${cluster_name}$" | wc -l)
+            -c 'dbstor --query-file --fs-name='"${storage_dbstore_page_fs}"' --file-dir=/' | grep "${cluster_name}$" | wc -l)
         if [[ ${is_cluster_name_exist} -eq 0 ]];then
             logAndEchoError "query cluster name failed, please check whether cluster config parameters conflict."
             exit 1
@@ -74,7 +74,7 @@ function check_gcc_file() {
 
         if [[ x"${deploy_mode}" == x"dbstor" ]]; then
             start_file=$(su -s /bin/bash - "${cantian_user}" \
-                -c "dbstor --query-file --fs-name=${storage_share_fs} --file-path=/" | grep "onlyStart.file" | wc -l)
+                -c "dbstor --query-file --fs-name=${storage_share_fs} --file-dir=/" | grep "onlyStart.file" | wc -l)
         else
             start_file=$(su -s /bin/bash - "${cantian_user}" \
                 -c "ls -l ${metadata_path}" | grep "onlyStart.file" | wc -l)
@@ -87,7 +87,7 @@ function check_gcc_file() {
             mkdir -p "${metadata_path}"
             chown "${cantian_user}":"${cantian_group}" "${metadata_path}"
             su -s /bin/bash - "${cantian_user}" \
-                -c "dbstor --copy-file --fs-name=${storage_share_fs} --source-dir=/ --target-dir=${metadata_path} --file-name=versions.yml"
+                -c "dbstor --copy-file --export --fs-name=${storage_share_fs} --source-dir=/ --target-dir=${metadata_path} --file-name=versions.yml"
             if [[ $? -ne 0 ]];then
                 logAndEchoError "update local version file failed."
                 exit 1

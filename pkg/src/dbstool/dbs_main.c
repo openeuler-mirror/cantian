@@ -109,16 +109,19 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
         "\tparams: [--fs-name=*] [--cluster-name=*]"},
     {{"--create-file", "*[PARAM]"}, dbs_create_path_or_file,
         "\tUsage: create/copy the specified dir/file in the file system.\n"
-        "\tparams: --fs-name=* --file-name=* [--source-dir=xxx]"},
-    {{"--copy-file", "*[PARAM]"}, dbs_copy_file,
+        "\tparams: --fs-name=* [--file-name=*] [--file-dir=xxx]"},
+    {{"--copy-file", "--import", "*[PARAM]"}, dbs_copy_file,
+        "\tUsage: copy the dir/file to target file system.\n"
+        "\tparams: --fs-name=* --source-dir=* --target-dir=* [--file-name=*] [--overwrite]"},
+    {{"--copy-file", "--export", "*[PARAM]"}, dbs_copy_file,
         "\tUsage: copy the dir/file in file system to target dir.\n"
-        "\tparams: --fs-name=* --source-dir=* --target-dir=* [--file-name=*]"},
+        "\tparams: --fs-name=* --source-dir=* --target-dir=* [--file-name=*] [--overwrite]"},
     {{"--delete-file", "*[PARAM]"}, dbs_delete_path_or_file,
         "\tUsage: delete the specified dir/file in the file system.\n"
         "\tparams: --fs-name=* --file-name=*"},
     {{"--query-file", "*[PARAM]"}, dbs_query_file,
         "\tUsage: query the dir in the file system.\n"
-        "\tparams: --fs-name=* --file-path=* [--vstore_id=*]"},
+        "\tparams: --fs-name=* [--file-dir=*] [--vstore_id=*]"},
     {{"--ulog-data", "*[PARAM]"}, dbs_ulog_export,
         "\tUsage: export ulog file for debug.\n"
         "\tparams: [node] [target-dir] [start-lsn] [len(optional)]"},
@@ -156,10 +159,10 @@ int32 dbs_cmd_help(int32 argc, char* argv[])
             if (cmd_def->param[p][0] == '*') {
                 continue;
             } else {
-                printf(" %s\n", cmd_def->param[p]);
+                printf(" %s", cmd_def->param[p]);
             }
         }
-        printf(" %s\n", cmd_def->desc);
+        printf("\n %s\n", cmd_def->desc);
     }
     return CT_SUCCESS;
 }

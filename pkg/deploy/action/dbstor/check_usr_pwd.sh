@@ -22,11 +22,17 @@ function execute_dbstor_query_file()
   local fs=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "$1")
   if [ $1 == "storage_dbstore_fs" ];then
     local dbstore_fs_vstore_id=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id")
-    /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${fs}" --file-path="/" --vstore_id="${dbstore_fs_vstore_id}" >> /opt/cantian/log/dbstor/install.log
+    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}")
   else
-    /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${fs}" --file-path="/" >> /opt/cantian/log/dbstor/install.log
+    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id=0)
   fi
+  echo ${out} >> /opt/cantian/log/dbstor/install.log
   if [[ $? -ne 0 ]];then
+    notsupporte=$(echo ${out} | grep -c "DBstor version not supported")
+    if [[ ${notsupporte} -gt 0 ]];then
+      echo "DBstor version not supported cmd dbstor --query-file"
+      exit 0
+    fi
     echo "Fail to query file system [$1], please check if vstore id matches file system [$1]"
     exit 1
   fi
@@ -127,7 +133,7 @@ function main()
 
     /opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --dbs-link-check >> /opt/cantian/log/dbstor/install.log
     if [[ $? -ne 0 ]];then
-        cat /opt/cantian/dbstor/data/logs/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
+        cat /opt/cantian/log/dbstor/run/dsware_* | grep "CGW link failed, locIp" | tail -n 5
         if [[ $? -eq 0 ]];then
             echo "Notice:
         CGW_LINK_STATE_CONNECT_OK   = 0
