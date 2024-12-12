@@ -3110,6 +3110,14 @@ void rc_arch_proc(thread_t *thread)
     CT_LOG_RUN_INF("[ARCH] arch proc thread exit.");
 }
 
+uint64 rc_arch_get_hwm_size(arch_proc_context_t *proc_ctx)
+{
+    knl_session_t *session = proc_ctx->session;
+    uint64 max_arch_size = session->kernel->attr.max_arch_files_size;
+    uint64 hwm_arch_size = max_arch_size * session->kernel->attr.arch_upper_limit / 100;
+    return hwm_arch_size;
+}
+
 void rc_arch_dbstor_read_proc(thread_t *thread)
 {
     arch_proc_context_t *proc_ctx = (arch_proc_context_t *)thread->argument;
@@ -3119,9 +3127,17 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
     int32 data_size = 0;
     uint64 start_lsn = proc_ctx->last_archived_log_record.cur_lsn + 1;
     uint64 last_lsn = proc_ctx->last_archived_log_record.cur_lsn;
+    uint64 total_read_size = 0;
+    uint64 hwm_arch_size = rc_arch_get_hwm_size(proc_ctx);
     CT_LOG_RUN_INF("[RC_ARCH] start to read redo %s, start lsn %llu", logfile->ctrl->name, start_lsn);
 
     while (proc_ctx->redo_log_filesize > 0 && !proc_ctx->write_failed) {
+        if (total_read_size + proc_ctx->curr_arch_size > hwm_arch_size - buf_size) {
+            CT_LOG_RUN_WAR("[RC_ARCH] the total arch size %llu exceeds capacity %llu",
+                total_read_size + proc_ctx->curr_arch_size, hwm_arch_size);
+            break;
+        }
+
         if (arch_get_read_buf(&proc_ctx->arch_rw_buf, &read_buf) != CT_SUCCESS) {
             cm_sleep(1);
             continue;
@@ -3147,6 +3163,7 @@ void rc_arch_dbstor_read_proc(thread_t *thread)
         arch_set_read_done(&proc_ctx->arch_rw_buf);
         proc_ctx->redo_log_filesize -= data_size;
         start_lsn = last_lsn + 1;
+        total_read_size += data_size;
     }
     arch_wait_write_finish(proc_ctx, &proc_ctx->arch_rw_buf);
 

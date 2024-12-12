@@ -2079,6 +2079,7 @@ status_t bak_write_to_write_buf(bak_context_t *ctx, const void *buf, int32 size)
     bak_buf_t *send_buf = &bak->send_buf;
 
     if (bak_wait_write(bak) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] wait write data failed");
         return CT_ERROR;
     }
 
@@ -2180,6 +2181,7 @@ void bak_write_datafile_wait(bak_process_t *bak_proc, bak_context_t *bak_ctx, bo
             return;
         }
         if (bak_wait_write(bak) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] fail to write datafile");
             bak_proc->read_failed = CT_TRUE;
         }
     }
@@ -2189,7 +2191,8 @@ void bak_write_datafile_wait(bak_process_t *bak_proc, bak_context_t *bak_ctx, bo
 status_t bak_read_end_check(knl_session_t *session, bak_process_t *bak_proc)
 {
     if (bak_proc->read_failed || bak_proc->write_failed) {
-        CT_LOG_RUN_INF("[BACKUP] fail to backup datafile %s", bak_proc->ctrl.name);
+        CT_LOG_RUN_ERR("[BACKUP] fail to backup datafile %s, read stat %d, write stat %d",
+            bak_proc->ctrl.name, bak_proc->read_failed, bak_proc->write_failed);
         return CT_ERROR;
     }
 
@@ -2256,10 +2259,12 @@ status_t bak_read_datafile(knl_session_t *session, bak_process_t *bak_proc, bool
         }
         start = g_timer()->now;
         if (bak_read_datafile_pages(session, bak_proc) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] fail to read datafile");
             bak_proc->read_failed = CT_TRUE;
             break;
         }
         if (bak_deal_datafile_pages_read(session, bak_proc, to_disk) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] fail to read datafile");
             bak_proc->read_failed = CT_TRUE;
             break;
         }
@@ -2270,6 +2275,7 @@ status_t bak_read_datafile(knl_session_t *session, bak_process_t *bak_proc, bool
             continue;
         }
         if (bak_write_datafile(bak_proc, bak_ctx, to_disk) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] fail to read datafile");
             bak_proc->read_failed = CT_TRUE;
             break;
         }

@@ -708,8 +708,25 @@ void switch_log_file(arch_proc_context_t *proc_ctx)
     cm_spin_unlock(&rc_session->kernel->db.ctrl_lock);
 }
 
+void rc_arch_get_cur_size(arch_proc_context_t *proc_ctx, dtc_node_ctrl_t *node_ctrl, uint32 node_id, uint32 arch_num)
+{
+    knl_session_t *session = proc_ctx->session;
+    arch_ctrl_t *arch_ctrl = NULL;
+    for (uint32 i = 0; i < arch_num; i++) {
+        uint32 arch_locator = (node_ctrl->archived_start + i) % CT_MAX_ARCH_NUM;
+        arch_ctrl = db_get_arch_ctrl(session, arch_locator, node_id);
+        if (arch_ctrl == NULL || arch_ctrl->recid == 0) {
+            CT_LOG_RUN_WAR("[RC_ARCH] invalid recid %u, asn %u", arch_ctrl->recid, arch_ctrl->asn);
+            continue;
+        }
+        proc_ctx->curr_arch_size += arch_get_ctrl_real_size(arch_ctrl);
+    }
+    CT_LOG_RUN_INF("[RC_ARCH] the total current arch size %llu", proc_ctx->curr_arch_size);
+    return;
+}
+
 status_t rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfile, dtc_node_ctrl_t *node_ctrl,
-                           uint32 arch_num, uint32 node_id)
+                               uint32 arch_num, uint32 node_id)
 {
     knl_session_t *session = proc_ctx->session;
     if (cm_dbs_is_enable_dbs() != CT_TRUE) {
@@ -741,12 +758,14 @@ status_t rc_init_arch_proc_ctx(arch_proc_context_t *proc_ctx, log_file_t *logfil
 
     arch_ctrl_t *arch_ctrl = NULL;
     if (arch_num != 0) {
+        rc_arch_get_cur_size(proc_ctx, node_ctrl, node_id, arch_num);
         arch_ctrl = db_get_arch_ctrl(session, node_ctrl->archived_end - 1, node_id);
         proc_ctx->last_archived_log_record.asn = arch_ctrl->asn + 1;
         proc_ctx->last_archived_log_record.start_lsn = arch_ctrl->end_lsn;
         proc_ctx->last_archived_log_record.end_lsn = arch_ctrl->end_lsn;
         proc_ctx->last_archived_log_record.cur_lsn = arch_ctrl->end_lsn;
     } else {
+        proc_ctx->curr_arch_size = 0;
         proc_ctx->last_archived_log_record.asn = 1;
     }
     return CT_SUCCESS;
@@ -849,6 +868,9 @@ bool32 rc_need_archive_log(void)
     if (session->kernel->db.ctrl.core.log_mode != ARCHIVE_LOG_ON || !DB_IS_PRIMARY(&session->kernel->db)) {
         return CT_FALSE;
     }
+    if (session->kernel->db.ctrl.core.lrep_mode != LOG_REPLICATION_ON) {
+        return CT_FALSE;
+    }
     knl_panic_log(g_dtc->profile.node_count < DTC_MAX_NODE_COUNT, "not support node count");
     return CT_TRUE;
 }
@@ -885,7 +907,8 @@ void rc_end_archive_log(arch_proc_context_t *arch_proc_ctx)
         }
 
         if (arch_proc_ctx[i].tmp_file_name[0] != '\0' && arch_proc_ctx[i].tmp_file_handle != CT_INVALID_HANDLE) {
-            cm_close_device(cm_device_type(arch_proc_ctx[i].tmp_file_name), &arch_proc_ctx[i].tmp_file_handle);
+            device_type_t arch_file_type = arch_get_device_type(arch_proc_ctx[i].arch_dest);
+            cm_close_device(arch_file_type, &arch_proc_ctx[i].tmp_file_handle);
         }
         if (arch_proc_ctx[i].logfile.ctrl != NULL && arch_proc_ctx[i].logfile.handle != CT_INVALID_HANDLE) {
             cm_close_device(arch_proc_ctx[i].logfile.ctrl->type, &arch_proc_ctx[i].logfile.handle);
