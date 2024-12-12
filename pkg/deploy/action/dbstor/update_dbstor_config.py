@@ -276,7 +276,7 @@ def update_file_parameter(file_path, ini_file, encrypt_passwd=False):
     # rewrite parameters
     for key in ini_file:
         conf.set(db_opts.section, key, ini_file[key])
-    flags = os.O_CREAT | os.O_RDWR
+    flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
     modes = stat.S_IWUSR | stat.S_IRUSR
     try:
         with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:

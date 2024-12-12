@@ -555,7 +555,7 @@ class DBStor:
             self.dbstor_config['PASSWORD'] = GLOBAL_KMC_EXT.encrypt(self.dbstor_config.get('PASSWORD', ""))
         for key in self.dbstor_config:
             conf.set(SECTION, key, self.dbstor_config[key])
-        flags = os.O_CREAT | os.O_RDWR
+        flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
         modes = stat.S_IWUSR | stat.S_IRUSR
         with os.fdopen(os.open(file, flags, modes), "w", encoding="utf-8") as file_obj:
             conf.write(file_obj)

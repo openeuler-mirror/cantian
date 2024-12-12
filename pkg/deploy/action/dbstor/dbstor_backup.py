@@ -197,7 +197,7 @@ def backup_ini():
     conf.add_section(g_opts.section)
     for key in g_opts.dbstor_config:
         conf.set(g_opts.section, key, g_opts.dbstor_config[key])
-    flags = os.O_CREAT | os.O_RDWR
+    flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(g_opts.backup_ini_file, flags, modes), "w") as file_handle:
         conf.write(file_handle)
