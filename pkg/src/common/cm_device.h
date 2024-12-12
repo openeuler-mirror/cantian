@@ -185,8 +185,8 @@ typedef struct st_raw_device_op {
 // interface for register raw device callback function
 void cm_raw_device_register(raw_device_op_t *device_op);
 void cm_free_file_list(void **file_list);
-status_t cm_malloc_file_list(device_type_t type, void **file_list);
-status_t cm_malloc_file_list_by_version_id(uint32 version, void **file_list);
+status_t cm_malloc_file_list(device_type_t type, void **file_list, const char *file_path, uint32 *file_num);
+status_t cm_malloc_file_list_by_version_id(uint32 version, void **file_list, const char *file_path, uint32 *file_num);
 char *cm_get_name_from_file_list(device_type_t type, void *list, int32 index);
 bool32 cm_check_dir_type_by_file_list(device_type_t type, void *list, int32 index);
 bool32 cm_match_arch_pattern(const char *filename);

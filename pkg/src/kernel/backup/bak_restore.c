@@ -2843,7 +2843,7 @@ status_t rst_find_duplicative_archfile(knl_session_t *session, bak_file_t *file,
     void *file_list = NULL;
     uint32 file_num = 0;
     char *file_name = NULL;
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 

@@ -357,7 +357,7 @@ status_t copy_arch_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_i
     }
 
     void *file_list = NULL;
-    if (cm_malloc_file_list(src_info->type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info->type, &file_list, src_info->path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
     
@@ -414,7 +414,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
 
     // 没有指定文件名则复制整个目录的所有文件
     void *file_list = NULL;
-    if (cm_malloc_file_list(src_info->type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info->type, &file_list, src_info->path, &file_num) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Failed to malloc file list.");
         return CT_ERROR;
     }
@@ -954,7 +954,7 @@ int32 dbs_arch_clean(int32 argc, char *argv[])
     dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
     MEMS_RETURN_IFERR(strncpy_s(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, archive_location, strlen(archive_location)));
 
-    if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info.type, &file_list, src_info.path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1005,7 +1005,7 @@ int32 dbs_arch_query(int32 argc, char *argv[])
         return CT_ERROR;
     }
 
-    if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info.type, &file_list, src_info.path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1075,7 +1075,7 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
     dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
     MEMS_RETURN_IFERR(strncpy_s(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, ulog_path, strlen(ulog_path)));
 
-    if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info.type, &file_list, src_info.path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (cm_dbs_query_dir_vstore_id(vstore_id_uint, src_info.path, file_list, &file_num) != CT_SUCCESS) {
@@ -1130,7 +1130,7 @@ int32 dbs_pagepool_clean(int32 argc, char *argv[])
     dbs_device_info_t src_info = { .handle = -1, .type = DEV_TYPE_DBSTOR_FILE, .path = "" };
     MEMS_RETURN_IFERR(strncpy_s(src_info.path, MAX_DBS_FS_FILE_PATH_LEN, pagepool_path, strlen(pagepool_path)));
 
-    if (cm_malloc_file_list(src_info.type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(src_info.type, &file_list, src_info.path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1466,7 +1466,7 @@ int32 dbs_query_file(int32 argc, char *argv[])
     if (dbs_global_handle()->dbs_file_get_list_detail != NULL) {
         info_version = DBS_FILE_INFO_VERSION_2;
     }
-    if (cm_malloc_file_list_by_version_id(info_version, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list_by_version_id(info_version, &file_list, query_info.path, &file_num) != CT_SUCCESS) {
         printf("Failed to allocate memory for file list.\n");
         return CT_ERROR;
     }

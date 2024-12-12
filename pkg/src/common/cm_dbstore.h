@@ -35,7 +35,8 @@ extern "C" {
 #define DBS_CONFIG_NAME "dbstor_config.ini"
 #define DBS_CONFIG_NAME_WITHOUT_SUFFIX "dbstor_config"
 #define CSS_MAX_NAME_LEN 68
-#define DBS_DIR_MAX_FILE_NUM 1024
+#define DBS_DIR_MAX_FILE_NUM 10240
+#define DBS_DIR_DEFAULT_FILE_NUM 1024
 #define DBS_ADDR_STR_LEN 20
 #define DBS_MAX_LINK_NUMS 32
 
