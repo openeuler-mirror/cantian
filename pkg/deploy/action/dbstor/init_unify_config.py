@@ -144,7 +144,7 @@ class ConfigTool:
             config.set('CLIENT', 'INST_ID', inst_id)      
             config.set('CLIENT', 'DBS_TOOL_UUID', dbs_tool_uuid)
             config.set('CLIENT', 'DBS_LOG_PATH', self.dbstor_log_path)
-            flags = os.O_CREAT | os.O_RDWR
+            flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
             modes = stat.S_IWUSR | stat.S_IRUSR
             file_path = "%s/conf/dbs/dbstor_config_tool_%s.ini" % (self.dbstor_home, str(file_num))
             with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:

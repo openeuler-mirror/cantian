@@ -794,10 +794,6 @@ int set_opt_broadcast_and_retry(ctc_handler_t *tch, ctc_set_opt_request *broadca
 int ctc_set_opt_and_broadcast(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, knl_session_t *knl_session, bool allow_fail)
 {
     uint32_t req_size = sizeof(msg_execute_set_opt_req_t) + (broadcast_req->opt_num * sizeof(set_opt_info_t));
-    if (req_size >= MES_512K_MESSAGE_BUFFER_SIZE) {
-        CT_LOG_RUN_ERR("[CTC_SET_OPT_AND_BROADCAST]:message too large, size:%d", req_size);
-        return CT_ERROR;
-    }
     void *req = cm_push(knl_session->stack, req_size);
     if (req == NULL) {
         CT_LOG_RUN_ERR("msg failed to malloc memory");
