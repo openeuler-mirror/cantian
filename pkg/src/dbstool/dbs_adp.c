@@ -2118,7 +2118,7 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
         params, results, result_lens, check_list, DBS_QUERY_FS_INFO_PRAMA_NUM, DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM
     };
 
-    if ((argc, argv, &params_list) != CT_SUCCESS) {
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
         return CT_ERROR;
     }
