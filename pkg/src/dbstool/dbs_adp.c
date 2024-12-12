@@ -1416,7 +1416,6 @@ status_t file_info_screen_print(void *file_list, uint32 file_num, char *path, fi
             char groupname[GROUP_NAME_LEN] = {0};
             char mode_str[MODE_STR_LEN] = {0};
             char timr_str[TIME_STR_LEN] = {0};
-            printf("mode: %u\n", file_info->mode);
             PRTS_RETURN_IFERR(mode_to_string(file_info->mode, mode_str));
             PRTS_RETURN_IFERR(uid_to_username(file_info->uid, username));
             PRTS_RETURN_IFERR(gid_to_groupname(file_info->gid, groupname));
