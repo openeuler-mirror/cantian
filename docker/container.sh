@@ -7,7 +7,7 @@ function help()
     echo ""
     echo "$0"
     echo ""
-    echo "Usage:    container.sh       {dev | rundev | enterdev | killdev | startnode {0, 1} | enternode {0, 1} | stopnode | help} [--cpus --memory --user --host]"
+    echo "Usage:    container.sh       {dev | rundev | enterdev | killdev | startnode {0, 1} | enternode {0, 1} | stopnode | help} [--cpus --memory --user --host --name]"
     echo "          dev                start container for single node and enter container"
     echo "          rundev             start container for single node"
     echo "          enterdev           enter container for single node"
@@ -19,6 +19,7 @@ function help()
     echo "          -u, --user=        specify install username, default as cantiandba"
     echo "          -h, --host         use host network for container"
     echo "          -d, --coredir=     specify coredump dir"
+    echo "          -n, --name=        mark the docker name"
 }
 
 function err()
@@ -26,6 +27,12 @@ function err()
     echo "error: $@"
     exit 1
 }
+
+function obtain_ip() {
+    local num=$(docker ps -a | wc -l)
+    return $(($num+1))
+}
+
 
 function run_docker()
 {
@@ -40,7 +47,7 @@ function run_docker()
                --security-opt seccomp=unconfined           \
                ${docker_conf} --name ${container}          \
                ${mounts} --network=${network_name}         \
-               ${extra} ${docker_name} /usr/sbin/init
+               ${extra} cantian_dev /usr/sbin/init
     set +x
 }
 
@@ -122,7 +129,7 @@ function stopnode()
 
 function rundev()
 {
-    network_name="host"
+    create_network
     container="${docker_name}-dev"
     script_dir=$(dirname "$(readlink -f "$0")")
     project_dir=$(dirname $script_dir)
@@ -130,7 +137,10 @@ function rundev()
     commitID=($(git submodule status))
     cd -
     pwd
-    run_docker
+    obtain_ip
+    ip="192.168.86.$(($?+1))"
+    echo ip=$ip
+    run_docker --ip ${ip}
     echo "${container} is running"
     init_container
 }
@@ -188,7 +198,7 @@ function init()
 
 function parse_params()
 {
-    ARGS=$(getopt -o c:m:hu:d: --long cpus:,memory:,host,user:,coredir: -n "$0" -- "$@")
+    ARGS=$(getopt -o c:m:hu:d:n: --long cpus:,memory:,host,user:,coredir:,name: -n "$0" -- "$@")
     
     if [ $? != 0 ]; then
         log "Terminating..."
@@ -196,12 +206,17 @@ function parse_params()
     fi
     eval set -- "${ARGS}"
 
+    name=""
     cpus=""
     memory=""
     user="cantiandba"
     while true
     do
         case "$1" in
+            -n | --name)
+                name=$2
+                shift 2
+                ;;
             -c | --cpus)
                 cpus=$2
                 shift 2
@@ -251,12 +266,12 @@ function parse_params()
 
 function main()
 {
-    mode=dev
-    docker_name="cantian_${mode}"
     network_name="mynetwork"
     core_dir="/home/core"
     
     parse_params "$@"
+
+    docker_name="cantian_${name}"
     case $run_mode in
         dev)
             rundev

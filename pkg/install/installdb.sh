@@ -141,7 +141,7 @@ function start_cms() {
   log "=========== start cms ${NODE_ID} ================"
   if [ ${NODE_ID} == 0 ]; then
     if [ ${CLUSTER_SIZE} == 1 ]; then
-      ${CTDB_HOME}/bin/cms node -add 0 node0 127.0.0.1 ${CMS_PORT[0]}
+      ${CTDB_HOME}/bin/cms node -add 0 node0 ${NODE_IP[0]} ${CMS_PORT[0]}
     else
       for ((i = 0; i < ${CLUSTER_SIZE}; i++)); do
         ${CTDB_HOME}/bin/cms node -add ${i} node${i} ${NODE_IP[$i]} ${CMS_PORT[$i]}

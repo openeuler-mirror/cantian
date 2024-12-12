@@ -957,7 +957,7 @@ main()
             ;;
         'protect_vm=1')
             echo "protect_vm enable"
-            COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON"
+            COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF"
             ;;
         'cantiand_cn=1')
             echo "cantiand_cn enable"
@@ -1028,11 +1028,11 @@ main()
 
     case "${arg1}" in
     'all')
-        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON"
+        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF"
         func_all Debug
         ;;
     'debug')
-        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON"
+        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF"
         func_make_debug
         ;;
     'release')
@@ -1061,7 +1061,7 @@ main()
         func_test
         ;;
     'package'|'package-debug')
-        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON"
+        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF"
         func_making_package Debug
         ;;
     'package-release')
@@ -1071,11 +1071,11 @@ main()
         prepare_bazel_dependency
         ;;
     'make_regress_test')
-        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON -DCMS_UT_TEST=ON"
+        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF -DCMS_UT_TEST=ON"
         func_regress_test
         ;;
     'make_cantian_pkg_test')
-        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON"
+        COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=OFF"
         func_making_package_test Debug
         ;;
     *)

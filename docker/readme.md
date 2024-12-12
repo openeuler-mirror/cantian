@@ -61,13 +61,19 @@ mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
 mkdir -p cantian_data
 ```
 
+### 屏蔽编译警告
+```shell
+sed -i '/STRING_APPEND(MY_C_WARNING_FLAGS   " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
+sed -i '/STRING_APPEND(MY_CXX_WARNING_FLAGS " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
+```
+
 <a id="start_docker"></a>
-### 启动开发编译自验容器
+### 启动开发编译自验容器，docker_mark用于区分不同容器
 需进入cantian代码目录  
 单节点
 ```shell
-sh docker/container.sh dev
-sh docker/container.sh enterdev
+sh docker/container.sh dev -n [docker_mark]
+sh docker/container.sh enterdev -n [docker_mark]
 ```
 双节点
 ```shell
@@ -81,7 +87,7 @@ sh docker/container.sh enternode [node_id]
 **注：容器外修改代码后需要重新进入容器内方能生效**
 ```shell
 # 单节点：
-sh docker/container.sh dev
+sh docker/container.sh dev -n [docker_mark]
 # 双节点0：
 sh docker/container.sh startnode [0]
 sh docker/container.sh enternode [0]
@@ -90,14 +96,10 @@ sh docker/container.sh startnode [1]
 sh docker/container.sh enternode [1]
 ```
 **注：如果确实未能更新，可以将容器清掉后[重新创建](#start_docker)，再从[编译拉起](#section2)操作继续执行**
-单节点
+#单节点或双节点，查看容器ID，指定对应ID停止
 ```shell
-sh docker/container.sh stopode
-```
-双节点：
-```shell
-//docker stop [CONTAINER_ID]
-docker stop cantian_dev-dev
+docker ps
+docker stop [CONTAINER_ID]
 ```
 
 <a id="section2"></a>

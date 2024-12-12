@@ -20,6 +20,7 @@ try:
     import errno
     import signal
     import shlex
+    import socket
 
     from multiprocessing.dummy import Pool
 
@@ -200,7 +201,7 @@ class DefaultConfigValue(object):
         "CLUSTER_DATABASE": "TRUE",
         "_DOUBLEWRITE": "FALSE",
         "TEMP_BUFFER_SIZE": "1G",
-        "DATA_BUFFER_SIZE": "8G",
+        "DATA_BUFFER_SIZE": "1G",
         "SHARED_POOL_SIZE": "1G",
         "LOG_BUFFER_COUNT": 16,
         "LOG_BUFFER_SIZE": "64M",
@@ -259,12 +260,24 @@ class DefaultConfigValue(object):
         "MYSQL_DEPLOY_GROUP_ID": "5000"
     }
 
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,
+        struct.pack('256s', bytes(ifname[:15], 'utf-8'))
+        )[20:24])
 
 class SingleNodeConfig(object):
 
     @staticmethod
     def get_config(in_container = False):
         cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG if not in_container else DefaultConfigValue.CANTIAND_DBG_CONFIG
+        if in_container:
+            eth0_ip = get_ip_address("eth0")
+            print("use eth0 ip addr%s" % eth0_ip)
+            cantiand_cfg["LSNR_ADDR"] = eth0_ip
+            cantiand_cfg["INTERCONNECT_ADDR"] = eth0_ip
         return cantiand_cfg, DefaultConfigValue.CMS_CONFIG, DefaultConfigValue.GSS_CONFIG
 
 
@@ -274,8 +287,14 @@ class ClusterNode0Config(object):
     def get_config(in_container = False):
         cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG if not in_container else DefaultConfigValue.CANTIAND_DBG_CONFIG
         if in_container:
-            cantiand_cfg["LSNR_ADDR"] = "192.168.86.1"
-            cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1;192.168.86.2"
+            if os.path.exists(CommonValue.DOCKER_SHARE_DIR):
+                with open(os.path.join(CommonValue.DOCKER_SHARE_DIR, "ip_config"), "r") as f:
+                    ip_config = f.read()
+                cantiand_cfg["LSNR_ADDR"] = ip_config.split("\n")[0].strip()
+                cantiand_cfg["INTERCONNECT_ADDR"] = "%s;%s" % (ip_config.split("\n")[0].strip(), ip_config.split("\n")[1].strip())
+            else:
+                cantiand_cfg["LSNR_ADDR"] = "192.168.86.1"
+                cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1;192.168.86.2"
         cantiand_cfg["INTERCONNECT_PORT"] = "1601,1602"
         DefaultConfigValue.GSS_CONFIG["INTERCONNECT_PORT"] = "1621,1621"
         return cantiand_cfg, DefaultConfigValue.CMS_CONFIG, DefaultConfigValue.GSS_CONFIG
@@ -287,8 +306,15 @@ class ClusterNode1Config(object):
     def get_config(in_container = False):
         cantiand_cfg = DefaultConfigValue.CANTIAND_CONFIG if not in_container else DefaultConfigValue.CANTIAND_DBG_CONFIG
         if in_container:
-            cantiand_cfg["LSNR_ADDR"] = "192.168.86.2"
-            cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1;192.168.86.2"
+            if os.path.exists(CommonValue.DOCKER_SHARE_DIR):
+                with open(os.path.join(CommonValue.DOCKER_SHARE_DIR, "ip_config"), "r") as f:
+                    ip_config = f.read()
+                cantiand_cfg["LSNR_ADDR"] = ip_config.split("\n")[1].strip()
+                cantiand_cfg["INTERCONNECT_ADDR"] = "%s;%s" % (
+                ip_config.split("\n")[0].strip(), ip_config.split("\n")[1].strip())
+            else:
+                cantiand_cfg["LSNR_ADDR"] = "192.168.86.2"
+                cantiand_cfg["INTERCONNECT_ADDR"] = "192.168.86.1;192.168.86.2"
         cantiand_cfg["INSTANCE_ID"] = 1
         cantiand_cfg["INTERCONNECT_PORT"] = "1601,1602"
         DefaultConfigValue.GSS_CONFIG["INST_ID"] = 1

@@ -2007,12 +2007,12 @@ class Installer:
 
         # check install path and data dir are in the same path or not
         if stdout_list[0] == stdout_list[1]:
-            if (availableSize < 20580):
+            if (availableSize < 10580):
                 logExit("The sum of database program and data directories"
                         " available size smaller than 20580M, "
                         "current size is: %sM" % str(availableSize))
         else:
-            if (availableSize < 20480):
+            if (availableSize < 10480):
                 logExit("Database data directory available size smaller"
                         " than 20480M, current size is: "
                         "%sM" % str(availableSize))
