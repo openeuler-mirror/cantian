@@ -22,12 +22,14 @@ function execute_dbstor_query_file()
   local fs=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "$1")
   if [ $1 == "storage_dbstore_fs" ];then
     local dbstore_fs_vstore_id=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id")
-    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}")
+    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}" )
+    result=$?
   else
-    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id=0)
+    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id=0 )
+    result=$?
   fi
   echo ${out} >> /opt/cantian/log/dbstor/install.log
-  if [[ $? -ne 0 ]];then
+  if [[ ${result} -ne 0 ]];then
     notsupporte=$(echo ${out} | grep -c "DBstor version not supported")
     if [[ ${notsupporte} -gt 0 ]];then
       echo "DBstor version not supported cmd dbstor --query-file"
@@ -35,6 +37,19 @@ function execute_dbstor_query_file()
     fi
     echo "Fail to query file system [$1], please check if vstore id matches file system [$1]"
     exit 1
+  else
+    fs_mode=$(echo ${out} | grep -c "fs_mode = 1")
+    if [[ ${fs_mode} -gt 0 ]];then
+      if [ $1 == "storage_dbstore_fs" ];then
+        out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}" )
+        return_code=$?
+        echo ${out} >> /opt/cantian/log/dbstor/install.log
+        if [[ ${return_code} -ne 0 ]];then
+          echo "Fail to query file system [$1], because filesystem type is metro, but hyper metro filesystem pair does not exist."
+          exit 1
+        fi
+      fi
+    fi
   fi
 }
 
