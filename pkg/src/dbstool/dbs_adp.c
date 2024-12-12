@@ -2113,12 +2113,12 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
     const char *params[] = { DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_VSTORE_ID };
     char *results[] = { fs_name, vstore_id_str };
     size_t result_lens[] = { MAX_DBS_FS_NAME_LEN, MAX_DBS_VSTORE_ID_LEN };
-    params_check_list_t check_list[] = { { DBS_TOOL_PARAM_FS_NAME, fs_name } };
+    params_check_list_t check_list[] = { { DBS_TOOL_PARAM_FS_NAME, fs_name }, { DBS_TOOL_PARAM_VSTORE_ID, vstore_id_str } };
     params_list_t params_list = {
         params, results, result_lens, check_list, DBS_QUERY_FS_INFO_PRAMA_NUM, DBS_QUERY_FS_INFO_CHECK_PRAMA_NUM
     };
 
-    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
+    if ((argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --query-fs-info --fs-name= --vstore_id=\n");
         return CT_ERROR;
     }
