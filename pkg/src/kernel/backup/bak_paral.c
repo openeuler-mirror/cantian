@@ -809,7 +809,9 @@ status_t bak_write_to_local_disk(bak_context_t *ctx, bak_process_t *bak_proc, ch
     }
 
     bak_update_progress(bak, (uint64)size);
-    CT_LOG_DEBUG_INF("[BACKUP] paral write data, size %d", size);
+    if (status != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[BACKUP] paral write data, size %d", size);
+    }
     status = (bak->failed) ? CT_ERROR : status;
     return status;
 }
@@ -2050,6 +2052,7 @@ void bak_paral_task_write_proc(thread_t *thread)
         }
         start = g_timer()->now;
         if (bak_deal_datafile_pages_write(session, bak_proc) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("[BACKUP] fail to write datafile");
             bak_proc->write_failed = CT_TRUE;
             break;
         }
@@ -2060,6 +2063,7 @@ void bak_paral_task_write_proc(thread_t *thread)
             SYNC_POINT_GLOBAL_END;
             bak_proc->stat.write_time += (g_timer()->now - start);
             if (status != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[BACKUP] fail to write datafile");
                 bak_proc->write_failed = CT_TRUE;
                 break;
             }
