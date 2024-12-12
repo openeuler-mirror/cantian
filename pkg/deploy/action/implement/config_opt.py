@@ -21,7 +21,7 @@ def opt_ini_conf(file_path, action, key, value):
     else:
         print("key is incorrect.")
         return
-    flags = os.O_CREAT | os.O_RDWR
+    flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
     modes = stat.S_IWUSR | stat.S_IRUSR
     with os.fdopen(os.open(file_path, flags, modes), "w") as file_obj:
         file_obj.writelines(config)
