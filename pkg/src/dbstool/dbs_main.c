@@ -133,10 +133,10 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
         "\tparams: link-timeout"},
     {{"--get-link-timeout"}, dbs_get_link_timeout,
         "\tUsage: get link timeout period.\n"},
-    {{"--set-ns-forbidden", "*[PARAM]"}, dbs_set_ns_io_forbidden,
+    {{"--io-forbidden", "*[PARAM]"}, dbs_set_ns_io_forbidden,
         "\tUsage: set ns io forbidden.\n"
         "\tparams: <0,1>"},
-    {{"--io--status"}, dbs_get_ns_io_forbidden_stat,
+    {{"--io-status"}, dbs_get_ns_io_forbidden_stat,
         "\tUsage: get ns io forbidden state.\n"},
     {{"--dbs-link-check"}, dbs_link_check, "\tUsage: dbstor link check.\n"},
     {{"--query-fs-info", "*[PARAM]"}, dbs_query_fs_info,
