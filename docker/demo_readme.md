@@ -9,7 +9,8 @@
  - [卸载清理](#section5)
  - [调试](#section6)
  - [定位分析](#section7)
- - [停止容器](#section8)
+ - [开发辅助信息](#section8)
+ - [停止容器](#section9)
 
 <a id="term"></a>
 ## 文档说明及术语解释
@@ -113,12 +114,10 @@ sh Makefile.sh mysql_package_node0
 <a id="section4"></a>
 ## 安装部署
 
-### 1、拉起&重拉进程
+### 1、首次拉起进程
 ```shell
 cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
 mkdir -p /home/cantiandba/logs
-
-# -Z SESSIONS=1000方便调试，需运行MTR时需要去掉此参数
 python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
 
@@ -136,6 +135,13 @@ ctsql / as sysdba -q -c 'SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE'
 拉起MySQL客户端
 ```shell
 /usr/local/mysql/bin/mysql -uroot
+```
+
+### 4、进程重拉
+进程停止后重新拉起，相比首次拉起，重拉命令新增-r参数
+```shell
+cd /home/regress/CantianKernel/Cantian-DATABASE-CENTOS-64bit
+python3 install.py -U cantiandba:cantiandba -R /home/cantiandba/install/ -D /home/cantiandba/data/ -l /home/cantiandba/logs/install.log -Z _LOG_LEVEL=255 -g withoutroot -d -M cantiand_with_mysql -m /home/regress/cantian-connector-mysql/scripts/my.cnf -c -r -Z _SYS_PASSWORD=Huawei@123 -Z SESSIONS=1000
 ```
 
 <a id="section5"></a>
@@ -211,7 +217,206 @@ alter system set _LOG_LEVEL_MODE=FATAL即可生效
 /home/cantiandba/data/log/debug/cantiand.dlog
 ```
 
+
 <a id="section8"></a>
+## 开发辅助
+
+### 函数信息
+
+（1）Cantian初始化函数：srv_instance_start
+（2）MySQL自己创建的临时表表名都是以"#sql-"开头的
+（3）创建一个新的session出来：ctc_get_new_session
+（4）Cantian的histgram生成的起始函数：ctc_analyze_table (不是cantian-connector-mysql仓的同名函数)
+（5）线程创建的函数(cm_therad.h): cm_create_thread
+（6）copy算法的接口代码：
+```
+ha_ctc::check_if_supported_inplace_alter (this=0x7f38345824c8, altered_table=0x7f3834530b10, ha_alter_info=0x7f32e41b85f0)
+ha_ctc::create (this=0x7f383456f788, name=0x7f32e41ba0f4 "./mydb/#sql-14799_8", form=0x7f32e41b7b50, create_info=0x7f32e41bb300, table_def=0x7f38348c91e8)
+copy_data_between_tables (thd=0x7f3834014410, psi=0x0, from=0x7f383458cc20, to=0x7f3834530b10, create=..., copied=0x7f32e41b9358, deleted=0x7f32e41b9350, keys_onoff=Alter_info::LEAVE_AS_IS, alter_ctx=0x7f32e41b94d0)
+while {
+        ha_ctc::rnd_next (this=0x7f38345824c8, buf=0x7f3834596b88 "\377") at /home/regress/cantian-connector-mysql/mysql-source/storage/ctc/ha_ctc.cc:3287  
+                        this->table.alias = 0x7f38345e6150 "sales"
+        ha_ctc::write_row
+                        this->table.alias = 0x7f3834563500 "#sql-14799_8"
+}
+ha_ctc::rename_table (this=0x7f38348a7688, from=0x7f32e41b80f0 "./mydb/sales", to=0x7f32e41b7ee0 "./mydb/#sql2-14799-8", from_table_def=0x7f38348c8df8, to_table_def=0x7f38348c44a8) at /home/regress/cantian-connector-mysql/mysql-source/storage/ctc/ha_ctc.cc:5489
+ha_ctc::write_row  this->table.alias = 0x7f383456ef50 "tables"
+ha_ctc::write_row  this->table.alias = 0x7f383403e6e0 "columns"
+ha_ctc::write_row  this->table.alias = 0x7f383403e6e0 "columns"
+ha_ctc::write_row  this->table.alias = 0x7f383403e6e0 "columns"
+ha_ctc::write_row  this->table.alias = 0x7f383403e6e0 "columns"
+ha_ctc::rename_table (this=0x7f38348a9178, from=0x7f32e41b80f0 "./mydb/#sql-14799_8", to=0x7f32e41b7ee0 "./mydb/sales", from_table_def=0x7f38345465e8, to_table_def=0x7f38348c91e8) at /home/regress/cantian-connector-mysql/mysql-source/storage/ctc/ha_ctc.cc:5489
+ha_ctc::delete_table (this=0x7f38344465f8, full_path_name=0x7f32e41b8230 "./mydb/#sql2-14799-8", table_def=0x7f38348c44a8) at /home/regress/cantian-connector-mysql/mysql-source/storage/ctc/ha_ctc.cc:5138
+```
+
+### 操作过程说明
+
+1、参照docker文档启动MySQL；
+2、使用mysql client连接mysql:
+```
+/usr/local/mysql/bin/mysql -uroot
+```
+3、调用cantian_defs.sql脚本创建视图；
+cantian_defs.sql脚本位于cantian代码仓的pkg/admin/scripts/目录下。例如：
+```
+mysql> source /home/regress/CantianKernel/pkg/admin/scripts/cantian_defs.sql
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+
+Query OK, 0 rows affected, 1 warning (0.01 sec)
+
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+... ...
+```
+4、创建完视图之后，退出MySQL客户端，重新进入MySQL客户端【重要】：
+```
+mysql> exit
+Bye
+[root@cantian regress]# /usr/local/mysql/bin/mysql -uroot
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 9
+Server version: 8.0.26-debug Source distribution
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> 
+
+```
+
+5、执行命令创建database
+```
+mysql> create database mydb;
+Query OK, 1 row affected (0.15 sec)
+
+mysql> use mydb;
+Database changed
+```
+
+6、创建demo table；
+```
+CREATE TABLE sales (
+        id INT PRIMARY KEY,
+        age INT NOT NULL,
+        height INT NOT NULL,
+        perf INT NOT NULL,
+        pay INT NOT NULL,
+        KEY index_age (age) USING BTREE,
+        KEY index_height (height) USING BTREE,
+        KEY index_perf (perf) USING BTREE,
+        KEY index_pay (pay) USING BTREE
+);
+```
+创建完成之后，进行查看：
+```
+mysql> show tables;
++----------------+
+| Tables_in_mydb |
++----------------+
+| sales          |
++----------------+
+1 row in set (0.01 sec)
+```
+
+7、使用脚本预置10K条数据进去；
+将如下内容拷贝到一个新的脚本文件中，命名为insertSales.sql，存放在/home目录：
+```
+DELIMITER $$
+
+CREATE PROCEDURE InsertSales(IN num INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  DECLARE s_age INT DEFAULT 0;
+  DECLARE s_height INT DEFAULT 0;
+  DECLARE s_perf INT DEFAULT 0;
+  DECLARE s_pay INT DEFAULT 0;
+
+  WHILE i < num DO
+        SET s_age = ROUND(18+RAND() * 40);
+        SET s_height = ROUND(140+RAND() * 50);
+        SET s_perf = ROUND(60+RAND() * 40);
+        SET s_pay = ROUND(2000+RAND() * 10000);
+    INSERT INTO sales (id, age, height, perf, pay) VALUES (
+      i,
+          s_age,
+          s_height,
+          s_perf,
+          s_pay
+    );
+    SET i = i + 1;
+  END WHILE;
+END$$
+
+DELIMITER ;
+```
+在SQL client中导入该脚本，并调用脚本中的函数插入数据：
+```
+mysql> source /home/insertSales.sql
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> CALL InsertSales(10000);
+Query OK, 1 row affected (23.23 sec)
+```
+8、创建HISTOGRAM：
+```
+ANALYZE TABLE sales UPDATE HISTOGRAM ON age, height, perf, pay WITH 128 BUCKETS;
+```
+7、执行查询，查看直方图信息：
+```
+mysql> select * from cantian.cantian_histgram_abstr where user_name='mydb';
++-------+-----------+------+------------+------+------------+---------+----------+---------------------+----------+----------+----------+------------------------+--------+--------+---------------------+--------+
+| USER# | USER_NAME | TAB# | TABLE_NAME | COL# | BUCKET_NUM | ROW_NUM | NULL_NUM | ANALYZE_TIME        | MINVALUE | MAXVALUE | DIST_NUM | DENSITY                | SPARE1 | SPARE2 | SPARE3              | SPARE4 |
++-------+-----------+------+------------+------+------------+---------+----------+---------------------+----------+----------+----------+------------------------+--------+--------+---------------------+--------+
+|     7 | mydb      |    1 | sales      |    0 |        254 |   10000 |        0 | 2024-12-12 14:22:08 | 0        | 9999     |    10000 |                 0.0001 |   NULL |   NULL |         17179879184 |   NULL |
+|     7 | mydb      |    1 | sales      |    1 |         41 |   10000 |        0 | 2024-12-12 14:22:08 | 18       | 58       |       41 |   0.024390243902439025 |   NULL |   NULL | 4615908452315703056 |   NULL |
+|     7 | mydb      |    1 | sales      |    2 |         51 |   10000 |        0 | 2024-12-12 14:22:08 | 140      | 190      |       51 |     0.0196078431372549 |   NULL |   NULL | 4615908435135833872 |   NULL |
+|     7 | mydb      |    1 | sales      |    3 |         41 |   10000 |        0 | 2024-12-12 14:22:08 | 60       | 100      |       41 |   0.024390243902439025 |   NULL |   NULL | 4615908469495572240 |   NULL |
+|     7 | mydb      |    1 | sales      |    4 |        254 |   10000 |        0 | 2024-12-12 14:22:08 | 2000     | 11998    |     6235 | 0.00016038492381716118 |   NULL |   NULL | 4615908452315703056 |   NULL |
++-------+-----------+------+------------+------+------------+---------+----------+---------------------+----------+----------+----------+------------------------+--------+--------+---------------------+--------+
+5 rows in set (0.00 sec)
+
+```
+8、执行alter table，是直方图信息失效：
+```
+mysql> SET sql_mode='NO_ENGINE_SUBSTITUTION';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> ALTER TABLE sales ADD COLUMN salary INT;
+Query OK, 0 rows affected (0.24 sec)
+Records: 0  Duplicates: 0  Warnings: 0
+
+mysql> ALTER TABLE sales DROP COLUMN salary;
+Query OK, 10000 rows affected (1.73 sec)
+Records: 10000  Duplicates: 0  Warnings: 0
+
+mysql> select * from cantian.cantian_histgram_abstr where user_name='mydb';
+Empty set (0.00 sec)
+
+mysql> SET sql_mode=default;
+Query OK, 0 rows affected (0.00 sec)
+```
+
+### 其他命令说明：
+```
+# 查询DB：
+show databases;
+# 删除DB:
+drop database db_name;
+# 查询Table:
+show tables;
+# 删除table: 
+drop database table_name;
+# 查询数据:
+select * from sales;
+# 删除histgram: 
+ANALYZE TABLE tbl_name DROP HISTOGRAM ON col_name [, col_name];
+```
+
+<a id="section9"></a>
 ## 停止容器
 
 ```shell
