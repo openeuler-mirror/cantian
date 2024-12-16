@@ -5,6 +5,8 @@ DBSTOOL_PATH='/opt/cantian/dbstor'
 LOG_NAME='cgwshowdev.log'
 DEL_DATABASE_SH='del_databasealldata.sh'
 dr_setup=`python3 ${CURRENT_PATH}/../docker/get_config_info.py "dr_deploy.dr_setup"`
+role=`python3 ${CURRENT_PATH}/../docker/get_config_info.py "dr_deploy.role"`
+cantian_in_container=`python3 ${CURRENT_PATH}/../docker/get_config_info.py "cantian_in_container"`
 NUMA_CONF_DIR="/opt/cantian/dbstor/conf/dbs"
 
 # 停止 cstool 进程
@@ -15,6 +17,30 @@ function kill_process()
     if [[ -n ${testId} ]]; then
         kill -9 ${testId}
     fi
+}
+
+function check_dr_status_in_container()
+{
+  if [[ x"${cantian_in_container}" == x"0" ]];then
+    # 物理默认返回0，要检查
+    return 0
+  fi
+  share_fs=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_share_fs")
+  out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${share_fs}" )
+  if [[ $? -ne 0 ]];then
+    echo "Failed to query share filesystem."
+    return 0
+  fi
+  num=$(echo ${out} | grep 'dr_deploy_param.json' | wc -l)
+  if [[ ${num} -gt 0 ]];then
+    # 容器已经搭好容灾，不检查
+    return 1
+  fi
+  if [[ x"${dr_setup}" == x"True" ]] && [[ x"${role}" == x"standby" ]];then
+    # 容器第一次搭容灾，备端不检查
+    return 1
+  fi
+  return 0
 }
 
 function execute_dbstor_query_file()
@@ -56,14 +82,16 @@ function execute_dbstor_query_file()
 function check_file_system()
 {
   echo "Begin to check file system" >> /opt/cantian/log/dbstor/install.log
-  if [[ ! -f "${CURRENT_PATH}/../../config/dr_deploy_param.json" ]] && [[ x"${dr_setup}" != x"True" ]];then
-    execute_dbstor_query_file "storage_dbstore_fs"
-    execute_dbstor_query_file "storage_dbstore_page_fs"
-  fi
   deploy_mode=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_mode")
   if [[ ${deploy_mode} == "dbstor" ]];then
     execute_dbstor_query_file "storage_share_fs"
     execute_dbstor_query_file "storage_archive_fs"
+  fi
+  check_dr_status_in_container
+  dr_stat=$?
+  if [[ ! -f "${CURRENT_PATH}/../../config/dr_deploy_param.json" ]] && [[ ${dr_stat} -ne 1 ]];then
+    execute_dbstor_query_file "storage_dbstore_fs"
+    execute_dbstor_query_file "storage_dbstore_page_fs"
   fi
   echo "File system check pass" >> /opt/cantian/log/dbstor/install.log
 }
