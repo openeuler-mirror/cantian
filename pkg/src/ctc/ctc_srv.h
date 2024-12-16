@@ -484,7 +484,6 @@ typedef struct ctc_db_infos {
 } ctc_db_infos_t;
 
 typedef enum en_ctc_func_type_t {
-    CTC_UNKNOWN_FUNC,
     CTC_EQ_FUNC,
     CTC_EQUAL_FUNC,
     CTC_NE_FUNC,
@@ -495,11 +494,29 @@ typedef enum en_ctc_func_type_t {
     CTC_LIKE_FUNC,
     CTC_ISNULL_FUNC,
     CTC_ISNOTNULL_FUNC,
-    CTC_NOT_FUNC,
     CTC_COND_AND_FUNC,
     CTC_COND_OR_FUNC,
-    CTC_XOR_FUNC
+    CTC_XOR_FUNC,
+    CTC_MOD_FUNC,
+    CTC_PLUS_FUNC,
+    CTC_MINUS_FUNC,
+    CTC_MUL_FUNC,
+    CTC_DIV_FUNC,
+    CTC_DATE_FUNC,
+    CTC_UNKNOWN_FUNC
 } ctc_func_type_t;
+
+typedef enum en_ctc_cond_type_t {
+    CTC_FIELD_EXPR,
+    CTC_CONST_EXPR,
+    CTC_NULL_EXPR,
+    CTC_LIKE_EXPR,
+    CTC_CMP_EXPR,
+    CTC_LOGIC_EXPR,
+    CTC_ARITHMATIC_EXPR,
+    CTC_DATE_EXPR,
+    CTC_UNKNOWN_EXPR
+} ctc_cond_type_t;
 
 typedef struct en_ctc_cond_field_t {
     uint16_t field_no;
@@ -507,6 +524,7 @@ typedef struct en_ctc_cond_field_t {
     uint16_t field_size;
     void *field_value;
     bool null_value;
+    bool is_unsigned;
     uint32_t collate_id;
     bool col_updated;
     bool index_only_invalid_col; // col in cond but not in index while select with index_only
@@ -515,6 +533,7 @@ typedef struct en_ctc_cond_field_t {
 
 struct en_ctc_cond_list_t;
 typedef struct en_ctc_cond_t {
+    ctc_cond_type_t cond_type;
     ctc_func_type_t func_type;
     ctc_cond_field field_info;
     struct en_ctc_cond_list_t *cond_list;

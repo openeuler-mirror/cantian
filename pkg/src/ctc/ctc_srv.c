@@ -1206,7 +1206,7 @@ int ctc_fetch_and_filter(knl_cursor_t *cursor, knl_session_t *knl_session, recor
         }
         cond_pushdown_result_t cond_result = check_cond_match_one_line((ctc_conds *)cursor->cond, cursor, charset_id);
         if (cond_result == CPR_ERROR) {
-            CT_LOG_RUN_ERR("ctc_fetch_and_filter: check_cond_match_one_line FAIL");
+            CT_LOG_RUN_ERR("ctc_fetch_and_filter: check_cond_match FAIL");
             return CT_ERROR;
         } else if (cond_result == CPR_FALSE) {
             continue;
@@ -1667,7 +1667,7 @@ int get_correct_pos_by_fetch(ctc_handler_t *tch, knl_cursor_t *cursor, record_in
         }
         cond_pushdown_result_t cond_result = check_cond_match_one_line((ctc_conds *)cursor->cond, cursor, charset_id);
         if (cond_result == CPR_ERROR) {
-            CT_LOG_RUN_ERR("get_correct_pos_by_fetch: check_cond_match_one_line FAIL");
+            CT_LOG_RUN_ERR("get_correct_pos_by_fetch: check_cond_match FAIL");
             return CT_ERROR;
         } else if (cond_result == CPR_FALSE) {
             continue;
