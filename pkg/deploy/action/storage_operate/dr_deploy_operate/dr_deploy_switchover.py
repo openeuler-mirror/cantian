@@ -197,7 +197,7 @@ class SwitchOver(object):
         """
         LOG.info(f"Standby set iof[{iof}].")
         cmd = "su -s /bin/bash - %s -c \"source ~/.bashrc && "\
-              "dbstor --set-ns-forbidden %s\"" % (self.run_user, iof)
+              "dbstor --io-forbidden %s\"" % (self.run_user, iof)
         return_code, output, stderr = exec_popen(cmd, timeout=60)
         if return_code:
             err_msg = "set iof failed, error:%s." % output + stderr
