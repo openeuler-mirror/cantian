@@ -16,6 +16,7 @@ NUMA_INFO_PATH = "/root/.kube/NUMA-INFO/numa-pod.json"
 TIME_OUT = 100
 MAX_CHECK_TIME = 120  # 最大检查时间
 CHECK_INTERVAL = 3   # 每次检查的间隔
+MAX_RETRIES = 3     # 无效绑核信息删除，需查询的次数
 
 
 class CPUAllocator:
@@ -185,20 +186,41 @@ class CPUAllocator:
 
     def clean_up_json(self, numa_data, pod_info, hostname_pattern):
         """
-        清理不存在的 Pod 绑定信息，并将绑定的 CPU 恢复到 numa_info 中。
+        清理不存在的 Pod 绑定信息，并将绑定的 CPU 恢复到 numa_info 中，连续查询n次无效信息都一致才删除
         """
         matching_pods = [pod['pod_name'] for pod in pod_info if re.match(hostname_pattern, pod['pod_name'])]
 
         keys_to_delete = [key for key in numa_data.keys() if key not in matching_pods and key != self.numa_info_key]
 
-        for key in keys_to_delete:
-            bind_cpus = numa_data[key].get("bind_cpus", "")
+        retry_count = 0
+        previous_keys_to_delete = []
 
-            if bind_cpus and bind_cpus != "None":
-                self.restore_cpus_to_numa_info(numa_data, bind_cpus)
+        while retry_count < MAX_RETRIES:
+            if keys_to_delete == previous_keys_to_delete:
+                retry_count += 1
+            else:
+                retry_count = 0
 
-            LOG.info(f"Removing outdated entry from JSON: {key}")
-            del numa_data[key]
+            if not keys_to_delete:
+                break
+
+            previous_keys_to_delete = keys_to_delete
+
+            time.sleep(2)
+
+            all_pod_info = k8s_service.get_all_pod_info()
+            matching_pods = [pod['pod_name'] for pod in all_pod_info if re.match(hostname_pattern, pod['pod_name'])]
+            keys_to_delete = [key for key in numa_data.keys() if key not in matching_pods and key != self.numa_info_key]
+
+        if retry_count == MAX_RETRIES and keys_to_delete:
+            for key in keys_to_delete:
+                bind_cpus = numa_data[key].get("bind_cpus", "")
+
+                if bind_cpus and bind_cpus != "None":
+                    self.restore_cpus_to_numa_info(numa_data, bind_cpus)
+
+                LOG.info(f"Removing outdated entry from JSON: {key}")
+                del numa_data[key]
 
     @staticmethod
     def restore_cpus_to_numa_info(numa_data, bind_cpus):
@@ -367,13 +389,6 @@ def show_numa_binding_info(numa_info_path):
 
 
 def main():
-    cpu_allocator = CPUAllocator()
-    cpu_num = cpu_allocator.get_cpu_num()
-    short_hostname = cpu_allocator.get_hostname()
-
-    kube_config_path = os.path.expanduser("~/.kube/config")
-    k8s_service = KubernetesService(kube_config_path)
-
     try:
         all_pod_info = k8s_service.get_all_pod_info()
         if not all_pod_info:
@@ -396,16 +411,16 @@ def main():
     numa_data, file_handle = open_and_lock_json(NUMA_INFO_PATH)
 
     try:
-        # 清理 JSON 中不再存在的 POD 信息
-        hostname_pattern = r'cantian.*-node.*'
-        cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
-
         # 找到与当前 short_hostname 匹配的 Pod 全名，并执行绑定操作
         start_time = time.time()
         while True:
             try:
                 pod_name_full = get_pod_name_from_info(all_pod_info, short_hostname)
                 if pod_name_full:
+                    # 清理 JSON 中不再存在的 POD 信息
+                    hostname_pattern = r'cantian.*-node.*'
+                    cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
+
                     cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
                     break
             except Exception as e:
@@ -431,4 +446,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "show":
         show_numa_binding_info(NUMA_INFO_PATH)
     else:
+        cpu_allocator = CPUAllocator()
+        cpu_num = cpu_allocator.get_cpu_num()
+        short_hostname = cpu_allocator.get_hostname()
+
+        kube_config_path = os.path.expanduser("~/.kube/config")
+        k8s_service = KubernetesService(kube_config_path)
+
         main()
