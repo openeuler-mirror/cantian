@@ -217,7 +217,10 @@ class NumaConfigBase:
     def update_cantian_config_file(self, cantiand_cpu_info):
         """
         Updates the cantian configuration file with the provided cantiand_cpu_info dictionary.
-        If a key is not present in the file, it appends the key-value pair to the end of the file.
+        If a key's value is "-del" or "-remove", it removes the key from the file if it exists.
+        Otherwise, it adds new keys or updates existing keys with the provided values.
+
+        :param cantiand_cpu_info: Dictionary of key-value pairs to update or remove in the file.
         """
         cantian_conf_file = os.path.join(CONFIG_DIR, "cfg", "cantiand.ini")
 
@@ -231,29 +234,40 @@ class NumaConfigBase:
                 existing_keys = {line.split("=", maxsplit=1)[0].strip() for line in config if "=" in line}
 
                 updated_keys = set()
+                removed_keys = set()
 
-                # Update existing keys or mark them as updated
-                for index, item in enumerate(config):
-                    if "=" not in item:
+                new_config = []
+                for line in config:
+                    if "=" not in line:
+                        new_config.append(line)
                         continue
 
-                    key, _ = item.split("=", maxsplit=1)
+                    key, value = line.split("=", maxsplit=1)
                     key = key.strip()
 
+                    if key in cantiand_cpu_info and cantiand_cpu_info[key] in ("-del", "-remove"):
+                        removed_keys.add(key)
+                        continue
+
                     if key in cantiand_cpu_info:
-                        config[index] = f"{key} = {cantiand_cpu_info[key]}\n"
+                        new_config.append(f"{key} = {cantiand_cpu_info[key]}\n")
                         updated_keys.add(key)
+                    else:
+                        new_config.append(line)
 
                 for key, value in cantiand_cpu_info.items():
-                    if key not in existing_keys:
-                        config.append(f"{key} = {value}\n")
+                    if key not in existing_keys and value not in ("-del", "-remove"):
+                        new_config.append(f"{key} = {value}\n")
                         updated_keys.add(key)
 
                 file.seek(0)
-                file.writelines(config)
+                file.writelines(new_config)
                 file.truncate()
 
-                LOGGER.info(f"Updated keys in {cantian_conf_file}: {', '.join(updated_keys)}")
+                if updated_keys:
+                    LOGGER.info(f"Updated keys in {cantian_conf_file}: {', '.join(updated_keys)}")
+                if removed_keys:
+                    LOGGER.info(f"Removed keys in {cantian_conf_file}: {', '.join(removed_keys)}")
 
         except Exception as e:
             LOGGER.error(f"Failed to update {cantian_conf_file}: {e}")
@@ -431,6 +445,8 @@ class PhysicalCpuConfig(NumaConfigBase):
         mes_module_key = f"{MES_MODULE}_ID"
         if cpu_config_info.get(mes_module_key):
             cantiand_cpu_info[MES_CPU_INFO] = cpu_list_to_cpu_info(cpu_config_info[mes_module_key])
+        else:
+            cantiand_cpu_info[MES_CPU_INFO] = "-del"
 
         self.update_cantian_config_file(cantiand_cpu_info)
 
@@ -565,6 +581,8 @@ class ContainerCpuConfig(NumaConfigBase):
         mes_module_key = f"{MES_MODULE}_ID"
         if mes_module_key in cpu_config_info and cpu_config_info[mes_module_key]:
             cantiand_cpu_info[MES_CPU_INFO] = cpu_list_to_cpu_info(cpu_config_info[mes_module_key])
+        else:
+            cantiand_cpu_info[MES_CPU_INFO] = "-del"
 
         self.update_cantian_config_file(cantiand_cpu_info)
 
