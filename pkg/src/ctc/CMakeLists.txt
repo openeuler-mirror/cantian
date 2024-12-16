@@ -18,6 +18,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable -Wno-unused-function -W
 aux_source_directory(. CTC_SRC)
 aux_source_directory(./message_queue CTC_MQ_SRC)
 aux_source_directory(./protobuf CTC_PB_SRC)
+add_subdirectory(message_queue)
 
 add_library(zectc STATIC ${CTC_SRC} ${CTC_MQ_SRC}  ${CTC_PB_SRC})
 if (USE_FUZZASAN)

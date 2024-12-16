@@ -116,7 +116,7 @@ typedef struct st_box_excp_item {
     uint32           trace_tail[BOX_SPACE_SIZE];             /* protect info */
 } box_excp_item_t;
 
-status_t sigcap_handle_reg(void);
+status_t sigcap_hreg(void);
 
 #ifdef __cplusplus
 }

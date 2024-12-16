@@ -247,7 +247,7 @@ sh Makefile.sh package CANTIAN_READ_WRITE=1 no_shm=1
 ### 编译MySQL
 ```Bash  
 cd /home/regress/CantianKernel/build
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/bld_debug/library_output_directory
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/regress/cantian-connector-mysql/mysql-source/bld_debug/plugin_output_directory
 ### debug
 sh Makefile.sh mysql no_shm=1
 ### release

@@ -1,7 +1,63 @@
 #!/bin/bash
 MYSQL_LOG_PATH=/opt/cantian/log/mysql
 
-sh -x /opt/cantian/image/cantian_connector/for_mysql_official/patch.sh > ${MYSQL_LOG_PATH}/install.log 2>&1
+MYSQL_INSTALL_SH_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+echo "MYSQL_INSTALL_SH_DIR: ${MYSQL_INSTALL_SH_DIR}"
+
+MYSQL_PKG_DIR=$(realpath "${MYSQL_INSTALL_SH_DIR}/../../../")
+echo "MYSQL_PKG_DIR: ${MYSQL_PKG_DIR}"
+
+MF_CONNECTOR_ROOT=/opt/cantian/image/cantian_connector
+MF_CONNECTOR_MOUNT_DIR=${MF_CONNECTOR_ROOT}/for_mysql_official/mf_connector_mount_dir
+MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR=/opt/cantian/mysql/install
+
+
+sh -x "${MF_CONNECTOR_ROOT}"/for_mysql_official/patch.sh > ${MYSQL_LOG_PATH}/install.log 2>&1
+
+set +e
+META_DATA_SWITCH_OFF=`cat /opt/cantian/config/deploy_param.json | grep mysql_metadata_in_cantian | grep false`
+set -e
+if [ "${META_DATA_SWITCH_OFF}" == "" ]; then
+  echo "/opt/cantian/config/deploy_param.json mysql_metadata_in_cantian: TRUE"
+  MYSQL_METADATA_IN_CANTIAN="TRUE"
+else
+  echo "/opt/cantian/config/deploy_param.json mysql_metadata_in_cantian: FALSE"
+  MYSQL_METADATA_IN_CANTIAN="FALSE"
+fi
+
+CONNECTOR_PKG_PREFIX_NAME=`cat ${MYSQL_PKG_DIR}/cantian_connector/for_mysql_official/patch.sh | grep CONNECTOR_PKG_PREFIX_NAME= | grep -oP "\".*\"" | tr -d '"' `
+CONNECTOR_DATA_PKG="${MYSQL_PKG_DIR}/${CONNECTOR_PKG_PREFIX_NAME}"
+tar -zxf ${CONNECTOR_DATA_PKG} -C ${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}/
+
+LINK_MOUNT_HACTC_NAME="${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
+LINK_PHYSIC_HACTC_NAME="${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc.so
+if [ -e "$LINK_MOUNT_HACTC_NAME" ]; then
+    # 如果存在MOUNT ha_ctc.so，删除 ha_ctc.so
+    rm "$LINK_MOUNT_HACTC_NAME"
+    echo "Deleted existing $LINK_MOUNT_HACTC_NAME"
+fi
+if [ -e "$LINK_PHYSIC_HACTC_NAME" ]; then
+    # 如果存在PHYSIC ha_ctc.so，删除 ha_ctc.so
+    rm "$LINK_PHYSIC_HACTC_NAME"
+    echo "Deleted existing $LINK_PHYSIC_HACTC_NAME"
+fi
+
+if [ "$MYSQL_METADATA_IN_CANTIAN" = "TRUE" ]; then
+  echo "copy meta ha_ctc_share.so to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
+  cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
+  ln -s "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
+  mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  ln -s "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc_share.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc.so
+else
+  echo "copy nometa ha_ctc_noshare.so to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
+  cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_noshare.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
+  ln -s "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc_noshare.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
+  mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_noshare.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
+  ln -s "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc_noshare.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc.so
+fi
+rm -rf  ${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}/connector
 if [ $? -ne 0 ]; then
     echo "Failed to execute /opt/cantian/image/cantian_connector/for_mysql_official/patch.sh."
     exit 1

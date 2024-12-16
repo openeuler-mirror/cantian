@@ -39,16 +39,16 @@
 #include "cm_system.h"
 #include "cms_blackbox.h"
 
-int32  g_sign_array[] = { SIGINT, SIGQUIT, SIGILL, SIGBUS,
+static int32  g_sign_array[] = { SIGINT, SIGQUIT, SIGILL, SIGBUS,
                           SIGFPE, SIGSEGV,
-#ifndef WITH_CANTIAN
+#ifndef WITH_CANTIAN                       
                           SIGALRM,
 #endif
                           SIGTERM,
                           SIGTSTP, SIGTTIN, SIGTTOU, SIGXCPU, SIGXFSZ,
                           SIGVTALRM, SIGPROF, SIGPWR, SIGSYS };
 
-box_excp_item_t g_excep_info = {0};
+static box_excp_item_t g_excep_info = {0};
 
 #if (!defined(__cplusplus)) && (!defined(NO_CPP_DEMANGLE))
 #define NO_CPP_DEMANGLE
@@ -68,7 +68,7 @@ using __cxxabiv1::__cxa_demangle;
 #endif
 
 
-const char *const g_known_signal_info[] = {
+static const char *const g_known_signal_info[] = {
     "Signal 0 %d",
     "Hangup %d",
     "Interrupt %d",
@@ -103,10 +103,10 @@ const char *const g_known_signal_info[] = {
     "User defined signal 2 %d",
     NULL
 };
-const char * const g_other_signal_formt = "Real-time signal %d";
-const char * const g_unkown_signal_format = "Unknown signal %d";
+static const char * const g_other_signal_formt = "Real-time signal %d";
+static const char * const g_unkown_signal_format = "Unknown signal %d";
 
-void get_signal_info(int signum, char* buf, uint32 buf_size)
+static void get_signal_info(int signum, char* buf, uint32 buf_size)
 {
     const char *sig_info = NULL;
     int len;
@@ -211,7 +211,7 @@ static status_t proc_sign_init(void)
     return CT_SUCCESS;
 }
 
-void proc_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
+static void proc_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
 {
     if ((cpu_info == NULL) || (uc == NULL)) {
         return;
@@ -255,7 +255,7 @@ void proc_get_register_info(box_reg_info_t *cpu_info, ucontext_t *uc)
     return;
 }
 
-void proc_sig_get_header(box_excp_item_t *excep_info, int32 sig_num,
+static void proc_sig_get_header(box_excp_item_t *excep_info, int32 sig_num,
                          siginfo_t *siginfo, void *context)
 {
     uint32  loop = 0;
@@ -293,7 +293,7 @@ void proc_sig_get_header(box_excp_item_t *excep_info, int32 sig_num,
     return;
 }
 
-bool32 check_stack_is_available(uintptr_t *sp, uint32 *max_dump_len)
+static bool32 check_stack_is_available(uintptr_t *sp, uint32 *max_dump_len)
 {
     size_t  stacksize = 0;
     void   *stack_top_addr  = NULL;
@@ -330,7 +330,7 @@ bool32 check_stack_is_available(uintptr_t *sp, uint32 *max_dump_len)
 }
 
 
-uintptr_t proc_get_stack_point(box_reg_info_t *reg_info, uint32 *max_dump_len)
+static uintptr_t proc_get_stack_point(box_reg_info_t *reg_info, uint32 *max_dump_len)
 {
     uintptr_t sp;
 
@@ -372,8 +372,8 @@ static void save_proc_maps_file(box_excp_item_t *excep_info)
 }
 
 
-uint32 g_sign_mutex = 0;
-void proc_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
+static uint32 g_sign_mutex = 0;
+static void proc_sign_func(int32 sig_num, siginfo_t *siginfo, void *context)
 {
     box_excp_item_t *excep_info = &g_excep_info;
     uint64 locId = 0;
@@ -453,7 +453,7 @@ static status_t sigcap_reg_proc(int32 sig_num)
 }
 
 
-status_t sigcap_handle_reg(void)
+status_t sigcap_hreg(void)
 {
     if (proc_sign_init() != CT_SUCCESS) {
         return CT_ERROR;

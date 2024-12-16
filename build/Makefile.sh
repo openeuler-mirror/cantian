@@ -282,7 +282,6 @@ func_pkg_run_basic()
 
     cd ${CANTIANDB_BIN}
     cp ctsql cantiand ctencrypt cms ctbackup ctbox ctrst dbstor ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
-    
     cp -d ${ZSTD_LIB_PATH}/../bin/zstd ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
     cd ${CANTIANDB_HOME}
     cp ${CANTIANDB_INSTALL}/installdb.sh  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
@@ -294,7 +293,8 @@ func_pkg_run_basic()
     cp -d ${CANTIANDB_LIB}/libzeclient.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzecommon.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzeprotocol.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
-
+    cp -d ${CANTIANDB_LIB}/libcantian.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
+    cp -d ${CANTIANDB_LIB}/libmessage_queue.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${Z_LIB_PATH}/libz.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
@@ -330,29 +330,16 @@ fun_pkg_mysql_lib()
     rm -rf ${CANTIAN_LIB_DIR}
     mkdir -p ${CANTIAN_LIB_DIR}
     mkdir -p ${CANTIAN_LIB_DIR_TMP}
-
     cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${CANTIAN_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${CANTIAN_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/libsecurec.so ${CANTIAN_LIB_DIR}
     
+    cd ${CANTIAN_LIB_DIR_TMP} && rm -rf libzecmssrc.a
     cd ${CANTIAN_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
     cd ${CANTIAN_LIB_DIR_TMP} && rm -rf *.a
-    cd ${CANTIAN_LIB_DIR_TMP} && rm -rf ctc_mysql_proxy.o
-    cd ${CANTIAN_LIB_DIR_TMP} && ar cru libcantian.a *
-    cd ${CANTIAN_LIB_DIR_TMP} && ranlib libcantian.a
-
-    #删除.a里面的main函数
-    strip -N main ${CANTIAN_LIB_DIR_TMP}/libcantian.a
-
-    #dsw_boot.static_o中的print_version会跟mysql里面的print_version符号重复 这里需要重命名一下
-    objcopy --redefine-sym print_version=cantian_print_version ${CANTIAN_LIB_DIR_TMP}/libcantian.a
-        
-    cd ${CANTIAN_LIB_DIR_TMP} && ranlib libcantian.a
-    cp ${CANTIAN_LIB_DIR_TMP}/libcantian.a ${CANTIAN_LIB_DIR}
     rm -rf ${CANTIAN_LIB_DIR_TMP}/
 
     cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${CANTIAN_LIB_DIR}
-    cd ${CANTIANDB_HOME}/../build/pkg/src/ctc/CMakeFiles/zectc.dir/message_queue/ && ar cr libmessage_queue.a *.o && cp libmessage_queue.a ${CANTIAN_LIB_DIR}
 
     cp -d ${CANTIANDB_HOME}/../library/pcre/lib/libpcre2-8.so* ${CANTIAN_LIB_DIR}
     cp -d ${CANTIANDB_HOME}/../output/lib/*.so ${CANTIAN_LIB_DIR}

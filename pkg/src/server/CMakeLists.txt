@@ -36,10 +36,13 @@ else ()
 target_link_libraries(zeserver PRIVATE zecluster zecms)
 endif(USE_FUZZASAN)
 
+add_library(cantian SHARED ${SERVER_SRC} ${SERVER_PARAMS_SRC} ${SHARED_TOTAL_SRC} ${VERSION_SRC})
+
 #### cantiand ####
 # Precompiled options
 option(USE_FUZZASAN OFF)
 if (USE_FUZZASAN)
+    add_definitions(-DBUILD_SRV_MAIN)
     add_compile_options(-fsanitize-coverage=trace-pc)
     ADD_EXECUTABLE(cantiand ${VERSION_SRC})
     target_link_libraries(cantiand PRIVATE
@@ -48,8 +51,14 @@ if (USE_FUZZASAN)
                           zecluster zecms zerc m rt pthread dl z zstd lz4 Secodefuzz
                           -Wl,--end-group)
 else ()
+    add_definitions(-DBUILD_SRV_MAIN)
     ADD_EXECUTABLE(cantiand ${VERSION_SRC})
     target_link_libraries(cantiand PRIVATE
+                          -Wl,--start-group
+                          zeserver zectc zesql zekernel zemes zeprotocol zecommon zeclient
+                          zecluster zecms zerc m rt pthread dl z zstd lz4
+                          -Wl,--end-group)         
+    target_link_libraries(cantian PRIVATE
                           -Wl,--start-group
                           zeserver zectc zesql zekernel zemes zeprotocol zecommon zeclient
                           zecluster zecms zerc m rt pthread dl z zstd lz4
@@ -57,3 +66,5 @@ else ()
 endif(USE_FUZZASAN)
 target_compile_definitions(cantiand PRIVATE -DCT_LIB_VERSION=${DD_CT_LIB_VERSION})
 target_compile_definitions(cantiand PRIVATE -DGETDBVERSION=${DD_GETDBVERSION})
+target_compile_definitions(cantian PRIVATE -DCT_LIB_VERSION=${DD_CT_LIB_VERSION})
+target_compile_definitions(cantian PRIVATE -DGETDBVERSION=${DD_GETDBVERSION})

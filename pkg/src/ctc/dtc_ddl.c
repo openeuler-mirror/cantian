@@ -143,7 +143,7 @@ void dtc_proc_msg_ctc_lock_table_req(void *sess, mes_message_t *msg)
     }
 
     mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_PREPARE_DDL_RSP, sizeof(msg_ddl_rsp_t), session->id);
-    int ret = ctc_ddl_execute_lock_tables(&(req->tch), req->db_name, &(req->lock_info), &(rsp.err_code));
+    int ret = ctc_ddl_execute_lock_tables_intf(&(req->tch), req->db_name, &(req->lock_info), &(rsp.err_code));
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_LOCK_TABLE]: remote node execute lock table failed,"
                        "ret=%d, err_code=%u, conn_id=%u, lock_info(db=%s, table=%s), ctc_instance_id=%u",
@@ -288,7 +288,7 @@ void dtc_proc_msg_ctc_execute_rewrite_open_conn_req(void *sess, mes_message_t *m
     }
 
     mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_REWRITE_OPEN_CONN_RSP, sizeof(msg_ddl_rsp_t), session->id);
-    rsp.err_code = ctc_execute_rewrite_open_conn(req->thd_id, &req->broadcast_req);
+    rsp.err_code = ctc_execute_rewrite_open_conn_intf(req->thd_id, &req->broadcast_req);
     if (rsp.err_code != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_REWRITE_CONN]: remote node execute ddl failed. ret=%u, conn_id=%u,"
                        "sql_command=%u, sql=%s.", rsp.err_code, req->thd_id, req->broadcast_req.sql_command,
@@ -331,7 +331,7 @@ void dtc_proc_msg_ctc_commit_ddl_req(void *sess, mes_message_t *msg)
     }
 
     mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_COMMIT_DDL_RSP, sizeof(msg_ddl_rsp_t), session->id);
-    rsp.err_code = ctc_ddl_execute_unlock_tables(&(req->tch), req->mysql_inst_id, &(req->lock_info));
+    rsp.err_code = ctc_ddl_execute_unlock_tables_intf(&(req->tch), req->mysql_inst_id, &(req->lock_info));
     if (rsp.err_code != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_UNLOCK_TABLE]:remote node execute unlock table failed,"
                        "ret=%u, conn_id=%u, ctc_instance_id=%u", rsp.err_code, req->tch.thd_id, req->tch.inst_id);
@@ -374,7 +374,7 @@ void dtc_proc_msg_ctc_close_mysql_conn_req(void *sess, mes_message_t *msg)
     mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_CLOSE_MYSQL_CONNECTION_RSP,
                       sizeof(msg_ddl_rsp_t), session->id);
     
-    rsp.err_code = close_mysql_connection(req->thd_id, req->mysql_inst_id);
+    rsp.err_code = close_mysql_connection_intf(req->thd_id, req->mysql_inst_id);
     if (rsp.err_code != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_CLOSE_SESSION]: close_mysql_connection failed,"
                        "ret=%u, src_sid=%u, conn_id=%u, ctc_inst_id=%u, msg_num=%u",
@@ -416,7 +416,7 @@ void dtc_proc_msg_ctc_invalidate_dd_req(void *sess, mes_message_t *msg)
     }
  
     mes_init_ack_head(&(req->head), &(rsp.head), MES_CMD_INVALID_DD_RSP, sizeof(msg_ddl_rsp_t), session->id);
-    int ret = ctc_invalidate_mysql_dd_cache(&(req->tch), &req->broadcast_req, &(rsp.err_code));
+    int ret = ctc_invalidate_mysql_dd_cache_intf(&(req->tch), &req->broadcast_req, &(rsp.err_code));
     if (ret != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[CTC_INVALID_DD]: remote node execute invalid dd failed,"
                        "ret=%d, err_code=%u, conn_id=%u, ctc_instance_id=%u", ret, rsp.err_code, req->tch.thd_id,

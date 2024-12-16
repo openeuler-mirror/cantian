@@ -356,6 +356,7 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_GET_MAX_SESSIONS,
     CTC_FUNC_LOCK_INSTANCE,
     CTC_FUNC_UNLOCK_INSTANCE,
+    CTC_FUNC_INIT_MYSQL_LIB,
     CTC_FUNC_CHECK_TABLE_EXIST,
     CTC_FUNC_SEARCH_METADATA_SWITCH,
     CTC_FUNC_QUERY_SHM_USAGE,
@@ -596,6 +597,7 @@ typedef struct {
 int srv_wait_instance_startuped(void);
 int ctc_alloc_inst_id(uint32_t *inst_id);
 int ctc_release_inst_id(uint32_t inst_id);
+int init_mysql_lib(void);
 
 int ctc_open_table(ctc_handler_t *tch, const char *table_name, const char *user_name);
 int ctc_close_table(ctc_handler_t *tch);
@@ -696,25 +698,26 @@ int ctc_drop_table(void *drop_def, ddl_ctrl_t *ddl_ctrl);
 int ctc_get_max_sessions_per_node(uint32_t *max_sessions);
 int ctc_get_serial_value(ctc_handler_t *tch, uint64_t *value, dml_flag_t flag);
 
-int close_mysql_connection(uint32_t thd_id, uint32_t mysql_inst_id);
-int ctc_ddl_execute_lock_tables(ctc_handler_t *tch, char *db_name, ctc_lock_table_info *lock_info, int *err_code);
-int ctc_ddl_execute_unlock_tables(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
+int close_mysql_connection_intf(uint32_t thd_id, uint32_t mysql_inst_id);
+int ctc_ddl_execute_lock_tables_intf(ctc_handler_t *tch, char *db_name, ctc_lock_table_info *lock_info, int *err_code);
+int ctc_ddl_execute_unlock_tables_intf(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
 EXTER_ATTACK int ctc_ddl_execute_update(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
-EXTER_ATTACK int ctc_ddl_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail);
+EXTER_ATTACK int ctc_ddl_execute_set_opt_intf(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail);
 EXTER_ATTACK int ctc_execute_mysql_ddl_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 EXTER_ATTACK int ctc_execute_set_opt(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, bool allow_fail);
-int ctc_execute_rewrite_open_conn(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
+int ctc_execute_rewrite_open_conn_intf(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
+
 int ctc_broadcast_rewrite_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 
 /* Metadata Related Interface*/
 int ctc_check_db_table_exists(const char *db, const char *name, bool *is_exists);
 int ctc_search_metadata_status(bool *cantian_metadata_switch, bool *cantian_cluster_ready);
 
-int ctc_invalidate_mysql_dd_cache(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req, int *err_code);
+int ctc_invalidate_mysql_dd_cache_intf(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req, int *err_code);
 int ctc_broadcast_mysql_dd_invalidate(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req);
  
 /* Disaster Recovery Related Interface*/
-int ctc_set_cluster_role_by_cantian(bool is_slave);
+int ctc_set_cluster_role_by_cantian_intf(bool is_slave);
 
 int ctc_record_sql_for_cantian(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 int ctc_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);

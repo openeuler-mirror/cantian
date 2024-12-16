@@ -242,7 +242,7 @@ status_t cms_alloc_g_master_info(void)
     return CT_SUCCESS;
 }
 
-static void cms_info_log_print(cms_cmd_def_t* cmd_def)
+static inline void cms_info_log_print(cms_cmd_def_t* cmd_def)
 {
     if (cmd_def->cmd_pro_func == cms_local_disk_iostat ||
         cmd_def->cmd_pro_func == cms_node_connected ||
@@ -269,7 +269,7 @@ status_t cm_get_gcc_file_handle()
     }
     return CT_SUCCESS;
 }
-
+#ifdef BUILD_CMS_MAIN
 EXTER_ATTACK int32 main(int32 argc, char *argv[])
 {
     int32 cmd_count = sizeof(g_cms_cmd_defs) / sizeof(cms_cmd_def_t);
@@ -397,3 +397,4 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
     CMS_LOG_INF("%s, ret is %d", cmd_def->desc, ret);
     return ret;
 }
+#endif

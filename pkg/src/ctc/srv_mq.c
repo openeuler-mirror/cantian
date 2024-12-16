@@ -1365,6 +1365,13 @@ EXTER_ATTACK int ctc_mq_query_shm_usage(dsw_message_block_t *message_block)
     return req->result;
 }
 
+EXTER_ATTACK int ctc_mq_init_mysql_lib(dsw_message_block_t *message_block)
+{
+    struct mysql_init_lib_request *req = message_block->seg_buf[0];
+    req->result = init_mysql_lib();
+    return req->result;
+}
+
 EXTER_ATTACK int ctc_mq_wait_instance_startuped(dsw_message_block_t *message_block)
 {
     return srv_wait_instance_startuped();
@@ -1373,6 +1380,7 @@ EXTER_ATTACK int ctc_mq_wait_instance_startuped(dsw_message_block_t *message_blo
 EXTER_ATTACK int ctc_mq_register_instance(dsw_message_block_t *message_block)
 {
     struct register_instance_request *req = message_block->seg_buf[0];
+
     if (check_ctc_client_version(req->ctc_version) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("Got an unsupport ctc client(version:%u).", req->ctc_version);
         req->result = REG_MISMATCH_CTC_VERSION;
@@ -1453,11 +1461,12 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_TYPE_GET_MAX_SESSIONS,              ctc_mq_get_max_sessions},
     {CTC_FUNC_LOCK_INSTANCE,                      ctc_mq_lock_instance},
     {CTC_FUNC_UNLOCK_INSTANCE,                    ctc_mq_unlock_instance},
+    {CTC_FUNC_INIT_MYSQL_LIB,                     ctc_mq_init_mysql_lib},
     {CTC_FUNC_CHECK_TABLE_EXIST,                  ctc_mq_check_db_table_exists},
     {CTC_FUNC_SEARCH_METADATA_SWITCH,             ctc_mq_search_metadata_switch},
     {CTC_FUNC_QUERY_SHM_USAGE,                    ctc_mq_query_shm_usage},
     {CTC_FUNC_QUERY_CLUSTER_ROLE,                 ctc_mq_query_cluster_role},
-    {CTC_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN,        ctc_set_cluster_role_by_cantian},
+    {CTC_FUNC_SET_CLUSTER_ROLE_BY_CANTIAN,        ctc_set_cluster_role_by_cantian_intf},
     {CTC_FUNC_PRE_CREATE_DB,                      ctc_mq_pre_create_db},
     {CTC_FUNC_TYPE_DROP_TABLESPACE_AND_USER,      ctc_mq_drop_tablespace_and_user},
     {CTC_FUNC_DROP_DB_PRE_CHECK,                  ctc_mq_drop_db_pre_check},
