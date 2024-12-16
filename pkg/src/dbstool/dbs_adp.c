@@ -1931,7 +1931,7 @@ int32 dbs_set_link_timeout(int32 argc, char *argv[])
     return ret;
 }
 
-// dbstor --set-ns-forbidden <0, 1>
+// dbstor --io-forbidden <0, 1>
 int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
 {
     if (dbs_global_handle()->dbs_ns_io_forbidden == NULL) {
@@ -1941,7 +1941,7 @@ int32 dbs_set_ns_io_forbidden(int32 argc, char *argv[])
 
     if (argc != NUM_THREE) {
         printf("Invalid input, arg num %d\n", argc);
-        printf("Usage: dbstor --set-ns-forbidden <0, 1>t\n");
+        printf("Usage: dbstor --io-forbidden <0, 1>t\n");
         return CT_ERROR;
     }
     bool isForbidden = (bool)atoi(argv[NUM_TWO]);
@@ -2004,7 +2004,7 @@ int32 dbs_link_check(int32 argc, char *argv[])
     return CT_SUCCESS;
 }
 
-// dbstor --io--status
+// dbstor --io-status
 int32 dbs_get_ns_io_forbidden_stat(int32 argc, char *argv[])
 {
     if (dbs_global_handle()->dbs_get_ns_io_forbidden_stat == NULL) {

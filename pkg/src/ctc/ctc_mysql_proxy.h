@@ -14,32 +14,18 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * ctc_mysql_client.c
+ * ctc_mysql_proxy.h
  *
  *
  * IDENTIFICATION
- * src/ctc/ctc_mysql_client.c
+ * src/ctc/ctc_mysql_proxy.h
  *
  * -------------------------------------------------------------------------
  */
-#include "ctc_module.h"
-#include "ctc_srv.h"
-#include "cm_log.h"
-#include "knl_common.h"
 
-int mysql_execute_ddl_sql(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req,
-                          bool *allow_fail)
-{
-    size_t len = strlen(broadcast_req->sql_str);
-    if (len == 0) {
-        CT_LOG_RUN_ERR("[CTC_DDL]:sql_str length is invalid");
-    }
-    int ret = ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
-    return ret;
-}
-
-int mysql_execute_set_opt(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail)
-{
-    int ret = ctc_ddl_execute_set_opt_intf(thd_id, broadcast_req, allow_fail);
-    return ret;
-}
+#ifndef __CTC_MYSQL_PROXY_H__
+#define __CTC_MYSQL_PROXY_H__
+#include <stdint.h>
+#include <stdbool.h>
+int init_mysql_lib(void);
+#endif

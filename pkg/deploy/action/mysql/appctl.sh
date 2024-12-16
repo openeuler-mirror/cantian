@@ -35,6 +35,8 @@ source ${CURRENT_PATH}/../log4sh.sh
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 
+ha_ctc_path = /opt/cantian/mysql/install/mysql/lib/plugin
+
 function usage()
 {
     logAndEchoInfo "Usage: ${0##*/} {install}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
@@ -130,6 +132,9 @@ function do_install2chown4mysqlrollback()
     if [ -f ${backup_dir}/mysql/mysqld ];then
         cp -arf ${backup_dir}/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
     fi
+    if [ -f ${backup_dir}/mysql/ha_ctc.so ];then
+        cp -arf ${backup_dir}/mysql/ha_ctc.so ${ha_ctc_path}/
+    fi
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
 }
@@ -144,6 +149,9 @@ function do_upgrade_backup() {
     mysqld_path=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/mysqld
     if [ -f ${mysqld_path} ];then
         cp -arf ${mysqld_path} ${backup_dir}/mysql/
+    fi
+    if [-f ${ha_ctc_path}/ha_ctc.so ]; then
+        cp -arf ${ha_ctc_path}/ha_ctc.so ${backup_dir}/mysql/
     fi
 }
 

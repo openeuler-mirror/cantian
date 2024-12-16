@@ -562,6 +562,28 @@ static inline uint64 cm_ptr6_to_uint_little_endian(const uchar *ptr)
         (((uint64)((uint32)ptr[CM_BYTE_1] + ((uint32)ptr[CM_BYTE_0] << CM_BASE_8))) << CM_BASE_32);
 }
 
+static inline uint32 cm_cnvrt_date_from_binary_to_uint(const uchar *ptr)
+{
+    return cm_ptr3_to_uint_big_endian(ptr);
+}
+
+static inline int64 cm_cnvrt_time_from_binary_to_int(const uchar *ptr)
+{
+    return ((int64)(cm_ptr6_to_uint_little_endian(ptr))) - TIMEF_OFS;
+}
+
+static int64 cm_pack_time_to_int64(int64 intpart, int64 fracpart)
+{
+    cm_assert(abs(fracpart) <= 0xffffffLL);
+    return ((uint64)(intpart) << CM_BASE_24) + fracpart;
+}
+
+static inline int64 cm_cnvrt_datetime_from_binary_to_int(const uchar *ptr)
+{
+    int64 intpart = cm_ptr5_to_uint_little_endian(ptr) - DATETIMEF_INT_OFS;
+    int32 fracpart = cm_ptr3_to_sint_little_endian(ptr + CT_DATETIME_PRECISION_5);
+    return cm_pack_time_to_int64(intpart, fracpart);
+}
 
 static inline int64 cm_get_time_int_part_from_int64(int64 input)
 {

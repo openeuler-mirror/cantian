@@ -413,6 +413,10 @@ struct query_shm_usage_request {
     uint32_t *shm_usage;
     int result;
 };
+
+struct mysql_init_lib_request {
+    int result;
+};
  
 struct set_cluster_role_by_cantian_request {
     bool is_slave;

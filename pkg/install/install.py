@@ -80,7 +80,7 @@ MYSQL_DATA_DIR = "/data/data"
 MYSQL_BIN_DIR = "/usr/local/mysql"
 MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
 
-MYSQL_LIB_OUTPUT_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/bld_debug/library_output_directory")
+MYSQL_LIB_OUTPUT_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/mysql-source/bld_debug/plugin_output_directory")
 CTC_PLUGIN = "ha_ctc.so"
 
 class Options(object):
@@ -4266,9 +4266,7 @@ class Installer:
             #self.execute_mysql_update(self.get_cantian_defs_file())
         elif MYSQL_VERSION == VERSION_ENV_NOMETA:
             mysql_plugin_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin")
-            ctc_path = os.path.join(MYSQL_BIN_DIR, "lib/plugin/nometa/ha_ctc.so")
-            shutil.copy(ctc_path, mysql_plugin_path)
-            print("mysql_nometa: copy ha_ctc.so from %s to %s" % (ctc_path, mysql_plugin_path))
+            print("mysql_nometa: going to start mysql in nometa. bin_dir:%s" % mysql_plugin_path)
             self.start_mysql(g_opts.slave_cluster)
             # self.execute_mysql_update(self.get_cantian_defs_file())
 

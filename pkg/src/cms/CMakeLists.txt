@@ -9,7 +9,6 @@ include_directories(
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/interface INTERFACE_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/cms CMS_SRC)
 
-
 set(CMS_TOTAL_SRC ${INTERFACE_SRC} ${CMS_SRC})
 
 # generate static library
@@ -24,3 +23,4 @@ else()
 endif(USE_FUZZASAN)
 target_compile_definitions(cms PRIVATE -DCT_LIB_VERSION=${DD_CT_LIB_VERSION})
 target_compile_definitions(cms PRIVATE -DGETDBVERSION=${DD_GETDBVERSION})
+target_compile_definitions(cms PRIVATE BUILD_CMS_MAIN)

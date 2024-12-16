@@ -319,8 +319,9 @@ EXTER_ATTACK int32 cantiand_lib_main(int argc, char *argv[])
     cm_close_file(g_instance->lock_fd);
     return CT_SUCCESS;
 }
-
+#ifdef BUILD_SRV_MAIN
 EXTER_ATTACK int32 main(int argc, char *argv[])
 {
     return cantiand_lib_main(argc, argv);
 }
+#endif

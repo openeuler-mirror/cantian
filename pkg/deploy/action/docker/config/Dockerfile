@@ -7,7 +7,8 @@ RUN rm -rf *
 
 COPY Cantian_2*_RELEASE.tgz .
 COPY DBStor_Client_*_RELEASE.tgz .
-COPY Cantian_connector_mysql_*_RELEASE.tgz .
+COPY Cantian_connector_*_RELEASE.tgz .
+COPY Mysql_server_*_RELEASE.tgz .
 
 RUN tar -zxf Cantian_2*_RELEASE.tgz && rm -rf Cantian_2*_RELEASE.tgz && \
     cp DBStor_Client_*_RELEASE.tgz cantian_connector/repo && \
@@ -17,11 +18,15 @@ RUN tar -zxf Cantian_2*_RELEASE.tgz && rm -rf Cantian_2*_RELEASE.tgz && \
     cd cantian_connector/action && sh appctl.sh install config_params.json
 
 RUN cd /opt/cantian/image/cantian_connector/cantian-connector-mysql/mysql_bin/ && \
-    tar -zxf /ctdb/cantian_install/Cantian_connector_mysql_*_RELEASE.tgz && \
-    cp -arf mysql/lib/plugin/meta/ha_ctc.so Cantian_connector_mysql/mysql/lib/plugin/ && \
-    rm -rf mysql && mv Cantian_connector_mysql/mysql . && \
+    tar -zxf /ctdb/cantian_install/Cantian_connector_*_RELEASE.tgz && \
+    tar -zxf /ctdb/cantian_install/Mysql_server_*_RELEASE.tgz && \
+    cp -arf connector/libctc_proxy.so /usr/lib64/  && \
+    cp -arf connector/ha_ctc_share.so Mysql_server/mysql/lib/plugin/ha_ctc.so && \
+    cp -arf connector/ha_ctc_share.so /opt/cantian/cantian/server/lib/ha_ctc.so && \
+    rm -rf mysql && mv Mysql_server/mysql . && \
     cp -arf mysql /opt/cantian/mysql/install/ && \
     chown 5000:5000 /opt/cantian/mysql/install/mysql -R && \
+    chown 5000:5000 /opt/cantian/cantian/server/lib -R && \
     cp -pf /opt/cantian/mysql/install/mysql/bin/mysql /usr/bin/ && \
     cp -prf /opt/cantian/mysql/install/mysql /usr/local/
 

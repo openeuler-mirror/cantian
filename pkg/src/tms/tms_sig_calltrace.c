@@ -52,7 +52,7 @@ void tms_print_call_link(uint32 stack_depth)
 }
 
 atomic_t g_tms_sign_mutex = 0;
-void tms_proc_sign_func(int32 signum, siginfo_t *siginfo, void *context)
+static void tms_proc_sign_func(int32 signum, siginfo_t *siginfo, void *context)
 {
     sigset_t sign_old_mask;
     sigset_t sign_mask;

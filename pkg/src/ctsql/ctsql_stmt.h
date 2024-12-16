@@ -654,7 +654,7 @@ status_t sql_send_column_cursor(sql_stmt_t *stmt, cursor_t *cur);
 status_t sql_send_return_values(sql_stmt_t *stmt, ct_type_t type, typmode_t *typmod, variant_t *val);
 void sql_send_column_def(sql_stmt_t *stmt, void *sql_cursor);
 status_t sql_remap(sql_stmt_t *stmt, text_t *sql);
-void sql_release_sql_map(sql_stmt_t *stmt);
+//void sql_release_sql_map(sql_stmt_t *stmt);
 
 status_t sql_send_nls_feedback(sql_stmt_t *stmt, nlsparam_id_t id, text_t *value);
 status_t sql_send_session_tz_feedback(sql_stmt_t *stmt, timezone_info_t client_timezone);
