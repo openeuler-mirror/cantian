@@ -710,6 +710,27 @@ status_t cm_query_dir(const char *name, void *file_list, uint32 *file_num)
     return CT_SUCCESS;
 }
 
+status_t cm_query_file_num(const char *name, uint32 *file_num)
+{
+    DIR *dir = opendir(name);
+    if (dir == NULL) {
+        CT_LOG_RUN_ERR("Failed to open directory: %s.", name);
+        return CT_ERROR;
+    }
+
+    uint32 num = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+            continue;
+        }
+        num++;
+    }
+    *file_num = num;
+    (void)closedir(dir);
+    return CT_SUCCESS;
+}
+
 status_t cm_pread_file(int32 file, void *buf, int length, int64 i_offset, int32 *read_size)
 {
 #ifdef WIN32
