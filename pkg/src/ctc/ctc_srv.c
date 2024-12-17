@@ -28,6 +28,8 @@
 
 #define CTC_MAX_MYSQL_INST_SIZE (128)
 #define CTC_MAX_PREFETCH_NUM (100)
+#define CTC_SIZE_UNIT (1024)
+#define CTC_MAX_SAMPLE_SIZE_LENGTH (6) // sample_size最大为4096M
 
 /*
  * lob text data struct
@@ -43,6 +45,61 @@ int32 sint3korr(uchar *A)
     return ((int32)(((A[2]) & 128)
                         ? (((uint32)255L << 24) | (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0]))
                         : (((uint32)A[2]) << 16) | (((uint32)A[1]) << 8) | ((uint32)A[0])));
+}
+
+EXTER_ATTACK int ctc_update_sample_size(uint32_t sample_size, bool need_persist)
+{
+    config_item_t *item = NULL;
+    text_t parameter = {0};
+    bool32 force = CT_TRUE;
+
+    parameter.str = "STATISTICS_SAMPLE_SIZE";
+    parameter.len = (uint32)strlen(parameter.str);
+    item = cm_get_config_item(GET_CONFIG, &parameter, CT_FALSE);
+
+    if (item == NULL) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER_NAME, parameter.str);
+        return CT_ERROR;
+    }
+
+    char value[CTC_MAX_SAMPLE_SIZE_LENGTH] = {0};
+    if (sprintf_s(value, CTC_MAX_SAMPLE_SIZE_LENGTH, "%u%s", sample_size, "M") == CT_ERROR) {
+        return CT_ERROR;
+    }
+
+    if (item->attr & ATTR_READONLY) {
+#if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
+        force = CT_TRUE;
+#else
+        force = CT_FALSE; // can not alter parameter whose attr is readonly  for release
+#endif
+    }
+
+    if(need_persist) {
+        CT_RETURN_IFERR(cm_alter_config(GET_CONFIG, parameter.str, value, CONFIG_SCOPE_BOTH, force));
+    } else {
+        CT_RETURN_IFERR(cm_alter_config(GET_CONFIG, parameter.str, value, CONFIG_SCOPE_MEMORY, force));
+    }
+    g_instance->kernel.attr.stats_sample_size = (uint64_t)sample_size * CTC_SIZE_UNIT * CTC_SIZE_UNIT;
+    
+    return CT_SUCCESS;
+}
+
+/*
+ * Gets the current statistics sample size setting from the global instance configuration.
+ * The sample size determines how much data is sampled when gathering table statistics.
+ * 
+ * @param [out] sample_size - Pointer to store the sample size value in MB
+ *                           The raw value from kernel attributes is converted from bytes to MB
+ *                           by dividing by CTC_SIZE_UNIT (1024) twice
+ * 
+ * @return CT_SUCCESS on successful retrieval of sample size
+ */
+EXTER_ATTACK int ctc_get_sample_size(uint32_t *sample_size)
+{
+    *sample_size = g_instance->kernel.attr.stats_sample_size / CTC_SIZE_UNIT / CTC_SIZE_UNIT;
+    CT_LOG_RUN_INF("ctc_get_sample_size: %u", *sample_size);
+    return CT_SUCCESS;
 }
 
 EXTER_ATTACK int ctc_open_table(ctc_handler_t *tch, const char *table_name, const char *user_name)
