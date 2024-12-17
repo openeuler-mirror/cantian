@@ -243,7 +243,7 @@ def update_ctsql_passwd(action, key, value):
 def main():
     update_parse = argparse.ArgumentParser()
     update_parse.add_argument("-c", "--component", dest="component",
-                              choices=["dbstore", "cms", "cantian", "cantian_ini", "cms_ini", "ctsql", "ctsql_pwd"],
+                              choices=["dbstor", "cms", "cantian", "cantian_ini", "cms_ini", "ctsql", "ctsql_pwd"],
                               required=True)
     update_parse.add_argument("-a", "--action", dest="action", choices=["del", "add", "update"],
                               required=True)
@@ -255,7 +255,7 @@ def main():
     key = args.key
     value = args.value
     func_dict = {
-        "dbstore": update_dbstore_conf,
+        "dbstor": update_dbstore_conf,
         "cantian": update_cantian_conf,
         "cantian_ini": update_cantian_ini_conf,
         "cms": update_cms_conf,

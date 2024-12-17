@@ -31,6 +31,7 @@ SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
 
 INSTALL_NAME="install.sh"
 source ${CURRENT_PATH}/../log4sh.sh
+source ${CURRENT_PATH}/../env.sh
 
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
@@ -46,13 +47,13 @@ function usage()
 function do_deploy()
 {
     local script_name_param=$1
-
+    local backup_dir=$2
     if [ ! -f  ${CURRENT_PATH}/${script_name_param} ]; then
         logAndEchoError "${COMPONENT_NAME} ${script_name_param} is not exist. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 
-    cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param}
+    cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param} "${backup_dir}"
     ret=$?
 
     if [ $ret -ne 0 ]; then
@@ -125,7 +126,7 @@ function do_install2chown4mysqlrollback()
         chmod 600 /opt/cantian/mysql/scripts/cantian_defs.sql
         chown -hR ${deploy_user}:${deploy_group} /opt/cantian/mysql/scripts/
     fi
-    do_deploy ${INSTALL_NAME}
+    do_deploy ${INSTALL_NAME} ${backup_dir}
     set +e
     if [ -f ${backup_dir}/mysql/mysqld ];then
         cp -arf ${backup_dir}/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
@@ -133,6 +134,23 @@ function do_install2chown4mysqlrollback()
     if [ -f ${backup_dir}/mysql/ha_ctc.so ];then
         cp -arf ${backup_dir}/mysql/ha_ctc.so ${ha_ctc_path}/
     fi
+    if [ -f ${backup_dir}/mysql/ha_ctc_share.so ];then
+        cp -arf ${backup_dir}/mysql/ha_ctc_share.so ${ha_ctc_path}/
+        cp -arf ${backup_dir}/mysql/ha_ctc_share.so /opt/cantian/cantian/server/lib/
+        ln -s ${ha_ctc_path}/ha_ctc_share.so ${ha_ctc_path}/ha_ctc.so
+        ln -s /opt/cantian/cantian/server/lib//ha_ctc_share.so /opt/cantian/cantian/server/lib/ha_ctc.so
+    fi
+    if [ -f ${backup_dir}/mysql/ha_ctc_noshare.so ];then
+        cp -arf ${backup_dir}/mysql/ha_ctc_noshare.so ${ha_ctc_path}/
+        cp -arf ${backup_dir}/mysql/ha_ctc_noshare.so /opt/cantian/cantian/server/lib/
+        ln -s ${ha_ctc_path}/ha_ctc_noshare.so ${ha_ctc_path}/ha_ctc.so
+        ln -s /opt/cantian/cantian/server/lib/ha_ctc_noshare.so /opt/cantian/cantian/server/lib/ha_ctc.so
+    fi
+    if [ -f ${backup_dir}/mysql/libctc_proxy.so ];then
+        cp -arf ${backup_dir}/mysql/libctc_proxy.so ${ha_ctc_path}/../lib/
+        cp -arf ${backup_dir}/mysql/libctc_proxy.so /opt/cantian/cantian/server/lib/
+    fi
+    chown "${cantian_user}":"${cantian_group}" -hR /opt/cantian/cantian/server/lib/
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
 }
@@ -150,6 +168,15 @@ function do_upgrade_backup() {
     fi
     if [ -f ${ha_ctc_path}/ha_ctc.so ]; then
         cp -arf ${ha_ctc_path}/ha_ctc.so ${backup_dir}/mysql/
+    fi
+    if [ -f ${ha_ctc_path}/ha_ctc_share.so ]; then
+        cp -arf ${ha_ctc_path}/ha_ctc_share.so ${backup_dir}/mysql/
+    fi
+    if [ -f ${ha_ctc_path}/ha_ctc_noshare.so ]; then
+        cp -arf ${ha_ctc_path}/ha_ctc_noshare.so ${backup_dir}/mysql/
+    fi
+    if [ -f ${ha_ctc_path}/../lib/libctc_proxy.so ]; then
+        cp -arf ${ha_ctc_path}/../lib/libctc_proxy.so ${backup_dir}/mysql/
     fi
 }
 
