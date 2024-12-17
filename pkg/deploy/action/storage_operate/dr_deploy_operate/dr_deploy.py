@@ -1173,7 +1173,7 @@ class DRDeploy(object):
             dbstor_command = (
                 f'su -s /bin/bash - "{run_user}" -c \''
                 f'dbstor --copy-file --import --fs-name="{self.share_fs}" '
-                f'--source-dir="{os.path.dirname(dr_deploy_param_path)}" target-dir=/ '
+                f'--source-dir="{os.path.dirname(dr_deploy_param_path)}" --target-dir=/ '
                 f'--file-name="dr_deploy_param.json"\''
             )
             LOG.info(f"Executing command: {dbstor_command}")
