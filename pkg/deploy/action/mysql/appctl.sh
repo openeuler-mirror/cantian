@@ -35,7 +35,7 @@ source ${CURRENT_PATH}/../log4sh.sh
 deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 
-ha_ctc_path = /opt/cantian/mysql/install/mysql/lib/plugin
+ha_ctc_path=/opt/cantian/mysql/install/mysql/lib/plugin
 
 function usage()
 {
@@ -52,7 +52,7 @@ function do_deploy()
         return 1
     fi
 
-    su -s /bin/bash - ${deploy_user} -c "cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param}"
+    cd ${CURRENT_PATH} && sh ${CURRENT_PATH}/${script_name_param}
     ret=$?
 
     if [ $ret -ne 0 ]; then
@@ -69,8 +69,6 @@ function chown_mod_scripts()
 {
     set -e
     echo -e "\nInstall User:${deploy_user}   Scripts Owner:${owner} "
-    current_path_reg=$(echo $CURRENT_PATH | sed 's/\//\\\//g')
-    scripts=$(ls ${CURRENT_PATH} | sed '/appctl.sh/d' | sed '/chmod_file.sh/d' | sed "s/^/${current_path_reg}\/&/g")
     MYSQL_LOG_PATH=/opt/cantian/log/mysql
     if [ ! -d ${MYSQL_LOG_PATH} ];then
         mkdir -p ${MYSQL_LOG_PATH}
@@ -78,7 +76,7 @@ function chown_mod_scripts()
     touch ${MYSQL_LOG_PATH}/install.log
     chmod 600 ${MYSQL_LOG_PATH}/install.log
     chown -hR ${deploy_user}:${deploy_group} ${MYSQL_LOG_PATH}
-    chown -h ${deploy_user}:${deploy_group} ${scripts}
+    chown -h root:root $CURRENT_PATH
     chown -hR ${deploy_user}:${deploy_group} /opt/cantian/image/cantian_connector/for_mysql_official/
     chmod -R 400 ${CURRENT_PATH}
     chmod 755 ${CURRENT_PATH}
@@ -150,7 +148,7 @@ function do_upgrade_backup() {
     if [ -f ${mysqld_path} ];then
         cp -arf ${mysqld_path} ${backup_dir}/mysql/
     fi
-    if [-f ${ha_ctc_path}/ha_ctc.so ]; then
+    if [ -f ${ha_ctc_path}/ha_ctc.so ]; then
         cp -arf ${ha_ctc_path}/ha_ctc.so ${backup_dir}/mysql/
     fi
 }

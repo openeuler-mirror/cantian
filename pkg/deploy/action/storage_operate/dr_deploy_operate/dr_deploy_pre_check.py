@@ -692,7 +692,7 @@ class DRDeployPreCheck(object):
         if install_json_data.get("M_RUNING_MODE") == "cantiand_with_mysql_in_cluster":
             if get_config_values("mysql_metadata_in_cantian"):
                 # 归一
-                check_pkg_cmd = "ls %s/Cantian_connector_mysql_*.tgz" % root_dir
+                check_pkg_cmd = "ls %s/Mysql_server_*.tgz" % root_dir
             else:
                 check_pkg_cmd = "ls %s/mysql_release_*.tar.gz" % root_dir
             return_code, file, _ = exec_popen(check_pkg_cmd)

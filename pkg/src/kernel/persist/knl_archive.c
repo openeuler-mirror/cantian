@@ -2661,7 +2661,7 @@ status_t arch_verify_abnormal_file(knl_session_t *session, char *arch_path, char
     char tmp_name[CT_FILE_NAME_BUFFER_SIZE];
     uint32 filename_len = CT_FILE_NAME_BUFFER_SIZE;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         CT_THROW_ERROR(ERR_ALLOC_MEMORY, "file_list");
         return CT_ERROR;
     }
@@ -4165,7 +4165,7 @@ status_t arch_validate_archive_file(knl_session_t *session, arch_file_name_info_
     uint32 file_num = 0;
     char *arch_path = session->kernel->attr.arch_attr[0].local_path;
     device_type_t type = arch_get_device_type(arch_path);
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
@@ -4761,7 +4761,7 @@ status_t arch_find_archive_log_name(knl_session_t *session, arch_file_name_info_
     uint32 file_num = 0;
     char *file_name = NULL;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -4831,7 +4831,7 @@ status_t arch_find_archive_asn_log_name(knl_session_t *session, const char *arch
     arch_file_name_info_t local_file_name_info = {0};
     char *file_name = NULL;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -4902,7 +4902,7 @@ status_t arch_find_first_archfile_rst(knl_session_t *session, const char *arch_p
     arch_file_name_info_t local_file_name_info = {0};
     char *file_name = NULL;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 

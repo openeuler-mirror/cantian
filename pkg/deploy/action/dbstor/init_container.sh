@@ -19,7 +19,7 @@ function set_dbstor_config() {
     
     cantian_vlan_name=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cantian_vlan_ip"`
     cantian_vlan_ip=""
-    dbstor_log_path="opt/cantian/log/dbstor"
+    dbstor_log_path="/opt/cantian/log/dbstor"
 
     # vlan_ip分割符支持分号（;）和竖线（|）
     if [[ "${cantian_vlan_name}" == *";"* ]]; then

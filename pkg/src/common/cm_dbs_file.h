@@ -47,6 +47,7 @@ status_t cm_dbs_write_file(int32 handle, int64 offset, const void *buf, int32 si
 status_t cm_dbs_rename_file(const char *src_name, const char *dst_name);
 bool32 cm_dbs_exist_file(const char *name, uint32 file_type);
 status_t cm_dbs_access_file(const char *name, int32 *handle);
+status_t cm_dbs_query_file_num(const char *name, uint32 *file_num);
 status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num);
 status_t cm_dbs_get_file_size(int32 handle, int64 *file_size);
 status_t cm_dbs_ulog_archive(int32 src_file, int32 dst_file, uint64 offset, uint64 start_lsn,

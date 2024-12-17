@@ -520,6 +520,11 @@ struct set_cursor_range_requst {
     int result;
 };
 
+struct update_sample_size_request {
+    uint32_t sample_size;
+    bool need_persist;
+};
+
 void* alloc_share_mem(void* shm_inst, uint32_t mem_size);
 
 void free_share_mem(void* shm_inst, void* shm_mem);

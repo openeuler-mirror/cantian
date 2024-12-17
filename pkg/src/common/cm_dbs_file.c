@@ -485,7 +485,7 @@ status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name)
         return CT_ERROR;
     }
     
-    if (path_depth == 1) {
+    if (path_depth == DBSTOR_MIN_DIR_DEPTH) {
         dir_obj_id = root_obj_id;
     } else {
         char *fix_file_path = cm_find_fix_delim(file_dir, '/', 2);
@@ -771,6 +771,38 @@ bool32 cm_dbs_exist_file(const char *name, uint32 file_type)
 status_t cm_dbs_access_file(const char *name, int32 *handle)
 {
     return cm_dbs_open_file(name, handle);
+}
+
+status_t cm_dbs_query_file_num(const char *name, uint32 *file_num)
+{
+    CT_LOG_RUN_INF("[CM_DEVICE] begin to get file num, file dir %s", name);
+    char file_dir[MAX_DBS_FILE_PATH_LEN] = { 0 };
+    MEMS_RETURN_IFERR(strcpy_sp(file_dir, MAX_DBS_FILE_PATH_LEN, name));
+    cm_remove_extra_delim(file_dir, '/');
+    if (cm_check_file_path(file_dir) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file_dir, "/", &path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file dir %s depth failed", file_dir);
+        return CT_ERROR;
+    }
+
+    object_id_t dir_obj_id = { 0 };
+    if (cm_dbs_get_dir_handle(file_dir, path_depth, &dir_obj_id) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file dir handle failed, file dir %s", file_dir);
+        return CT_ERROR;
+    }
+
+    int32 ret = dbs_global_handle()->dbs_file_get_num(&dir_obj_id, file_num);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file num, ret %d, file dir %s", ret, file_dir);
+        return CT_ERROR;
+    }
+
+    CT_LOG_RUN_INF("[CM_DEVICE] Success to get file_num %u, file dir %s", *file_num, file_dir);
+    return CT_SUCCESS;
 }
 
 status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num)

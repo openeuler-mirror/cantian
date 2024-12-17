@@ -160,6 +160,7 @@ status_t cm_io_poll(int32 fd, uint32 wait_type, int32 timeout_ms);
 status_t cm_read_file(int32 file, void *buf, int32 len, int32 *read_size);
 status_t cm_read_file_try_timeout(const char* file_name, int32* fd, void *buf, int32 len, int32 timeout_ms);
 status_t cm_write_file(int32 file, const void *buf, int32 size);
+status_t cm_query_file_num(const char *name, uint32 *file_num);
 status_t cm_query_dir(const char *name, void *file_list, uint32 *file_num);
 status_t cm_pwrite_file(int32 file, const char *buf, int32 size, int64 offset);
 status_t cm_pread_file(int32 file, void *buf, int length, int64 i_offset, int32 *read_size);

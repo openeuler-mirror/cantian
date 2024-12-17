@@ -33,10 +33,10 @@
 #include "cm_defs.h"
 #include "cms_log.h"
 #include "cm_dbstore.h"
+#include "cm_dbs_file.h"
 
 #define DBS_CONFIG_MAX_PARAM 256
 #define DBS_CLUSTER_UUID_LEN 37
-#define DBS_DIR_MAX_FILE_NUM 1024
 #define DBS_GCC_BACKUP_INTERVAL_TIME 1000
 #define DBS_FILE_BLOCK_SIZE 512
 #define UPPER_ALIGN(size, align_size) (((size) + (align_size) - 1) & (~((align_size) - 1)))
@@ -585,21 +585,31 @@ status_t cms_remove_oldest_dbs(object_id_t *handle, char **names, char *name, ti
 
 status_t cms_remove_old_files_dbs(char *dirname, char *prefix)
 {
-    void *file_list = malloc(DBS_DIR_MAX_FILE_NUM * sizeof(dbstor_file_info));
+    uint32 file_num = 0;
+    if (cm_dbs_query_file_num(dirname, &file_num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (file_num > DBS_DIR_MAX_FILE_NUM) {
+        CT_LOG_RUN_ERR("dbstor malloc file list array size %u exceeds max size %u", file_num, DBS_DIR_MAX_FILE_NUM);
+        return CT_ERROR;
+    }
+    if (file_num < DBS_DIR_DEFAULT_FILE_NUM) {
+        file_num = DBS_DIR_DEFAULT_FILE_NUM;
+    }
+    void *file_list = malloc(file_num * sizeof(dbstor_file_info));
     if (file_list == NULL) {
-        CMS_LOG_ERR("malloc arch file list array failed");
+        CMS_LOG_ERR("malloc arch file list array failed, file num %u", file_num);
         return CT_ERROR;
     }
 
-    errno_t mem_ret = memset_sp(file_list, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM,
-                                0, sizeof(dbstor_file_info) * DBS_DIR_MAX_FILE_NUM);
+    errno_t mem_ret = memset_sp(file_list, sizeof(dbstor_file_info) * file_num,
+                                0, sizeof(dbstor_file_info) * file_num);
     if (mem_ret != EOK) {
         CMS_LOG_ERR("memset arch file list array failed");
         free(file_list);
         return CT_ERROR;
     }
     
-    uint32_t file_num = 0;
     time_t times[CMS_GCC_BACKUP_NUM] = { 0 };
     char *file_names[CMS_GCC_BACKUP_NUM] = { 0 };
     uint32 count = 0;

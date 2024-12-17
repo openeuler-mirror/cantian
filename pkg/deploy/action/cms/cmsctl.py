@@ -1288,6 +1288,11 @@ class CmsCtl(object):
         timeout = 300
         while timeout:
             timeout -= 1
+            cms_pid = self.get_pid("cms server -start")
+            if not cms_pid:
+                err_msg = "CMS process stopped unexpectedly"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             try:
                 server_status = run_cmd(server_status_cmd, "failed query cms server status")
             except ValueError as _err:
@@ -1306,6 +1311,11 @@ class CmsCtl(object):
         timeout = 300
         while timeout:
             timeout -= 1
+            cms_pid = self.get_pid("cms server -start")
+            if not cms_pid:
+                err_msg = "CMS process stopped unexpectedly"
+                LOGGER.error(err_msg)
+                raise Exception(err_msg)
             try:
                 voting_status = run_cmd(voting_status_cmd, "failed to query voting status")
             except ValueError as _err2:
@@ -1533,7 +1543,6 @@ class CmsCtl(object):
         output: pid
         """
         get_cmd = "ps ux | grep '%s' | grep -v grep | awk '{print $2}'" % process_name
-        LOGGER.info("get process cmd: %s" % get_cmd)
         ret_code, stdout, stderr = _exec_popen(get_cmd)
         if ret_code:
             LOGGER.error("Failed to get %s pid. cmd: %s. Error: %s" % (process_name, get_cmd, stderr))

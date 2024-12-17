@@ -2731,7 +2731,7 @@ status_t bak_get_arch_info(knl_session_t *session, log_start_end_info_t arch_inf
     device_type_t type = arch_get_device_type(arch_path);
     void *file_list = NULL;
     uint32 file_num = 0;
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
     if (cm_query_device(type, arch_path, file_list, &file_num) != CT_SUCCESS) {
@@ -3223,7 +3223,7 @@ status_t rst_find_first_archfile_with_lsn(knl_session_t *session, arch_info_t fi
     void *file_list = NULL;
     uint32 file_num = 0;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -3326,7 +3326,7 @@ status_t rst_find_archfile_name_with_lsn(knl_session_t *session, uint64 lsn, arc
     uint32 file_num = 0;
     bool32 dbid_equal = CT_FALSE;
 
-    if (cm_malloc_file_list(type, &file_list) != CT_SUCCESS) {
+    if (cm_malloc_file_list(type, &file_list, arch_path, &file_num) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
