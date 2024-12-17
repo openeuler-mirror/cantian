@@ -1405,6 +1405,18 @@ EXTER_ATTACK int ctc_mq_register_instance(dsw_message_block_t *message_block)
     return CT_SUCCESS;
 }
 
+EXTER_ATTACK int ctc_mq_update_sample_size(dsw_message_block_t *message_block)
+{
+    struct update_sample_size_request *req = message_block->seg_buf[0];
+    return ctc_update_sample_size(req->sample_size, req->need_persist);
+}
+
+EXTER_ATTACK int ctc_mq_get_sample_size(dsw_message_block_t *message_block)
+{
+    uint32_t *req = message_block->seg_buf[0];
+    return ctc_get_sample_size(req);
+}
+
 struct mq_recv_msg_node {
     enum CTC_FUNC_TYPE func_type;
     int (*deal_msg)(dsw_message_block_t *message_block);
@@ -1418,6 +1430,8 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_TYPE_UPDATE_JOB,                    ctc_mq_update_job},
     {CTC_FUNC_TYPE_UPDATE_ROW,                    ctc_mq_update_row},
     {CTC_FUNC_TYPE_DELETE_ROW,                    ctc_mq_delete_row},
+    {CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,            ctc_mq_update_sample_size},
+    {CTC_FUNC_TYPE_GET_SAMPLE_SIZE,               ctc_mq_get_sample_size},
     {CTC_FUNC_TYPE_RND_INIT,                      ctc_mq_rnd_init},
     {CTC_FUNC_TYPE_RND_END,                       ctc_mq_rnd_end},
     {CTC_FUNC_TYPE_RND_NEXT,                      ctc_mq_rnd_next},

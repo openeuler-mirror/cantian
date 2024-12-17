@@ -45,6 +45,8 @@ io_record_event_desc_t g_ctc_io_record_event_desc[CTC_FUNC_TYPE_NUMBER] = {
     {"CTC_FUNC_TYPE_WRITE_UPDATE_JOB", ""},
     {"CTC_FUNC_TYPE_UPDATE_ROW", ""},
     {"CTC_FUNC_TYPE_DELETE_ROW", ""},
+    {"CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE", ""},
+    {"CTC_FUNC_TYPE_GET_SAMPLE_SIZE", ""},
     {"CTC_FUNC_TYPE_RND_INIT", ""},
     {"CTC_FUNC_TYPE_RND_END", ""},
     {"CTC_FUNC_TYPE_RND_NEXT", ""},

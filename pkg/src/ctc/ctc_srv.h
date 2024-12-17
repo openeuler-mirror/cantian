@@ -313,6 +313,8 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_UPDATE_JOB,
     CTC_FUNC_TYPE_UPDATE_ROW,
     CTC_FUNC_TYPE_DELETE_ROW,
+    CTC_FUNC_TYPE_UPDATE_SAMPLE_SIZE,
+    CTC_FUNC_TYPE_GET_SAMPLE_SIZE,
     CTC_FUNC_TYPE_RND_INIT,
     CTC_FUNC_TYPE_RND_END,
     CTC_FUNC_TYPE_RND_NEXT,
@@ -714,6 +716,8 @@ int ctc_truncate_partition(void *table_def, ddl_ctrl_t *ddl_ctrl);
 int ctc_rename_table(void *alter_def, ddl_ctrl_t *ddl_ctrl);
 int ctc_drop_table(void *drop_def, ddl_ctrl_t *ddl_ctrl);
 
+int ctc_update_sample_size(uint32_t sample_size, bool need_persist);
+int ctc_get_sample_size(uint32_t *sample_size);
 int ctc_get_max_sessions_per_node(uint32_t *max_sessions);
 int ctc_get_serial_value(ctc_handler_t *tch, uint64_t *value, dml_flag_t flag);
 
