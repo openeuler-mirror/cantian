@@ -485,7 +485,7 @@ status_t cm_dbs_remove_file_vstore_id(uint32 vstore_id, const char *name)
         return CT_ERROR;
     }
     
-    if (path_depth == 1) {
+    if (path_depth == DBSTOR_MIN_DIR_DEPTH) {
         dir_obj_id = root_obj_id;
     } else {
         char *fix_file_path = cm_find_fix_delim(file_dir, '/', 2);
