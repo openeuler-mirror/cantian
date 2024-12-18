@@ -1512,7 +1512,12 @@ cond_pushdown_result_t compare_cond_field_value(ctc_conds *cond, knl_cursor_t *c
 
     int cmp = 0;
     if (CT_IS_STRING_TYPE(left.type)) {
-        cmp = var_compare_data_ex(left.v_text.str, left.v_text.len, right.v_text.str, right.v_text.len, left.type, cond->field_info.collate_id);
+        ctc_conds *field_cond = cond->cond_list->first;
+        if (field_cond == NULL) {
+            return CPR_TRUE;
+        }
+        cmp = var_compare_data_ex(left.v_text.str, left.v_text.len, right.v_text.str, right.v_text.len,
+                                  left.type, field_cond->field_info.collate_id);
     } else {
         if (var_compare(NULL, &left, &right, &cmp) != CT_SUCCESS) {
             return CPR_TRUE;
