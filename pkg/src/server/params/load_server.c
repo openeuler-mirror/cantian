@@ -37,6 +37,7 @@
 #include "cm_log.h"
 #include "cm_file_iofence.h"
 #include "kmc_init.h"
+#include "srv_device_adpt.h"
 
 extern bool32 g_enable_fdsa;
 extern bool32 g_crc_verify;
@@ -651,6 +652,28 @@ static status_t srv_get_mq_cfg(mq_cfg_s *cfg)
     return CT_SUCCESS;
 }
 
+status_t srv_load_dss_path()
+{
+    char *value = NULL;
+    MEMS_RETURN_IFERR(memset_s(g_instance->kernel.dtc_attr.ctstore_inst_path, CT_UNIX_PATH_MAX, 0, CT_UNIX_PATH_MAX));
+    value = srv_get_param("CTSTORE_INST_PATH");
+    if (value == NULL) {
+        cm_reset_error();
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CTSTORE_INST_PATH");
+        return CT_ERROR;
+    }
+    uint32 val_len = (uint32)strlen(value);
+    if (val_len >= CT_UNIX_PATH_MAX || val_len == 0) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "CTSTORE_INST_PATH");
+        return CT_ERROR;
+    } else {
+        CT_PRINT_IFERR2(snprintf_s(g_instance->kernel.dtc_attr.ctstore_inst_path, CT_UNIX_PATH_MAX,
+                                   CT_UNIX_PATH_MAX - 1, "%s", value),
+                        "CTSTORE_INST_PATH", CT_UNIX_PATH_MAX - 1);
+    }
+    return CT_SUCCESS;
+}
+
 status_t srv_load_server_params(void)
 {
     session_pool_t *session_pool = NULL;
@@ -978,6 +1001,14 @@ status_t srv_load_server_params(void)
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DBSTOR", &enable_dbstor));
     if (enable_dbstor) {
         CT_RETURN_IFERR(srv_load_keyfiles());
+    }
+
+    bool32 enable_dss = CT_FALSE;
+    CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_DSS", &enable_dss));
+    if (enable_dss) {
+        g_instance->attr.enable_dss = enable_dss;
+        CT_RETURN_IFERR(srv_load_dss_path());
+        CT_RETURN_IFERR(srv_device_init(g_instance->kernel.dtc_attr.ctstore_inst_path));
     }
 
     CT_RETURN_IFERR(srv_get_param_bool32("ENABLE_LOCAL_INFILE", &g_instance->attr.enable_local_infile));

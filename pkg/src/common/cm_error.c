@@ -1092,6 +1092,7 @@ const char *g_error_desc[] = {
     [ERR_CMS_CONVERT_VALUE] = "cannot convert '%s' to %s type",
 
     [ERR_ACCESS_DEPOSIT_INST] = "failed to access deposit instance, logical id %d physical id %d",
+    [ERR_DSS_FAILED] = "failed when calling dss interface, error code: %d, error message = %s",
 
     [ERR_CLUSTER_DDL_DISABLED] = "cluster DDL operation not available, please check whether other instances are open",
     [ERR_CM_OPEN_DISK] = "open disk failed, errno %d",
@@ -1461,6 +1462,7 @@ status_t cm_set_sql_error(const char *file, uint32 line, ct_errno_t code, const 
 {
     char log_msg[CT_MAX_LOG_CONTENT_LENGTH] = { 0 };
     char *last_file = NULL;
+    char *file_name = NULL;
     log_param_t *log_param = cm_log_param_instance();
     errno_t err;
 #ifdef WIN32
@@ -1468,16 +1470,21 @@ status_t cm_set_sql_error(const char *file, uint32 line, ct_errno_t code, const 
 #else
     last_file = strrchr(file, '/');
 #endif
+    if (last_file == NULL) {
+        file_name = (char *)file;
+    } else {
+        file_name = last_file + 1;
+    }
 
     err = vsnprintf_s(log_msg, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, format, args);
     if (SECUREC_UNLIKELY(err == -1)) {
         CT_LOG_RUN_ERR("Secure C lib has thrown an error %d while setting error", err);
     }
     if (!g_tls_error.is_ignore_log) {
-        CT_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
+        CT_LOG_DEBUG_ERR("CT-%05d : %s [%s:%u]", code, log_msg, file_name, line);
 
         if (log_param->log_instance_startup || code == ERR_SYSTEM_CALL) {
-            CT_LOG_RUN_ERR("CT-%05d : %s [%s:%u]", code, log_msg, last_file + 1, line);
+            CT_LOG_RUN_ERR("CT-%05d : %s [%s:%u]", code, log_msg, file_name, line);
         }
     }
 

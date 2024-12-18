@@ -73,6 +73,8 @@ CANTIAND_WITH_MYSQL_IN_CLUSTER = "cantiand_with_mysql_in_cluster"
 MYSQLD = "mysqld"
 CANTIAN_USER = get_value("deploy_user")
 CANTIAN_GROUP = get_value("deploy_user")
+USE_DBSTOR = ["dbstor", "combined"]
+USE_DSS = ["dss"]
 
 VALID_RUNNING_MODE = {CANTIAND, CANTIAND_WITH_MYSQL, CANTIAND_WITH_MYSQL_ST, CANTIAND_IN_CLUSTER,
                       CANTIAND_WITH_MYSQL_IN_CLUSTER, MYSQLD}
@@ -349,7 +351,7 @@ def genreg_string(text):
 
 deploy_mode = get_value("deploy_mode")
 cantian_in_container = get_value("cantian_in_container")
-mes_type = get_value("mes_type") if deploy_mode != "file" else "TCP"
+mes_type = get_value("mes_type") if deploy_mode in USE_DBSTOR else "TCP"
 mes_ssl_switch = get_value("mes_ssl_switch")
 node_id = get_value("node_id")
 storage_share_fs = get_value("storage_share_fs")
@@ -393,6 +395,20 @@ MES_CONFIG = {
         "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
 }
 
+GCC_TYPE = {
+    "dbstor": "DBS",
+    "combined": "DBS",
+    "file": "file",
+    "dss": "SD"
+}
+
+GCC_HOME = {
+    "dbstor": "",
+    "combined": "",
+    "file": "",
+    "dss": ""
+}
+
 CMS_CONFIG.update(MES_CONFIG)
 
 
@@ -421,7 +437,7 @@ class CmsCtl(object):
 
     gcc_home = ""
     gcc_dir = ""
-    gcc_type = "NFS" if deploy_mode == "file" else "DBS"
+    gcc_type = GCC_TYPE.get(deploy_mode, "NFS")
     if os.path.exists(YOUMAI_DEMO):
         gcc_type = "NFS"
     running_mode = "cantiand_in_cluster"
@@ -440,8 +456,8 @@ class CmsCtl(object):
     cms_home = "/opt/cantian/cms"
     cms_scripts = "/opt/cantian/action/cms"
     user_home = ""
-    use_gss = False
-    use_dbstor = True if deploy_mode != "file" else False
+    use_gss = deploy_mode in USE_DSS
+    use_dbstor = deploy_mode in USE_DBSTOR
     mes_type = ""
     cluster_uuid = ""
 
@@ -648,7 +664,8 @@ class CmsCtl(object):
 
         if "GCC_TYPE" in common_parameters:
             common_parameters["GCC_DIR"] = common_parameters["GCC_HOME"]
-            common_parameters["GCC_HOME"] = os.path.join(common_parameters["GCC_HOME"], "gcc_file")
+            if deploy_mode not in USE_DSS:
+                common_parameters["GCC_HOME"] = os.path.join(common_parameters["GCC_HOME"], "gcc_file")
         self.clean_old_conf(list(common_parameters.keys()), conf_file)
         self.set_new_conf(common_parameters, conf_file)
 
@@ -668,7 +685,9 @@ class CmsCtl(object):
             node_ip.append("127.0.0.1")
         gcc_home = self.gcc_home
         gcc_dir = self.gcc_dir
-        if self.gcc_type == "DBS" or self.gcc_type == "NFS":
+        
+        # gcc_home is lun, gcc_home:/dev/sda
+        if self.gcc_type != "SD":
             gcc_dir = gcc_home
             gcc_home = os.path.join(gcc_home, "gcc_file")
         if 'LD_LIBRARY_PATH' in os.environ:
@@ -891,7 +910,7 @@ class CmsCtl(object):
 
         LOGGER.info("change app permission cmd: %s" % str_cmd)
         run_cmd(str_cmd, "failed to chmod %s" % CommonValue.KEY_DIRECTORY_MODE)
-        if cantian_in_container == "0" and deploy_mode != "dbstor" and deploy_mode != "combined":
+        if cantian_in_container == "0" and (deploy_mode == "file" or os.path.exists(YOUMAI_DEMO)):
             self.chown_gcc_dirs()
 
     def export_user_env(self):
@@ -1004,10 +1023,9 @@ class CmsCtl(object):
         LOGGER.info("prepare gcc home dir")
         self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
         LOGGER.info("if blocked here, please check if the network is normal")
-        if (deploy_mode != "dbstor" and deploy_mode != "combined" and not os.path.exists(self.gcc_home) or
-                os.path.exists(YOUMAI_DEMO) and not os.path.exists(self.gcc_home)):
+        if (deploy_mode == "file" or os.path.exists(YOUMAI_DEMO)) and not os.path.exists(self.gcc_home):
             os.makedirs(self.gcc_home, CommonValue.KEY_DIRECTORY_PERMISSION)
-            LOGGER.info("makedir for gcc_home %s" % (self.gcc_home))
+            LOGGER.info("makedir for gcc_home %s" % self.gcc_home)
 
     def install_xnet_lib(self):
         if self.is_rdma_startup():
@@ -1125,7 +1143,7 @@ class CmsCtl(object):
         LOGGER.info("copy install files cmd: " + str_cmd)
         run_cmd(str_cmd, "failed to install cms lib files")
 
-        if deploy_mode != "file":
+        if deploy_mode in USE_DBSTOR:
             self.install_xnet_lib()
             self.install_kmc_lib()
 
@@ -1146,9 +1164,12 @@ class CmsCtl(object):
         else:
             LOGGER.info("check install type : override cms")
             self.parse_parameters(self.install_config_file)
-            if deploy_mode == "dbstor" or deploy_mode == "combined":
+            if deploy_mode in USE_DBSTOR:
                 self.gcc_home = os.path.join("/", self.storage_share_fs, "gcc_home")
                 self.cms_gcc_bak = os.path.join("/", self.storage_archive_fs)
+            elif deploy_mode == "dss":
+                self.gcc_home = "/dev/gcc-disk"
+                self.cms_gcc_bak = "/dev/gcc-disk"
             else:
                 self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
                 self.cms_gcc_bak = os.path.join("/mnt/dbdata/remote", "archive_" + self.storage_archive_fs)
@@ -1160,7 +1181,7 @@ class CmsCtl(object):
         LOGGER.info("======================== begin to pre_install cms configs ========================")
 
         check_user(self.user, self.group)
-        if deploy_mode != "dbstor" and deploy_mode != "combined" and not check_path(self.gcc_home):
+        if deploy_mode == "file" and not check_path(self.gcc_home):
             err_msg = "the gcc home directory is invalid."
             LOGGER.error(err_msg)
             if FORCE_UNINSTALL != "force":
@@ -1265,9 +1286,8 @@ class CmsCtl(object):
 
         self.set_cluster_conf()
         self.set_conf(CMS_CONFIG, "cms.ini")
-        if deploy_mode != "file":
+        if deploy_mode in USE_DBSTOR:
             self.copy_dbstor_config()
-        if deploy_mode == "dbstor" or deploy_mode == "combined":
             self.prepare_cms_tool_dbstor_config()
 
         cmd = "sh %s -P install_cms >> %s 2>&1" % (os.path.join(self.cms_scripts, "start_cms.sh"), LOG_FILE)
@@ -1400,7 +1420,7 @@ class CmsCtl(object):
         删除gcc_home失败时，打印出当前暂用文件的进程
         :return:
         """
-        if deploy_mode == "dbstor" or deploy_mode == "combined":
+        if deploy_mode in USE_DBSTOR:
             return
         gcc_home_path = "/mnt/dbdata/remote/share_%s/gcc_home/" % self.storage_share_fs
         remain_files = os.listdir(gcc_home_path)
@@ -1427,27 +1447,35 @@ class CmsCtl(object):
         """
         LOGGER.info("======================== begin to uninstall cms module ========================")
 
-        if deploy_mode != "dbstor" and deploy_mode != "combined" and self.gcc_home == "":
-            self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+        if self.gcc_home == "":
+            if deploy_mode not in USE_DBSTOR:
+                self.gcc_home = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "gcc_home")
+            elif deploy_mode == "dss":
+                self.gcc_home = "/dev/gcc-disk"
+        
         if self.node_id == 0:
+            stdout, stderr = "", ""
             if cantian_in_container == "0":
                 self.cms_check_share_logic_ip_isvalid(self.share_logic_ip)
                 LOGGER.info("if blocked here, please check if the network is normal")
-            if deploy_mode != "dbstor" and deploy_mode != "combined" or os.path.exists(YOUMAI_DEMO):
+            if deploy_mode == "file" or os.path.exists(YOUMAI_DEMO):
                 versions_yml = os.path.join("/mnt/dbdata/remote/share_" + self.storage_share_fs, "versions.yml")
                 gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
                 str_cmd = "rm -rf %s && rm -rf %s && rm -rf %s" % (self.gcc_home, versions_yml, gcc_backup)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
-            else:
+            if deploy_mode in USE_DBSTOR:
                 self.delete_only_start_file()
                 str_cmd = "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml && " \
                           "dbstor --delete-file --fs-name=%s --file-name=gcc_backup" \
                           % (self.storage_share_fs, self.storage_archive_fs)
                 ret_code = 0
+            if deploy_mode in USE_DSS:
+                str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=1M count=1 conv=notrunc"
+                ret_code = 0
             if ret_code == 0:
                 LOGGER.info("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
-                if ret_code and (deploy_mode == "dbstor" or deploy_mode == "combined") and self.install_step < 2:
+                if ret_code and deploy_mode not in USE_DBSTOR and self.install_step < 2:
                     LOGGER.info("cms install failed, no need to clean gcc file")
                 elif ret_code:
                     output = stdout + stderr
@@ -1495,7 +1523,7 @@ class CmsCtl(object):
 
     def upgrade(self):
         LOGGER.info("======================== begin to upgrade cms dbstor config ========================")
-        if (deploy_mode == "dbstor" or deploy_mode == "combined") and not glob.glob("%s/dbstor/conf/dbs/dbstor_config_tool*" % self.cms_home):
+        if deploy_mode in USE_DBSTOR and not glob.glob("%s/dbstor/conf/dbs/dbstor_config_tool*" % self.cms_home):
             self.copy_dbstor_config()
             self.prepare_cms_tool_dbstor_config()
 
@@ -1509,7 +1537,7 @@ class CmsCtl(object):
         if self.install_step == 3:
             LOGGER.info("Warning: cms start already")
             return
-        if deploy_mode != "file":
+        if deploy_mode in USE_DBSTOR:
             self.copy_dbstor_config()
         if deploy_mode == "dbstor" or deploy_mode == "combined":
             self.prepare_cms_tool_dbstor_config()

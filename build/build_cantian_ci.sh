@@ -41,6 +41,10 @@ function buildCtOmPackage() {
   fi
 }
 
+function buildDssPackage() {
+  sh "${CURRENT_PATH}"/build_dss.sh ${BUILD_TYPE}
+}
+
 function packageSymbol() {
   if [[ ${BUILD_TYPE} != "release" ]]; then
     return
@@ -81,7 +85,7 @@ function newPackageTarget() {
   fi
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
 
-  mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
+  mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep,dss}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
   B_VERSION=$(grep -oP '<Bversion>\K[^<]+' "${CTDB_CODE_PATH}"/../ProductComm_DoradoAA/CI/conf/cmc/dbstore/archive_cmc_versions.xml | sed 's/Cantian //g')
   # 提取B_VERSION最后一个点之后的部分
@@ -101,6 +105,7 @@ function newPackageTarget() {
   if [[ ${BUILD_MODE} == "single" ]]; then
     cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
   fi
+  cp -arf "${CTDB_CODE_PATH}"/dss/* ${pkg_real_path}/dss/
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
@@ -259,5 +264,6 @@ MYSQL_BUILD_TYPE="mysql_${BUILD_TYPE}"
 prepare
 buildCtOmPackage
 packageTarget
+buildDssPackage
 newPackageTarget
 #packageSymbol

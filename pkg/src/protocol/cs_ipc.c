@@ -338,7 +338,7 @@ status_t cs_init_ipc_context(const char *ipc_name)
         return CT_ERROR;
     }
 
-    g_ipc_context.start_time = cm_sys_process_start_time(req.client_info.pid);
+    g_ipc_context.start_time = cm_sys_process_start_time_s(req.client_info.pid);
 
     code = cs_request_ipc_lsnr(&req, &token);
     if (code != CT_SUCCESS) {

@@ -14,43 +14,25 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * cm_system.h
+ * cms_cbb.h
  *
  *
  * IDENTIFICATION
- * src/common/cm_system.h
+ * src/cms/cbb/cms_cbb.h
  *
  * -------------------------------------------------------------------------
  */
-#ifndef __CM_SYSTEM_H__
-#define __CM_SYSTEM_H__
+#ifndef __CMS_CBB_H__
+#define __CMS_CBB_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+typedef void (*cm_notify_func_t)(void);
 
-#include "cm_defs.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-status_t cm_get_host_ip(char *ipstr, uint32 len);
-uint64 cm_sys_pid(void);
-char *cm_sys_program_name(void);
-char *cm_sys_user_name(void);
-char *cm_sys_host_name(void);
-char *cm_sys_platform_name(void);
-int64 cm_sys_ticks(void);
-int64 cm_sys_process_start_time_s(uint64 pid);
-bool32 cm_sys_process_alived(uint64 pid, int64 start_time);
-void cm_try_init_system(void);
-uint32 cm_sys_get_nprocs(void);
-#ifndef WIN32
-status_t cm_get_file_host_name(char *path, char *host_name);
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+int CmInit(unsigned int instance_id, const char *res_name, cm_notify_func_t func);
+char* CmGetResStats(void);
+void CmFreeResStats(char *res_stat);
+int CmResLock(const char *lock_name);
+int CmResUnlock(const char *lock_name);
+int CmResGetLockOwner(const char *lock_name, unsigned int *inst_id);
+int CmResTransLock(const char *lock_name, unsigned int inst_id);
 
 #endif

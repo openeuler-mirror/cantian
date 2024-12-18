@@ -52,6 +52,7 @@ kernel_element = {
     'VARIANT_MEMORY_AREA_SIZE',
     '_INDEX_BUFFER_SIZE'
 }
+use_dbstor = ["dbstor", "combine"]
 UnitConversionInfo = collections.namedtuple('UnitConversionInfo', ['tmp_gb', 'tmp_mb', 'tmp_kb', 'key', 'value',
                                                                    'sga_buff_size', 'temp_buffer_size',
                                                                    'data_buffer_size', 'shared_pool_size',
@@ -113,7 +114,7 @@ class ConfigChecker:
 
     @staticmethod
     def deploy_mode(value):
-        deploy_mode_enum = {"file", "combined", "dbstor"}
+        deploy_mode_enum = {"file", "combined", "dbstor", "dss"}
         if value not in deploy_mode_enum:
             return False
 
@@ -327,6 +328,10 @@ class CheckInstallConfig(CheckBase):
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
             'mes_ssl_switch', 'cantian_in_container', 'deploy_policy', 'link_type', 'ca_path', 'crt_path', 'key_path'
         }
+        self.dss_config_key = {
+            'deploy_user', 'node_id', 'cms_ip',  'db_type', 'cantian_in_container',
+            'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian',
+            'deploy_mode', 'mes_ssl_switch', "redo_num", "redo_size"}
         self.dbstore_config_key = {
             'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
             'kerberos_key', 'cluster_id', 'mes_type', "vstore_id", "dbstore_fs_vstore_id"
@@ -601,15 +606,14 @@ class CheckInstallConfig(CheckBase):
         if not ret:
             LOG.error("init deploy policy failed")
             return False
+        if install_config_params["deploy_mode"] == "dss":
+            self.config_key = self.dss_config_key
 
         self.install_config_params_init(install_config_params)
 
         self.cluster_name = install_config_params.get("cluster_name")
-        # 不开启归档时不检查归档连通性
-        if install_config_params.get("storage_archive_fs") == "":
-            ping_check_element.remove("archive_logic_ip")
 
-        if install_config_params['deploy_mode'] != "file":
+        if install_config_params['deploy_mode'] in use_dbstor:
             self.config_key.remove("storage_logic_ip")
             self.config_key.update(self.dbstore_config_key)
             ping_check_element.remove("storage_logic_ip")
@@ -627,15 +631,29 @@ class CheckInstallConfig(CheckBase):
             self.config_params['mes_type'] = "TCP"
             self.config_key.update(self.file_config_key)
 
-        if install_config_params['cantian_in_container'] != '0':
+        # 不开启归档时不检查归档连通性
+        if install_config_params.get("storage_archive_fs") == "":
+            ping_check_element.remove("archive_logic_ip")
+
+        if install_config_params.get("cantian_in_container", "0") != '0':
             ip_check_element.remove('cms_ip')
             ping_check_element.remove("cms_ip")
             ip_check_element.remove("cantian_vlan_ip")
             ping_check_element.remove("cantian_vlan_ip")
 
-        if install_config_params['archive_logic_ip'] == "" \
-                and install_config_params['share_logic_ip'] == "" \
-                and install_config_params['metadata_logic_ip'] == "":
+        if install_config_params["deploy_mode"] == "dss":
+            ip_check_element.remove("storage_vlan_ip")
+            ip_check_element.remove("cantian_vlan_ip")
+            ping_check_element.remove("cantian_vlan_ip")
+            ping_check_element.remove("storage_vlan_ip")
+            ping_check_element.remove("share_logic_ip")
+            ping_check_element.remove("metadata_logic_ip")
+            ping_check_element.remove("storage_logic_ip")
+
+        if (install_config_params.get("archive_logic_ip", "") == ""
+                and install_config_params.get('share_logic_ip', "") == ""
+                and install_config_params.get('metadata_logic_ip', "") == ""
+                and install_config_params['deploy_mode'] in use_dbstor):
             install_config_params['archive_logic_ip'] = self.cluster_name
             install_config_params['share_logic_ip'] = self.cluster_name
             install_config_params['metadata_logic_ip'] = self.cluster_name
@@ -646,7 +664,7 @@ class CheckInstallConfig(CheckBase):
 
         if not self.check_install_config_params(install_config_params):
             return False
-        if (install_config_params['deploy_mode'] != "file" and
+        if (install_config_params['deploy_mode'] in use_dbstor and
                 not self.check_storage_cantian_vlan_ip_scale(install_config_params)):
             return False
 
@@ -664,7 +682,7 @@ class CheckInstallConfig(CheckBase):
         except Exception as error:
             LOG.error('write config param to config_param.json failed, error: %s', str(error))
             return False
-        if install_config_params['cantian_in_container'] == '0':
+        if install_config_params.get("'cantian_in_container'", "0") == '0':
             try:
                 self.write_result_to_json()
             except Exception as error:
@@ -698,12 +716,15 @@ class CheckInstallConfig(CheckBase):
             install_config_params['deploy_mode'] = "combined"
         if 'dbstore_fs_vstore_id' not in install_config_params.keys():
             install_config_params['dbstore_fs_vstore_id'] = "0"
-        if install_config_params.get("mes_ssl_switch") == True and install_config_params.get("cantian_in_container", "-1") == "0":
+        if (install_config_params.get("mes_ssl_switch") and
+                install_config_params.get("cantian_in_container", "-1") == "0"):
             self.config_key.update(self.mes_type_key)
         if 'db_type' not in install_config_params.keys():
             install_config_params['db_type'] = '0'
         if 'mysql_metadata_in_cantian' not in install_config_params.keys():
             install_config_params['mysql_metadata_in_cantian'] = True
+        if 'cantian_in_container' not in install_config_params.keys():
+            install_config_params['cantian_in_container'] = "0"
 
     def parse_policy_config_file(self):
         policy_path = os.path.join(dir_name, "deploy_policy_config.json")

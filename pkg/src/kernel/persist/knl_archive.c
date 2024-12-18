@@ -1123,7 +1123,7 @@ status_t arch_dbstor_rename_tmp_file(const char *tmp_file_name, const char *arch
 
 void arch_set_force_archive_stat(arch_proc_context_t *proc_ctx, bool32 result)
 {
-    CT_LOG_RUN_INF("[ARCH] force archive failed, proc data type is %u", proc_ctx->data_type);
+    CT_LOG_RUN_INF_LIMIT(60, "[ARCH] force archive failed, proc data type is %u", proc_ctx->data_type);
     if (proc_ctx->data_type == ARCH_DATA_TYPE_DBSTOR_STANDBY) {
         proc_ctx->force_archive_failed = result;
         return;
@@ -1479,9 +1479,11 @@ static status_t arch_archive_tmp_file(knl_session_t *session, aligned_buf_t buf,
     status_t status = CT_SUCCESS;
     SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_ARCHIVE_READ_REDO_LOG_FAIL, &status, CT_ERROR);
     status = cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session), &arch_files.src_file);
+    CT_LOG_RUN_INF_LIMIT(60, "[ARCH_TEST] adr %p, name %s, type %u, mode %u",
+        logfile, logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session));
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[ARCH] failed to open log file %s", logfile->ctrl->name);
+        CT_LOG_RUN_ERR_LIMIT(60, "[ARCH] failed to open log file %s", logfile->ctrl->name);
         return CT_ERROR;
     }
 
@@ -1902,6 +1904,7 @@ bool32 arch_check_logfile(knl_session_t *session, arch_proc_context_t *proc_ctx,
 void arch_file_archive(knl_session_t *session, arch_proc_context_t *proc_ctx)
 {
     log_file_t *logfile = session->kernel->redo_ctx.files + proc_ctx->next_file_id;
+    CT_LOG_RUN_INF_LIMIT(60, "[ARCH_TEST] adr %p, id %u", logfile, proc_ctx->next_file_id);
     char arch_file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     if (arch_check_logfile(session, proc_ctx, logfile) == CT_TRUE) {
         return;
@@ -3283,7 +3286,7 @@ status_t arch_check_dest(arch_context_t *arch_ctx, char *dest, uint32 cur_pos)
 
     if ((attr->arch_attr[cur_pos].dest_mode == LOG_ARCH_DEST_LOCATION) &&
         !cm_exist_device_dir(arch_get_device_type(dest), dest)) {
-        if (cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NAS) {
+        if (cm_dbs_is_enable_dbs() && cm_dbs_get_deploy_mode() == DBSTOR_DEPLOY_MODE_NAS) {
             CT_THROW_ERROR(ERR_DIR_NOT_EXISTS, dest);
             return CT_ERROR;
         }

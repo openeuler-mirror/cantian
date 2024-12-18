@@ -1279,7 +1279,7 @@ status_t cms_disk_lock_get_inst_sd(cms_disk_lock_t* lock, uint64* inst_id)
         time_t lock_time = LOCKR_LOCK_TIME(dlock);
         time_t now_time = time(NULL);
         time_t diff_time = now_time - lock_time;
-        if (diff_time <= CMS_DISK_LOCK_TIMEOUT) {
+        if (diff_time <= CMS_DISK_LOCK_SD_RELEASE_TIME) {
 	        *inst_id = LOCKR_ORG_INST_ID(dlock);
         } else if (lock->active_func != NULL && lock->active_func(lock, LOCKR_ORG_INST_ID(dlock))) {
             *inst_id = LOCKR_ORG_INST_ID(dlock);

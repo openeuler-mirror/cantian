@@ -1,0 +1,13 @@
+{
+    "deploy_mode": "dss",
+    "deploy_user": "ctdba:ctdba",
+    "node_id": "0",
+    "cms_ip": "192.168.86.1;192.168.86.2",
+    "mysql_in_container": "1",
+    "db_type": "1",
+    "mes_ssl_switch": false,
+    "mysql_metadata_in_cantian": true,
+    "MAX_ARCH_FILES_SIZE": "300G",
+    "redo_num": "6",
+    "redo_size": "5G"
+  }

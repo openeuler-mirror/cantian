@@ -217,7 +217,8 @@ status_t db_alter_add_logfile(knl_session_t *session, knl_alterdb_def_t *def)
             cm_remove_device(logfile->ctrl->type, logfile->ctrl->name);
             return CT_ERROR;
         }
-
+        CT_LOG_RUN_INF_LIMIT(60, "[ARCH_TEST] adr %p, name %s, type %u, mode %u", logfile, logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session));
+        
         if (lsnd_open_specified_logfile(session, slot) != CT_SUCCESS) {
             cm_close_device(logfile->ctrl->type, &logfile->handle);
             cm_remove_device(logfile->ctrl->type, logfile->ctrl->name);

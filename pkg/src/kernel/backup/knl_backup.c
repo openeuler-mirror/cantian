@@ -3345,7 +3345,7 @@ status_t bak_fsync_and_close(bak_t *bak, device_type_t type, int32 *handle)
     if (*handle == CT_INVALID_HANDLE) {
         return CT_SUCCESS;
     }
-    if (cm_fsync_file(*handle) != CT_SUCCESS) {
+    if (cm_fsync_device(type, *handle) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[BACKUP] failed to fsync datafile %s, handle %d", bak->local.name, *handle);
         cm_close_device(type, handle);
         bak->failed = CT_TRUE;

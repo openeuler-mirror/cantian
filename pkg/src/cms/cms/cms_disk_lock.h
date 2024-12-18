@@ -94,8 +94,9 @@ typedef union u_cms_master_info_t {
 #define CMS_DLOCK_THREAD   0x1
 #define CMS_DLOCK_PROCESS  0x2
 
-#define CMS_STAT_LOCK_MAGIC         (*((uint64*)"CMS_LOCK"))
-#define CMS_DISK_LOCK_TIMEOUT       10
+#define CMS_STAT_LOCK_MAGIC   (*((uint64*)"CMS_LOCK"))
+#define CMS_DISK_LOCK_TIMEOUT 10
+#define CMS_DISK_LOCK_SD_RELEASE_TIME 4
 #define CMS_EXIT_NUM 128
 #define CMS_EXIT_COUNT_MAX 20
 

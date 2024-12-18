@@ -61,6 +61,8 @@ CANTIAND_WITH_MYSQL_ST = "cantiand_with_mysql_st"  # single process mode with my
 CANTIAND_IN_CLUSTER = "cantiand_in_cluster"
 CANTIAND_WITH_MYSQL_IN_CLUSTER = "cantiand_with_mysql_in_cluster"
 MYSQLD = "mysqld"
+USE_DBSTOR = ["combined", "dbstor"]
+USE_LUN = ["dss"]
 
 INSTALL_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "installdb.sh")
 
@@ -301,19 +303,22 @@ def load_config_param(json_data):
     global DEPLOY_MODE
     DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
     g_opts.db_type = json_data.get('db_type', '').strip()
-    g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs").strip()
-    g_opts.storage_share_fs = json_data['storage_share_fs'].strip()
+    g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs", "").strip()
+    g_opts.storage_share_fs = json_data.get('storage_share_fs', "").strip()
     g_opts.namespace = json_data.get('cluster_name', 'test1').strip()
-    g_opts.share_logic_ip = json_data.get('share_logic_ip', '').strip() if DEPLOY_MODE == "file" else None
-    g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '').strip()
+    g_opts.share_logic_ip = json_data.get('share_logic_ip', '127.0.0.1').strip() if DEPLOY_MODE == "file" else None
+    g_opts.archive_logic_ip = json_data.get('archive_logic_ip', '127.0.0.1').strip()
     g_opts.mes_type = json_data.get("mes_type", "UC").strip()
     if DEPLOY_MODE == "file":
         g_opts.mes_type = "TCP"
     g_opts.mes_ssl_switch = json_data.get("mes_ssl_switch", False)
-    storage_archive_fs = json_data['storage_archive_fs'].strip()
-    g_opts.use_dbstor = DEPLOY_MODE != "file"
+    storage_archive_fs = json_data.get('storage_archive_fs', "").strip()
+    g_opts.use_dbstor = DEPLOY_MODE in USE_DBSTOR
+    g_opts.use_gss = DEPLOY_MODE in USE_LUN
     g_opts.archive_location = f"""location=/{f'mnt/dbdata/remote/archive_{storage_archive_fs}' 
         if DEPLOY_MODE != 'dbstor' else f'{storage_archive_fs}/archive'}"""
+    if DEPLOY_MODE in USE_LUN:
+        g_opts.archive_location = "location=+vg3/archive"
     g_opts.dbstor_deploy_mode = DEPLOY_MODE == "dbstor"
     metadata_str = "metadata_" + json_data.get('storage_metadata_fs', '').strip()
     node_str = "node" + str(g_opts.node_id)
@@ -525,7 +530,7 @@ def cantian_check_share_logic_ip_isvalid(ipname, nodeip):
             return False
         return True
 
-    if DEPLOY_MODE == "dbstor":
+    if DEPLOY_MODE in ["dbstor", "dss"]:
         return True
     if DEPLOY_MODE == "combined" and ipname != "archive":
         return True
@@ -1067,6 +1072,11 @@ class Installer:
             self.cantiand_configs["SHARED_PATH"] = "-"
             self.cantiand_configs["ENABLE_DBSTOR"] = "TRUE"
             self.cantiand_configs["DBSTOR_NAMESPACE"] = g_opts.namespace
+        elif g_opts.use_gss:
+            self.cantiand_configs["CONTROL_FILES"] = "(+vg1/ctrl1, +vg1/ctrl2, +vg1/ctrl3)"
+            self.cantiand_configs["ENABLE_DBSTOR"] = "FALSE"
+            self.cantiand_configs["ENABLE_DSS"] = "TRUE"
+            self.cantiand_configs["SHARED_PATH"] = "+vg1"
         else:
             self.cantiand_configs["ENABLE_DBSTOR"] = "FALSE"
             self.cantiand_configs["SHARED_PATH"] = \
@@ -1473,7 +1483,7 @@ class Installer:
             if platform.machine() == 'aarch64' and numa_num == 0:
                 numa_id_str = _ans[1].strip().split('-')
                 last_numa_id = numa_id_str[-1]
-                if int(last_numa_id) >= 16:
+                if int(last_numa_id) >= 16 and g_opts.use_dbstor:
                     numa_str = "0-1,6-11,16-" + str(last_numa_id)
             numa_info += numa_str + " "
             numa_num += 1
@@ -2090,6 +2100,8 @@ class Installer:
 
         if not g_opts.use_dbstor:
             common_parameters["FILE_OPTIONS"] = "FULLDIRECTIO"
+        # if g_opts.use_gss:
+        #     common_parameters["FILE_OPTIONS"] = "ASYNCH"
 
         # 1.clean old conf
         self.clean_old_conf(list(common_parameters.keys()), conf_file)
@@ -2717,6 +2729,9 @@ class Installer:
                 self.cantiand_configs["SHARED_PATH"] = json_data.get('SHARED_PATH', '')
                 self.cantiand_configs["CONTROL_FILES"] = json_data.get('CONTROL_FILES', '').strip()
                 self.cantiand_configs["DBSTOR_NAMESPACE"] = json_data.get('DBSTOR_NAMESPACE', '').strip()
+            elif g_opts.use_gss:
+                self.cantiand_configs["CONTROL_FILES"] = "(+vg1/ctrl1, +vg1/ctrl2, +vg1/ctrl3)"
+                self.cantiand_configs["SHARED_PATH"] = "+vg1"
             else:
                 self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
                     g_opts.storage_dbstore_fs)
@@ -2874,11 +2889,7 @@ class Installer:
         if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER]:
             file_name = "create_cluster_database.sample.sql"
         create_database_sql = os.path.join(sql_file_path, file_name)
-        if g_opts.use_gss:
-            self._sed_file("dbfiles1", "+vg1", create_database_sql)
-            self._sed_file("dbfiles2", "+vg2", create_database_sql)
-            self._sed_file("dbfiles3", "+vg3", create_database_sql)
-        elif g_opts.use_dbstor:
+        if g_opts.use_dbstor:
             file_name = "create_dbstor_database.sample.sql"
             if g_opts.running_mode in [CANTIAND_IN_CLUSTER, CANTIAND_WITH_MYSQL_IN_CLUSTER]:
                 file_name = "create_dbstor_cluster_database.sample.sql"
@@ -2906,9 +2917,14 @@ class Installer:
 
             db_data_path = os.path.join(self.data, "data").replace('/', '\/')
             self.set_sql_redo_size_and_num(db_data_path, create_database_sql)
-            self._sed_file("dbfiles1", db_data_path, create_database_sql)
-            self._sed_file("dbfiles2", db_data_path, create_database_sql)
-            self._sed_file("dbfiles3", db_data_path, create_database_sql)
+            if g_opts.use_gss:
+                self._sed_file("dbfiles1", "+vg1", create_database_sql)
+                self._sed_file("dbfiles2", "+vg2", create_database_sql)
+                self._sed_file("dbfiles3", "+vg2", create_database_sql)
+            else:
+                self._sed_file("dbfiles1", db_data_path, create_database_sql)
+                self._sed_file("dbfiles2", db_data_path, create_database_sql)
+                self._sed_file("dbfiles3", db_data_path, create_database_sql)
 
         return create_database_sql
 
@@ -3374,7 +3390,8 @@ def check_archive_dir():
         start_parameters = json.load(load_fp)
     if start_parameters.setdefault('db_create_status', "default") == "done":
         return
-
+    if DEPLOY_MODE == "dss":
+        return
     if DEPLOY_MODE != "dbstor":
         cantian_check_share_logic_ip_isvalid("archive", g_opts.archive_logic_ip)
         archive_dir = g_opts.archive_location.split("=")[1]

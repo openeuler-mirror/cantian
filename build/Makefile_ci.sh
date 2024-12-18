@@ -292,6 +292,7 @@ func_pkg_run_basic()
     cp ${CANTIANDB_INSTALL}/Common.py  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/bin/
     cp -d ${CANTIANDB_LIB}/libzeclient.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzecommon.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
+    cp -d ${CANTIANDB_LIB}/libdsslock.so ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzeprotocol.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libcantian.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libmessage_queue.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
@@ -598,7 +599,7 @@ func_pkg_ctsql()
     cp -d ${CANTIANDB_LIB}/libzeclient.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzecommon.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libzeprotocol.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
-
+    cp -d ${CANTIANDB_LIB}/libdsslock.so ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/lib/
     cp -d ${Z_LIB_PATH}/libz.so* ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/add-ons/
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so* ${CANTIANDB_BIN}/${CTSQL_PACK_DIR_NAME}/add-ons/
 

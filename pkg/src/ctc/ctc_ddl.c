@@ -1116,13 +1116,8 @@ static status_t ctc_generate_tablespace_path(const char *db_tablespace_name, cha
 {
     int ret;
     char path_prefix[CT_FILE_NAME_BUFFER_SIZE];
-    if (cm_dbs_is_enable_dbs() == CT_TRUE) {
-        PRTS_RETURN_IFERR(snprintf_s(path_prefix, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
-                                     "%s", srv_get_param("SHARED_PATH")));
-    } else {
-        PRTS_RETURN_IFERR(snprintf_s(path_prefix, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
-                                     "%s/data/", g_instance->home));
-    }
+    PRTS_RETURN_IFERR(snprintf_s(path_prefix, CT_FILE_NAME_BUFFER_SIZE, CT_FILE_NAME_BUFFER_SIZE - 1,
+                                 "%s", srv_get_param("SHARED_PATH")));
     CT_LOG_RUN_INF("[CTC_CREATE_TS] mysql path: %s", path_prefix);
     int path_prefix_len = path_prefix == NULL ? 0 : strlen(path_prefix);
     if ((path_prefix_len + strlen(db_tablespace_name)) > path_max_len) {

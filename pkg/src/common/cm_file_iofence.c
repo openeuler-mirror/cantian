@@ -71,7 +71,7 @@ void iof_file_watcher(thread_t *thread)
 }
 
 status_t cm_file_iof_register(uint32 inst_id, thread_t *file_iof_thd)
-{
+{    
     if (strlen(g_file_cfg.file_path) == 0) {
         CT_LOG_RUN_WAR("Iof file path is empty, no need iofence.");
         return CT_SUCCESS;
