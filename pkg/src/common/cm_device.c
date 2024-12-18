@@ -1047,10 +1047,10 @@ status_t cm_malloc_file_list(device_type_t type, void **file_list, const char *f
     return CT_SUCCESS;
 }
 
-status_t cm_malloc_file_list_by_version_id(file_info_version_t version, void **file_list, const char *file_path, uint32 *file_num)
+status_t cm_malloc_file_list_by_version_id(file_info_version_t version, uint32 vstore_id, void **file_list, const char *file_path, uint32 *file_num)
 {   
 
-    if (cm_dbs_query_file_num(file_path, file_num) != CT_SUCCESS) {
+    if (cm_dbs_query_file_num_by_vstore_id(file_path, file_num, vstore_id) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("dbstor query file num failed, file_path %s", file_path);
         return CT_ERROR;
     }
