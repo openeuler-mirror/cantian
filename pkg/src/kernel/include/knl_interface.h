@@ -45,7 +45,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
+
 // log replication mode
 typedef enum en_lrep_mode {
     LOG_REPLICATION_OFF = 0,  // logic replication off
