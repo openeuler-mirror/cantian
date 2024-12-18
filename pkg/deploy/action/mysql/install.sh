@@ -21,7 +21,7 @@ backup_dir=$1
 
 function install_ctc() {
     # 回归场景不需要拷贝ctc
-    if [[ -f "${backup_dir}" ]];then
+    if [[ -d "${backup_dir}" ]];then
         back_version=`cat ${backup_dir}/versions.yml | grep 'Version:' | awk -F ":" '{print $2}' | sed -r 's/[a-z]*[A-Z]*0*([0-9])/\1/' | sed 's/ //g'`
         if [[ "${back_version}" < "24.12.B032" ]];then
             if [[ -L ${CANTIAN_HACTC_DIR}/server/lib/ha_ctc.so ]];then
