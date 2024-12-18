@@ -752,7 +752,12 @@ status_t parse_params_list(int32 argc, char *argv[], params_list_t *params_list)
             return CT_ERROR;
         }
         if (strcmp(params_list->check_list[k].key, DBS_TOOL_PARAM_VSTORE_ID) == 0) {
-            if (strcmp(params_list->check_list[k].value, MAX_VALUE_UINT32) > 0) {
+            if (strlen(params_list->check_list[k].value) > strlen(MAX_VALUE_UINT32)) {
+                printf("Invalid vstore_id %s.\n", params_list->check_list[k].value);
+                return CT_ERROR;
+            }
+            if ((strlen(params_list->check_list[k].value) == strlen(MAX_VALUE_UINT32)) &&
+                (strcmp(params_list->check_list[k].value, MAX_VALUE_UINT32) > 0)) {
                 printf("Invalid vstore_id %s.\n", params_list->check_list[k].value);
                 return CT_ERROR;
             }
@@ -1091,7 +1096,8 @@ int32 dbs_ulog_clean(int32 argc, char *argv[])
     if (dbs_global_handle()->dbs_file_get_list_detail != NULL) {
         info_version = DBS_FILE_INFO_VERSION_2;
     }
-    if (cm_malloc_file_list_by_version_id(info_version, &file_list, src_info.path, &file_num) != CT_SUCCESS) {
+    if (cm_malloc_file_list_by_version_id(info_version, vstore_id_uint,
+                                          &file_list, src_info.path, &file_num) != CT_SUCCESS) {
         printf("Failed to allocate memory for file list.\n");
         return CT_ERROR;
     }
@@ -1483,7 +1489,8 @@ int32 dbs_query_file(int32 argc, char *argv[])
     if (dbs_global_handle()->dbs_file_get_list_detail != NULL) {
         info_version = DBS_FILE_INFO_VERSION_2;
     }
-    if (cm_malloc_file_list_by_version_id(info_version, &file_list, query_info.path, &file_num) != CT_SUCCESS) {
+    if (cm_malloc_file_list_by_version_id(info_version, vstore_id_uint,
+                                          &file_list, query_info.path, &file_num) != CT_SUCCESS) {
         printf("Failed to allocate memory for file list.\n");
         return CT_ERROR;
     }

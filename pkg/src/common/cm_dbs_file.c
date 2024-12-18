@@ -805,6 +805,56 @@ status_t cm_dbs_query_file_num(const char *name, uint32 *file_num)
     return CT_SUCCESS;
 }
 
+status_t cm_dbs_query_file_num_by_vstore_id(const char *name, uint32 *file_num, uint32 vstore_id)
+{
+    CT_LOG_RUN_INF("[CM_DEVICE] begin to get file num, file dir %s", name);
+    char file_dir[MAX_DBS_FILE_PATH_LEN] = { 0 };
+    MEMS_RETURN_IFERR(strcpy_sp(file_dir, MAX_DBS_FILE_PATH_LEN, name));
+    cm_remove_extra_delim(file_dir, '/');
+    if (cm_check_file_path(file_dir) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+
+    int path_depth = 0;
+    if (cm_get_file_path_depth(file_dir, "/", &path_depth) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] get dbs file dir %s depth failed", file_dir);
+        return CT_ERROR;
+    }
+
+    object_id_t dir_obj_id = { 0 };
+    char fs_name[MAX_DBS_FS_NAME_LEN] = { 0 };
+    if (cm_get_fs_name(file_dir, "/", fs_name) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("[CM_DEVICE] begin to open root, file dir %s, fs_name %s", file_dir, fs_name);
+    object_id_t root_obj_id = { 0 };
+    int32 ret = dbs_global_handle()->dbs_file_open_root_by_vstorid(fs_name, vstore_id, &root_obj_id);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, by vstore id %u, ret %d, fs name %s", vstore_id, ret, fs_name);
+        return CT_ERROR;
+    }
+
+    if (path_depth == 1) {
+        dir_obj_id = root_obj_id;
+    } else {
+        char *fix_file_path = cm_find_fix_delim(file_dir, '/', 2);
+        ret = dbs_global_handle()->dbs_file_open_by_path(&root_obj_id, fix_file_path + 1, DIR_TYPE, &dir_obj_id);
+        if (ret != 0) {
+            CT_LOG_RUN_ERR("[CM_DEVICE] open file dir failed, ret %d, file dir %s", ret, file_dir);
+            return CT_ERROR;
+        }
+    }
+
+    ret = dbs_global_handle()->dbs_file_get_num(&dir_obj_id, file_num);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] Failed to get file num, ret %d, file dir %s", ret, file_dir);
+        return CT_ERROR;
+    }
+
+    CT_LOG_RUN_INF("[CM_DEVICE] Success to get file_num %u, file dir %s", *file_num, file_dir);
+    return CT_SUCCESS;
+}
+
 status_t cm_dbs_query_dir(const char *name, void *file_list, uint32 *file_num)
 {
     CT_LOG_RUN_INF("[CM_DEVICE] begin to get file list, file dir %s", name);
