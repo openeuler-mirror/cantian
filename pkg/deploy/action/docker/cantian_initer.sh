@@ -368,6 +368,32 @@ function start_mysqld() {
     logAndEchoInfo "start mysqld success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 }
 
+function execute_cantian_numa() {
+    # 添加cantian-numa命令，实现容器绑核
+    ln -sf /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py /usr/local/bin/cantian-numa
+    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
+    local pod_file_path=$(python3 /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py)
+    # /usr/local/bin/cantian-numa
+    if [ $? -ne 0 ]; then
+        logAndEchoError "Error occurred in cantian-numa execution."
+        exit_with_log
+    fi
+
+    if [ ! -f "$pod_file_path" ]; then
+        touch "$pod_file_path"
+        if [ $? -ne 0 ]; then
+            logAndEchoError "Failed to create file $pod_file_path."
+        fi
+    fi
+
+    exec 200>"$pod_file_path"
+    flock -n 200 || {
+        logAndEchoError "Could not acquire lock on $pod_file_path."
+    }
+
+    python3 ${CURRENT_PATH}/../cantian/bind_cpu_config.py
+}
+
 function init_start() {
     # Cantian启动前参数预检查
     logAndEchoInfo "Begin to pre-check the parameters."
@@ -395,6 +421,9 @@ function init_start() {
     # 更新 MySQL 配置文件,存在则更新
     python3 "${CURRENT_PATH}"/update_config.py "mem_spec"
     python3 "${CURRENT_PATH}"/update_config.py  "mysql_config"
+
+    # 执行容器绑核操作
+    execute_cantian_numa
 
     # Cantian启动前先执行升级流程
     sh ${CURRENT_PATH}/container_upgrade.sh
@@ -469,21 +498,6 @@ function exit_with_log() {
     tail -f /dev/null
 }
 
-function execute_cantian_numa() {
-    # 添加cantian-numa命令，实现容器绑核
-    ln -sf /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py /usr/local/bin/cantian-numa
-    chmod +x /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
-
-    python3 /ctdb/cantian_install/cantian_connector/action/docker/cantian_numa.py
-    # /usr/local/bin/cantian-numa
-    if [ $? -ne 0 ]; then
-        logAndEchoError "Error occurred in cantian-numa execution."
-        exit_with_log
-    fi
-
-    python3 ${CURRENT_PATH}/../cantian/bind_cpu_config.py
-}
-
 function process_logs() {
   logAndEchoInfo "Cantian container initialization completed successfully. [Line:${LINENO}, File:${SCRIPT_NAME}]"
   # 启动日志处理脚本
@@ -504,7 +518,6 @@ function main() {
     check_container_context
     prepare_kmc_conf
     prepare_certificate
-    execute_cantian_numa
     mount_fs
     init_start
     process_logs

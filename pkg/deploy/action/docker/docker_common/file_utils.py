@@ -40,6 +40,19 @@ class LockFile:
         """释放文件锁"""
         fcntl.flock(handle, fcntl.LOCK_UN)
 
+    @staticmethod
+    def is_locked(file_path):
+        try:
+            with open(file_path, 'a') as f:
+                try:
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                    return False
+                except IOError:
+                    return True
+        except Exception as e:
+            raise Exception(f"Error checking lock status of {file_path}: {str(e)}") from e
+
 
 def open_and_lock_json(filepath, timeout=20):
     """加载或初始化 JSON 文件，并使用文件锁保护文件操作，结合超时机制。"""

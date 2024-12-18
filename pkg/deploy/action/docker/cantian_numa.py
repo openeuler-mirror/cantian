@@ -10,13 +10,12 @@ sys.path.append('/ctdb/cantian_install/cantian_connector/action')
 from logic.common_func import exec_popen
 from delete_unready_pod import KubernetesService, get_pod_name_from_info
 from om_log import LOGGER as LOG
-from docker_common.file_utils import open_and_lock_json, write_and_unlock_json
+from docker_common.file_utils import open_and_lock_json, write_and_unlock_json, LockFile
 
 NUMA_INFO_PATH = "/root/.kube/NUMA-INFO/numa-pod.json"
 TIME_OUT = 100
 MAX_CHECK_TIME = 120  # 最大检查时间
 CHECK_INTERVAL = 3   # 每次检查的间隔
-MAX_RETRIES = 3     # 无效绑核信息删除，需查询的次数
 
 
 class CPUAllocator:
@@ -186,41 +185,32 @@ class CPUAllocator:
 
     def clean_up_json(self, numa_data, pod_info, hostname_pattern):
         """
-        清理不存在的 Pod 绑定信息，并将绑定的 CPU 恢复到 numa_info 中，连续查询n次无效信息都一致才删除
+        清理不存在的 Pod 绑定信息，并将绑定的 CPU 恢复到 numa_info 中。
         """
         matching_pods = [pod['pod_name'] for pod in pod_info if re.match(hostname_pattern, pod['pod_name'])]
 
         keys_to_delete = [key for key in numa_data.keys() if key not in matching_pods and key != self.numa_info_key]
 
-        retry_count = 0
-        previous_keys_to_delete = []
+        for key in keys_to_delete:
+            pod_file_path = os.path.join(os.path.dirname(NUMA_INFO_PATH), key)
 
-        while retry_count < MAX_RETRIES:
-            if keys_to_delete == previous_keys_to_delete:
-                retry_count += 1
-            else:
-                retry_count = 0
+            bind_cpus = numa_data[key].get("bind_cpus", "")
 
-            if not keys_to_delete:
-                break
+            if bind_cpus and bind_cpus != "None":
+                self.restore_cpus_to_numa_info(numa_data, bind_cpus)
 
-            previous_keys_to_delete = keys_to_delete
-
-            time.sleep(2)
-
-            all_pod_info = k8s_service.get_all_pod_info()
-            matching_pods = [pod['pod_name'] for pod in all_pod_info if re.match(hostname_pattern, pod['pod_name'])]
-            keys_to_delete = [key for key in numa_data.keys() if key not in matching_pods and key != self.numa_info_key]
-
-        if retry_count == MAX_RETRIES and keys_to_delete:
-            for key in keys_to_delete:
-                bind_cpus = numa_data[key].get("bind_cpus", "")
-
-                if bind_cpus and bind_cpus != "None":
-                    self.restore_cpus_to_numa_info(numa_data, bind_cpus)
-
-                LOG.info(f"Removing outdated entry from JSON: {key}")
+            if not os.path.exists(pod_file_path):
+                LOG.info(f"File {pod_file_path} does not exist. Removing entry from JSON: {key}")
                 del numa_data[key]
+            elif LockFile.is_locked(pod_file_path):
+                LOG.info(f"Skipping removal of {key} because file {pod_file_path} is currently locked.")
+            else:
+                LOG.info(f"Removing outdated entry from JSON and deleting file: {key}")
+                del numa_data[key]
+                try:
+                    os.remove(pod_file_path)
+                except Exception as e:
+                    LOG.error(f"Failed to delete file {pod_file_path}: {e}")
 
     @staticmethod
     def restore_cpus_to_numa_info(numa_data, bind_cpus):
@@ -300,6 +290,13 @@ class CPUAllocator:
                 bind_cpus = numa_data[key].get("bind_cpus")
                 if bind_cpus and bind_cpus != "None":
                     self.restore_cpus_to_numa_info(numa_data, bind_cpus)
+
+                pod_file_path = os.path.join(os.path.dirname(NUMA_INFO_PATH), key)
+                if os.path.exists(pod_file_path):
+                    try:
+                        os.remove(pod_file_path)
+                    except Exception as e:
+                        LOG.error(f"Failed to delete file {pod_file_path}: {e}")
 
                 # 删除绑核信息
                 del numa_data[key]
@@ -389,6 +386,13 @@ def show_numa_binding_info(numa_info_path):
 
 
 def main():
+    cpu_allocator = CPUAllocator()
+    cpu_num = cpu_allocator.get_cpu_num()
+    short_hostname = cpu_allocator.get_hostname()
+
+    kube_config_path = os.path.expanduser("~/.kube/config")
+    k8s_service = KubernetesService(kube_config_path)
+
     try:
         all_pod_info = k8s_service.get_all_pod_info()
         if not all_pod_info:
@@ -422,6 +426,7 @@ def main():
                     cpu_allocator.clean_up_json(numa_data, all_pod_info, hostname_pattern)
 
                     cpu_allocator.execute_binding(cpu_num, pod_name_full, numa_data, cpu_info)
+                    pod_file_path = os.path.join(os.path.dirname(NUMA_INFO_PATH), pod_name_full)
                     break
             except Exception as e:
                 err_msg = f"Error during CPU binding: {e}"
@@ -441,16 +446,12 @@ def main():
 
     LOG.info("NUMA information updated successfully.")
 
+    return pod_file_path
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "show":
         show_numa_binding_info(NUMA_INFO_PATH)
     else:
-        cpu_allocator = CPUAllocator()
-        cpu_num = cpu_allocator.get_cpu_num()
-        short_hostname = cpu_allocator.get_hostname()
-
-        kube_config_path = os.path.expanduser("~/.kube/config")
-        k8s_service = KubernetesService(kube_config_path)
-
-        main()
+        pod_file_path = main()
+        print(pod_file_path)
