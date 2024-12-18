@@ -35,6 +35,7 @@ wait_for_success() {
 		sleep 1
 		i=$((i + 1))
 		if [ $i -eq ${attempts} ]; then
+			log "cmd $2 timeout. current process[${cms_srv_pid}] EXIT."
 			exit 1
 		fi
 	done
@@ -42,21 +43,13 @@ wait_for_success() {
 	echo ${success_cmd}
 }
 
-wait_for_node_in_cluster() {
-	is_node_joined_cluster() {
-	if [ "${NODE_ID}" -eq "0" ]; then
-		cms node -list | grep -q node0
-	elif [ "${NODE_ID}" -eq "1" ]; then
-		cms node -list | grep -q node1
-	fi
-	}
-	wait_for_success 60 is_node_joined_cluster
-}
-
 wait_for_cms_start() {
 	wait_for_cms_srv_ready() {
-		current_pid=$(pgrep -f "cms server -start" | head -n 1)
-		if [ -n "${current_pid}" ] && [ "${current_pid}" -eq "${cms_srv_pid}" ]; then
+		current_pid=$(ps -ef | grep "cms server -start" | grep -v grep | awk '{print $2}' | head -n 1)
+		if [ -z "${current_pid}" ]; then
+			return 1
+		fi
+		if [ "${current_pid}" -eq "${cms_srv_pid}" ]; then
 			cms stat -server ${NODE_ID}| grep -q "TRUE"
 		else
 			log "another cms[${current_pid}] is running. current process[${cms_srv_pid}] EXIT."
