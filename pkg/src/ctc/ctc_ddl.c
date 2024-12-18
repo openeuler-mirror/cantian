@@ -4351,11 +4351,6 @@ EXTER_ATTACK int ctc_search_metadata_status(bool *cantian_metadata_switch, bool 
     *cantian_metadata_switch = (ct_metadata_switch == CT_TRUE);
     CT_LOG_RUN_INF("[CTC_SEARCH_METADATA_STATUS]: cantian_metadata_switch: %d.", ct_metadata_switch);
     
-    if (g_is_single_run_mode) {
-        *cantian_cluster_ready = true;
-        return CT_SUCCESS;
-    }
-    
     bool32 ct_cluster_ready = CT_FALSE;
     for (int i = 0; i < META_SEARCH_TIMES; i++) {
         CT_RETURN_IFERR(knl_is_cantian_cluster_ready(&ct_cluster_ready));

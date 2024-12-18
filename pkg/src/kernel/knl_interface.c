@@ -89,6 +89,8 @@
 extern "C" {
 #endif
 
+extern bool32 g_is_single_run_mode;
+
 const text_t g_system = { (char *)"SYSTEM", 6 };
 const text_t g_temp = { (char *)"TEMP2", 5 };  // temp changes for new space type
 const text_t g_swap = { (char *)"TEMP", 4 };
@@ -15632,7 +15634,13 @@ status_t knl_is_cantian_cluster_ready(bool32 *is_ready)
         CT_LOG_RUN_ERR("knl_is_cantian_cluster_ready get res stat list failed");
         return CT_ERROR;
     }
+    
     *is_ready = CT_TRUE;
+    if (g_is_single_run_mode) {
+        /* In single-process mode, no need to check status of remote nodes */
+        return CT_SUCCESS;
+    }
+
     bool32 cluster_strict_check = CT_TRUE;
     CT_RETURN_IFERR(srv_get_param_bool32("CT_CLUSTER_STRICT_CHECK", &cluster_strict_check));
     if (cluster_strict_check) {
