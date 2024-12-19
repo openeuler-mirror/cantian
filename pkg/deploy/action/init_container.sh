@@ -113,7 +113,7 @@ function init_module() {
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh init_container >> ${OM_DEPLOY_LOG_FILE} 2>&1
         if [ $? -ne 0 ]; then
             logAndEchoError "init ${lib_name} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "For details, see the /opt/cantian/${lib_name}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${lib_name}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
         logAndEchoInfo "init ${lib_name} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
