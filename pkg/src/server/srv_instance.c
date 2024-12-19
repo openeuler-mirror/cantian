@@ -62,6 +62,7 @@
 #include "dtc_database.h"
 #include "srv_mq.h"
 #include "ctc_ddl_broadcast.h"
+#include "ctc_mysql_proxy.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -2003,6 +2004,13 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
 #endif
 
     srv_set_kernel_callback();
+#ifdef WITH_CANTIAN
+    if (init_mysql_lib() != CT_SUCCESS) {
+        CM_FREE_PTR(g_instance);
+        CT_LOG_RUN_ERR("Failed to initialize mysql lib");
+        return CT_ERROR;
+    }
+#endif
     srv_reg_os_rinfo();
     srv_regist_dynamic_views();
 
