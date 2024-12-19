@@ -101,7 +101,7 @@ class LogsHandler:
                              and not file_name.endswith("swp") and not file_name.endswith("swo") \
                              and len(file_name) > len(log_name)
                 if conditions:
-                    # 判断当前是否新新产生的归档日志，有就退出循环进行打包操作
+                    # 判断当前是否有新产生的归档日志，有就退出循环进行打包操作
                     break
             else:
                 continue
