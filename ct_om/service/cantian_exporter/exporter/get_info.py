@@ -345,7 +345,7 @@ class GetNodesInfo:
         return output, err_state
 
     def get_info_from_file(self, res):
-        """公共方法，用于处理从文件读取的上报质保
+        """公共方法，用于处理从文件读取的上报指标
 
         Args:
             res: 上层函数传递进来的字典类型数据，用于记录当前函数获取的上报指标
