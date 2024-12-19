@@ -69,7 +69,7 @@ static status_t mysql_load_symbol(void *lib_handle, char *symbol, void **sym_lib
 int init_mysql_lib(void)
 {
     mysql_interface *intf = &g_mysql_intf;
-    CT_LOG_RUN_INF("Current user: %s\n", getenv("USER"));
+    CT_LOG_DEBUG_INF("Current user: %s\n", getenv("USER"));
     intf->ctc_handle = dlopen("ha_ctc.so", RTLD_LAZY);
     const char *dlopen_err = NULL;
     dlopen_err = dlerror();
