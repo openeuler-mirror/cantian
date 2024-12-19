@@ -211,12 +211,18 @@ function update_remote_status_file_path_by_dbstor() {
     chown -hR "${cantian_user}":"${cantian_group}" ${METADATA_FS_PATH}/upgrade
     if [[ -d ${cluster_or_node_status_file_path} ]];then
       relative_path=$(realpath --relative-to="${METADATA_FS_PATH}"/upgrade "${dir_path}")
+      if [[ "${relative_path}" == "." ]];then
+          relative_path=""
+      fi
       chmod 755 "${METADATA_FS_PATH}"/upgrade/"${relative_path}"
       copy_file_to_filesystem ${dbs_vs} ${storage_share_fs} "${METADATA_FS_PATH}/upgrade/${relative_path}" "/upgrade/${relative_path}"
     else
       file_name=$(basename ${cluster_or_node_status_file_path})
       dir_path=$(dirname "${cluster_or_node_status_file_path}")
       relative_path=$(realpath --relative-to="${METADATA_FS_PATH}"/upgrade "${dir_path}")
+      if [[ "${relative_path}" == "." ]];then
+          relative_path=""
+      fi
       if [[ -d "${METADATA_FS_PATH}"/upgrade/"${relative_path}" ]];then
           chmod 755 "${METADATA_FS_PATH}"/upgrade/"${relative_path}"
       fi
