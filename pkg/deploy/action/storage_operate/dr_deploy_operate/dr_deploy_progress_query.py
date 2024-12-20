@@ -195,7 +195,7 @@ class DrStatusCheck(object):
                 if os.path.exists(f"/mnt/dbdata/remote/metadata_{storage_fs}/dr_deploy_param.json"):
                     return "Normal"
                 return "Abnormal"
-            code, count, err = exec_popen(cmd)
+            code, count, err = exec_popen(cmd, timeout=180)
             if code:
                 return "Unknown"
             if count == "1":
