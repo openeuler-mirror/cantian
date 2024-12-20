@@ -529,7 +529,7 @@ class GetNodesInfo:
         return res
 
     def get_cms_info(self, res):
-        """公共方法，用于处理执行cms相关命令读取的上报质保
+        """公共方法，用于处理执行cms相关命令读取的上报指标
 
         Args:
             res: 上层函数传递进来的字典类型数据，用于记录当前函数获取的上报指标
