@@ -368,7 +368,7 @@ class GetNodesInfo:
             res.update(self.cantiand_report_handler(cantian_report_data))
 
     def get_info_from_sql(self, res):
-        """公共方法，用于处理从ctsql读取的上报质保
+        """公共方法，用于处理从ctsql读取的上报指标
 
         Args:
             res: 上层函数传递进来的字典类型数据，用于记录当前函数获取的上报指标
