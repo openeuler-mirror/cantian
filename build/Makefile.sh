@@ -3,6 +3,8 @@
 # This script is used for compiling code via CMake and making packages
 
 set -e
+
+CURRENT_PATH=$(dirname $(readlink -f $0))
 PS4=':${LINENO}+'
 declare VERSION_DESCRIP=""
 declare VERSION_MYSQLIP=""
@@ -20,6 +22,7 @@ declare JDRIVER_PACK_DIR_NAME=""
 declare WITHOUT_DEPS=""
 export BUILD_MODE=""
 export PYTHON_INCLUDE_DIR=""
+export LOGICREP_PERSONAL_PKG_DIR=""
 export WORKSPACE=$(dirname $(dirname $(pwd)))
 DFT_WORKSPACE="/home/regress"
 
@@ -28,6 +31,7 @@ source ./function.sh
 
 CONFIG_IN_FILE=${CANTIANDB_BUILD}/include/config.h
 
+CTDB_CODE_PATH="${CURRENT_PATH}"/..
 CMAKE_C_COMPILER=$(which gcc)
 CMAKE_CXX_COMPILER=$(which g++)
 PYTHON3_HOME=${PYTHON3_HOME}
@@ -38,10 +42,9 @@ func_prepare_git_msg
 PROJECT_VERSION=$(cat ${CONFIG_IN_FILE} | grep 'PROJECT_VERSION' | awk '{print $3}')
 CANTIAND_BIN=cantiand-${PROJECT_VERSION}
 JDBC_DIR=${CANTIANDB_HOME}/src/jdbc/cantian-jdbc/build/Cantian_PKG
+LOGICREP_PERSONAL_PKG_DIR=${CANTIANDB_HOME}/src/logicrep
 LOGICREP_DIR=${CANTIANDB_HOME}/src/zlogicrep/build/Cantian_PKG
 LOGICREP_FILE_DIR=${CANTIANDB_HOME}/src/zlogicrep/build/Cantian_PKG/file
-JAR_NAME=com.huawei.gauss.jdbc.ZenithDriver-*.jar
-JAR_ETCD=com.huawei.gauss.jdbc.etcd-*.jar
 LOGICREP_GZ_NAME=com.huawei.cantian.logicrep.tar.gz
 GODRIVER_NAME=go-cantian-driver
 ZEBRATOOL_DIR=${CANTIANDB_HOME}/src/zebratool
@@ -56,13 +59,20 @@ ENABLE_LLT_ASAN="NO"
 BUILD_MYSQL_SO=${BUILD_MYSQL_SO:-"YES"}
 FEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL:-"0"}
 OS_ARCH=$(uname -i)
+
+export INTERNAL_BUILD="TRUE"
+
+if [[ ! -d "${CTDB_CODE_PATH}"/../ProductComm_DoradoAA ]];then
+    export INTERNAL_BUILD="FALSE"
+fi
+
 if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM=`cat /proc/cpuinfo |grep "cores" |wc -l`
     LIB_OS_ARCH="lib_x86"
-elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
+elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
     export CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
     LIB_OS_ARCH="lib_arm"
-else 
+else
     echo "OS_ARCH: ${OS_ARCH} is unknown, set CPU_CORES_NUM=16 "
     export CPU_CORES_NUM=16
 fi
@@ -89,7 +99,7 @@ func_prepare_pkg_name()
     VERSION_DESCRIP=$(cat ${CONFIG_IN_FILE} | grep 'VERSION_DESCRIP' | awk '{print $3}')
     PACK_PREFIX=$(cat ${CONFIG_IN_FILE} | grep 'PACK_PREFIX' | awk '{print $3}')
     PROJECT_VERSION=$(cat ${CONFIG_IN_FILE} | grep 'PROJECT_VERSION' | awk '{print $3}')
-    
+
     # arm_euler临时规避
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
         OS_SUFFIX=CENTOS
@@ -180,8 +190,8 @@ func_all()
         ls -al /home/regress
         ls -al /home/regress/CantianKernel/build
         exit 1
-    fi 
-    set -e 
+    fi
+    set -e
 
     if [[ -e "${CANTIANDB_BIN}"/cantiand ]]; then
         cd ${CANTIANDB_BIN}
@@ -295,21 +305,22 @@ func_pkg_run_basic()
     cp -d ${CANTIANDB_LIB}/libzeprotocol.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libcantian.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
     cp -d ${CANTIANDB_LIB}/libmessage_queue.so  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/lib/
+
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${Z_LIB_PATH}/libz.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${LZ4_LIB_PATH}/liblz4.so*  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-    
+
     cp -R ${CANTIANDB_HOME}/admin  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/
     cp -R ${CANTIANDB_HOME}/cfg  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/
     if [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
             cp -d /usr/lib64/libubsan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
             cp -d /usr/lib64/libasan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
+        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
             cp -d ${CANTIANDB_HOME}/../library/protobuf/${LIB_OS_ARCH}/libubsan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
             cp -d ${CANTIANDB_HOME}/../library/protobuf/${LIB_OS_ARCH}/libasan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-        else 
+        else
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi
     fi
@@ -333,10 +344,15 @@ fun_pkg_mysql_lib()
     cp -d ${CANTIANDB_HOME}/../output/lib/*.a ${CANTIAN_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/*.a ${CANTIAN_LIB_DIR_TMP}
     cp -d ${CANTIANDB_HOME}/../library/huawei_security/lib/libsecurec.so ${CANTIAN_LIB_DIR}
-    
+
     cd ${CANTIAN_LIB_DIR_TMP} && rm -rf libzecmssrc.a
     cd ${CANTIAN_LIB_DIR_TMP} && find . -name '*.a' -exec ar -x {} \;
     cd ${CANTIAN_LIB_DIR_TMP} && rm -rf *.a
+    if [[ ${INTERNAL_BUILD} == "TRUE" ]];then
+	  cd ${CANTIAN_LIB_DIR_TMP} && rm -rf ctc_mysql_proxy.o
+      cp ${CANTIANDB_HOME}/../build/pkg/src/server/CMakeFiles/cantiand.dir/__/version/ct_version.c.o ${CANTIAN_LIB_DIR_TMP}/
+    fi
+   
     rm -rf ${CANTIAN_LIB_DIR_TMP}/
 
     cd ${CANTIANDB_HOME}/../library/protobuf/lib/ && cp *.a ${CANTIAN_LIB_DIR}
@@ -347,10 +363,10 @@ fun_pkg_mysql_lib()
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
             cp -d /usr/lib64/libubsan.so* ${CANTIAN_LIB_DIR}
             cp -d /usr/lib64/libasan.so* ${CANTIAN_LIB_DIR}
-        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then 
+        elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
             cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libubsan.so* ${CANTIAN_LIB_DIR}
             cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libasan.so* ${CANTIAN_LIB_DIR}
-        else 
+        else
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi
     fi
@@ -413,6 +429,9 @@ func_collect_mysql_target()
 
 func_prepare_header_files()
 {
+    if [[ ${INTERNAL_BUILD} == "TRUE" ]]; then
+      return
+    fi
     if [[ ! -e "${MYSQL_DIR}/include/protobuf-c" ]]; then
       mkdir -p ${MYSQL_DIR}/3rdPartyPkg
       cd ${MYSQL_DIR}/3rdPartyPkg
@@ -427,16 +446,14 @@ func_prepare_header_files()
       rm -rf ${MYSQL_DIR}/3rdPartyPkg
     fi
 }
-
 func_make_mysql_debug()
 {
   echo "Start build Mysql Debug..."
-  func_prepare_header_files
-  if [[ -z ${WITHOUT_DEPS} ]]; then
-    rm -rf ${MYSQL_CODE_PATH}/cantian_lib
-    mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
-    cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
-  fi
+  func_prepare_header_files	
+
+  rm -rf ${MYSQL_CODE_PATH}/cantian_lib
+  mkdir -p ${MYSQL_CODE_PATH}/cantian_lib
+  cp -arf ${CANTIAN_LIB_DIR}/* ${MYSQL_CODE_PATH}/cantian_lib/
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
   local LLT_TEST_TYPE="NORMAL"
   if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
@@ -447,19 +464,17 @@ func_make_mysql_debug()
   prepareGetMysqlClientStaticLibToCantianlib ${MYSQL_CODE_PATH} "DEBUG" ${LLT_TEST_TYPE} ${BOOST_PATH} ${CPU_CORES_NUM} ${MYSQL_CODE_PATH}/bld_debug
 
   cd ${MYSQL_CODE_PATH}/bld_debug
-  if [[ -z ${WITHOUT_DEPS} ]]; then
-    cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
-  fi
+  cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [ "${ENABLE_LLT_GCOV}" == "YES" ]; then
-      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE}  -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
+      cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DENABLE_GCOV=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     elif [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
       cmake .. -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_ASAN=ON -DWITH_ASAN_SCOPE=ON -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF
     else
-      cmake .. -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      cmake .. -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
     fi
   elif [ "${MYSQL_BUILD_MODE}" == "single" ]; then
-    cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Debug -DWITH_BOOST=${BOOST_PATH} -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_C_FLAGS="-Wno-error=attributes" -DCMAKE_CXX_FLAGS="-Wno-error=attributes"
   fi
 
   MYSQL_BUILD_TYPE="debug"
@@ -497,7 +512,6 @@ func_make_mysql_release()
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   cp -arf "${CANTIANDB_LIBRARY}"/shared_lib/lib/libsecurec.so /usr/lib64/
-
   if [ "${MYSQL_BUILD_MODE}" == "multiple" ]; then
     if [[ ${OS_ARCH} =~ "aarch64" ]]; then
         cmake .. -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
@@ -509,8 +523,10 @@ func_make_mysql_release()
         cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS="-g -march=armv8.2-a+crc+lse" -DCMAKE_CXX_FLAGS="-g -march=armv8.2-a+crc+lse" -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     else
         cmake .. -DWITH_CANTIAN=1 -DWITH_CTC_STORAGE_ENGINE=${WITH_CTC_STORAGE_ENGINE} -DFEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL} -DCMAKE_BUILD_TYPE=Release -DWITH_BOOST=${BOOST_PATH} -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DWITHOUT_SERVER=OFF -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-    fi  
+    fi
+    
   fi
+
 
   MYSQL_BUILD_TYPE="release"
   if [ -f ${MYSQL_BINARY_CODE_PATH}/mysql_${MYSQL_BUILD_TYPE}_${OS_ARCH}_${MYSQL_COMMIT_ID}.tar.gz ]; then
@@ -579,10 +595,8 @@ func_clean()
     cd ${CANTIANDB_BUILD}
     make clean
 
-    if [[ -d "${CT_TEST_BUILD_DIR}" ]];then
-        cd ${CT_TEST_BUILD_DIR}
-        make clean
-    fi
+    cd ${CT_TEST_BUILD_DIR}
+    make clean
 
     if [[ -d "${CANTIANDB_BIN}" ]];then
         echo ${CANTIANDB_BIN}
@@ -635,12 +649,58 @@ func_pkg_ctsql()
 
 }
 
+func_logic_rep()
+{
+    if [[ -d "${LOGICREP_FILE_DIR}" ]]; then
+        chmod -R 700 ${LOGICREP_FILE_DIR}/*
+    fi
+    rm -rf ${LOGICREP_DIR}/file
+
+    cd ${LOGICREP_DIR} && sh build_package_unix.sh
+    rm -rf ${LOGICREP_DIR}/file/${LOGICREP_GZ_NAME}
+    chmod 700 ${LOGICREP_DIR}/file/*
+    chmod 500 ${LOGICREP_DIR}/file/*.sh
+    chmod 600 ${LOGICREP_DIR}/file/*.ini
+    chmod 500 ${LOGICREP_DIR}/file/*.jar
+    chmod 500 ${LOGICREP_DIR}/file/*.py
+    chmod -R 700 ${LOGICREP_DIR}/file/conf/*
+    chmod 600 ${LOGICREP_DIR}/file/conf/*.xml
+    chmod 600 ${LOGICREP_DIR}/file/conf/*.properties
+    chmod 600 ${LOGICREP_DIR}/file/conf/repconf/*.xml
+    chmod 600 ${LOGICREP_DIR}/file/conf/topicconf/*.properties
+    chmod 600 ${LOGICREP_DIR}/file/conf/sec/*.properties
+    chmod -R 500 ${LOGICREP_DIR}/file/lib/*
+    chmod -R 500 ${LOGICREP_DIR}/file/plugin/*
+
+    rm -rf ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}*
+    mkdir -p ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
+    chmod 700 ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep
+    cd ${LOGICREP_DIR}/file/lib/
+    cp -r ${LOGICREP_DIR}/file/* ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/
+    cd ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}/logicrep/ && ln -s com.huawei.cantian.logicrep-*.jar com.huawei.cantian.logicrep.jar
+    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${LOGICREP_DIR_NAME}.tar.gz ${LOGICREP_DIR_NAME}
+    sha256sum ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.sha256
+}
+
+func_toolkit()
+{
+    if [[ ${INTERNAL_BUILD} == "FALSE" ]];then
+        return
+    fi
+    cp -r /usr1/build/logicrep/pkg/src/zlogicrep ${CANTIANDB_HOME}/src
+    func_logic_rep
+    rm -rf ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    mkdir -p ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    mv ${CANTIANDB_BIN}/${LOGICREP_DIR_NAME}.tar.gz ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}
+    cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${TOOLS_PACK_DIR_NAME}.tar.gz ${TOOLS_PACK_DIR_NAME}
+    sha256sum ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${TOOLS_PACK_DIR_NAME}.sha256
+}
 
 func_making_package()
 {
     build_package_mode=$1
     if [[ -z "${build_package_mode}" ]]; then
-        build_package_mode = 'Debug'
+        build_package_mode='Debug'
     fi
 
     if [[ "${build_package_mode}" = 'Debug' ]] || [[ "${build_package_mode}" = 'Shard_Debug' ]]; then
@@ -655,7 +715,7 @@ func_making_package()
         # func_release_symbol
         func_pkg_run
     fi
-
+    func_toolkit
     rm -rf ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.tar.gz
@@ -689,13 +749,24 @@ func_download_3rdparty()
     fi
     
     cd ${DOWNLOAD_PATH}
-    git submodule init
-    git submodule update --recursive
-    
-    cd - 
-    
+    if [[ ${INTERNAL_BUILD} == "FALSE" ]]; then
+      git submodule init
+      git submodule update --recursive
+    else
+      echo "Clone source start"
+      if [[ x"${proxy_user}" != x"" ]]; then
+        export http_proxy=http://${proxy_user}:${proxy_pwd}@${proxy_url}
+        export https_proxy=${http_proxy}
+        export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
+      fi    
+      git clone https://gitee.com/cantian-repo/cantian-repo.git
+      rm -rf open_source
+      mv cantian-repo open_source 
+    fi    
+
+    cd -
+
     echo "start compile 3rdparty : "
-    
     sh compile_opensource_new.sh
 }
 
@@ -764,10 +835,28 @@ func_prepare_LLT_dependency()
         mkdir -p ${MYSQL_BINARY_CODE_PATH}
     fi
 
-    #下载三方库并编译
-    func_download_3rdparty
+    echo ${LCRP_HOME}
+    mkdir -p /root/.ArtGet/conf
+    cp -f ${CANTIANDB_CI_PATH}/CMC/Setting.xml /root/.ArtGet/conf
+    OS_Version=`sh ${CANTIANDB_CI_PATH}/CMC/get_OS_Version.sh`
 
+    #下载三方库并编译
+    if [[ ${INTERNAL_BUILD} == "FALSE" ]]; then
+      func_download_3rdparty
+    fi
+    if [[ "${WORKSPACE}" == *"regress"* ]]; then
+        DOWNLOAD_PATH=$DFT_WORKSPACE"/CantianKernel"
+    else
+        DOWNLOAD_PATH=${WORKSPACE}"/cantian"
+    fi
+
+    echo "start download 3rdparty : ${DOWNLOAD_PATH}"
+    python ${CANTIANDB_CI_PATH}/CMC/manifest_opensource_download.py manifest_opensource.xml ${DOWNLOAD_PATH}
     sh download_opensource_cmc.sh
+    echo "start download 3rdparty lib: "
+    artget pull -d ${CANTIANDB_CI_PATH}/CMC/CantianKernel_opensource_dependency.xml -p "{'OS_Version':'${OS_Version}'}"  -user ${cmc_username} -pwd ${cmc_password}
+
+    artget pull -d ${CANTIANDB_CI_PATH}/CMC/CantianKernel_dependency_new.xml -p "{'OS_Version':'${OS_Version}'}"  -user ${cmc_username} -pwd ${cmc_password}
     if [[ $? -ne 0 ]]; then
         echo "dependency download failed"
         exit 1
@@ -894,9 +983,9 @@ func_making_package_test()
     if [[ -z "${build_package_mode}" ]]; then
         build_package_mode = 'Debug'
     fi
- 
+
     func_make_test_debug
- 
+
     rm -rf ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}
     rm -rf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.tar.gz
@@ -904,7 +993,7 @@ func_making_package_test()
     cp ${CANTIANDB_HOME}/install/install.py ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/
     cp ${CANTIANDB_HOME}/install/funclib.py ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/
     cp ${CANTIANDB_HOME}/install/installdb.sh ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/
- 
+
     chmod -R 500 ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/install.py
     chmod -R 500 ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/funclib.py
     chmod -R 500 ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/installdb.sh
@@ -913,7 +1002,7 @@ func_making_package_test()
     chmod 400 ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}/${RUN_PACK_DIR_NAME}.sha256
     cd ${CANTIANDB_BIN} && tar --owner=root --group=root -zcf ${ALL_PACK_DIR_NAME}.tar.gz ${ALL_PACK_DIR_NAME}
     sha256sum ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.tar.gz | cut -c1-64 > ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME}.sha256
-    
+
     find ${CANTIANDB_BIN} -name "*.sha256" -exec chmod 400 {} \;
     cp -arf ${CANTIANDB_BIN}/${ALL_PACK_DIR_NAME} ${CANTIANDB_HOME}/../${ALL_PACK_DIR_NAME}
 }
@@ -991,6 +1080,7 @@ main()
         'no_shm=1')
             echo "build with out shm"
             COMPILE_OPTS="${COMPILE_OPTS} -DNO_SHM=ON"
+            MYSQL_BUILD_MODE="single"
             ;;
         'CANTIAN_READ_WRITE=1')
             echo "build with CANTIAN_READ_WRITE"
@@ -1066,7 +1156,7 @@ main()
         func_making_package_test Debug
         ;;
     *)
-    
+
         echo "Wrong parameters"
         exit 1
         ;;
