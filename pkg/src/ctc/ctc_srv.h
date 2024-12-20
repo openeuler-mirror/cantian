@@ -728,6 +728,7 @@ EXTER_ATTACK int ctc_ddl_execute_set_opt_intf(uint32_t thd_id, ctc_set_opt_reque
 EXTER_ATTACK int ctc_execute_mysql_ddl_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 EXTER_ATTACK int ctc_execute_set_opt(ctc_handler_t *tch, ctc_set_opt_request *broadcast_req, bool allow_fail);
 int ctc_execute_rewrite_open_conn_intf(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
+EXTER_ATTACK int ctc_ddl_execute_update_intf(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
 
 int ctc_broadcast_rewrite_sql(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 
