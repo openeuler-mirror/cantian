@@ -34,7 +34,7 @@ int mysql_execute_ddl_sql(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_
     if (len == 0) {
         CT_LOG_RUN_ERR("[CTC_DDL]:sql_str length is invalid");
     }
-    int ret = ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
+    int ret = ctc_ddl_execute_update_intf(thd_id, broadcast_req, allow_fail);
     return ret;
 }
 

@@ -58,7 +58,7 @@ unsigned long WsecReadWriteFilePrepare(KmcCbbCtx *kmcCtx, const char *readFile, 
     WsecHandle *readStream, WsecHandle *writeStream,
     long *remainLen);
 
-/* checke the encrypt or decrypt file len is OK. */
+/* check the encrypt or decrypt file len is OK. */
 unsigned long WsecCheckEncDecFileLen(KmcCbbCtx *kmcCtx, long fileLen, WsecBool isEncrypt);
 
 #define WSEC_FOPEN(kmcCtx, filePathName, mode)     (WsecFopen(kmcCtx, filePathName, mode))
