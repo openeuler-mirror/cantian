@@ -94,6 +94,7 @@ function newPackageTarget() {
     connector_pkg_name="${CONNECT_BIN_NAME}_${BUILD_MODE}_${ENV_TYPE}_${build_type_upper}.tgz"
   fi
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
+  rm -rf ${TMP_PKG_PATH}/*
 
   mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
@@ -124,17 +125,15 @@ function newPackageTarget() {
   fi
 
   if [[ ${INTERNAL_BUILD} == "TRUE" ]];then
-    sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
-    sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
-    sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
-    cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
     cp -rf ${CTDB_CODE_PATH}/pkg/src/zlogicrep/build/Cantian_PKG/file/* ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file/
   fi
-  
+  sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
+  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_dbstor_compat.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
-  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+
 
   echo "Start pkg ${pkg_dir_name}.tgz..."
   cd ${TMP_PKG_PATH}
@@ -190,8 +189,6 @@ function buildMysql() {
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/{cantian_lib,mysql_bin,scripts}
   mkdir -p "${CANTIANDB_BIN}"/cantian-connector-mysql/mysql_bin/mysql/lib/plugin/{meta,nometa}
   mkdir -p "${CANTIANDB_BIN}"/connector
-  sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/connector/ha_ctc_noshare.so
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
     echo "compile multiple mysql process"
     sh "${CURRENT_PATH}"/Makefile.sh "${MYSQL_BUILD_TYPE}"
@@ -203,7 +200,7 @@ function buildMysql() {
     exit 1
   fi
 
-  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so ${TMP_PKG_PATH}/connector/ha_ctc_noshare.so
+  cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so ${CANTIANDB_BIN}/connector/ha_ctc_noshare.so
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
   if [ $? -ne 0 ]; then
@@ -222,20 +219,10 @@ function buildMysql() {
 
   revertPatching
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so "${CANTIANDB_BIN}"/connector/ha_ctc_share.so
-  cp "${MYSQL_CODE_PATH}"/cantian_lib/libctc_proxy.so  ${TMP_PKG_PATH}/connector
   collectMysqlTarget
 }
 
 function prepare_path() {
-  cd ${WORKSPACE}
-  mkdir -p cantian/build_dependence/libaio/include/
-  cp libaio.h cantian/build_dependence/libaio/include/
-  tar -zxf mysql-server-mysql-8.0.26.tar.gz && mv mysql-server-mysql-8.0.26 ${mysql_dir}/mysql-source
-  cp -arf ${mysql_dir}/storage ${mysql_dir}/mysql-source
-  cp -arf ${mysql_dir}/mysql-test ${mysql_dir}/mysql-source
-  cp -arf ${mysql_dir}/mysql-test/*.patch ${mysql_dir}/mysql-source
-  cd -
-
   if [[ ${INTERNAL_BUILD} == "TRUE" ]];then
     cd ${WORKSPACE}
     mkdir -p cantian/build_dependence/libaio/include/
