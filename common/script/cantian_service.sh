@@ -37,7 +37,7 @@ function mountNfs()
     if [[ ${storage_archive_fs} != '' ]]; then
         mountpoint /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            logAndEchoInfo "/mnt/dbdata/remote/share_${storage_archive_fs} is not not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoInfo "/mnt/dbdata/remote/share_${storage_archive_fs} is not a mountpoint, begin to mount. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             archive_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "archive_logic_ip"`
             if [[ x"${deploy_mode}" != x"file" ]]; then
                 mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
