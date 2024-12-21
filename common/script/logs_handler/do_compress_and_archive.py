@@ -49,7 +49,7 @@ def change_file_mod(bak_path, file_names, user_name):
     uid, gid = getpwnam(user_name)[2:4]
     for file_name, _ in file_names:
         tar_file_name = f'{str(Path(bak_path, file_name))}.tar.gz'
-        os.chmod(tar_file_name, 0o440)
+        os.chmod(tar_file_name, 0o660)
         os.chown(tar_file_name, uid=uid, gid=gid)
 
 

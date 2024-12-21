@@ -133,17 +133,18 @@ class LogsCollection:
 
         return res_state
 
-    def generate_logs(self):
-        pre_generate_info = [item for item in self.config_info if item.get('generate_type') == 'script generated']
+    def generate_logs(self, item, main_path, mode):
         res = []
         prefix_to_type = {'py': 'python3', 'sh': 'sh'}
-
-        for log_item in pre_generate_info:
-            script_type, script_path = log_item.get('script_type'), log_item.get('script_path')
-            cmd = prefix_to_type.get(script_type) + ' ' + script_path
-            state = self.shell_task(cmd, 'generate logs')
-            res.append(state)
-
+        script_type, script_path = item.get('script_type'), item.get('script_path')
+        size = item.get('size')
+        file_dir = item.get('dir')
+        tar_name = item.get('tar_name')
+        if mode == "recent":
+            file_dir = file_dir + "| head -n %s" % size
+        cmd = (prefix_to_type.get(script_type) + ' ' + script_path) % (main_path, file_dir, tar_name)
+        state = self.shell_task(cmd, 'generate logs')
+        res.append(state)
         return res
 
     def exception_handler(self, target_path):
@@ -175,29 +176,38 @@ class LogsCollection:
         self.max_gather_vol = int(item.get('size')) * self.packing_ratio * pow(1024, 2)
         tar_name, generate_type = item.get('tar_name'), item.get('generate_type')
         is_repeat_generate = item.get("is_repeat_generate", False)
-        log_file_list = [item.get('dir')] if not is_repeat_generate \
-            else glob.glob(item.get('dir'), recursive=True)
         log_name = None
-        for log_file_dir in log_file_list:
-            # 分离日志目录和日志名
+        if generate_type == "script generated":
+            log_file_dir = item.get('dir')
             log_directory, log_name = os.path.split(log_file_dir)
+            gen_res = self.generate_logs(item, main_path, mode)
+            statistics_res = Counter(gen_res)
+            LOG.info(f"[generate logs ends], end_time:{self.get_cur_timestamp()}, all:{len(gen_res)}, "
+                     f"success: {statistics_res.get('success', 0)}, fail: {statistics_res.get('fail', 0)}")
 
-            LOG.info('[submodule log collection starts] child_module: {}, '
-                     'generate_type: {}'.format(log_name, generate_type))
+        else:
+            log_file_list = [item.get('dir')] if not is_repeat_generate \
+                else glob.glob(item.get('dir'), recursive=True)
+            for log_file_dir in log_file_list:
+                # 分离日志目录和日志名
+                log_directory, log_name = os.path.split(log_file_dir)
 
-            if not os.path.exists(log_file_dir):
-                LOG.error('log_source_path: {} does not exist log collection failed and exited'.format(log_file_dir))
-                self.record_cur_progress(("fail", 'not exist'), (idx, generate_type, log_name), start_time)
-                return False
+                LOG.info('[submodule log collection starts] child_module: {}, '
+                         'generate_type: {}'.format(log_name, generate_type))
 
-            if not self.path_authority_judgment(log_file_dir) or not self.path_authority_judgment(log_directory):
-                LOG.error(
-                    "log_file_dir: '{}' or log_content: '{}' permission denied".format(log_file_dir, log_directory))
-                self.record_cur_progress(("fail", 'permission denied'), (idx, generate_type, log_name), start_time)
-                return False
+                if not os.path.exists(log_file_dir):
+                    LOG.error(
+                        'log_source_path: {} does not exist log collection failed and exited'.format(log_file_dir))
+                    self.record_cur_progress(("done", 'not exist'), (idx, generate_type, log_name), start_time)
+                    return False
 
-        sub_module_tar_path = os.path.join(main_path, tar_name)
-        self.packing_files(log_file_list, sub_module_tar_path, mode)
+                if not self.path_authority_judgment(log_file_dir) or not self.path_authority_judgment(log_directory):
+                    LOG.error(
+                        "log_file_dir: '{}' or log_content: '{}' permission denied".format(log_file_dir, log_directory))
+                    self.pre_execute()
+
+            sub_module_tar_path = os.path.join(main_path, tar_name)
+            self.packing_files(log_file_list, sub_module_tar_path, mode)
         self.record_cur_progress((collect_state, 'None'), (idx, generate_type, log_name), start_time)
         return True
 
@@ -224,10 +234,6 @@ class LogsCollection:
         LOG.info('[logs collection] starts')
         self.pre_execute()
         LOG.info(f'[generate logs starts], start_time:{self.get_cur_timestamp()}, mode: {mode}')
-        gen_res = self.generate_logs()
-        statistics_res = Counter(gen_res)
-        LOG.info(f"[generate logs ends], end_time:{self.get_cur_timestamp()}, all:{len(gen_res)}, "
-                 f"success: {statistics_res.get('success', 0)}, fail: {statistics_res.get('fail', 0)}")
 
         if not os.path.exists(target_path):
             try:
