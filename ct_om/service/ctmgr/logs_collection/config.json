@@ -74,15 +74,6 @@
   {
     "type": "file",
     "size": "30",
-    "is_repeat_generate": true,
-    "dir": "/opt/cantian/log/dbstor/*/*dsware_*_0.log*",
-    "tar_name": "dsware_cantiand.tar.gz",
-    "generate_type": "task generated"
-  },
-
-  {
-    "type": "file",
-    "size": "30",
     "dir": "/opt/cantian/log/cantian/cantian_deploy.log",
     "tar_name": "cantian_deploy.log.tar.gz",
     "generate_type": "task generated"
@@ -123,15 +114,6 @@
   {
     "type": "file",
     "size": "30",
-    "is_repeat_generate": true,
-    "dir": "/opt/cantian/log/dbstor/run/*dsware_cms_0.log*",
-    "tar_name": "dsware_cms.log.tar.gz",
-    "generate_type": "task generated"
-  },
-
-  {
-    "type": "file",
-    "size": "30",
     "dir": "/opt/cantian/log/cms/cms_deploy.log",
     "tar_name": "cms_deploy.tar.gz",
     "generate_type": "task generated"
@@ -143,5 +125,58 @@
     "dir": "/opt/cantian/log/mysql/install.log",
     "tar_name": "mysql_install.tar.gz",
     "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "30",
+    "is_repeat_generate": true,
+    "dir": "/opt/cantian/log/dbstor/run/*dsware_*_0.log*",
+    "tar_name": "dsware_run.tar.gz",
+    "generate_type": "task generated"
+  },
+
+  {
+    "type": "file",
+    "size": "150",
+    "is_repeat_generate": false,
+    "dir": "/opt/cantian/log/dbstor/bak/*dsware_cms_0.log*",
+    "tar_name": "dsware_cms_bak.tar.gz",
+    "generate_type": "script generated",
+    "script_type": "sh",
+    "script_path": "-c 'cd %s;ls -t %s | xargs tar -zcf %s'"
+  },
+
+  {
+    "type": "file",
+    "size": "300",
+    "is_repeat_generate": false,
+    "dir": "/opt/cantian/log/dbstor/bak/*dsware_mysqld_0.log*",
+    "tar_name": "dsware_mysqld_bak.tar.gz",
+    "generate_type": "script generated",
+    "script_type": "sh",
+    "script_path": "-c 'cd %s;ls -t %s | xargs tar -zcf %s'"
+  },
+
+  {
+    "type": "file",
+    "size": "150",
+    "is_repeat_generate": false,
+    "dir": "/opt/cantian/log/dbstor/bak/*dsware_cantiand_0.log*",
+    "tar_name": "dsware_cantiand_bak.tar.gz",
+    "generate_type": "script generated",
+    "script_type": "sh",
+    "script_path": "-c 'cd %s;ls -t %s | xargs tar -zcf %s'"
+  },
+
+  {
+    "type": "file",
+    "size": "150",
+    "is_repeat_generate": false,
+    "dir": "/opt/cantian/log/dbstor/bak/*dsware_dbstor_0.log*",
+    "tar_name": "dsware_dbstor_bak.tar.gz",
+    "generate_type": "script generated",
+    "script_type": "sh",
+    "script_path": "-c 'cd %s;ls -t %s | xargs tar -zcf %s'"
   }
 ]
