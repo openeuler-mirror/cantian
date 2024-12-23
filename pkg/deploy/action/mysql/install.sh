@@ -80,8 +80,7 @@ function install_ctc() {
 
     if [ "$MYSQL_METADATA_IN_CANTIAN" = "TRUE" ]; then
       echo "copy meta ha_ctc_share.so to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
-      cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
-      ln -s "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
+      cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
       mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
       cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
       ln -s "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc_share.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc.so
@@ -89,8 +88,7 @@ function install_ctc() {
       ln -s ${CANTIAN_HACTC_DIR}/server/lib/ha_ctc_share.so ${CANTIAN_HACTC_DIR}/server/lib/ha_ctc.so
     else
       echo "copy nometa ha_ctc_noshare.so to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
-      cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_noshare.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin
-      ln -s "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc_noshare.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
+      cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_noshare.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
       mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
       cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_noshare.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
       ln -s "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc_noshare.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin/ha_ctc.so

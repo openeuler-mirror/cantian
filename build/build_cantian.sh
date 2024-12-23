@@ -110,40 +110,38 @@ function newPackageTarget() {
     fi
     sed -i 's#ChangeVersionTime: .*#ChangeVersionTime: '"$(date +%Y/%m/%d\ %H:%M)"'#' "${CURRENT_PATH}"/versions.yml
   fi
-
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/
   cp -arf "${CANTIANDB_BIN}"/rpm/RPMS/"${ENV_TYPE}"/cantian*.rpm ${pkg_real_path}/repo/
   cp -arf "${CTDB_CODE_PATH}"/temp/ct_om/rpm/RPMS/"${ENV_TYPE}"/ct_om*.rpm ${pkg_real_path}/repo
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/action/* ${pkg_real_path}/action/
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/config/* ${pkg_real_path}/config/
   cp -arf "${CTDB_CODE_PATH}"/common/* ${pkg_real_path}/common/
-  cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
   cp -arf  "${CANTIANDB_BIN}"/connector ${TMP_PKG_PATH}/
   rm -rf "${CANTIANDB_BIN}"/connector
   if [[ ${BUILD_MODE} == "single" ]]; then
     cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
   fi
-
   if [[ ${INTERNAL_BUILD} == "TRUE" ]];then
     cp -rf ${CTDB_CODE_PATH}/pkg/src/zlogicrep/build/Cantian_PKG/file/* ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file/
   fi
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
-  sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
-  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh 
+  sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
+
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_dbstor_compat.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
-
-
   echo "Start pkg ${pkg_dir_name}.tgz..."
   cd ${TMP_PKG_PATH}
   tar -zcf "${pkg_name}" ${pkg_dir_name}
   rm -rf ${TMP_PKG_PATH}/${pkg_dir_name}
   echo "Packing ${pkg_name} success"
   mkdir -p ${MYSQL_BIN_NAME}
-  cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
-  echo "Start pkg ${mysql_pkg_name}..."
-  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+#  外部编译不生成mysql包，后续对外发布编包需要取消注释
+#  cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
+#  echo "Start pkg ${mysql_pkg_name}..."
+#  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
   echo "Start pkg ${connector_pkg_name}..."
   tar -zcf "${connector_pkg_name}" connector
   rm -rf ${MYSQL_BIN_NAME}
