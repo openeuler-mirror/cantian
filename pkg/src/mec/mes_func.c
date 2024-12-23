@@ -604,15 +604,6 @@ status_t mes_init_resource(void)
     return CT_SUCCESS;
 }
 
-void mes_destroy_resource(void)
-{
-    free_dtc_mq_instance();
-
-    mes_clean_session_mutex(CT_MAX_MES_ROOMS);
-
-    return;
-}
-
 static status_t mes_init(void)
 {
     // register tcp/rdma func
@@ -643,9 +634,11 @@ static status_t mes_init(void)
 
 void mes_clean(void)
 {
+    free_dtc_mq_instance();
+
     mes_disconnect_by_profile();
 
-    mes_destroy_resource();
+    mes_clean_session_mutex(CT_MAX_MES_ROOMS);
 
     mes_destroy_pipe();
 
