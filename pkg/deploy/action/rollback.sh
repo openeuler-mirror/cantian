@@ -485,7 +485,7 @@ function check_local_nodes() {
         sh "/opt/cantian/action/${check_module}/appctl.sh" post_upgrade
         if [ $? -ne 0 ]; then
             logAndEchoError "${check_module} post rollback check failed"
-            logAndEchoError "For details, see the /opt/cantian/${check_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${check_module}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
 

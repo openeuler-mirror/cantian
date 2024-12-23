@@ -295,7 +295,7 @@ function do_backup() {
         sh "${CURRENT_PATH}/${upgrade_module}/appctl.sh" upgrade_backup ${dircetory_path}
         if [ $? -ne 0 ]; then
             logAndEchoError "${upgrade_module} upgrade_backup failed"
-            logAndEchoError "For details, see the /opt/cantian/${upgrade_module}/log. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "For details, see the /opt/cantian/log/${upgrade_module}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         fi
 
