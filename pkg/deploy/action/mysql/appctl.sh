@@ -189,7 +189,8 @@ case "$ACTION" in
         do_install2chown4mysql
         ;;
     pre_upgrade)
-        exit 0
+        python3 "${CURRENT_PATH}"/mysqlctl.py pre_upgrade
+        exit $?
         ;;
     upgrade_backup)
         BACKUP_PATH=$2
