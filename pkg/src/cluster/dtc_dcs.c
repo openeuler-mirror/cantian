@@ -2170,8 +2170,9 @@ status_t dcs_invalidate_readonly_copy(knl_session_t *session, page_id_t page_id,
 
     // if reforming, stop invalidate readonly copy
     if (DRC_STOP_DCS_IO_FOR_REFORMING(req_version, session, page_id)) {
-        CT_LOG_RUN_ERR("[DCS][%u-%u]reforming, invalidate copy failed,, req_version=%llu, cur_version=%llu",
-            page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
+        CT_LOG_RUN_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                             "[DCS][%u-%u]reforming, invalidate copy failed,, req_version=%llu, cur_version=%llu",
+                             page_id.file, page_id.page, req_version, DRC_GET_CURR_REFORM_VERSION);
         knl_end_session_wait(session, DCS_INVLDT_READONLY_REQ);
         return CT_ERROR;
     }
