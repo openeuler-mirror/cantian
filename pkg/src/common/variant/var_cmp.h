@@ -82,12 +82,19 @@ static status_t inline var_compare_same_type(const variant_t *left, const varian
             *result = NATIVE_CMP(VALUE(uint32, left), VALUE(uint32, right));
             break;
 
+        case CT_TYPE_UINT64:
+            *result = NATIVE_CMP(VALUE(uint64, left), VALUE(uint64, right));
+            break;
+
         case CT_TYPE_DATE:
         case CT_TYPE_TIMESTAMP:
         case CT_TYPE_TIMESTAMP_LTZ:
         case CT_TYPE_TIMESTAMP_TZ_FAKE:
         case CT_TYPE_BIGINT:
         case CT_TYPE_INTERVAL_DS:
+        case CT_TYPE_DATE_MYSQL:
+        case CT_TYPE_TIME_MYSQL:
+        case CT_TYPE_DATETIME_MYSQL:
             *result = NATIVE_CMP(VALUE(int64, left), VALUE(int64, right));
             break;
 
@@ -97,6 +104,10 @@ static status_t inline var_compare_same_type(const variant_t *left, const varian
 
         case CT_TYPE_REAL:
             *result = cm_compare_double(VALUE(double, left), VALUE(double, right));
+            break;
+
+        case CT_TYPE_NUMBER3:
+            *result = cm_dec4_cmp(VALUE_PTR(dec4_t, left), VALUE_PTR(dec4_t, right));
             break;
 
         case CT_TYPE_NUMBER:

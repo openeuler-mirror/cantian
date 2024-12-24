@@ -1222,16 +1222,16 @@ operator_type_t get_ct_cond_opr(ctc_func_type_t ctc_func_type) {
     }
 }
 
-void ctc_data2variant(variant_t *value, char *ptr, uint32 len, ct_type_t *type)
+void ctc_data2variant(variant_t *value, char *ptr, uint32 len, ct_type_t type)
 {
-    value->type = *type;
+    value->type = type;
     
     value->is_null = (len == CT_NULL_VALUE_LEN);
     if (value->is_null) {
         return;
     }
-
-    switch (*type) {
+    date_detail_t date_detail;
+    switch (type) {
         case CT_TYPE_UINT32:
             VALUE(uint32, value) = *(uint32 *)ptr;
             break;
@@ -1260,21 +1260,26 @@ void ctc_data2variant(variant_t *value, char *ptr, uint32 len, ct_type_t *type)
             value->v_text.len = len;
             break;
         case CT_TYPE_DATE_MYSQL:
-            VALUE(int64, value) = cm_cnvrt_date_from_binary_to_uint((const uchar *)ptr);
-            *type = CT_TYPE_BIGINT;
+            VALUE(date_t, value) = cm_cnvrt_date_from_binary_to_uint((const uchar *)ptr);
+            value->type = CT_TYPE_DATE_MYSQL;
             break;
         case CT_TYPE_TIME_MYSQL:
-            VALUE(int64, value) = cm_cnvrt_time_from_binary_to_int((const uchar *)ptr);
-            *type = CT_TYPE_BIGINT;
+            VALUE(date_t, value) = cm_cnvrt_time_from_binary_to_int((const uchar *)ptr);
+            value->type = CT_TYPE_TIME_MYSQL;
             break;
         case CT_TYPE_DATETIME_MYSQL:
-            VALUE(int64, value) = cm_cnvrt_datetime_from_binary_to_int((const uchar *)ptr);
-            *type = CT_TYPE_BIGINT;
+            VALUE(date_t, value) = cm_cnvrt_datetime_from_binary_to_int((const uchar *)ptr);
+            value->type = CT_TYPE_DATETIME_MYSQL;
             break;
+
         case CT_TYPE_TIMESTAMP:
+            VALUE(timestamp_t, value) = *(timestamp_t *)ptr;
+            value->type = CT_TYPE_TIMESTAMP;
+            break;
         case CT_TYPE_DATE:
-            VALUE(int64, value) = *(int64 *)ptr;
-            *type = CT_TYPE_BIGINT;
+            cm_decode_date(*(date_t *)ptr, &date_detail);
+            VALUE(uint64, value) = date_detail.year;
+            value->type = CT_TYPE_UINT64;
             break;
         default:
             break;
@@ -1341,7 +1346,7 @@ int ctc_cond_field_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
         fetch_value = ptr + offsets[col];
         fetch_size = lens[col];
     }
-    ctc_data2variant(res, fetch_value, fetch_size, &ct_type);
+    ctc_data2variant(res, fetch_value, fetch_size, ct_type);
     return CT_SUCCESS;
 }
 
@@ -1351,7 +1356,7 @@ int ctc_cond_value_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
         return CT_SUCCESS;
     }
     ct_type_t ct_type = get_ct_type_from_ctc_ddl_type(cond->field_info.field_type, cond->field_info.is_unsigned);
-    ctc_data2variant(res, cond->field_info.field_value, cond->field_info.field_size, &ct_type);
+    ctc_data2variant(res, cond->field_info.field_value, cond->field_info.field_size, ct_type);
     return CT_SUCCESS;
 }
 
