@@ -77,8 +77,11 @@ function install_ctc() {
     fi
     cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/libctc_proxy.so "${CANTIAN_HACTC_DIR}"/server/lib/
     cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/libctc_proxy.so "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib
+    # 双进程 mysql容器依赖so拷贝。
+    cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/libctc_proxy.so "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
+    cp -arf "${CANTIAN_HACTC_DIR}"/server/lib/libmessage_queue.so "${MF_CONNECTOR_MOUNT_DIR}"/cantian_lib
 
-    if [ "$MYSQL_METADATA_IN_CANTIAN" = "TRUE" ]; then
+    if [[ "$MYSQL_METADATA_IN_CANTIAN" == "TRUE" ]]; then
       echo "copy meta ha_ctc_share.so to ${MF_CONNECTOR_MOUNT_DIR}/plugin"
       cp -arf "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/connector/ha_ctc_share.so "${MF_CONNECTOR_MOUNT_DIR}"/plugin/ha_ctc.so
       mkdir -p "${MF_CONNECTOR_PHYSIC_INSTALL_MYSQL_DIR}"/mysql/lib/plugin
