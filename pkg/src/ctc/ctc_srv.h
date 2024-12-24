@@ -613,11 +613,30 @@ typedef struct {
     uint32_t subpart_id;
 } ctc_part_t;
 
+typedef int (*ctc_execute_rewrite_open_conn_t)(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
+typedef int (*ctc_ddl_execute_update_t)(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
+typedef int (*ctc_ddl_execute_set_opt_t)(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail);
+typedef int (*close_mysql_connection_t)(uint32_t thd_id, uint32_t mysql_inst_id);
+typedef int (*ctc_ddl_execute_lock_tables_t)(ctc_handler_t *tch, char *db_name, ctc_lock_table_info *lock_info, int *err_code);
+typedef int (*ctc_ddl_execute_unlock_tables_t)(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
+typedef int (*ctc_invalidate_mysql_dd_cache_t)(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req, int *err_code);
+typedef int (*ctc_set_cluster_role_by_cantian_t)(bool is_slave);
+
+typedef struct mysql_engine_intf_t {
+    ctc_execute_rewrite_open_conn_t ctc_execute_rewrite_open_conn;
+    ctc_ddl_execute_update_t ctc_ddl_execute_update;
+    ctc_ddl_execute_set_opt_t ctc_ddl_execute_set_opt;
+    close_mysql_connection_t close_mysql_connection;
+    ctc_ddl_execute_lock_tables_t ctc_ddl_execute_lock_tables;
+    ctc_ddl_execute_unlock_tables_t ctc_ddl_execute_unlock_tables;
+    ctc_invalidate_mysql_dd_cache_t ctc_invalidate_mysql_dd_cache;
+    ctc_set_cluster_role_by_cantian_t ctc_set_cluster_role_by_cantian;
+} sql_engine_intf;
+
 /* General Control Interface */
 int srv_wait_instance_startuped(void);
 int ctc_alloc_inst_id(uint32_t *inst_id);
 int ctc_release_inst_id(uint32_t inst_id);
-int init_mysql_lib(void);
 
 int ctc_open_table(ctc_handler_t *tch, const char *table_name, const char *user_name);
 int ctc_close_table(ctc_handler_t *tch);

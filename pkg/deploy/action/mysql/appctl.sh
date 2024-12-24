@@ -37,6 +37,7 @@ deploy_user=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_user"`
 deploy_group=`python3 ${CURRENT_PATH}/../get_config_info.py "deploy_group"`
 
 ha_ctc_path=/opt/cantian/mysql/install/mysql/lib/plugin
+MF_MOUNT_DIR=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 
 function usage()
 {
@@ -101,7 +102,7 @@ function do_install2chown4mysql()
     do_deploy ${INSTALL_NAME}
     set +e
     if [ -f "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ];then
-       cp -arf "${BACKUP_UPGRADE_PATH}"/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
+       cp -arf "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ${MF_MOUNT_DIR}/plugin/
     fi
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
@@ -128,27 +129,46 @@ function do_install2chown4mysqlrollback()
     fi
     do_deploy ${INSTALL_NAME} ${backup_dir}
     set +e
+    META_DATA_SWITCH_OFF=`cat /opt/cantian/config/deploy_param.json | grep mysql_metadata_in_cantian | grep false`
+    set -e
+    if [ "${META_DATA_SWITCH_OFF}" == "" ]; then
+        echo "/opt/cantian/config/deploy_param.json mysql_metadata_in_cantian: TRUE"
+        MYSQL_METADATA_IN_CANTIAN="TRUE"
+    else
+        echo "/opt/cantian/config/deploy_param.json mysql_metadata_in_cantian: FALSE"
+        MYSQL_METADATA_IN_CANTIAN="FALSE"
+    fi
     if [ -f ${backup_dir}/mysql/mysqld ];then
-        cp -arf ${backup_dir}/mysql/mysqld /opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/
+        cp -arf ${backup_dir}/mysql/mysqld ${MF_MOUNT_DIR}/plugin/
     fi
     if [ -f ${backup_dir}/mysql/ha_ctc.so ];then
         cp -arf ${backup_dir}/mysql/ha_ctc.so ${ha_ctc_path}/
     fi
-    if [ -f ${backup_dir}/mysql/ha_ctc_share.so ];then
+    if [[ -f ${backup_dir}/mysql/ha_ctc_share.so && "$MYSQL_METADATA_IN_CANTIAN" == "TRUE" ]];then
         cp -arf ${backup_dir}/mysql/ha_ctc_share.so ${ha_ctc_path}/
         cp -arf ${backup_dir}/mysql/ha_ctc_share.so /opt/cantian/cantian/server/lib/
+        cp -arf ${backup_dir}/mysql/ha_ctc_share.so ${MF_MOUNT_DIR}/plugin/ha_ctc.so
+        rm -rf ${ha_ctc_path}/ha_ctc.so
         ln -s ${ha_ctc_path}/ha_ctc_share.so ${ha_ctc_path}/ha_ctc.so
-        ln -s /opt/cantian/cantian/server/lib//ha_ctc_share.so /opt/cantian/cantian/server/lib/ha_ctc.so
+        rm -rf /opt/cantian/cantian/server/lib/ha_ctc.so
+        ln -s /opt/cantian/cantian/server/lib/ha_ctc_share.so /opt/cantian/cantian/server/lib/ha_ctc.so
     fi
-    if [ -f ${backup_dir}/mysql/ha_ctc_noshare.so ];then
+    if [[ -f ${backup_dir}/mysql/ha_ctc_noshare.so && "$MYSQL_METADATA_IN_CANTIAN" == "FALSE" ]];then
         cp -arf ${backup_dir}/mysql/ha_ctc_noshare.so ${ha_ctc_path}/
         cp -arf ${backup_dir}/mysql/ha_ctc_noshare.so /opt/cantian/cantian/server/lib/
+        cp -arf ${backup_dir}/mysql/ha_ctc_noshare.so ${MF_MOUNT_DIR}/plugin/ha_ctc.so
+        rm -rf ${ha_ctc_path}/ha_ctc.so
         ln -s ${ha_ctc_path}/ha_ctc_noshare.so ${ha_ctc_path}/ha_ctc.so
+        rm -rf /opt/cantian/cantian/server/lib/ha_ctc.so
         ln -s /opt/cantian/cantian/server/lib/ha_ctc_noshare.so /opt/cantian/cantian/server/lib/ha_ctc.so
     fi
     if [ -f ${backup_dir}/mysql/libctc_proxy.so ];then
-        cp -arf ${backup_dir}/mysql/libctc_proxy.so ${ha_ctc_path}/../lib/
+        cp -arf ${backup_dir}/mysql/libctc_proxy.so ${ha_ctc_path}/../
         cp -arf ${backup_dir}/mysql/libctc_proxy.so /opt/cantian/cantian/server/lib/
+        cp -arf ${backup_dir}/mysql/libctc_proxy.so ${MF_MOUNT_DIR}/cantian_lib
+    fi
+    if [[ -f /opt/cantian/cantian/server/lib/libmessage_queue.so ]];then
+        cp /opt/cantian/cantian/server/lib/libmessage_queue.so ${MF_MOUNT_DIR}/cantian_lib
     fi
     chown "${cantian_user}":"${cantian_group}" -hR /opt/cantian/cantian/server/lib/
     sh ${CURRENT_PATH}/chmod_file.sh
@@ -162,7 +182,7 @@ function do_upgrade_backup() {
         mkdir ${backup_dir}/mysql
     fi
     local mysqld_path
-    mysqld_path=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir/plugin/mysqld
+    mysqld_path=${MF_MOUNT_DIR}/plugin/mysqld
     if [ -f ${mysqld_path} ];then
         cp -arf ${mysqld_path} ${backup_dir}/mysql/
     fi
@@ -175,8 +195,8 @@ function do_upgrade_backup() {
     if [ -f ${ha_ctc_path}/ha_ctc_noshare.so ]; then
         cp -arf ${ha_ctc_path}/ha_ctc_noshare.so ${backup_dir}/mysql/
     fi
-    if [ -f ${ha_ctc_path}/../lib/libctc_proxy.so ]; then
-        cp -arf ${ha_ctc_path}/../lib/libctc_proxy.so ${backup_dir}/mysql/
+    if [ -f ${ha_ctc_path}/../libctc_proxy.so ]; then
+        cp -arf ${ha_ctc_path}/../libctc_proxy.so ${backup_dir}/mysql/
     fi
 }
 

@@ -243,6 +243,10 @@ void undo_init_impl(knl_session_t *session, undo_set_t *undo_set, uint32 lseg_no
         cm_sleep(5);
     }
 
+    for (int k = 0; k < UNDO_INIT_THREAD_NUMS; k++) {
+        cm_close_thread(&undo_ctx.workers[k].thread);
+    }
+
     buf_leave_page(session, CT_FALSE);
 }
 

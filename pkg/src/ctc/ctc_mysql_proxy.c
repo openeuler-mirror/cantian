@@ -27,66 +27,26 @@
 #include "srv_mq.h"
 #include "srv_mq_msg.h"
 #include "knl_common.h"
-typedef int (*ctc_execute_rewrite_open_conn_t)(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req);
-typedef int (*ctc_ddl_execute_update_t)(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req, bool *allow_fail);
-typedef int (*ctc_ddl_execute_set_opt_t)(uint32_t thd_id, ctc_set_opt_request *broadcast_req, bool allow_fail);
-typedef int (*close_mysql_connection_t)(uint32_t thd_id, uint32_t mysql_inst_id);
-typedef int (*ctc_ddl_execute_lock_tables_t)(ctc_handler_t *tch, char *db_name, ctc_lock_table_info *lock_info, int *err_code);
-typedef int (*ctc_ddl_execute_unlock_tables_t)(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
-typedef int (*ctc_invalidate_mysql_dd_cache_t)(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req, int *err_code);
-typedef int (*ctc_set_cluster_role_by_cantian_t)(bool is_slave);
-typedef struct mysql_interface_t {
-    void* ctc_handle;
-    ctc_execute_rewrite_open_conn_t ctc_execute_rewrite_open_conn;
-    ctc_ddl_execute_update_t ctc_ddl_execute_update;
-    ctc_ddl_execute_set_opt_t ctc_ddl_execute_set_opt;
-    close_mysql_connection_t close_mysql_connection;
-    ctc_ddl_execute_lock_tables_t ctc_ddl_execute_lock_tables;
-    ctc_ddl_execute_unlock_tables_t ctc_ddl_execute_unlock_tables;
-    ctc_invalidate_mysql_dd_cache_t ctc_invalidate_mysql_dd_cache;
-    ctc_set_cluster_role_by_cantian_t ctc_set_cluster_role_by_cantian;
-} mysql_interface;
-static mysql_interface g_mysql_intf;
 
-mysql_interface *mysql_global_handle(void)
-{
-    return &g_mysql_intf;
-}
 
-static status_t mysql_load_symbol(void *lib_handle, char *symbol, void **sym_lib_handle)
+#define CHECK_SQL_INTF(func_name, message) \
+    do { \
+        if (g_sql_intf == NULL || g_sql_intf->func_name == NULL) { \
+            CT_LOG_RUN_ERR(message, g_sql_intf); \
+            return CT_ERROR; \
+        } \
+    } while (0)
+
+static sql_engine_intf *g_sql_intf;
+
+EXTER_ATTACK int register_sql_intf(sql_engine_intf *sql_intf)
 {
-    const char *dlsym_err = NULL;
-    *sym_lib_handle = dlsym(lib_handle, symbol);
-    dlsym_err = dlerror();
-    if (dlsym_err != NULL) {
-        CT_LOG_RUN_ERR("mysql_load_symbol error, symbol: %s, dlsym_err: %s", symbol, dlsym_err);
-        CT_THROW_ERROR(ERR_LOAD_SYMBOL, symbol, dlsym_err);
+    if (sql_intf == NULL) {
+        CT_LOG_RUN_ERR("execute register_sql_intf fail, sql_intf is null");
         return CT_ERROR;
     }
-    return CT_SUCCESS;
-}
-
-int init_mysql_lib(void)
-{
-    mysql_interface *intf = &g_mysql_intf;
-    CT_LOG_DEBUG_INF("Current user: %s\n", getenv("USER"));
-    intf->ctc_handle = dlopen("ha_ctc.so", RTLD_LAZY);
-    const char *dlopen_err = NULL;
-    dlopen_err = dlerror();
-    if (intf->ctc_handle == NULL) {
-        CT_LOG_RUN_ERR("fail to load ha_ctc.so, maybe lib path error, errno %s", dlopen_err);
-        return CT_ERROR;
-    }
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_invalidate_mysql_dd_cache", (void **)(&intf->ctc_invalidate_mysql_dd_cache)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_execute_rewrite_open_conn", (void **)(&intf->ctc_execute_rewrite_open_conn)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_ddl_execute_update", (void **)(&intf->ctc_ddl_execute_update)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_ddl_execute_set_opt", (void **)(&intf->ctc_ddl_execute_set_opt)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "close_mysql_connection", (void **)(&intf->close_mysql_connection)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_ddl_execute_lock_tables", (void **)(&intf->ctc_ddl_execute_lock_tables)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_ddl_execute_unlock_tables", (void **)(&intf->ctc_ddl_execute_unlock_tables)));
-    CT_RETURN_IFERR(mysql_load_symbol(intf->ctc_handle, "ctc_set_cluster_role_by_cantian", (void **)(&intf->ctc_set_cluster_role_by_cantian)));
-
-    CT_LOG_RUN_INF("init_mysql_lib go to the end");
+    g_sql_intf = sql_intf;
+    CT_LOG_RUN_INF("register_sql_intf success");
     return CT_SUCCESS;
 }
 
@@ -289,7 +249,8 @@ EXTER_ATTACK int ctc_execute_rewrite_open_conn_intf(uint32_t thd_id, ctc_ddl_bro
 #ifndef WITH_CANTIAN
     return ctc_execute_rewrite_open_conn(thd_id, broadcast_req);
 #else
-    return g_mysql_intf.ctc_execute_rewrite_open_conn(thd_id, broadcast_req);
+    CHECK_SQL_INTF(ctc_execute_rewrite_open_conn, "ctc_execute_rewrite_open_conn g_sql_intf is %p.");
+    return g_sql_intf->ctc_execute_rewrite_open_conn(thd_id, broadcast_req);
 #endif
 }
 
@@ -300,7 +261,8 @@ EXTER_ATTACK int ctc_ddl_execute_update_intf(uint32_t thd_id, ctc_ddl_broadcast_
 #ifndef WITH_CANTIAN
     return ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
 #else
-    return g_mysql_intf.ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
+    CHECK_SQL_INTF(ctc_ddl_execute_update, "ctc_ddl_execute_update g_sql_intf is %p.");
+    return g_sql_intf->ctc_ddl_execute_update(thd_id, broadcast_req, allow_fail);
 #endif
 }
 
@@ -309,7 +271,8 @@ EXTER_ATTACK int ctc_ddl_execute_set_opt_intf(uint32_t thd_id, ctc_set_opt_reque
 #ifndef WITH_CANTIAN
     return ctc_ddl_execute_set_opt(thd_id, broadcast_req, allow_fail);
 #else
-    return g_mysql_intf.ctc_ddl_execute_set_opt(thd_id, broadcast_req, allow_fail);
+    CHECK_SQL_INTF(ctc_ddl_execute_set_opt, "ctc_ddl_execute_set_opt g_sql_intf is %p.");
+    return g_sql_intf->ctc_ddl_execute_set_opt(thd_id, broadcast_req, allow_fail);
 #endif
 }
 
@@ -318,7 +281,8 @@ EXTER_ATTACK int close_mysql_connection_intf(uint32_t thd_id, uint32_t mysql_ins
 #ifndef WITH_CANTIAN
     return close_mysql_connection(thd_id, mysql_inst_id);
 #else
-    return g_mysql_intf.close_mysql_connection(thd_id, mysql_inst_id);
+    CHECK_SQL_INTF(close_mysql_connection, "close_mysql_connection g_sql_intf is %p.");
+    return g_sql_intf->close_mysql_connection(thd_id, mysql_inst_id);
 #endif
 }
 
@@ -328,7 +292,8 @@ EXTER_ATTACK int ctc_ddl_execute_lock_tables_intf(ctc_handler_t *tch, char *db_n
 #ifndef WITH_CANTIAN
     return ctc_ddl_execute_lock_tables(tch, db_name, lock_info, err_code);
 #else
-    return g_mysql_intf.ctc_ddl_execute_lock_tables(tch, db_name, lock_info, err_code);
+    CHECK_SQL_INTF(ctc_ddl_execute_lock_tables, "ctc_ddl_execute_lock_tables g_sql_intf is %p.");
+    return g_sql_intf->ctc_ddl_execute_lock_tables(tch, db_name, lock_info, err_code);
 #endif
 }
 
@@ -337,7 +302,8 @@ EXTER_ATTACK int ctc_ddl_execute_unlock_tables_intf(ctc_handler_t *tch, uint32_t
 #ifndef WITH_CANTIAN
     return ctc_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
 #else
-    return g_mysql_intf.ctc_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
+    CHECK_SQL_INTF(ctc_ddl_execute_unlock_tables, "ctc_ddl_execute_unlock_tables g_sql_intf is %p.");
+    return g_sql_intf->ctc_ddl_execute_unlock_tables(tch, mysql_inst_id, lock_info);
 #endif
 }
 
@@ -346,7 +312,8 @@ EXTER_ATTACK int ctc_invalidate_mysql_dd_cache_intf(ctc_handler_t *tch, ctc_inva
 #ifndef WITH_CANTIAN 
     return ctc_invalidate_mysql_dd_cache(tch, broadcast_req, err_code);
 #else
-    return g_mysql_intf.ctc_invalidate_mysql_dd_cache(tch, broadcast_req, err_code);
+    CHECK_SQL_INTF(ctc_invalidate_mysql_dd_cache, "ctc_invalidate_mysql_dd_cache g_sql_intf is %p.");
+    return g_sql_intf->ctc_invalidate_mysql_dd_cache(tch, broadcast_req, err_code);
 #endif
 }
 
@@ -355,6 +322,7 @@ EXTER_ATTACK int ctc_set_cluster_role_by_cantian_intf(bool is_slave)
 #ifndef WITH_CANTIAN    
     return ctc_set_cluster_role_by_cantian(is_slave);
 #else
-    return g_mysql_intf.ctc_set_cluster_role_by_cantian(is_slave);
+    CHECK_SQL_INTF(ctc_set_cluster_role_by_cantian, "ctc_set_cluster_role_by_cantian g_sql_intf is %p.");
+    return g_sql_intf->ctc_set_cluster_role_by_cantian(is_slave);
 #endif
 }
