@@ -196,7 +196,7 @@ bool check_value_is_compare(ctc_func_type_t func_type, int32 cmp);
 int32 compare_var_data_ins(char *data1, uint16 size1, char *data2, uint16 size2, ct_type_t type);
 cond_pushdown_result_t check_cond_match_one_line(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id);
 int compute_cond_elements(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
-                          variant_t *left, variant_t *right);
+                          variant_t *left, variant_t *right, nlsparams_t *nls);
 void ctc_init_index_scan(knl_cursor_t *cursor, bool32 is_equal, bool32 *need_init_index);
 int ctc_get_index_info_and_set_scan_key(knl_cursor_t *cursor, const index_key_info_t *index_key_info);
 int ctc_pq_set_scan_key(knl_cursor_t *cursor, ctc_scan_range_t scan_range, const index_key_info_t *index_key_info);

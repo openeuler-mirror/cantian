@@ -1350,17 +1350,18 @@ int ctc_cond_field_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
     return CT_SUCCESS;
 }
 
-int ctc_cond_value_var(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res) {
+int ctc_cond_value_var(ctc_conds *cond, uint32 charset_id, variant_t *res, nlsparams_t *nls) {
     if (cond->field_info.null_value) {
         res->is_null = CT_TRUE;
         return CT_SUCCESS;
     }
+    nls->client_timezone = cond->field_info.timezone;
     ct_type_t ct_type = get_ct_type_from_ctc_ddl_type(cond->field_info.field_type, cond->field_info.is_unsigned);
     ctc_data2variant(res, cond->field_info.field_value, cond->field_info.field_size, ct_type);
     return CT_SUCCESS;
 }
 
-int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res_var) {
+int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, variant_t *res_var, nlsparams_t *nls) {
     if (cond == NULL) {
         CT_LOG_RUN_ERR("[dfs_compute_conds] failed to compute cond.");
         return CT_ERROR;
@@ -1373,7 +1374,7 @@ int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, 
     }
     
     if (cond->cond_type == CTC_CONST_EXPR) {
-        return ctc_cond_value_var(cond, cursor, charset_id, res_var);
+        return ctc_cond_value_var(cond, charset_id, res_var, nls);
     }
 
     operator_type_t oper_type = get_ct_cond_opr(cond->func_type);
@@ -1384,7 +1385,7 @@ int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, 
     }
 
     variant_t left = { 0 }, right = { 0 };
-    if (compute_cond_elements(cond, cursor, charset_id, &left, &right) != CT_SUCCESS) {
+    if (compute_cond_elements(cond, cursor, charset_id, &left, &right, nls) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -1397,7 +1398,7 @@ int dfs_compute_conds(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id, 
 }
 
 int compute_cond_elements(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_id,
-                          variant_t *left, variant_t *right)
+                          variant_t *left, variant_t *right, nlsparams_t *nls)
 {
     // only support for condition with two operands
     if (cond->cond_list->elements != 2) {
@@ -1406,12 +1407,12 @@ int compute_cond_elements(ctc_conds *cond, knl_cursor_t *cursor, uint32 charset_
         return CT_ERROR;
     }
     ctc_conds *left_node = cond->cond_list->first;
-    if (dfs_compute_conds(left_node, cursor, charset_id, left) != CT_SUCCESS) {
+    if (dfs_compute_conds(left_node, cursor, charset_id, left, nls) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
     ctc_conds *right_node = left_node->next;
-    if (dfs_compute_conds(right_node, cursor, charset_id, right) != CT_SUCCESS) {
+    if (dfs_compute_conds(right_node, cursor, charset_id, right, nls) != CT_SUCCESS) {
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -1502,8 +1503,9 @@ cond_pushdown_result_t compare_cond_field_value(ctc_conds *cond, knl_cursor_t *c
         return CPR_TRUE;
     }
 
+    nlsparams_t nls_params;
     variant_t left = { 0 }, right = { 0 };
-    if (compute_cond_elements(cond, cursor, charset_id, &left, &right) != CT_SUCCESS) {
+    if (compute_cond_elements(cond, cursor, charset_id, &left, &right, &nls_params) != CT_SUCCESS) {
         return CPR_TRUE;
     }
 
@@ -1524,7 +1526,7 @@ cond_pushdown_result_t compare_cond_field_value(ctc_conds *cond, knl_cursor_t *c
         cmp = var_compare_data_ex(left.v_text.str, left.v_text.len, right.v_text.str, right.v_text.len,
                                   left.type, field_cond->field_info.collate_id);
     } else {
-        if (var_compare(NULL, &left, &right, &cmp) != CT_SUCCESS) {
+        if (var_compare(&nls_params, &left, &right, &cmp) != CT_SUCCESS) {
             return CPR_TRUE;
         }
     }
