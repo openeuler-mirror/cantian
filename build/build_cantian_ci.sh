@@ -181,7 +181,10 @@ function buildMysql() {
     echo "patching MysqlCode fail."
     exit 1
   fi
-
+  INFO_SRC_FILE="${MYSQL_CODE_PATH}/bld_debug/Docs/INFO_SRC"
+  if [ -f "$INFO_SRC_FILE" ]; then
+     rm -rf "$INFO_SRC_FILE"
+  fi
   cd "${CURRENT_PATH}"
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
     echo "compile multiple mysql process"
