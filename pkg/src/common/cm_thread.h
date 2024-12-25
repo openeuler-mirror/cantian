@@ -105,7 +105,7 @@ typedef struct st_thread {
     volatile bool32 closed;
     void *entry;
     void *argument;
-    int32 result;
+    volatile int32 result;
     uint32 stack_size;
     void *reg_data;
     char *stack_base; /* the start stack address of this thread */
