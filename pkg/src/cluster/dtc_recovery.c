@@ -161,8 +161,9 @@ static inline void reset_read_buffer(){
 }
 
 static status_t close_read_log_proc(thread_t *read_log_thread, knl_session_t *session){
-    CT_LOG_RUN_INF("[DTC RCY] start close read log proc");
-    read_log_thread->result = CT_FALSE;
+    CT_LOG_RUN_INF("[DTC RCY] start close "
+                   "rcy read log thread, closed = %d result = %d",
+                   read_log_thread->closed, read_log_thread->result);
     read_log_thread->closed = CT_TRUE;
     uint32 time_out = CT_DTC_RCY_NODE_READ_BUF_TIMEOUT;
     for (;;) {
@@ -3549,7 +3550,8 @@ void dtc_rcy_read_node_log_proc(thread_t *thread)
     for (int i = 0 ; i < read_buf_size ;++i) {
         last_nod_log_buffer_index[i] = CT_INVALID_ID32;
     }
-    CT_LOG_RUN_INF("[DTC RCY] rcy read node log thread start");
+    CT_LOG_RUN_INF("[DTC RCY] rcy read node log thread start "
+                   "closed = %d result = %d ", thread->closed, thread->result);
     while (!thread->closed) {
         for (uint32 i = 0; i < dtc_rcy->node_count; i++) {
             if(thread->closed){
@@ -3582,7 +3584,8 @@ void dtc_rcy_read_node_log_proc(thread_t *thread)
         }
     }
     thread->result = CT_TRUE;
-    CT_LOG_RUN_INF("[DTC RCY] rcy read node log thread is closed");
+    CT_LOG_RUN_INF("[DTC RCY] rcy read node log thread is closed, closed = %d result = %d ",
+                   thread->closed, thread->result);
 }
 
 static inline void dtc_rcy_next_phase(knl_session_t *session)
