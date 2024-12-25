@@ -90,6 +90,7 @@ class DefaultConfigValue(object):
         "MES_POOL_SIZE": 16384,
         "TIMED_STATS": "TRUE",
         "SQL_STAT": "TRUE",
+        "SQL_STATISTIC_STAT": "FALSE",
         "MES_ELAPSED_SWITCH": "TRUE",
         "_LOG_LEVEL": 7,
         "CANTIAN_TASK_NUM": 256,
@@ -152,7 +153,8 @@ class DefaultConfigValue(object):
         "EMPTY_STRING_AS_NULL": "FALSE",
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
         "CT_CLUSTER_STRICT_CHECK": "TRUE",
-        "MYSQL_DEPLOY_GROUP_ID": "5000"
+        "MYSQL_DEPLOY_GROUP_ID": "5000",
+        "SQL_STATISTIC_TIME_LIMIT": 1000000
     }
     
     GSS_CONFIG = {

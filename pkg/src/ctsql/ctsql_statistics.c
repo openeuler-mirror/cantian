@@ -228,6 +228,39 @@ void sql_begin_ctx_stat(void *handle)
     cm_spin_unlock(&stmt->session->sess_lock);
 }
 
+void sql_start_ctx_stat(void *handle)
+{
+    sql_stmt_t *stmt = (sql_stmt_t *)handle;
+    ctx_prev_stat_t *context_pre_stat = &stmt->session->ctx_prev_stat;
+    knl_stat_t *knl_stat = stmt->session->knl_session.stat;
+    if (!g_instance->sql.enable_stat) {
+        return;
+    }
+    
+    context_pre_stat->disk_reads = knl_stat->disk_reads;
+    context_pre_stat->buffer_gets = knl_stat->buffer_gets;
+    context_pre_stat->cr_gets = knl_stat->cr_gets;
+    context_pre_stat->dcs_buffer_gets = knl_stat->dcs_buffer_gets;
+    context_pre_stat->dcs_buffer_sends = knl_stat->dcs_buffer_sends;
+    context_pre_stat->dcs_cr_gets = knl_stat->dcs_cr_gets;
+    context_pre_stat->dcs_cr_sends = knl_stat->dcs_cr_sends;
+    context_pre_stat->cr_reads = knl_stat->cr_reads;
+    context_pre_stat->dcs_cr_reads = knl_stat->dcs_cr_reads;
+    context_pre_stat->io_wait_time = knl_stat->disk_read_time;
+    context_pre_stat->con_wait_time = knl_stat->con_wait_time;
+    context_pre_stat->dcs_net_time = knl_stat->dcs_net_time;
+    context_pre_stat->sorts = knl_stat->sorts;
+    context_pre_stat->processed_rows = knl_stat->processed_rows;
+
+    sql_save_datafile_stats(stmt);
+    sql_save_buffer_stats(stmt);
+    sql_save_log_stats(stmt);
+    sql_save_tempspace_stats(stmt);
+    sql_save_tx_stats(stmt);
+
+    (void)cm_gettimeofday(&context_pre_stat->tv_start);
+}
+
 /* accumulate stat info on datafile */
 static void sql_datafile_statinfo_accumulate(sql_stmt_t *stmt, ctx_stat_t *context_stat)
 {

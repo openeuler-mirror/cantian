@@ -4,7 +4,15 @@ include_directories(${CMAKE_SOURCE_DIR}/pkg/src/ctc)
 include_directories(${CMAKE_SOURCE_DIR}/library/protobuf)
 include_directories(${CMAKE_SOURCE_DIR}/pkg/src/rc)
 set(CTC_SRV_UT_SOURCE ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_srv_test_main.cpp
-                ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_cbo_test.cpp)
+                      ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_cbo_test.cpp
+                      ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_trx_begin_test.cpp
+                      ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_statistic_begin_test.cpp
+                      ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_mq_trx_begin_test.cpp
+                      ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_mq_statistic_begin_test.cpp
+		              ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_trx_commit_test.cpp
+		              ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_statistic_commit_test.cpp
+		              ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_mq_trx_commit_test.cpp
+		              ${CMAKE_SOURCE_DIR}/pkg/test/unit_test/ut/ctc_srv/ctc_mq_statistic_commit_test.cpp)
 
 #add_compile_options(-fno-common)
 add_compile_options(-Wall -fpermissive)

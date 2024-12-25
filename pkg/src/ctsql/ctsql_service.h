@@ -108,6 +108,7 @@ typedef enum en_load_data_local_phase {
 typedef struct st_sql_instance {
     context_pool_t *pool;
     bool32 enable_stat;
+    bool32 enable_sql_statistic_stat;
     bool32 commit_on_disconn;
     ack_sender_t pl_sender;
     ack_sender_t sender;
@@ -120,6 +121,7 @@ typedef struct st_sql_instance {
     bool32 string_as_hex_binary;     /* String: '' as null like oracle, as '' like MYSQL */
     list_t self_func_list;           // high priority user function.
     sql_type_map_t type_map;
+    uint32 sql_statistic_time_limit;
     uint32 max_connect_by_level;
     uint32 index_scan_range_cache;
     uint32 prefetch_rows;

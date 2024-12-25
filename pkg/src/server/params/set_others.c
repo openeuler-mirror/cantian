@@ -516,6 +516,20 @@ status_t sql_notify_als_sql_stat(void *se, void *item, char *value)
     return sql_notify_als_bool(se, item, value);
 }
 
+status_t sql_notify_als_sql_statistic_stat(void *se, void *item, char *value)
+{
+    // match id specified by ddl_parser.c:sql_parse_alsys_set
+    g_instance->sql.enable_sql_statistic_stat = (bool32)value[0];
+    // restore value for alter config.
+    ctc_update_sql_statistic_stat_intf((bool8)value[0]);
+    return sql_notify_als_bool(se, item, value);
+}
+
+status_t sql_notify_als_sql_statistic_time_limit(void *se, void *item, char *value)
+{
+    return cm_str2uint32(value, &g_instance->sql.sql_statistic_time_limit);
+}
+
 status_t sql_verify_als_repl_port(void *se, void *lex, void *def)
 {
     word_t word;

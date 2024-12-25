@@ -86,6 +86,8 @@ status_t sql_create_dml_currently(sql_stmt_t *stmt, sql_text_t *sql_text, key_wi
 void sql_prepare_context_ctrl(sql_stmt_t *stmt, uint32 hash_value, context_bucket_t *bucket);
 void sql_parse_set_context_procinfo(sql_stmt_t *stmt);
 uint32 sql_has_special_word(sql_stmt_t *stmt, text_t *sql_text);
+bool32 sql_get_context_cache(sql_stmt_t *stmt, text_t *sql, uint32 *sql_id, context_bucket_t **bid,ctx_stat_t *herit_stat);
+void sql_enrich_context_for_cached(sql_stmt_t *stmt, timeval_t *tv_begin, ctx_stat_t *herit_stat);
 #ifdef __cplusplus
 }
 #endif
