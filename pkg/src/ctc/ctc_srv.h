@@ -519,6 +519,7 @@ typedef enum en_ctc_cond_type_t {
     CTC_UNKNOWN_EXPR
 } ctc_cond_type_t;
 
+typedef int16_t timezone_info_t;
 typedef struct en_ctc_cond_field_t {
     uint16_t field_no;
     enum_ctc_ddl_field_types field_type;
@@ -527,6 +528,7 @@ typedef struct en_ctc_cond_field_t {
     bool null_value;
     bool is_unsigned;
     uint32_t collate_id;
+    timezone_info_t timezone;
     bool col_updated;
     bool index_only_invalid_col; // col in cond but not in index while select with index_only
     bool no_backslash;
