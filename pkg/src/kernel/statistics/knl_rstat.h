@@ -448,7 +448,7 @@ status_t stats_gather_table(knl_session_t *session, knl_dictionary_t *dc, stats_
 status_t db_delete_mon_sysmods(knl_session_t *session, uint32 uid, uint32 table_id, uint32 dele_part_id,
                                bool32 is_dynamic);
 status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *table_stats,
-                              mtrl_context_t *mtrl_tab_ctx, uint32 temp_seg);
+                              mtrl_context_t *mtrl_tab_ctx, uint32 temp_seg, bool8 is_global);
 status_t stats_gather_index_by_btree(knl_session_t *session, knl_dictionary_t *dc, knl_analyze_index_def_t *def,
                                      bool32 is_dynamic);
 status_t stats_drop_hists(knl_session_t *session, uint32 uid, uint32 oid, bool32 is_nologging);
