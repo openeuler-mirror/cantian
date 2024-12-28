@@ -631,6 +631,15 @@ void cm_decode_date(date_t date_input, date_detail_t *detail);
 /* decode a time type into  detail info. */
 void cm_decode_time(time_t time, date_detail_t *detail);
 
+static inline bool32 cm_is_all_zero_time(const date_detail_t *datetime)
+{
+    if (datetime->year == 0 && datetime->mon == 0 && datetime->day == 0 && datetime->hour == 0 && datetime->min == 0 &&
+        datetime->sec == 0 &&  datetime->millisec == 0 && datetime->microsec == 0 && datetime->nanosec == 0) {
+        return CT_TRUE;
+    }
+    return CT_FALSE;
+}
+
 /* encode a date_detail type into a date type (i.e., a 64-bit integer) with
  * 10 nanoseconds as the minimum unit, that is, 1 = 10 nanoseconds. */
 date_t cm_encode_date(const date_detail_t *detail);

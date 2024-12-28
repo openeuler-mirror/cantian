@@ -587,15 +587,6 @@ static void cm_set_all_zero_detail(date_detail_t *detail)
     return ;
 }
 
-static bool32 cm_is_all_zero_time(const date_detail_t *datetime)
-{
-    if (datetime->year == 0 && datetime->mon == 0 && datetime->day == 0 && datetime->hour == 0 && datetime->min == 0 &&
-        datetime->sec == 0 &&  datetime->millisec == 0 && datetime->microsec == 0 && datetime->nanosec == 0) {
-        return CT_TRUE;
-    }
-    return CT_FALSE;
-}
-
 static bool32 cm_check_valid_zero_time(date_detail_t *datetime)
 {
     if (cm_is_all_zero_time(datetime)) {
