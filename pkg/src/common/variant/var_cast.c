@@ -285,7 +285,6 @@ status_t var_as_date(const nlsparams_t *nls, variant_t *var)
 status_t var_as_timestamp(const nlsparams_t *nls, variant_t *var)
 {
     text_t fmt_text;
-    date_detail_t detail;
     switch (var->type) {
         case CT_TYPE_STRING:
         case CT_TYPE_CHAR:
@@ -301,13 +300,18 @@ status_t var_as_timestamp(const nlsparams_t *nls, variant_t *var)
         case CT_TYPE_TIMESTAMP_TZ:
             var->type = CT_TYPE_TIMESTAMP;
             return CT_SUCCESS;
-        case CT_TYPE_DATETIME_MYSQL:
-            cm_cnvrt_datetime_from_int_to_date_detail(VALUE(date_t, var), &detail);
-            VALUE(timestamp_t, var) = cm_encode_date(&detail);
-            var->type = CT_TYPE_TIMESTAMP;
-            VALUE(timestamp_t, var) = cm_adjust_date_between_two_tzs(VALUE(timestamp_t, var),
-                cm_get_session_time_zone(nls), cm_get_db_timezone());
-            return CT_SUCCESS;
+        case CT_TYPE_DATETIME_MYSQL: {
+                date_detail_t detail = { 0 };
+                cm_cnvrt_datetime_from_int_to_date_detail(VALUE(date_t, var), &detail);
+                VALUE(timestamp_t, var) = cm_encode_date(&detail);
+                var->type = CT_TYPE_TIMESTAMP;
+                if (cm_is_all_zero_time(&detail)) {
+                    return CT_SUCCESS;
+                }
+                VALUE(timestamp_t, var) = cm_adjust_date_between_two_tzs(VALUE(timestamp_t, var),
+                    cm_get_session_time_zone(nls), cm_get_db_timezone());
+                return CT_SUCCESS;
+            }
         case CT_TYPE_TIMESTAMP_LTZ:
             /* adjust whith dbtimezone */
             var->type = CT_TYPE_TIMESTAMP;
