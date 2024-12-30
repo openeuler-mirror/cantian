@@ -2274,6 +2274,10 @@ void ckpt_set_trunc_point(knl_session_t *session, log_point_t *point)
         return;
     }
     cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
+    // update curr_node_idx only in standby cluster
+    if (!DB_IS_PRIMARY(&session->kernel->db)) {
+        ctx->queue.curr_node_idx = session->kernel->id;
+    }
     ctx->queue.trunc_point = *point;
     cm_spin_unlock(&ctx->queue.lock);
 }
