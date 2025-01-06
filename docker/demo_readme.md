@@ -28,6 +28,17 @@ mkdir /data/your_work_dir
 cd /data/your_work_dir
 ```
 
+### 下载docker基础镜像
+
+```shell
+# x86版本
+docker pull quay.io/centos/centos:centos8.2.2004
+docker tag quay.io/centos/centos:centos8.2.2004 centos:8.2.2004
+# arm版本
+docker pull hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1
+docker tag hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1 openeuler/openeuler:22.03-lts-sp1
+```
+
 ### 准备代码
 
 ```shell
@@ -35,8 +46,8 @@ cd /data/your_work_dir
 git clone -b cantian_openatom_comp https://gitee.com/openeuler/cantian.git
 git clone -b cantian_openatom_comp https://gitee.com/openeuler/cantian-connector-mysql.git
 
-#拷贝mysql-8.0.26源码包（/data目录下已提前准备）
-cp /data/mysql-8.0.26.tar.gz .
+#下载mysql-8.0.26源码
+wget --no-check-certificate https://github.com/mysql/mysql-server/archive/refs/tags/mysql-8.0.26.tar.gz
 tar -zxf mysql-8.0.26.tar.gz
 mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
 
@@ -49,6 +60,16 @@ mkdir -p cantian_data
 # 注释maintainer.cmake文件中两行
 sed -i '/STRING_APPEND(MY_C_WARNING_FLAGS   " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
 sed -i '/STRING_APPEND(MY_CXX_WARNING_FLAGS " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
+```
+
+### 编译cantian容器镜像
+
+```angular2html
+cd cantian/docker
+# arm环境执行以下命令
+docker build -t cantian_dev -f Dockerfile_ARM64 .
+# x86环境执行以下命令
+docker build -t cantian_dev -f Dockerfile .
 ```
 
 <a id="section2"></a>
