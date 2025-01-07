@@ -37,8 +37,8 @@ RUN mkdir /tools
 WORKDIR /tools
 RUN wget --progress=bar:force -O FlameGraph-master.zip https://github.com/brendangregg/FlameGraph/archive/master.zip
 RUN wget --progress=bar:force -O fzf-master.zip https://github.com/junegunn/fzf/archive/master.zip
-RUN wget --progress=bar:force https://boostorg.jfrog.io/artifactory/main/release/1.73.0/source/boost_1_73_0.tar.gz \
-    && tar -zxf boost_1_73_0.tar.gz
+RUN wget --progress=bar:force https://archives.boost.io/release/1.73.0/source/boost_1_73_0.zip \
+    && unzip boost_1_73_0.zip && rm -rf boost_1_73_0.zip
 RUN wget --progress=bar:force  https://github.com/doxygen/doxygen/releases/download/Release_1_9_2/doxygen-1.9.2.src.tar.gz \
     && tar -zxf doxygen-1.9.2.src.tar.gz && cd doxygen-1.9.2 && mkdir build && cd build \
     && cmake -G "Unix Makefiles" .. && make && cd ../..
@@ -49,9 +49,6 @@ RUN yum install -y mysql-connector-c++-devel --nogpgcheck
 RUN yum install -y git-clang-format
 RUN yum install -y libcap-devel
 RUN yum install -y expect
-
-RUN wget --progress=bar:force -O /tmp/libasan5-8.2.1-3.el7.x86_64.rpm http://mirror.centos.org/centos/7/sclo/x86_64/rh/Packages/l/libasan5-8.2.1-3.el7.x86_64.rpm
-RUN rpm -ivh /tmp/libasan5-8.2.1-3.el7.x86_64.rpm
 
 RUN mkdir /docker-entrypoint-initdb.d
 VOLUME /var/lib/mysql
