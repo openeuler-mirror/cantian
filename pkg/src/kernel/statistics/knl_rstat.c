@@ -3916,14 +3916,9 @@ static void stats_gather_pcrb_key(index_t *idx, stats_index_t *stats_idx, pcrb_k
 
     // clear for next analyze
     if (stats_idx->info.distinct_keys == 0) {
-        if (table_stats->part_stats.part_no == CT_INVALID_ID32 ||
-            (!table_stats->part_stats.is_subpart && table_stats->part_stats.part_no == 0) ||
-            (table_stats->part_stats.is_subpart && table_stats->part_stats.part_no == 0 &&
-             table_stats->part_stats.sub_stats->part_no == 0)) {
-            for (uint32_t i = 0; i < MAX_KEY_COLUMNS; i++) {
-                if (cbo_index != NULL) {
-                    cbo_index->distinct_keys_arr[i] = 0;
-                }
+        for (uint32_t i = 0; i < MAX_KEY_COLUMNS; i++) {
+            if (cbo_index != NULL) {
+                cbo_index->distinct_keys_arr[i] = 0;
             }
         }
     }
@@ -4460,8 +4455,9 @@ void stats_calc_index_empty_size(knl_session_t *session, dc_entity_t *entity, in
 
     dc_calc_index_empty_size(session, entity, idx->desc.slot, part_loc, stats_idx->info.empty_leaves);
 }
-
-static status_t stats_persist_index_stats(knl_session_t *session, stats_index_t *stats_idx, stats_table_t *table_stats)
+// when is_global is CT_TRUE, the situation of the index is part_index && part_id == INVALID should be allowed.
+static status_t stats_persist_index_stats(knl_session_t *session, stats_index_t *stats_idx, stats_table_t *table_stats,
+                                          bool8 is_global)
 {
     bool8 is_report = table_stats->stats_option.is_report;
     dc_entity_t *entity = stats_idx->btree->index->entity;
@@ -4476,8 +4472,10 @@ static status_t stats_persist_index_stats(knl_session_t *session, stats_index_t 
         cbo_load_tmptab_index_stats(table_stats->temp_table->table_cache->cbo_stats, stats_idx);
         return CT_SUCCESS;
     }
-
-    stats_calc_index_empty_size(session, entity, idx, stats_idx);
+    
+    if(!is_global) {
+        stats_calc_index_empty_size(session, entity, idx, stats_idx);
+    }
     stats_idx->uid = idx->desc.uid;
     stats_idx->name.str = idx->desc.name;
     stats_idx->name.len = (uint16)strlen(idx->desc.name);
@@ -4533,7 +4531,7 @@ bool32 stats_dynamic_ignore_index(knl_session_t *session, dc_entity_t *entity, u
 }
 
 static status_t stats_gather_index_entity(knl_session_t *session, knl_dictionary_t *dc, index_t *idx,
-    stats_index_t *stats_idx, stats_table_t *table_stats)
+    stats_index_t *stats_idx, stats_table_t *table_stats, bool8 is_global)
 {
     dc_entity_t *entity = DC_ENTITY(dc);
 
@@ -4575,7 +4573,7 @@ static status_t stats_gather_index_entity(knl_session_t *session, knl_dictionary
         }
     }
 
-    if (stats_persist_index_stats(session, stats_idx, table_stats) != CT_SUCCESS) {
+    if (stats_persist_index_stats(session, stats_idx, table_stats, is_global) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
@@ -4610,10 +4608,11 @@ static status_t stats_persist_empty_index_stats(knl_session_t *session, stats_in
 }
 
 /*
- * this function will gather index info, if index is part index, info 0 will be writen in index$
+ * this function will gather index info, if index is part index , info 0 will be writen in index$
+ * if current table is a part table, is_global should be CT_TRUE when gather global index's stats
  */
 status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stats_table_t *table_stats,
-                              mtrl_context_t *mtrl_tab_ctx, uint32 temp_seg)
+                              mtrl_context_t *mtrl_tab_ctx, uint32 temp_seg, bool8 is_global)
 {
     table_t          *table;
     dc_entity_t      *entity = DC_ENTITY(dc);
@@ -4645,7 +4644,7 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
         stats_idx.mtrl.temp_seg_id = temp_seg;
         stats_idx.btree = btree;
 
-        if (IS_PART_INDEX(index)) {
+        if (IS_PART_INDEX(index) && !is_global) {
             if (stats_persist_empty_index_stats(session, &stats_idx, index, table_stats) != CT_SUCCESS) {
                 mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
                 cm_pop(session->stack);
@@ -4659,7 +4658,7 @@ status_t stats_gather_indexes(knl_session_t *session, knl_dictionary_t *dc, stat
             continue;
         }
 
-        if (stats_gather_index_entity(session, dc, index, &stats_idx, table_stats) != CT_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, index, &stats_idx, table_stats, is_global) != CT_SUCCESS) {
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             cm_pop(session->stack);
             stats_internal_rollback(session, table_stats);
@@ -6833,7 +6832,7 @@ status_t stats_gather_part_index(knl_session_t *session, knl_dictionary_t *dc, s
             continue;
         }
 
-        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != CT_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats, CT_FALSE) != CT_SUCCESS) {
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             CM_RESTORE_STACK(session->stack);
             stats_internal_rollback(session, table_stats);
@@ -7237,7 +7236,7 @@ status_t stats_gather_subpart_index(knl_session_t *session, knl_dictionary_t *dc
         stats_idx.mtrl.temp_seg_id = mtrl_tab_seg;
         stats_idx.btree = btree;
 
-        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats) != CT_SUCCESS) {
+        if (stats_gather_index_entity(session, dc, idx, &stats_idx, table_stats, CT_FALSE) != CT_SUCCESS) {
             cm_pop(session->stack);
             mtrl_release_context(&stats_idx.mtrl.mtrl_ctx);
             stats_internal_rollback(session, table_stats);
@@ -8422,7 +8421,7 @@ status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, s
         return CT_ERROR;
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != CT_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg, CT_FALSE) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         return CT_ERROR;
@@ -8528,7 +8527,7 @@ status_t stats_gather_normal_table(knl_session_t *session, knl_dictionary_t *dc,
         }
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg) != CT_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, table_ctx.mtrl_tab_seg, CT_TRUE) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);
@@ -8655,7 +8654,7 @@ status_t stats_gather_temp_table(knl_session_t *session, knl_dictionary_t *dc, s
         return CT_ERROR;
     }
 
-    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg) != CT_SUCCESS) {
+    if (stats_gather_indexes(session, dc, &table_stats, mtrl_tab_ctx, tab_ctx.mtrl_tab_seg, CT_FALSE) != CT_SUCCESS) {
         mtrl_release_context(mtrl_tab_ctx);
         CM_RESTORE_STACK(session->stack);
         stats_close_report_file(is_report, &stats_option);

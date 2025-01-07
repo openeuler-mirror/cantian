@@ -57,6 +57,7 @@ extern "C" {
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)
 #define MAX_KEY_COLUMNS (uint32_t)16  // cantian限制复合索引最大支持字段不超过16
+#define MAX_PERSIST_INDEX_CBO_COLUMES 4
 #define FUNC_TEXT_MAX_LEN 128
 #define CTC_IDENTIFIER_MAX_LEN 64
 #define CANTIAN_DOWN_MASK 0xFFFF  // 参天节点故障
