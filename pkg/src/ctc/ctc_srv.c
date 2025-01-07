@@ -2640,7 +2640,7 @@ int ctc_knl_read_lob(ctc_handler_t *tch, char *loc, uint32_t offset, void *buf, 
     return knl_read_lob(knl_session, loc, offset, buf, size, read_size, NULL);
 }
 
-EXTER_ATTACK int ctc_analyze_table(ctc_handler_t *tch, const char *db_name, const char *table_name,
+int ctc_analyze_table_exec(ctc_handler_t *tch, const char *db_name, const char *table_name,
                                    double sampling_ratio)
 {
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
@@ -2680,6 +2680,86 @@ EXTER_ATTACK int ctc_analyze_table(ctc_handler_t *tch, const char *db_name, cons
         ret = ctc_get_and_reset_err();
     }
     return ret;
+}
+
+#define MAX_CTC_JOB 128
+typedef struct {
+    char db_name[SMALL_RECORD_SIZE];
+    char table_name[SMALL_RECORD_SIZE];
+    double sampling_ratio;
+} ctc_analyze_job_t;
+
+typedef struct {
+    thread_t thread;
+    session_t *session
+    ctc_analyze_job_t jobs[MAX_CTC_JOB];
+    uint32_t start;
+    uint32_t end;
+} ctc_job_context_t;
+
+ctc_job_context_t g_ctc_job_ctx;
+
+void ctc_add_analyze_job(const char *db_name, const char *table_name, double sampling_ratio)
+{
+    uint32_t id = g_ctc_job_ctx.end % MAX_CTC_JOB;
+    g_ctc_job_ctx.end = id;
+    ctc_analyze_job_t *job = &g_ctc_job_ctx.job[id];
+    (void)memcpy_s(job->db_name, SMALL_RECORD_SIZE, db_name, SMALL_RECORD_SIZE);
+    (void)memcpy_s(job->table_name, SMALL_RECORD_SIZE, table_name, SMALL_RECORD_SIZE);
+    job->sampling_ratio = sampling_ratio;
+    g_ctc_job_ctx.end++;
+}
+
+EXTER_ATTACK int ctc_analyze_table(ctc_handler_t *tch, const char *db_name, const char *table_name,
+                                   double sampling_ratio)
+{
+    if (tch != NULL) {
+        return ctc_analyze_table_exec(tch, db_name, table_name, sampling_ratio);
+    } else {
+        ctc_add_analyze_job(db_name, table_name, sampling_ratio);
+    }
+    return CT_SUCCESS;
+}
+
+void ctc_job_proc(thread_t *thread)
+{
+    cm_set_thread_name("dmon");
+    CT_LOG_RUN_INF("ctc_job_proc started");
+    ctc_handler_t tch = {0};
+
+    while (!thread->closed) {
+        if (g_ctc_job_ctx.start == g_ctc_job_ctx.end) {
+            cm_sleep(1000);
+            continue;
+        }
+
+        if (g_ctc_job_ctx.session == NULL) {
+            session_t *session = NULL;
+            status_t status = ctc_get_new_session(&session);
+            if (status != CT_SUCCESS) {
+                continue;
+            }
+            ctc_set_no_use_other_sess4thd(session);
+            g_ctc_job_ctx.session = session;
+            tch->sess_addr = (uint64)(*session);
+        }
+
+        int32 id = g_ctc_job_ctx.start % MAX_CTC_JOB;
+        g_ctc_job_ctx.start = id;
+        int ret = ctc_analyze_table_exec(tch, g_ctc_job_ctx.jobs[id].db_name, g_ctc_job_ctx.jobs[id].table_name, g_ctc_job_ctx.jobs[id].sampling_ratio);
+        if (ret != CT_SUCCESS) {
+            cm_sleep(1000);
+            continue;
+        }
+        g_ctc_job_ctx.start++;
+    }
+}
+
+int init_analyze_task()
+{
+    status_t status = memset_s(&g_ctc_job_ctx, sizeof(ctc_job_context_t), 0, sizeof(ctc_job_context_t));
+    knl_securec_check(status);
+    return cm_create_thread(ctc_job_proc, 0, NULL, &g_ctc_job_ctx.thread);
 }
 
 EXTER_ATTACK int ctc_get_cbo_stats(ctc_handler_t *tch, ctc_cbo_stats_t *stats,
