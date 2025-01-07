@@ -68,21 +68,22 @@ status_t fill_cbo_stats_column(cbo_stats_column_t *cbo_column, ctc_cbo_stats_col
     return ret;
 }
 
-status_t fill_cbo_stats_index(cbo_stats_index_t *index, uint32_t *ndv_keys, uint32 idx_id)
+void fill_cbo_stats_index(cbo_stats_index_t *index_cbo, cbo_stats_column_t *col_stats , uint32_t *ndv_keys)
 {
-    status_t ret = CT_SUCCESS;
-    SYNC_POINT_GLOBAL_START(CTC_FILL_CBO_STATS_INDEX_FAIL, &ret, CT_ERROR);
-    SYNC_POINT_GLOBAL_END;
-    uint32_t *ndv_index_keys = ndv_keys + (idx_id * MAX_KEY_COLUMNS);
-    for (uint32_t i = 0; i < MAX_KEY_COLUMNS; i++) {
-        if (index != NULL) {
-            ndv_index_keys[i] = i > 0 ? ndv_index_keys[i - 1] + index->distinct_keys_arr[i]:
-                                        index->distinct_keys_arr[0];
-        } else {
-            ndv_index_keys[i] = 0;
-        }
+    // The pre-four-columns cardinality of index is persisited, but other columns is not. 
+    // The cardinality of the first column is not persisted in the index statistics, 
+    // so the first column uses the num_distinct in the cbo_column.
+    if (index_cbo == NULL) {
+        memset(ndv_keys, 0, sizeof(uint32_t) * MAX_KEY_COLUMNS);
+        return;
     }
-    return ret;
+    ndv_keys[0] = (col_stats == NULL) ? 0 : col_stats->num_distinct;
+    ndv_keys[1] = index_cbo->comb_cols_2_ndv;
+    ndv_keys[2] = index_cbo->comb_cols_3_ndv;
+    ndv_keys[3] = index_cbo->comb_cols_4_ndv;
+    for (uint32_t i = MAX_PERSIST_INDEX_CBO_COLUMES; i < MAX_KEY_COLUMNS; i++) {
+        ndv_keys[i] = index_cbo->distinct_keys_arr[i] + ndv_keys[i - i];
+    }
 }
 
 status_t fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t *stats,
@@ -95,10 +96,11 @@ status_t fill_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *entity, ctc_cb
         }
     }
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
-        cbo_stats_index_t *index = knl_get_cbo_index(handle, entity, idx_id);
-        if (fill_cbo_stats_index(index, stats->ndv_keys, idx_id) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
+        cbo_stats_index_t *index_cbo = knl_get_cbo_index(handle, entity, idx_id);
+        uint32_t *ndv_index_keys = stats->ndv_keys + (idx_id * MAX_KEY_COLUMNS);
+        index_t *index = entity->table.index_set.items[idx_id];
+        cbo_stats_column_t *col_stats = knl_get_cbo_column(handle, entity, index->desc.columns[0]);
+        fill_cbo_stats_index(index_cbo, col_stats, ndv_index_keys);
     }
     return CT_SUCCESS;
 }
@@ -132,12 +134,13 @@ status_t fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t 
 
 status_t fill_part_table_cbo_stats_index(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t *stats)
 {
-    cbo_stats_index_t *index = NULL;
+    cbo_stats_index_t *index_cbo = NULL;
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
-        index = entity->cbo_table_stats->indexs[idx_id];
-        if (fill_cbo_stats_index(index, stats->ndv_keys, idx_id) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
+        index_cbo = entity->cbo_table_stats->indexs[idx_id];
+        uint32_t *ndv_index_keys = stats->ndv_keys + (idx_id * MAX_KEY_COLUMNS);
+        index_t *index = entity->table.index_set.items[idx_id];
+        cbo_stats_column_t *col_stats = knl_get_cbo_column(handle, entity, index->desc.columns[0]);
+        fill_cbo_stats_index(index_cbo, col_stats, ndv_index_keys);
     }
     return CT_SUCCESS;
 }
@@ -173,12 +176,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
             } else {
                 ctc_cbo_stats_table[i].estimate_rows = 0;
             }
-        }
-        table_stats = knl_get_cbo_part_table(handle, entity, max_part_no);
-        if (table_stats != NULL) {
-            stats->records = table_stats->rows; // the biggest part, with max rows num
-        } else {
-            stats->records = 0;
+            stats->records += ctc_cbo_stats_table[i].estimate_rows;
         }
     } else {
         if (fill_part_table_cbo_stats_index(handle, entity, stats) != CT_SUCCESS) {
@@ -199,12 +197,7 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
             } else {
                 ctc_cbo_stats_table[i].estimate_rows = 0;
             }
-        }
-        table_stats = knl_get_cbo_subpart_table(handle, entity, max_part_no, max_sub_part_no);
-        if (table_stats != NULL) {
-            stats->records = table_stats->rows; // the biggest subpart, with max rows num
-        } else {
-            stats->records = 0;
+            stats->records += ctc_cbo_stats_table[i].estimate_rows;
         }
     }
     return ret;
