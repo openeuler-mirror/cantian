@@ -71,6 +71,9 @@ function newPackageTarget() {
   local current_time=$(date "+%Y%m%d%H%M%S")
   local pkg_dir_name="${BUILD_TARGET_NAME}"
   local build_type_upper=$(echo "${BUILD_TYPE}" | tr [:lower:] [:upper:])
+  if [[ ${COMPILE_TYPE} == "ASAN" ]]; then
+    build_type_upper="${COMPILE_TYPE}"
+  fi
   local pkg_name="${BUILD_PACK_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   local mysql_pkg_name="${MYSQL_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
   local connector_pkg_name="${CONNECT_BIN_NAME}_${ENV_TYPE}_${build_type_upper}.tgz"
@@ -217,8 +220,13 @@ function prepare() {
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
     echo "compiling multiple process"
     if [[ ${BUILD_TYPE} == "debug" ]]; then
-      echo "compiling multiple process debug"
-      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} CANTIAN_READ_WRITE=1"
+      if [[ ${COMPILE_TYPE} == "ASAN" ]]; then
+        echo "compiling multiple process asan"
+        sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} asan=1 CANTIAN_READ_WRITE=1"
+      else
+        echo "compiling multiple process debug"
+        sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} CANTIAN_READ_WRITE=1"
+      fi
     else
       echo "compiling multiple process release"
       sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE}"
@@ -226,10 +234,15 @@ function prepare() {
   elif [[ ${BUILD_MODE} == "single" ]]; then
     echo "compiling single process"
     if [[ ${BUILD_TYPE} == "debug" ]]; then
-      echo "compiling multiple process debug"
-      sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1 CANTIAN_READ_WRITE=1"
+      if [[ ${COMPILE_TYPE} == "ASAN" ]]; then
+        echo "compiling single process asan"
+        sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} asan=1 no_shm=1 CANTIAN_READ_WRITE=1"
+      else
+        echo "compiling single process debug"
+        sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1 CANTIAN_READ_WRITE=1"
+      fi
     else
-      echo "compiling multiple process release"
+      echo "compiling single process release"
       sh "${CURRENT_PATH}"/Makefile_ci.sh "${CT_BUILD_TYPE} no_shm=1"
     fi
   else
