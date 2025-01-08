@@ -42,6 +42,7 @@ typedef struct tag_mq_cfg_s {
 } mq_cfg_s;
 
 int init_cpu_info(void);
+int init_analyze_task();
 int mq_srv_init(void);
 int mq_srv_destory(void);
 int get_cpu_group_num(void);

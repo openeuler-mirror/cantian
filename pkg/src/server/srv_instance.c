@@ -2157,6 +2157,8 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
     printf("%s\n", "instance started");
     fflush(stdout);
     g_instance_startuped = CT_TRUE;
+    init_analyze_task();
+
     return CT_SUCCESS;
 }
 
