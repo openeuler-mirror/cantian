@@ -305,11 +305,9 @@ func_pkg_run_basic()
     cp -R ${CANTIANDB_HOME}/cfg  ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/
     if [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
-            cp -d /usr/lib64/libubsan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
             cp -d /usr/lib64/libasan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
         elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/${LIB_OS_ARCH}/libubsan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/${LIB_OS_ARCH}/libasan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
+            cp -d /usr/lib64/libasan.so* ${CANTIANDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
         else
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi
@@ -347,11 +345,9 @@ fun_pkg_mysql_lib()
     cp -d ${CANTIANDB_HOME}/../output/lib/*.so ${CANTIAN_LIB_DIR}
     if [ "${ENABLE_LLT_ASAN}" == "YES" ]; then
         if [[ ${OS_ARCH} =~ "x86_64" ]]; then
-            cp -d /usr/lib64/libubsan.so* ${CANTIAN_LIB_DIR}
             cp -d /usr/lib64/libasan.so* ${CANTIAN_LIB_DIR}
         elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libubsan.so* ${CANTIAN_LIB_DIR}
-            cp -d ${CANTIANDB_HOME}/../library/protobuf/lib_arm/libasan.so* ${CANTIAN_LIB_DIR}
+            cp -d /usr/lib64/libasan.so* ${CANTIAN_LIB_DIR}
         else
             echo "OS_ARCH: ${OS_ARCH} is unknown."
         fi

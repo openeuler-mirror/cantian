@@ -228,8 +228,8 @@ endif (USE_LLT)
 
 option(USE_ASAN OFF)
 if (USE_ASAN)
-    add_compile_options(-fsanitize=address -fsanitize-recover=address -fsanitize=undefined -fsanitize-recover=undefined  -ggdb -fno-omit-frame-pointer -fno-optimize-sibling-calls)
-    add_link_options(-fsanitize=address -fsanitize-recover=address -fsanitize=undefined -fsanitize-recover=undefined  -ggdb -fno-omit-frame-pointer -fno-optimize-sibling-calls)
+    add_compile_options(-fsanitize=address -fsanitize-recover=address -ggdb -fno-omit-frame-pointer -fno-optimize-sibling-calls)
+    add_link_options(-fsanitize=address -fsanitize-recover=address -ggdb -fno-omit-frame-pointer -fno-optimize-sibling-calls)
     message(STATUS "Toolchain: Build with ASAN TEST Configure")
 endif (USE_ASAN)
 
