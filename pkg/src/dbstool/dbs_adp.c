@@ -124,6 +124,7 @@ typedef struct {
     char page_fs_name[MAX_DBS_FS_NAME_LEN];
     char cluster_name[MAX_DBS_FILE_NAME_LEN];
     char log_fs_vstore_id[MAX_DBS_VSTORE_ID_LEN];
+    char dbs_log_path[MAX_DBS_FS_NAME_LEN];
 } dbs_fs_info_t;
 
 dbs_fs_info_t g_dbs_fs_info = { 0 };
@@ -570,6 +571,8 @@ status_t dbs_get_fs_info_from_config(char* cfg_name)
             result = dbs_get_param_value(line, g_dbs_fs_info.cluster_name, MAX_DBS_FILE_NAME_LEN);
         } else if (strstr(line, "LOG_VSTOR") != NULL) {
             result = dbs_get_param_value(line, g_dbs_fs_info.log_fs_vstore_id, MAX_DBS_VSTORE_ID_LEN);
+        } else if (strstr(line, "DBS_LOG_PATH") != NULL) {
+            result = dbs_get_param_value(line, g_dbs_fs_info.dbs_log_path, MAX_DBS_FS_NAME_LEN);
         }
         if (result != CT_SUCCESS) {
             CT_LOG_RUN_ERR("get param value failed, line %s.", line);
@@ -661,6 +664,53 @@ status_t dbs_client_init(char* cfg_name)
     int64_t end_time = cm_now();
     CT_LOG_RUN_INF("dbstor client init time %ld (ns)", end_time - start_time);
     return ret;
+}
+
+status_t dbs_init_loggers()
+{
+    char file_name[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    log_param_t *log_param = cm_log_param_instance();
+    int32 ret = 0;
+    char dbs_tool_cfg_name[DBS_CONFIG_FILE_NAME_LEN] = { 0 };
+
+    if (dbs_get_and_flock_conf_file(dbs_tool_cfg_name) != CT_SUCCESS) {
+        printf("get flock failed %s.\n", dbs_tool_cfg_name);
+        return CT_ERROR;
+    }  
+    
+    if (dbs_get_fs_info_from_config(dbs_tool_cfg_name) != CT_SUCCESS) {
+        printf("get fs failed %s.\n", g_dbs_fs_info.dbs_log_path);
+        return CT_ERROR;
+    } 
+        
+    ret = snprintf_s(log_param->log_home, CT_MAX_PATH_BUFFER_SIZE, CT_MAX_PATH_LEN, "%s", g_dbs_fs_info.dbs_log_path);
+    PRTS_RETURN_IFERR(ret);
+    
+    if (!cm_dir_exist(log_param->log_home) || 0 != access(log_param->log_home, W_OK | R_OK)) {
+        printf("invalid log home dir:%s.\n", log_param->log_home);
+        return CT_ERROR;
+    }
+
+    log_param->log_backup_file_count = DBS_BACKUP_FILE_COUNT;
+    log_param->audit_backup_file_count = DBS_BACKUP_FILE_COUNT;
+    log_param->max_log_file_size = DBS_LOGFILE_SIZE;
+    log_param->max_audit_file_size = DBS_LOGFILE_SIZE;
+    cm_log_set_file_permissions(CT_DEF_LOG_FILE_PERMISSIONS_640);
+    cm_log_set_path_permissions(CT_DEF_LOG_PATH_PERMISSIONS_750);
+    log_param->log_level = LOG_RUN_INF_LEVEL | LOG_RUN_ERR_LEVEL | LOG_RUN_WAR_LEVEL;
+
+    for (int32 i = 0; i < LOG_COUNT; i++) {
+        ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/%s",
+            log_param->log_home, DBS_TOOL_LOG_FILE_NAME);
+        PRTS_RETURN_IFERR(ret);
+        cm_log_init(i, file_name);
+    }
+
+    if (cm_start_timer(g_timer()) != CT_SUCCESS) {
+        printf("Aborted due to starting timer thread.\n");
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
 }
 
 status_t dbstool_init()

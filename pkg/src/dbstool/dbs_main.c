@@ -32,14 +32,9 @@
 #include "cm_error.h"
 #include "cm_file.h"
 #include "dbs_adp.h"
-#include "cm_timer.h"
 #include "cm_dbstore.h"
 
 #define DBS_MAX_CMD_PARAM_COUNT 16
-#define DBS_LOGFILE_SIZE (10 * 1024 * 1024)
-#define DBS_BACKUP_FILE_COUNT 10
-#define DBS_TOOL_LOG_PATH "/opt/cantian/dbstor/data/logs/run"
-#define DBS_TOOL_LOG_FILE_NAME "dbs_tool.log"
 
 typedef int32(*cmd_pro_func_t)(int32 argc, char* argv[]);
 
@@ -48,41 +43,6 @@ typedef struct {
     cmd_pro_func_t   cmd_pro_func;
     char*            desc;
 } dbs_cmd_def_t;
-
-status_t cms_init_loggers()
-{
-    char file_name[CT_FILE_NAME_BUFFER_SIZE];
-    log_param_t *log_param = cm_log_param_instance();
-
-    int32 ret = snprintf_s(log_param->log_home, CT_MAX_PATH_BUFFER_SIZE, CT_MAX_PATH_LEN, "%s", DBS_TOOL_LOG_PATH);
-    PRTS_RETURN_IFERR(ret);
-
-    if (!cm_dir_exist(log_param->log_home) || 0 != access(log_param->log_home, W_OK | R_OK)) {
-        printf("invalid log home dir:%s.\n", log_param->log_home);
-        return CT_ERROR;
-    }
-
-    log_param->log_backup_file_count = DBS_BACKUP_FILE_COUNT;
-    log_param->audit_backup_file_count = DBS_BACKUP_FILE_COUNT;
-    log_param->max_log_file_size = DBS_LOGFILE_SIZE;
-    log_param->max_audit_file_size = DBS_LOGFILE_SIZE;
-    cm_log_set_file_permissions(CT_DEF_LOG_FILE_PERMISSIONS_640);
-    cm_log_set_path_permissions(CT_DEF_LOG_PATH_PERMISSIONS_750);
-    log_param->log_level = LOG_RUN_INF_LEVEL | LOG_RUN_ERR_LEVEL | LOG_RUN_WAR_LEVEL;
-
-    for (int32 i = 0; i < LOG_COUNT; i++) {
-        ret = snprintf_s(file_name, CT_FILE_NAME_BUFFER_SIZE, CT_MAX_FILE_NAME_LEN, "%s/%s",
-            log_param->log_home, DBS_TOOL_LOG_FILE_NAME);
-        PRTS_RETURN_IFERR(ret);
-        cm_log_init(i, file_name);
-    }
-
-    if (cm_start_timer(g_timer()) != CT_SUCCESS) {
-        printf("Aborted due to starting timer thread.\n");
-        return CT_ERROR;
-    }
-    return CT_SUCCESS;
-}
 
 EXTER_ATTACK int32 dbs_cmd_help(int32 argc, char* argv[]);
 
@@ -200,7 +160,7 @@ EXTER_ATTACK int32 main(int32 argc, char *argv[])
         return CT_ERROR;
     }
 
-    if (cms_init_loggers() != CT_SUCCESS) {
+    if (dbs_init_loggers() != CT_SUCCESS) {
         printf("dbs init loggers failed.\n");
         return CT_ERROR;
     }
