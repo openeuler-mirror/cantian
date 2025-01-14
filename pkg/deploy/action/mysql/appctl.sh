@@ -104,6 +104,9 @@ function do_install2chown4mysql()
     if [ -f "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ];then
        cp -arf "${BACKUP_UPGRADE_PATH}"/mysql/mysqld ${MF_MOUNT_DIR}/plugin/
     fi
+    if [ -f "${BACKUP_UPGRADE_PATH}"/mysql/my.cnf ];then
+       cp -arf "${BACKUP_UPGRADE_PATH}"/mysql/my.cnf /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts
+    fi
     sh ${CURRENT_PATH}/chmod_file.sh
     exit $?
 }
@@ -167,6 +170,9 @@ function do_install2chown4mysqlrollback()
         cp -arf ${backup_dir}/mysql/libctc_proxy.so /opt/cantian/cantian/server/lib/
         cp -arf ${backup_dir}/mysql/libctc_proxy.so ${MF_MOUNT_DIR}/cantian_lib
     fi
+    if [ -f ${backup_dir}/mysql/my.cnf ];then
+       cp -arf ${backup_dir}/mysql/my.cnf /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts
+    fi
     if [[ -f /opt/cantian/cantian/server/lib/libmessage_queue.so ]];then
         cp /opt/cantian/cantian/server/lib/libmessage_queue.so ${MF_MOUNT_DIR}/cantian_lib
     fi
@@ -197,6 +203,9 @@ function do_upgrade_backup() {
     fi
     if [ -f ${ha_ctc_path}/../libctc_proxy.so ]; then
         cp -arf ${ha_ctc_path}/../libctc_proxy.so ${backup_dir}/mysql/
+    fi
+    if [ -f /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf ]; then
+        cp -arf /opt/cantian/image/cantian_connector/cantian-connector-mysql/scripts/my.cnf ${backup_dir}/mysql/
     fi
 }
 
