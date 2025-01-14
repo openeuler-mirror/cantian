@@ -36,6 +36,15 @@ SHARE_FS_TYPE_LIST = [
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
 ]
+if DEPLOY_MODE == "file":
+    FS_TYPE_LIST = [
+        "storage_dbstore_fs","storage_share_fs",
+        "storage_archive_fs", "storage_metadata_fs"
+    ]
+    SHARE_FS_TYPE_LIST = [
+        "storage_dbstore_fs", "storage_share_fs",
+        "storage_archive_fs", "storage_metadata_fs"
+    ]
 ID_NAS_DBSTORE = 1038
 ID_NAS_DEFAULT = 11
 
@@ -141,7 +150,8 @@ class CreateFS(object):
             self._check_fs_exists()
         LOG.info("Check file system params start.")
         self._check_param_type()
-        self._check_vstore_id()
+        if self.deploy_info.get("deploy_mode") == "dbstor":
+            self._check_vstore_id()
         self.storage_opt.login()
         try:
             _check_func()
