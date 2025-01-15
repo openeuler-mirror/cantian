@@ -2160,6 +2160,7 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
     }
     if (dbs_global_handle()->dbs_query_fs_info == NULL) {
         printf("DBstor version not supported.\n");
+        free(fs_info);
         return CT_ERROR;
     }
 
@@ -2171,6 +2172,7 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
     }
     if (fs_info->total_capacity == 0) {
         printf("File system does not exist.\n");
+        free(fs_info);
         return CT_ERROR;
     }
     dbs_fs_info_display(fs_name, vstore_id, fs_info);
