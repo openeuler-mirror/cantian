@@ -37,7 +37,7 @@
 #include "cm_date.h"
 #include "cm_error.h"
 #include "cm_file.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_defs.h"
 #include "cm_log.h"
 #include "cm_dbs_intf.h"

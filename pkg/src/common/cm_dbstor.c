@@ -14,11 +14,11 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * cm_dbstore.c
+ * cm_dbstor.c
  *
  *
  * IDENTIFICATION
- * src/common/cm_dbstore.c
+ * src/common/cm_dbstor.c
  *
  * -------------------------------------------------------------------------
  */
@@ -26,7 +26,7 @@
 #include <dlfcn.h>
 #include "cm_log.h"
 #include "cm_error.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_module.h"
 
 #ifdef __cplusplus
@@ -62,11 +62,17 @@ static status_t dbs_load_symbol(void *lib_handle, char *symbol, void **sym_lib_h
 status_t dbs_init_lib(void)
 {
     dbs_interface_t *intf = dbs_global_handle();
-    intf->dbs_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
-    const char *dlopen_err = dlerror();
+    const char *dlopen_err = NULL;
+    intf->dbs_handle = dlopen("libdbstorClient.so", RTLD_LAZY);
+    dlopen_err = dlerror();
     if (intf->dbs_handle == NULL) {
-        CT_LOG_RUN_WAR("failed to load libdbstoreClient.so, maybe lib path error, errno %s", dlopen_err);
-        return CT_ERROR;
+        CT_LOG_RUN_WAR("Failed to load libdbstorClient.so, trying libdbstoreClient.so instead, original error: %s", dlopen_err);
+        intf->dbs_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
+        dlopen_err = dlerror();
+        if (intf->dbs_handle == NULL) {
+            CT_LOG_RUN_ERR("Failed to load libdbstoreClient.so, maybe lib path error, errno %s", dlopen_err);
+            return CT_ERROR;
+        }
     }
 
     // namespace
@@ -133,7 +139,7 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "ReadUlogRecordList",             (void **)(&intf->read_ulog_record_list)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "GetUlogUsedCap",                 (void **)(&intf->get_ulog_used_cap)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "GetUlogInitCapacity",            (void **)(&intf->get_ulog_init_capacity)));
-    CT_LOG_RUN_INF("load libdbstoreClient.so done");
+    CT_LOG_RUN_INF("load libdbstorClient.so done");
 
     return CT_SUCCESS;
 }

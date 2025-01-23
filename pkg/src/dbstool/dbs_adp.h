@@ -28,7 +28,7 @@
 #include "cm_timer.h"
 
 #ifndef MODULE_ID
-#define MODULE_ID DBSTORE
+#define MODULE_ID DBSTOR
 #endif
 
 #define NUM_ONE     1

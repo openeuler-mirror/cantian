@@ -29,7 +29,7 @@
 #include "cm_thread.h"
 #include "cm_timer.h"
 #include "cm_dbs_intf.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include <regex.h>
 
 #ifndef _WIN32
@@ -52,7 +52,7 @@ static char *g_module_info[] = {
     "RC",
     "TBOX",
     "PE",
-    "DBSTORE",
+    "DBSTOR",
     "CTC",
     "SERVER",
     "KNL_COMM",

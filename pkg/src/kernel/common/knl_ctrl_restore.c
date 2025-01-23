@@ -901,7 +901,7 @@ status_t knl_backup_iof_kick_by_ns(knl_session_t *session)
     ret = cm_dbs_iof_kick_by_ns(&iof);
     SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_WAR("dbstore iof failed, node_id : %u", iof.nodeid);
+        CT_LOG_RUN_WAR("dbstor iof failed, node_id : %u", iof.nodeid);
         return CT_ERROR;
     }
     return CT_SUCCESS;

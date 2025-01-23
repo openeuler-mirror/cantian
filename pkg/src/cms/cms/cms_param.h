@@ -76,7 +76,7 @@ status_t cms_get_detect_file(char *detect_file_all, uint32 detect_file_all_len, 
 status_t cms_init_detect_file(char *detect_file_all);
 status_t cms_get_value_is_valid(char* value, uint32 *val_uint32);
 void cms_get_mes_config_value(config_t *cfg);
-status_t cms_get_dbstore_config_value(config_t *cfg);
+status_t cms_get_dbstor_config_value(config_t *cfg);
 status_t cms_load_keyfiles(void);
 
 extern const cms_param_t* g_cms_param;

@@ -33,7 +33,7 @@
 #include "cm_dbs_ctrl.h"
 #include "cm_debug.h"
 #include "cm_io_record.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #define CM_DBS_ULOG_FRAGMENT_RESERVATION SIZE_M(256)
 #define CM_DBS_ULOG_UNSUPPORTED(op) CT_LOG_RUN_WAR("Unsupported operation(%s) for dbstor object(ulog).", op)

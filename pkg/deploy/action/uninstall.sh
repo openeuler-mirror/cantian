@@ -13,7 +13,7 @@ deploy_group=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_group")
 cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
 
 # 获取已创建路径的路径名
-storage_dbstore_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs")
+storage_dbstor_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstor_fs")
 storage_share_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs")
 storage_archive_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_archive_fs")
 storage_metadata_fs=$(python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs")
@@ -115,10 +115,10 @@ function umount_fs() {
     umount -f -l /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
     umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
     umount -f -l /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
-    umount -f -l /mnt/dbdata/remote/storage_${storage_dbstore_fs} > /dev/null 2>&1
+    umount -f -l /mnt/dbdata/remote/storage_${storage_dbstor_fs} > /dev/null 2>&1
 
     rm -rf /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
-    rm -rf /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data > /dev/null 2>&1
+    rm -rf /mnt/dbdata/remote/storage_${storage_dbstor_fs}/data > /dev/null 2>&1
     rm -rf /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
     rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs} > /dev/null 2>&1
 }

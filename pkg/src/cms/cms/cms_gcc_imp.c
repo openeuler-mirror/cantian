@@ -31,7 +31,7 @@
 #include "cm_ip.h"
 #include "cms_disk_lock.h"
 #include "cms_log.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #define GCC_IMP_OBJ_MAGIC_LEN               10
 
@@ -938,14 +938,14 @@ static status_t cms_import_gcc_read_file_dbs(const char* file_name, char* buf, i
                                                  (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1,
                                                  FILE_TYPE, &gcc_backup_file_handle);
     if (ret != EOK) {
-        CT_LOG_RUN_ERR("Failed to open gcc export file %s by dbstore",
+        CT_LOG_RUN_ERR("Failed to open gcc export file %s by dbstor",
                        (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
         return CT_ERROR;
     }
 
     ret = dbs_global_handle()->dbs_get_file_size(&gcc_backup_file_handle, &file_size);
     if (ret != EOK) {
-        CT_LOG_RUN_ERR("Failed to get file size by dbstore, file: %s",
+        CT_LOG_RUN_ERR("Failed to get file size by dbstor, file: %s",
                        (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
         return CT_ERROR;
     }
@@ -1062,7 +1062,7 @@ status_t cms_restore_gcc_dbs(const char* file_name)
                                                  (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1,
                                                  FILE_TYPE, &gcc_backup_file_handle);
     if (ret != EOK) {
-        CT_LOG_RUN_ERR("Failed to open gcc backup file %s by dbstore",
+        CT_LOG_RUN_ERR("Failed to open gcc backup file %s by dbstor",
                        (char*)file_name + strlen(g_cms_param->cms_gcc_bak) + 1);
         return CT_ERROR;
     }

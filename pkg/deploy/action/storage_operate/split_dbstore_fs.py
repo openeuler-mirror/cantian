@@ -20,8 +20,8 @@ class StorageFileSystemSplit(StorageInf):
     def __init__(self, ip, user_name, passwd, config):
         super(StorageFileSystemSplit, self).__init__((ip, user_name, passwd))
         self.config_info = json.loads(read_helper(config))
-        self.storage_dbstore_fs = self.config_info.get("storage_dbstore_fs")
-        self.storage_dbstore_page_fs = self.config_info.get("storage_dbstore_page_fs")
+        self.storage_dbstor_fs = self.config_info.get("storage_dbstor_fs")
+        self.storage_dbstor_page_fs = self.config_info.get("storage_dbstor_page_fs")
         self.metadata_logic_ip = self.config_info.get("metadata_logic_ip")
         self.namespace = self.config_info.get("cluster_name")
         self.vstore_id = 0
@@ -42,7 +42,7 @@ class StorageFileSystemSplit(StorageInf):
     @staticmethod
     def _remove_mount_file_path(fs_name):
         """
-        删除dbstore文件系统挂载目录
+        删除dbstor文件系统挂载目录
         :param fs_name: 文件系统名称
         :return:
         """
@@ -63,23 +63,23 @@ class StorageFileSystemSplit(StorageInf):
              4、取消挂载
         :return:
         """
-        LOGGER.info("Start to tailor dbstore fs.")
+        LOGGER.info("Start to tailor dbstor fs.")
         # sleep 避免nfs server 繁忙报错
         time.sleep(2)
-        self.mount_file_system(self.storage_dbstore_fs, self.metadata_logic_ip)
+        self.mount_file_system(self.storage_dbstor_fs, self.metadata_logic_ip)
         # sleep 避免nfs server 繁忙报错
         time.sleep(2)
-        self.mount_file_system(self.storage_dbstore_page_fs, self.metadata_logic_ip)
+        self.mount_file_system(self.storage_dbstor_page_fs, self.metadata_logic_ip)
         self.tailor_log_file_system()
         self.tailor_page_file_system()
         time.sleep(2)
         self._change_group_recursive()
-        self.umount_file_system(self.storage_dbstore_fs)
+        self.umount_file_system(self.storage_dbstor_fs)
         time.sleep(2)
-        self.umount_file_system(self.storage_dbstore_page_fs)
-        self._remove_mount_file_path(self.storage_dbstore_fs)
-        self._remove_mount_file_path(self.storage_dbstore_page_fs)
-        LOGGER.info("Success to tailor dbstore fs.")
+        self.umount_file_system(self.storage_dbstor_page_fs)
+        self._remove_mount_file_path(self.storage_dbstor_fs)
+        self._remove_mount_file_path(self.storage_dbstor_page_fs)
+        LOGGER.info("Success to tailor dbstor fs.")
 
     def tailor_log_file_system(self):
         """
@@ -89,7 +89,7 @@ class StorageFileSystemSplit(StorageInf):
             2、将ulog_root_dir内部目录上移一层，然后删除ulog_root_di
         :return:
         """
-        log_namespace_path = f"/mnt/dbdata/remote/{self.storage_dbstore_fs}/{self.namespace}"
+        log_namespace_path = f"/mnt/dbdata/remote/{self.storage_dbstor_fs}/{self.namespace}"
         page_pool_root_dir = os.path.join(log_namespace_path, "page_pool_root_dir")
         ulog_root_dir = os.path.join(log_namespace_path, "ulog_root_dir")
         if os.path.exists(page_pool_root_dir):
@@ -107,7 +107,7 @@ class StorageFileSystemSplit(StorageInf):
             3、将page_pool_root_dir内的目录上移后，删除page_pool_root_dir
         :return:
         """
-        page_namespace_path = f"/mnt/dbdata/remote/{self.storage_dbstore_page_fs}/{self.namespace}"
+        page_namespace_path = f"/mnt/dbdata/remote/{self.storage_dbstor_page_fs}/{self.namespace}"
         namespace_file = os.path.join(page_namespace_path, self.namespace)
         page_pool_root_dir = os.path.join(page_namespace_path, "page_pool_root_dir")
         ulog_root_dir = os.path.join(page_namespace_path, "ulog_root_dir")
@@ -149,38 +149,38 @@ class StorageFileSystemSplit(StorageInf):
         share_id = self.create_nfs_share(data)
         return share_id
 
-    def clear_dbstore_nfs_share(self, fs_id, clone_fs_id):
+    def clear_dbstor_nfs_share(self, fs_id, clone_fs_id):
         """
         删除文件系统共享
         :param fs_id:文件系统id
         :param clone_fs_id:克隆文件系统ID
         :return:
         """
-        LOGGER.info("Begin to clear dbstore nfs share.fs_name:[%s], clone_fs_name:[%s]", self.storage_dbstore_fs,
-                    self.storage_dbstore_page_fs)
+        LOGGER.info("Begin to clear dbstor nfs share.fs_name:[%s], clone_fs_name:[%s]", self.storage_dbstor_fs,
+                    self.storage_dbstor_page_fs)
         for _id in [fs_id, clone_fs_id]:
             share_info = self.query_nfs_info(_id, vstore_id=self.vstore_id)
             if share_info:
                 _share_id = share_info[0].get("ID")
                 self.delete_nfs_share(_share_id, vstore_id=self.vstore_id)
-        LOGGER.info("Success to clear dbstore nfs share.")
+        LOGGER.info("Success to clear dbstor nfs share.")
 
     def pre_upgrade(self):
-        LOGGER.info("Begin to check dbstore page fs info")
-        page_file_system_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        LOGGER.info("Begin to check dbstor page fs info")
+        page_file_system_info = self.query_filesystem_info(self.storage_dbstor_page_fs, vstore_id=self.vstore_id)
         if page_file_system_info:
-            err_msg = "File system [%s] is exist." % self.storage_dbstore_page_fs
+            err_msg = "File system [%s] is exist." % self.storage_dbstor_page_fs
             LOGGER.error(err_msg)
             raise Exception(err_msg)
-        LOGGER.info("Success to check dbstore page fs info")
+        LOGGER.info("Success to check dbstor page fs info")
 
     def upgrade(self):
         """
-        分裂dbstore文件系统
+        分裂dbstor文件系统
         steps:
            1、登录DM
-           2、查询storage_dbstore_fs信息
-           3、查询storage_dbstore_page_fs信息，不存在执行步骤4，存在判断：正在分裂执行步骤6，没有分裂执行步骤5
+           2、查询storage_dbstor_fs信息
+           3、查询storage_dbstor_page_fs信息，不存在执行步骤4，存在判断：正在分裂执行步骤6，没有分裂执行步骤5
            4、克隆文件系统
            5、分裂文件系统
            6、查询分裂进度
@@ -190,12 +190,12 @@ class StorageFileSystemSplit(StorageInf):
            10、删除共享
         :return:
         """
-        fs_info = self.query_filesystem_info(self.storage_dbstore_fs, vstore_id=self.vstore_id)
+        fs_info = self.query_filesystem_info(self.storage_dbstor_fs, vstore_id=self.vstore_id)
         fs_id = fs_info.get("ID")
 
-        clone_fs_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        clone_fs_info = self.query_filesystem_info(self.storage_dbstor_page_fs, vstore_id=self.vstore_id)
         if not clone_fs_info:
-            clone_fs_info = self.create_clone_file_system(fs_id, self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+            clone_fs_info = self.create_clone_file_system(fs_id, self.storage_dbstor_page_fs, vstore_id=self.vstore_id)
 
         clone_fs_id = clone_fs_info.get("ID")
         split_status = clone_fs_info.get("SPLITSTATUS")
@@ -204,19 +204,19 @@ class StorageFileSystemSplit(StorageInf):
         if int(split_status) == 1 and split_enable == "false":
             self.split_clone_file_system(clone_fs_id)
 
-        self.query_split_clone_file_system_process(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        self.query_split_clone_file_system_process(self.storage_dbstor_page_fs, vstore_id=self.vstore_id)
 
-        for _fs_id, _fs_name in [(fs_id, self.storage_dbstore_fs),
-                                 (clone_fs_id, self.storage_dbstore_page_fs)]:
+        for _fs_id, _fs_name in [(fs_id, self.storage_dbstor_fs),
+                                 (clone_fs_id, self.storage_dbstor_page_fs)]:
             _share_id = self.create_clone_share(_fs_id, _fs_name)
             self.add_clone_share_client(_share_id)
 
         self.tailor_file_system()
 
-        self.clear_dbstore_nfs_share(_fs_id, clone_fs_id)
+        self.clear_dbstor_nfs_share(_fs_id, clone_fs_id)
 
     def rollback(self):
-        page_fs_info = self.query_filesystem_info(self.storage_dbstore_page_fs, vstore_id=self.vstore_id)
+        page_fs_info = self.query_filesystem_info(self.storage_dbstor_page_fs, vstore_id=self.vstore_id)
         if not page_fs_info:
             return
         file_system_id = page_fs_info.get("ID")
@@ -230,14 +230,14 @@ class StorageFileSystemSplit(StorageInf):
         for i in env_conf:
             cantian_user = i.split("=")[1] if "cantian_user" in i else cantian_user
             cantian_group = i.split("=")[1] if "cantian_group" in i else cantian_group
-        dbstore_fs_path = f"/mnt/dbdata/remote/{self.storage_dbstore_fs}/{self.namespace}"
-        dbstore_page_fs_path = f"/mnt/dbdata/remote/{self.storage_dbstore_page_fs}/{self.namespace}"
-        LOGGER.info("Start change owner of %s and %s", dbstore_fs_path, dbstore_page_fs_path)
-        cmd = f"chown -hR {cantian_user}:{cantian_group} {dbstore_fs_path} &&" \
-              f" chown -hR {cantian_user}:{cantian_group} {dbstore_page_fs_path}"
+        dbstor_fs_path = f"/mnt/dbdata/remote/{self.storage_dbstor_fs}/{self.namespace}"
+        dbstor_page_fs_path = f"/mnt/dbdata/remote/{self.storage_dbstor_page_fs}/{self.namespace}"
+        LOGGER.info("Start change owner of %s and %s", dbstor_fs_path, dbstor_page_fs_path)
+        cmd = f"chown -hR {cantian_user}:{cantian_group} {dbstor_fs_path} &&" \
+              f" chown -hR {cantian_user}:{cantian_group} {dbstor_page_fs_path}"
         return_code, _, stderr = exec_popen(cmd)
         if return_code:
-            err_msg = f"Failed chown {dbstore_fs_path}  {dbstore_page_fs_path}, details:{stderr}"
+            err_msg = f"Failed chown {dbstor_fs_path}  {dbstor_page_fs_path}, details:{stderr}"
             LOGGER.info(err_msg)
 
 

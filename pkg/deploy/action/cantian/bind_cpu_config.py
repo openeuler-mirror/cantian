@@ -11,7 +11,7 @@ import grp
 from log import LOGGER
 from get_config_info import get_value
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from update_config import update_dbstore_conf
+from update_config import update_dbstor_conf
 
 # 需要的路径和配置
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cpu_bind_config.json")
@@ -210,9 +210,9 @@ class NumaConfigBase:
 
                 if module_id_key in cpu_config_info and cpu_config_info[module_id_key]:
                     cpu_info = cpu_list_to_cpu_info(cpu_config_info[module_id_key])
-                    update_dbstore_conf("add", dbstor_file_key, cpu_info)
+                    update_dbstor_conf("add", dbstor_file_key, cpu_info)
                 else:
-                    update_dbstore_conf("remove", dbstor_file_key, None)
+                    update_dbstor_conf("remove", dbstor_file_key, None)
 
     def update_cantian_config_file(self, cantiand_cpu_info):
         """

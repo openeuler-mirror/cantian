@@ -37,7 +37,7 @@
 #include "cm_dbs_ctrl.h"
 #include "cm_dbs_intf.h"
 #include "cm_dbs_defs.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_file.h"
 
 #define DBSTOR_MAX_FILE_SIZE (1024ULL * 1024 * 1024 * 1024)

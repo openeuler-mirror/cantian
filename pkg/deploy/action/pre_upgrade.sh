@@ -6,7 +6,7 @@ UPGRADE_MODE=$1
 CONFIG_FILE_PATH=$2
 CONFIG_PATH=${CURRENT_PATH}/../config
 CMS_CHECK_FILE=/opt/cantian/action/fetch_cls_stat.py
-DBSTORE_CHECK_FILE=/opt/cantian/dbstor/tools/cs_check_version.sh
+DBSTOR_CHECK_FILE=/opt/cantian/dbstor/tools/cs_check_version.sh
 CANTIAN_PATH=/opt/cantian
 MEM_REQUIRED=5  # 单位G
 SIZE_UPPER=1024
@@ -263,22 +263,22 @@ function gen_upgrade_plan() {
     return 0
 }
 
-function check_dbstore_client_compatibility() {
+function check_dbstor_client_compatibility() {
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
     if [[ x"${deploy_mode}" == x"file" || "${source_version}" == "2.0.0"* ]]; then
         return 0
     fi
-    logAndEchoInfo "begin to check dbstore client compatibility."
-    if [ ! -f "${DBSTORE_CHECK_FILE}" ];then
-        logAndEchoError "${DBSTORE_CHECK_FILE} file is not exists."
+    logAndEchoInfo "begin to check dbstor client compatibility."
+    if [ ! -f "${DBSTOR_CHECK_FILE}" ];then
+        logAndEchoError "${DBSTOR_CHECK_FILE} file is not exists."
         exit 1
     fi
-    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTORE_CHECK_FILE}"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTOR_CHECK_FILE}"
     if [[ $? -ne 0 ]];then
-        logAndEchoError "dbstore client compatibility check failed."
+        logAndEchoError "dbstor client compatibility check failed."
         exit 1
     fi
-    logAndEchoInfo "dbstore client compatibility check success."
+    logAndEchoInfo "dbstor client compatibility check success."
 }
 
 function check_file_system_exist() {
@@ -302,9 +302,9 @@ function check_file_system_exist() {
           exit 1
       fi
       echo ""
-      echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "pre_upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
+      echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstor_fs.py "pre_upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
       if [ $? -ne 0 ];then
-          logAndEchoError "Check dbstore page file system failed, /opt/cantian/log/deploy/om_deploy"
+          logAndEchoError "Check dbstor page file system failed, /opt/cantian/log/deploy/om_deploy"
           exit 1
       fi
       echo -e "${dm_login_ip}\n${dm_login_user}\n${dm_login_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/migrate_file_system.py "pre_upgrade" "${CURRENT_PATH}"/../config/deploy_param.json "/opt/cantian/config/deploy_param.json"
@@ -321,7 +321,7 @@ function offline_upgrade() {
     check_cms_stat
     check_mem_avail
     check_upgrade_version
-    check_dbstore_client_compatibility
+    check_dbstor_client_compatibility
     call_each_pre_upgrade
     gen_upgrade_plan
 }
@@ -332,7 +332,7 @@ function rollup_upgrade() {
     local_node_health_check
     cantian_database_health_status_check
     component_version_dependency_check
-    check_dbstore_client_compatibility
+    check_dbstor_client_compatibility
     call_each_pre_upgrade
     gen_upgrade_plan
 }

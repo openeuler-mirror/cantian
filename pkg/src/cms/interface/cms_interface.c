@@ -563,7 +563,7 @@ static void cms_cli_proc_msg_req_dbs_iof_kick(cms_packet_head_t* msg)
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
     ret = cm_dbs_get_ns_name(DEV_TYPE_PGPOOL, &iof.nsName);
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("get dbstore page pool nsid failed, namespace name %s, ret %d.", cfg->ns, ret);
+        CT_LOG_RUN_ERR("get dbstor page pool nsid failed, namespace name %s, ret %d.", cfg->ns, ret);
         return;
     }
 

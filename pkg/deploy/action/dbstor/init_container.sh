@@ -10,12 +10,12 @@ DBSTOR_PWD="dbstorPwd"
 
 function set_dbstor_config() {
     deploy_mode=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_mode"`
-    storage_dbstore_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstore_fs"`
-    storage_dbstore_page_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstore_page_fs"`
+    storage_dbstor_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstor_fs"`
+    storage_dbstor_page_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstor_page_fs"`
     link_type=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type"`
     node_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "node_id"`
     cluster_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cluster_id"`
-    log_vstor=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id"`
+    log_vstor=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstor_fs_vstore_id"`
     
     cantian_vlan_name=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cantian_vlan_ip"`
     cantian_vlan_ip=""
@@ -60,8 +60,8 @@ function set_dbstor_config() {
     dbstor_user=`cat ${DORADO_CONF_PATH}/${DBSTOR_USER}`
     dbstor_pwd=`cat ${DORADO_CONF_PATH}/${DBSTOR_PWD}`
 
-    sed -i -r "s:(NAMESPACE_FSNAME = ).*:\1${storage_dbstore_fs}:g" ${DBSTOR_CONFIG_PATH}
-    sed -i -r "s:(NAMESPACE_PAGE_FSNAME = ).*:\1${storage_dbstore_page_fs}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(NAMESPACE_FSNAME = ).*:\1${storage_dbstor_fs}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(NAMESPACE_PAGE_FSNAME = ).*:\1${storage_dbstor_page_fs}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(DPU_UUID = ).*:\1${dpu_uuid}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LINK_TYPE = ).*:\1${link_type}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOCAL_IP = ).*:\1${cantian_vlan_ip}:g" ${DBSTOR_CONFIG_PATH}

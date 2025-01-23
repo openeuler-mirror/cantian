@@ -119,7 +119,7 @@ cc_binary(
     ] + COMMON_LINKOPTS,
     deps = [
         "//library:cgw_client",
-        "//library:dbstoreClient",
+        "//library:dbstorClient",
         "//library:dbstor_tool",
         "//library:nomlnx/xnetlite",
         "//library:iod",

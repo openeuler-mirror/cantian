@@ -33,7 +33,7 @@
 #include "cm_utils.h"
 #include "cms_log.h"
 #include "cm_dbs_defs.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 typedef struct st_gcc_buffer {
     uint64      buff[CMS_BLOCK_SIZE / sizeof(uint64)][(sizeof(cms_gcc_t) / CMS_BLOCK_SIZE + 1)];

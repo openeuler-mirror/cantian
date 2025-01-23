@@ -4,7 +4,7 @@
     "D_DATA_PATH": "/mnt/dbdata/local/cantian/tmp/data",
     "l_LOG_FILE": "/opt/cantian/log/cantian/cantian_deploy.log",
     "M_RUNING_MODE": "cantiand_with_mysql_in_cluster",
-    "USE_DBSTORE": "--dbstor",
+    "USE_DBSTOR": "--dbstor",
     "p_PACKAGE_AND_VERSION": "-P",
     "g_INSTALL_USER_PRIVILEGE": "",
     "Z_KERNEL_PARAMETER1": "CHECKPOINT_PERIOD=1",

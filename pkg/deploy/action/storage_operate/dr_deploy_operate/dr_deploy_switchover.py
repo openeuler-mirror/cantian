@@ -23,7 +23,7 @@ CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_
                                          'su -s /bin/bash - %s -c \'source ~/.bashrc && '\
                                          'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
                                          'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
-DBSTORE_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
+DBSTOR_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
 
 
 def load_json_file(file_path):
@@ -391,8 +391,8 @@ class DRRecover(SwitchOver):
             return
         LOG.info("Standby purge backup by cms command success.")
 
-    def do_dbstore_baseline(self):
-        cmd = "sh %s getbase %s" % (DBSTORE_CHECK_VERSION_FILE, self.cluster_name)
+    def do_dbstor_baseline(self):
+        cmd = "sh %s getbase %s" % (DBSTOR_CHECK_VERSION_FILE, self.cluster_name)
         LOG.info("begin to execute command[%s].", cmd)
         return_code, output, stderr = exec_popen(cmd, timeout=600)
         if return_code:
@@ -492,7 +492,7 @@ class DRRecover(SwitchOver):
                     err_msg = "standby cms res stop cantian error."
                     LOG.error(err_msg)
                     raise Exception(err_msg)
-            self.single_write = self.do_dbstore_baseline()
+            self.single_write = self.do_dbstor_baseline()
             self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
                 self.hyper_domain_id, DomainAccess.ReadOnly)
             try:

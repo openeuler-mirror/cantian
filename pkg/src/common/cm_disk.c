@@ -29,7 +29,7 @@
 #endif
 #include "cm_date.h"
 #include "cm_error.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #define CM_FILE_BLOCK_SIZE 8192
 #define CM_DISK_PART_COUNT 16

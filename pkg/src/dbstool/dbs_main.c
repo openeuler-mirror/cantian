@@ -32,7 +32,7 @@
 #include "cm_error.h"
 #include "cm_file.h"
 #include "dbs_adp.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #define DBS_MAX_CMD_PARAM_COUNT 16
 

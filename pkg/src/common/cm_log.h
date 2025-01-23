@@ -72,7 +72,7 @@ typedef enum en_module_id {
     RC,
     TBOX,
     PE,
-    DBSTORE,
+    DBSTOR,
     CTC,
     SERVER,
     KNL_COMM,
