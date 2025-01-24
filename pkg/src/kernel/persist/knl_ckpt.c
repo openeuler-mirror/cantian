@@ -150,7 +150,12 @@ status_t ckpt_init(knl_session_t *session)
     }
 
     if (kernel->attr.enable_asynch) {
-        ctx->group.iocbs_buf = (char *)malloc(CT_CKPT_GROUP_SIZE(session) * CM_IOCB_LENTH);
+        if (DB_IS_CLUSTER(session)) {
+            ctx->group.iocbs_buf = (char *)malloc(CT_CKPT_GROUP_SIZE(session) * CM_IOCB_LENTH_EX);
+        } else {
+            ctx->group.iocbs_buf = (char *)malloc(CT_CKPT_GROUP_SIZE(session) * CM_IOCB_LENTH);
+        }
+
         if (ctx->group.iocbs_buf == NULL) {
             CT_LOG_RUN_ERR("[CKPT] iocb malloc fail");
             return CT_ERROR;
@@ -1546,6 +1551,7 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
     uint32 idx = 0;
     errno_t ret;
     datafile_t *df = NULL;
+    uint32 write_size;
 
     ret = memset_sp(dbwr->flags, sizeof(dbwr->flags), 0, sizeof(dbwr->flags));
     knl_securec_check(ret);
@@ -1562,9 +1568,20 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
             page = (page_head_t *)(ctx->group.buf + ((uint64)buf_id) * size);
             knl_panic(item->ctrl != NULL);
             knl_panic(IS_SAME_PAGID(item->ctrl->page_id, AS_PAGID(page->id)));
-            aio_cbs->iocb_ptrs[cb_id] = &aio_cbs->iocbs[cb_id];
-            cm_aio_prep_write(aio_cbs->iocb_ptrs[cb_id], *asyncio_ctx->handles[idx], (void *)page, size,
-                              (int64)asyncio_ctx->offsets[idx]);
+            if (asyncio_ctx->datafiles[idx]->ctrl->type == DEV_TYPE_RAW) {
+                cm_iocb_ex_t *iocb_ex = (cm_iocb_ex_t *)aio_cbs->iocbs;
+                iocb_ex[cb_id].handle = *asyncio_ctx->handles[idx];
+                iocb_ex[cb_id].offset = (int64)asyncio_ctx->offsets[idx];
+                aio_cbs->iocb_ptrs[cb_id] = &iocb_ex[cb_id].obj;
+                int ret = cm_aio_dss_prep_write(aio_cbs->iocb_ptrs[cb_id], *asyncio_ctx->handles[idx], (void *)page,
+                                                size, (int64)asyncio_ctx->offsets[idx]);
+                knl_panic_log(ret == 0, "[CKPT] ABORT INFO:failed to write page by dss aio");
+                CT_LOG_DEBUG_INF("[CKPT] prepare write datafile %u handle is %llu.", cb_id, iocb_ex[cb_id].handle);
+            } else {
+                aio_cbs->iocb_ptrs[cb_id] = &aio_cbs->iocbs[cb_id];
+                cm_aio_prep_write(aio_cbs->iocb_ptrs[cb_id], *asyncio_ctx->handles[idx], (void *)page, size,
+                                  (int64)asyncio_ctx->offsets[idx]);
+            }
             knl_panic(asyncio_ctx->offsets[idx] == (uint64)item->ctrl->page_id.page * PAGE_SIZE(*page));
             cb_id++;
 
@@ -1592,10 +1609,16 @@ static status_t dbwr_async_io_write(knl_session_t *session, cm_aio_iocbs_t *aio_
             return CT_ERROR;
         }
         for (int32 i = 0; i < aio_ret; i++) {
-            if (aio_cbs->events[i].res != size) {
-                CT_LOG_RUN_ERR("[CKPT] failed to write by event, error code: %ld", aio_cbs->events[i].res);
+            write_size = aio_cbs->events[i].obj->u.c.nbytes;
+            if (aio_cbs->events[i].res != write_size) {
+                CT_LOG_RUN_ERR("[CKPT] failed to write by event, res: %ld, size: %u", aio_cbs->events[i].res, write_size);
                 return CT_ERROR;
             }
+            cm_iocb_ex_t *iocb_ex = (cm_iocb_ex_t *)aio_cbs->events[i].obj;
+            CT_LOG_DEBUG_INF("[CKPT] post write datafile %u, aio_ret: %u, handle: %llu, offset: %llu.",
+                i, aio_ret, iocb_ex->handle, iocb_ex->offset);
+            ret = cm_aio_dss_post_write(&iocb_ex->obj, iocb_ex->handle, aio_cbs->events[i].obj->u.c.nbytes, iocb_ex->offset);
+            knl_panic_log(ret == 0, "[CKPT] failed to post write by async io, error code: %d, aio_idx: %d", ret, i);
         }
         event_num = event_num - aio_ret;
     }
@@ -1642,18 +1665,27 @@ static status_t dbwr_flush_async_io(knl_session_t *session, dbwr_context_t *dbwr
         asyncio_ctx->offsets[latch_cnt] = (uint64)page_id->page * DEFAULT_PAGE_SIZE(session);
         knl_panic(page_compress(session, AS_PAGID(page)) || CHECK_PAGE_PCN(page));
 
-        if (spc_open_datafile(session, asyncio_ctx->datafiles[latch_cnt],
-            asyncio_ctx->handles[latch_cnt]) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
-            return CT_ERROR;
+        if (*asyncio_ctx->handles[latch_cnt] == -1) {
+            if (spc_open_datafile(session, asyncio_ctx->datafiles[latch_cnt],
+                asyncio_ctx->handles[latch_cnt]) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("[CKPT] failed to open datafile %s", asyncio_ctx->datafiles[latch_cnt]->ctrl->name);
+                return CT_ERROR;
+            }
         }
         latch_cnt++;
     }
 
-    buf_offset = dbwr->begin * CM_IOCB_LENTH;
-    aio_cbs.iocbs = (cm_iocb_t *)(ctx->group.iocbs_buf + buf_offset);
-    buf_offset += sizeof(cm_iocb_t) * dbwr->io_cnt;
-    aio_cbs.events = (cm_io_event_t*)(ctx->group.iocbs_buf + buf_offset);
+    if (DB_IS_CLUSTER(session)) {
+        buf_offset = dbwr->begin * CM_IOCB_LENTH_EX;
+        aio_cbs.iocbs = (cm_iocb_t *)(ctx->group.iocbs_buf + buf_offset);
+        buf_offset += sizeof(cm_iocb_ex_t) * dbwr->io_cnt;
+    } else {
+        buf_offset = dbwr->begin * CM_IOCB_LENTH;
+        aio_cbs.iocbs = (cm_iocb_t *)(ctx->group.iocbs_buf + buf_offset);
+        buf_offset += sizeof(cm_iocb_t) * dbwr->io_cnt;
+    }
+
+    aio_cbs.events = (cm_io_event_t *)(ctx->group.iocbs_buf + buf_offset);
     buf_offset += sizeof(cm_io_event_t) * dbwr->io_cnt;
     aio_cbs.iocb_ptrs = (cm_iocb_t**)(ctx->group.iocbs_buf + buf_offset);
 
@@ -2318,7 +2350,7 @@ status_t dbwr_fdatasync(knl_session_t *session, dbwr_context_t *dbwr)
 
     for (uint32 i = 0; i < CT_MAX_DATA_FILES; i++) {
         if (dbwr->flags[i]) {
-            if (cm_fdatasync_file(dbwr->datafiles[i]) != CT_SUCCESS) {
+            if (cm_fdatasync_device(db->datafiles[i].ctrl->type, dbwr->datafiles[i]) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("failed to fdatasync datafile %s", db->datafiles[i].ctrl->name);
                 return CT_ERROR;
             }

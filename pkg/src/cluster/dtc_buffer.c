@@ -174,14 +174,14 @@ static status_t dtc_buf_finish(knl_session_t *session, buf_read_assist_t *ra, bu
     //    stats_buf_record(session, &temp_stat, ctrl);
     buf_push_page(session, ctrl, ra->mode);
     buf_log_enter_page(session, ctrl, ra->mode, ra->options);
-
+    
     if (DTC_BUF_PREFETCH_EXTENT(ra->read_num) && session->kernel->attr.enable_asynch) {
-        knl_panic(0);
         if (buf_try_prefetch_next_ext(session, ctrl) != CT_SUCCESS) {
             CT_LOG_RUN_WAR("failed to prefetch next extent file : %u , page: %llu",
                            (uint32)ctrl->page_id.file, (uint64)ctrl->page_id.page);
         }
     }
+
     return CT_SUCCESS;
 }
 

@@ -971,6 +971,53 @@ void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *cod
     va_end(args);
 }
 
+void cm_dss_write_normal_log(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
+    const int module_id, bool32 need_rec_filelog, const char *format, ...)
+{
+    int32 error_code = 0;
+    char buf[CT_MAX_LOG_CONTENT_LENGTH + CT_MAX_LOG_HEAD_LENGTH + 2] = { 0 };
+    char new_format[CT_MAX_LOG_CONTENT_LENGTH] = { 0 };
+    log_file_handle_t *log_file_handle = &g_logger[log_id];
+    text_t buf_text;
+    const char *err_msg = NULL;
+    log_param_t *log_param = cm_log_param_instance();
+    errno_t errcode;
+
+    if (log_param->log_instance_startup) {
+        errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]", format,
+                             code_file_name, code_line_num);
+    } else {
+        if (log_id == LOG_RUN) {
+            cm_get_error(&error_code, &err_msg, NULL);
+        }
+
+        if (error_code == 0 || need_rec_filelog == CT_FALSE) {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1, "%s [%s:%u]",
+                                 format, code_file_name, code_line_num);
+        } else if (error_code == ERR_ASSERT_ERROR) {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, code_file_name, code_line_num);
+        } else {
+            errcode = snprintf_s(new_format, CT_MAX_LOG_CONTENT_LENGTH, CT_MAX_LOG_CONTENT_LENGTH - 1,
+                                 "CT-%05d:%s,%s [%s:%u]", error_code, format, err_msg, code_file_name, code_line_num);
+        }
+    }
+
+    cm_log_build_normal_head((char *)buf, sizeof(buf), log_level, g_module_info[module_id]);
+
+    va_list args;
+    va_start(args, format);
+    buf_text.str = buf;
+    buf_text.len = (uint32)strlen(buf);
+    if (errcode >= 0) {
+        cm_log_fulfil_write_buf(log_file_handle, &buf_text, sizeof(buf), need_rec_filelog, new_format, args);
+    } else {
+        // if the security function fails, continue to write the log after the string is truncated
+        cm_log_fulfil_write_buf(log_file_handle, &buf_text, sizeof(buf), need_rec_filelog, new_format, args);
+    }
+    va_end(args);
+}
+
 void cm_write_audit_log(const char *format, ...)
 {
     char buf[CT_MAX_LOG_CONTENT_LENGTH + 1] = { 0 };

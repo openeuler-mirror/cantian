@@ -265,7 +265,7 @@ static time_t cm_convert_filetime(FILETIME *ft)
 }
 #endif
 
-int64 cm_sys_process_start_time(uint64 pid)
+int64 cm_sys_process_start_time_s(uint64 pid)
 {
 #ifdef WIN32
     FILETIME create_time, exit_time, kernel_time, user_time;
@@ -332,7 +332,7 @@ int64 cm_sys_process_start_time(uint64 pid)
 
 bool32 cm_sys_process_alived(uint64 pid, int64 start_time)
 {
-    int64 process_time = cm_sys_process_start_time(pid);
+    int64 process_time = cm_sys_process_start_time_s(pid);
 
 #ifdef WIN32
     return (llabs(start_time - process_time) <= 1);

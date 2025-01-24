@@ -78,7 +78,7 @@ typedef enum en_module_id {
     KNL_COMM,
     CMS,
     MES,
-    ZENFS,
+    DSSAPI,
     EXT_PROC,
     BACKUP,
     ARCHIVE,
@@ -201,6 +201,8 @@ void cm_write_alarm_log_cn(uint32 warn_id, const char *format, ...) CT_CHECK_FMT
 void cm_write_blackbox_log(const char *format, ...) CT_CHECK_FMT(1, 2);
 
 void cm_write_normal_log(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
+    const int module_id, bool32 need_rec_filelog, const char *format, ...) CT_CHECK_FMT(7, 8);
+void cm_dss_write_normal_log(log_id_t log_id, log_level_t log_level, const char *code_file_name, uint32 code_line_num,
     const int module_id, bool32 need_rec_filelog, const char *format, ...) CT_CHECK_FMT(7, 8);
 void cm_write_oper_log(char *buf, uint32 len);
 void cm_write_trace_log(const char *format, ...);

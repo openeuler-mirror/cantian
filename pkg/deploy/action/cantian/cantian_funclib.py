@@ -158,7 +158,7 @@ class DefaultConfigValue(object):
         "_SYS_PASSWORD": "",  # input by user in command line parameter or from shell command interactively
         "INTERCONNECT_ADDR": "",  # input by user in command line parameter
         "LSNR_ADDR": "127.0.0.1",
-        "SHARED_PATH": "+vg1",
+        "SHARED_PATH": "",
         "ARCHIVE_DEST_1": "",
         "MAX_ARCH_FILES_SIZE" : "300G",
         "PAGE_CLEAN_MODE" : "ALL",
@@ -250,6 +250,14 @@ class DefaultConfigValue(object):
         "MES_SSL_CRT_KEY_PATH": "/opt/cantian/common/config/certificates",
         "KMC_KEY_FILES": f"({PRIMARY_KEYSTORE}, {STANDBY_KEYSTORE})"
     }
+
+    if deploy_mode == "dss":
+        CANTIAND_CONFIG.update({
+            "CTSTORE_INST_PATH": "UDS:/opt/cantian/dss/.dss_unix_d_socket"
+        })
+        CANTIAND_DBG_CONFIG.update({
+            "CTSTORE_INST_PATH": "UDS:/opt/cantian/dss/.dss_unix_d_socket"
+        })
     
     CANTIAND_CONFIG.update(MES_CONFIG)
     CANTIAND_DBG_CONFIG.update(MES_CONFIG)

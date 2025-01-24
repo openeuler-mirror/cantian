@@ -66,8 +66,12 @@ function prepare_cms_gcc() {
   fi
 
   if [ "${NODE_ID}" == 0 ]; then
-    if [[ ${DEPLOY_MODE} != "dbstor" && ${DEPLOY_MODE} != "combined" ]] || [[ -f /opt/cantian/youmai_demo ]]; then
+    if [[  ${DEPLOY_MODE} == "file" ]] || [[ -f /opt/cantian/youmai_demo ]]; then
       rm -rf ${GCC_HOME}*
+      log "zeroing ${GCC_HOME} on node ${NODE_ID}"
+      dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
+      chmod 600 ${GCC_HOME}
+    elif [[ ${DEPLOY_MODE} == "dss" ]]; then
       log "zeroing ${GCC_HOME} on node ${NODE_ID}"
       dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
       chmod 600 ${GCC_HOME}
@@ -172,6 +176,9 @@ function set_cms() {
 }
 
 function install_cms() {
+  if [[ ${DEPLOY_MODE} == "dss" ]];then
+      sudo setcap CAP_SYS_RAWIO+ep "${CMS_INSTALL_PATH}"/bin/cms
+  fi
   if [[ ${cantian_in_container} == "0" ]]; then
     prepare_cms_gcc
     set_cms

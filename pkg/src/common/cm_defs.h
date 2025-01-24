@@ -1247,12 +1247,21 @@ typedef struct st_handle_mutiple_ptrs {
     } while (0)
 
 // print ERROR if error occurs
-#define CT_PRINT_IFERR(ret,param,limit)                                                     \
-    do {                                                                                    \
-        status_t _status_ = (ret);                                                          \
-        if (SECUREC_UNLIKELY(_status_ != CT_SUCCESS)) {                                     \
-            printf("Error,the parameter [%s] is too large,the limit is %d. \n",param,limit);\
-            return _status_;                                                                \
+#define CT_PRINT_IFERR(ret, param, limit)                                                      \
+    do {                                                                                       \
+        status_t _status_ = (ret);                                                             \
+        if (SECUREC_UNLIKELY(_status_ != CT_SUCCESS)) {                                        \
+            printf("Error,the parameter [%s] is too large,the limit is %d. \n", param, limit); \
+            return _status_;                                                                   \
+        }                                                                                      \
+    } while (0)
+
+#define CT_PRINT_IFERR2(ret, param, limit)                                                     \
+    do {                                                                                       \
+        status_t _status_ = (ret);                                                             \
+        if (SECUREC_UNLIKELY(_status_ == -1)) {                                                \
+            printf("Error,the parameter [%s] is too large,the limit is %d. \n", param, limit); \
+            return _status_;                                                                   \
         }                                                                                   \
     } while (0)
 

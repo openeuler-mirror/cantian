@@ -19,6 +19,7 @@ from enum import Enum
 
 SEC_PATH_MAX = 4096  # PATH_MAX: 待确认linux环境下大小
 MAX_MK_COUNT = 4096
+USE_DBSTOR = ["combined", "dbstor"]
 
 JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
 
@@ -202,7 +203,7 @@ class CApiWrapper(object):
         self.primary_keystore = primary_keystore
         self.standby_keystore = standby_keystore
         self.get_dbstor_para()
-        if self.deploy_mode != "file":
+        if self.deploy_mode in USE_DBSTOR:
             self.kmc_ext = ctypes.cdll.LoadLibrary(self.KMC_EXT_LIB_PATH)
 
     def get_dbstor_para(self):
@@ -211,7 +212,7 @@ class CApiWrapper(object):
             self.deploy_mode = json_data.get('deploy_mode', "").strip()
 
     def initialize(self):
-        if self.initialized or self.deploy_mode == "file":
+        if self.initialized or self.deploy_mode not in USE_DBSTOR:
             return 0
 
         conf = KmcInitConf(
@@ -282,9 +283,9 @@ class CApiWrapper(object):
         return encoded.decode('utf-8')
 
     def encrypt(self, plain):
-        if self.deploy_mode != "file":
+        if self.deploy_mode in USE_DBSTOR:
             return self.encrypt_by_kmc(plain)
-        elif self.deploy_mode == "file":
+        elif self.deploy_mode not in USE_DBSTOR:
             return self.encrypt_by_base64(plain)
         return ""
 
@@ -311,14 +312,14 @@ class CApiWrapper(object):
         return decoded.decode('utf-8')
 
     def decrypt(self, cipher):
-        if self.deploy_mode != "file":
+        if self.deploy_mode in USE_DBSTOR:
             return self.decrypt_by_kmc(cipher)
-        elif self.deploy_mode == "file":
+        elif self.deploy_mode not in USE_DBSTOR:
             return self.decrypt_by_base64(cipher)
         return ""
 
     def finalize(self):
-        if not self.initialized or self.deploy_mode == "file":
+        if not self.initialized or self.deploy_mode not in USE_DBSTOR:
             return 0
         return self.kmc_ext.KeFinalizeEx(pointer(self.kmc_ctx))
 

@@ -115,7 +115,7 @@ if [ "$cantian_in_container" -eq 0 ]; then
     done
 fi
 
-chmod 660 /dev/shm/cantian*
+chmod 660 /dev/shm/cantian* > /dev/null 2>&1
 chown -hR "${cantian_user}":"${deploy_group}" /dev/shm/cantian*
 logAndEchoInfo "start success"
 exit 0

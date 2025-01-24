@@ -218,6 +218,7 @@ status_t db_load_logfiles(knl_session_t *session)
         SYNC_POINT_GLOBAL_START(CANTIAN_OPEN_DEVICE_FAIL, &ret, CT_ERROR);
         /* logfile can be opened for a long time, closed in db_close_log_files */
         ret = cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session), &logfile->handle);
+        CT_LOG_RUN_INF_LIMIT(60, "[ARCH_TEST] adr %p, name %s, type %u, mode %u", logfile, logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session));
         SYNC_POINT_GLOBAL_END;
         if (ret != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[DB] failed to open %s ", logfile->ctrl->name);

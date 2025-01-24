@@ -463,46 +463,51 @@ status_t cms_get_mes_ssl_config(config_t *cfg)
 
 status_t cms_get_dbstore_config_value(config_t *cfg)
 {
-    char* value;
+    char* use_dbs_value;
     char* gcc_type;
     status_t ret;
-    bool32 enable = CT_FALSE;
+    char* namespace_value = NULL;
     // dataPgSize is not used in the cms
     uint32 dataPgSize = CT_MAX_UINT32;
 
-    value = cm_get_config_value(cfg, "_USE_DBSTOR");
+    use_dbs_value = cm_get_config_value(cfg, "_USE_DBSTOR");
     gcc_type = cm_get_config_value(cfg, "GCC_TYPE");
-    if (cm_strcmpi(gcc_type, "FILE") == 0 && cm_strcmpi(value, "FALSE") == 0) {
-        enable = CT_FALSE;
-    } else if (cm_strcmpi(gcc_type, "DBS") == 0 && (value == NULL || cm_strcmpi(value, "TRUE") == 0)) {
-        enable = CT_TRUE;
-        CMS_LOG_INF("DBStore not enabled for DBS");
-        cms_set_recv_timeout();
-        g_cms_dbstor_enable = CT_TRUE;
-    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "TRUE") == 0) {
-        enable = CT_TRUE;
-        CMS_LOG_INF("DBStore not enabled for NFS");
-        cms_set_recv_timeout();
-        g_cms_dbstor_enable = CT_TRUE;
-    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "FALSE") == 0) {
-        enable = CT_FALSE;
+    if (cm_strcmpi(gcc_type, "FILE") == 0 && cm_strcmpi(use_dbs_value, "FALSE") == 0) {
+        CMS_LOG_INF("DBStore disabled for FILE");
+        ret = cm_dbs_set_cfg(CT_FALSE, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, namespace_value, 0, CT_FALSE, 0);
+        return ret;
+    }
+    if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(use_dbs_value, "FALSE") == 0) {
         CMS_LOG_INF("DBStore disabled for NFS");
-    } else {
-        CMS_LOG_ERR("Invalid parameters for '_USE_DBSTOR': gcc_type=%s, value=%s", gcc_type, value);
-        return CT_ERROR;
+        ret = cm_dbs_set_cfg(CT_FALSE, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, namespace_value, 0, CT_FALSE, 0);
+        return ret;
     }
 
-    value = cm_get_config_value(cfg, "_DBSTOR_NAMESPACE");
-    if (value == NULL) {
+    if (cm_strcmpi(gcc_type, "SD") == 0 && cm_strcmpi(use_dbs_value, "FALSE") == 0) {
+        CMS_LOG_INF("DBStore disabled for SD");
+        ret = cm_dbs_set_cfg(CT_FALSE, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, namespace_value, 0, CT_FALSE, 0);
+        return ret;
+    }
+
+    namespace_value = cm_get_config_value(cfg, "_DBSTOR_NAMESPACE");
+    if (namespace_value == NULL) {
         CMS_LOG_ERR("invalid parameter value of '_DBSTOR_NAMESPACE'");
         return CT_ERROR;
     }
-    ret = cm_dbs_set_cfg(enable, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, value, 0, CT_FALSE, 0);
-    if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("cms set dbstore config failed");
-        return CT_ERROR;
+
+    if (cm_strcmpi(gcc_type, "DBS") == 0 && (use_dbs_value == NULL || cm_strcmpi(use_dbs_value, "TRUE") == 0)) {
+        CMS_LOG_INF("Configuring DBStore for DBS");
+        cms_set_recv_timeout();
+
+        ret = cm_dbs_set_cfg(CT_TRUE, dataPgSize, CT_DFLT_CTRL_BLOCK_SIZE, namespace_value, 0, CT_FALSE, 0);
+        if (ret != CT_SUCCESS) {
+            CMS_LOG_ERR("cms set dbstore config failed");
+            return CT_ERROR;
+        }
+        return CT_SUCCESS;
     }
-    return CT_SUCCESS;
+    CMS_LOG_ERR("Invalid parameters for '_USE_DBSTOR': gcc_type=%s, value=%s", gcc_type, use_dbs_value);
+    return CT_ERROR;
 }
 
 status_t cms_load_param(int64* time_stamp)
@@ -719,14 +724,12 @@ status_t cms_load_param(int64* time_stamp)
         CMS_LOG_INF("DBStore not enabled for DBS");
         cms_set_recv_timeout();
         g_cms_dbstor_enable = CT_TRUE;
-    } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "TRUE") == 0) {
-        enable = CT_TRUE;
-        CMS_LOG_INF("DBStore not enabled for NFS");
-        cms_set_recv_timeout();
-        g_cms_dbstor_enable = CT_TRUE;
     } else if (cm_strcmpi(gcc_type, "NFS") == 0 && cm_strcmpi(value, "FALSE") == 0) {
         enable = CT_FALSE;
         CMS_LOG_INF("DBStore disabled for NFS");
+    } else if (cm_strcmpi(gcc_type, "SD") == 0 && cm_strcmpi(value, "FALSE") == 0) {
+        enable = CT_FALSE;
+        CMS_LOG_INF("DBStore not enabled for SD");
     } else {
         CMS_LOG_ERR("Invalid parameters for '_USE_DBSTOR': gcc_type=%s, value=%s", gcc_type, value);
         return CT_ERROR;
