@@ -44,6 +44,14 @@ raw_device_op_t g_raw_device_op;
 
 cm_check_file_error_t g_check_file_error = NULL;
 
+#define CT_THROW_RAW_ERROR                                \
+    do {                                                  \
+        int32 errcode;                                    \
+        const char *errmsg = NULL;                        \
+        g_raw_device_op.raw_get_error(&errcode, &errmsg); \
+        CT_THROW_ERROR(ERR_DSS_FAILED, errcode, errmsg);  \
+    } while (0)
+
 void cm_raw_device_register(raw_device_op_t *device_op)
 {
     g_raw_device_op = *device_op;
@@ -75,13 +83,13 @@ status_t cm_access_device(device_type_t type, const char *file_name, uint32 mode
     if (type == DEV_TYPE_FILE) {
         return cm_access_file(file_name, mode);
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_exist == NULL) {
+        if (g_raw_device_op.raw_stat == NULL) {
             CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
             return CT_ERROR;
         }
 
-        bool32 result = CT_FALSE;
-        if (g_raw_device_op.raw_exist(file_name, &result) != CT_SUCCESS || !result) {
+        dss_stat_t item = {0};
+        if (g_raw_device_op.raw_stat(file_name, &item) != CT_SUCCESS) {
             return CT_ERROR;
         }
         return CT_SUCCESS;
@@ -121,8 +129,9 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
 {
     uint64_t tv_begin;
     status_t ret = CT_SUCCESS;
+    uint32 mode = O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags;
     if (type == DEV_TYPE_FILE) {
-        if (cm_create_file(name, O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags, handle) != CT_SUCCESS) {
+        if (cm_create_file(name, mode, handle) != CT_SUCCESS) {
             cm_check_file_error();
             return CT_ERROR;
         }
@@ -132,10 +141,10 @@ status_t cm_create_device(const char *name, device_type_t type, uint32 flags, in
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_create(name, O_BINARY | O_SYNC | O_RDWR | O_EXCL | flags) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_create(name, mode) != CT_SUCCESS) {
             return CT_ERROR;
         }
-        if (g_raw_device_op.raw_open(name, flags, handle) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_open(name, mode, handle) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -314,11 +323,13 @@ status_t cm_open_device_common(const char *name, device_type_t type, uint32 flag
     return CT_SUCCESS;
 }
 
-status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle){
+status_t cm_open_device(const char *name, device_type_t type, uint32 flags, int32 *handle)
+{
     return cm_open_device_common(name, type ,flags, handle, CT_TRUE);
 }
 
-status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle){
+status_t cm_open_device_no_retry(const char *name, device_type_t type, uint32 flags, int32 *handle)
+{
     return cm_open_device_common(name, type ,flags, handle, CT_FALSE);
 }
 
@@ -329,7 +340,7 @@ void cm_close_device(device_type_t type, int32 *handle)
         cm_close_file(*handle);
     } else if (type == DEV_TYPE_RAW) {
         if (g_raw_device_op.raw_close != NULL) {
-            g_raw_device_op.raw_close(handle);
+            g_raw_device_op.raw_close(*handle);
         }
     } else if (type == DEV_TYPE_ULOG) {
         cantian_record_io_stat_begin(IO_RECORD_EVENT_NS_CLOSE_ULOG, &tv_begin);
@@ -354,15 +365,12 @@ status_t cm_read_device(device_type_t type, int32 handle, int64 offset, void *bu
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_seek == NULL || g_raw_device_op.raw_read == NULL) {
+        if (g_raw_device_op.raw_pread == NULL) {
             CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_seek(handle, offset, SEEK_SET) != offset) {
-            return CT_ERROR;
-        }
-        if (g_raw_device_op.raw_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_pread(handle, buf, size, offset, &read_size) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -417,7 +425,7 @@ status_t cm_read_device_nocheck(device_type_t type, int32 handle, int64 offset, 
             CT_LOG_RUN_ERR("[cm_read_device] raw_seek handle %d offset %lld size %d.", handle, offset, size);
             return CT_ERROR;
         }
-        if (g_raw_device_op.raw_read(handle, offset, buf, size, &read_size) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_read(handle, buf, size, &read_size) != CT_SUCCESS) {
             CT_LOG_RUN_ERR("[cm_read_device] raw_read handle %d offset %lld size %d.", handle, offset, size);
             return CT_ERROR;
         }
@@ -502,15 +510,12 @@ status_t cm_write_device(device_type_t type, int32 handle, int64 offset, const v
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_seek == NULL || g_raw_device_op.raw_write == NULL) {
+        if (g_raw_device_op.raw_pwrite == NULL) {
             CT_THROW_ERROR(ERR_DEVICE_NOT_SUPPORT);
             return CT_ERROR;
         }
 
-        if (g_raw_device_op.raw_seek(handle, offset, SEEK_SET) != offset) {
-            return CT_ERROR;
-        }
-        if (g_raw_device_op.raw_write(handle, offset, buf, size) != CT_SUCCESS) {
+        if (g_raw_device_op.raw_pwrite(handle, buf, size, offset) != CT_SUCCESS) {
             return CT_ERROR;
         }
     } else if (type == DEV_TYPE_ULOG) {
@@ -587,6 +592,11 @@ status_t cm_get_size_device(device_type_t type, int32 handle, int64 *file_size)
         if (cm_dbs_get_file_size(handle, file_size) != CT_SUCCESS) {
             return CT_ERROR;
         }
+    } else if (type == DEV_TYPE_RAW) {
+        if (g_raw_device_op.raw_seek == NULL) {
+            return CT_ERROR;
+        }
+        *file_size = g_raw_device_op.raw_seek(handle, 0, SEEK_END);
     } else {
         return CT_ERROR;
     }
@@ -618,15 +628,15 @@ bool32 cm_exist_device_dir(device_type_t type, const char *name)
     if (type == DEV_TYPE_FILE) {
         return cm_dir_exist(name);
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_exist_dir == NULL) {
+        if (g_raw_device_op.raw_stat == NULL) {
             return CT_FALSE;
         }
 
-        bool32 result = CT_FALSE;
-        if (g_raw_device_op.raw_exist_dir(name, &result) != CT_SUCCESS) {
+        dss_stat_t item = {0};
+        if (g_raw_device_op.raw_stat(name, &item) != CT_SUCCESS) {
             return CT_FALSE;
         }
-        return result;
+        return CT_TRUE;
     } else if (type == DEV_TYPE_DBSTOR_FILE) {
         return cm_dbs_exist_file(name, DIR_TYPE);
     } else {
@@ -692,15 +702,15 @@ bool32 cm_exist_device(device_type_t type, const char *name)
     if (type == DEV_TYPE_FILE) {
         return cm_file_exist(name);
     } else if (type == DEV_TYPE_RAW) {
-        if (g_raw_device_op.raw_exist == NULL) {
+        if (g_raw_device_op.raw_stat == NULL) {
             return CT_FALSE;
         }
 
-        bool32 result = CT_FALSE;
-        if (g_raw_device_op.raw_exist(name, &result) != CT_SUCCESS) {
+        dss_stat_t item = {0};
+        if (g_raw_device_op.raw_stat(name, &item) != CT_SUCCESS) {
             return CT_FALSE;
         }
-        return result;
+        return CT_TRUE;
     } else if (type == DEV_TYPE_ULOG) {
         return cm_dbs_map_exist(name, DEV_TYPE_ULOG);
     } else if (type == DEV_TYPE_PGPOOL) {
@@ -1133,6 +1143,79 @@ bool32 cm_match_arch_pattern(const char *filename)
         return CT_TRUE; // Match
     }
     return CT_FALSE;
+}
+
+int cm_aio_dss_prep_read(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_prep_pread == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pread function is not defined.");
+        return CT_ERROR;
+    }
+
+    if (g_raw_device_op.aio_prep_pread(iocb, fd, buf, count, offset) != CT_SUCCESS) {
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+int cm_aio_dss_prep_write(cm_iocb_t *iocb, int fd, void *buf, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_prep_pwrite == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pread function is not defined.");
+        return CT_ERROR;
+    }
+
+    if (g_raw_device_op.aio_prep_pwrite(iocb, fd, buf, count, offset) != CT_SUCCESS) {
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+int cm_aio_dss_post_write(cm_iocb_t *iocb, int fd, size_t count, long long offset)
+{
+    if (SECUREC_UNLIKELY(g_raw_device_op.aio_post_pwrite == NULL)) {
+        CT_LOG_RUN_ERR("File aio_prep_pwrite function is not defined.");
+        return CT_ERROR;
+    }
+
+    int ret = g_raw_device_op.aio_post_pwrite(iocb, fd, count, offset);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("File aio_pre_pwrite execute failed, ret: %d.", ret);
+        CT_THROW_RAW_ERROR;
+        return CT_ERROR;
+    }
+
+    return CT_SUCCESS;
+}
+
+status_t cm_fdatasync_device(device_type_t type, int32 handle)
+{
+    if (type == DEV_TYPE_FILE) {
+        return cm_fdatasync_file(handle);
+    } else if (type == DEV_TYPE_RAW) {
+        // dss default flag has O_SYNC | O_DIRECT
+        return CT_SUCCESS;
+    } else {
+        CT_LOG_RUN_ERR("File cm_fdatasync_device type %d is not supported.", type);
+        return CT_ERROR;
+    }
+}
+
+status_t cm_fsync_device(device_type_t type, int32 handle)
+{
+    if (type == DEV_TYPE_FILE) {
+        return cm_fsync_file(handle);
+    } else if (type == DEV_TYPE_RAW) {
+        // dss default flag has O_SYNC | O_DIRECT
+        return CT_SUCCESS;
+    } else {
+        CT_LOG_RUN_ERR("File cm_fdatasync_device type %d is not supported.", type);
+        return CT_ERROR;
+    }
 }
 
 #ifdef __cplusplus

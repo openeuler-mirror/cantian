@@ -36,6 +36,11 @@ NFS_TIMEO=50
 source ${CURRENT_PATH}/log4sh.sh
 source ${FILE_MOD_FILE}
 
+declare -A use_dorado
+use_dorado=(["combined"]=1 ["dbstor"]=1)
+use_file=(["file"]=1)
+use_dss=(["dss"]=1)
+
 # 适配欧拉系统，nologin用户没有执行ping命令的权限
 chmod u+s /bin/ping
 
@@ -89,9 +94,8 @@ function correct_files_mod() {
 }
 
 # 获取用户输入用户名密码
-function enter_pwd()
-{
-    if [[ x"${deploy_mode}" != x"file" ]];then
+function enter_pwd() {
+    if [[ ${use_dorado["${deploy_mode}"]} ]];then
         read -p "please enter dbstor_user: " dbstor_user
         echo "dbstor_user is: ${dbstor_user}"
 
@@ -142,11 +146,20 @@ function checkMountNFS() {
 
 # 配置ctmgruser sudo权限
 function config_sudo() {
-    cantian_sudo="cantian ALL=(root) NOPASSWD:/usr/bin/chrt,/opt/cantian/action/docker/get_pod_ip_info.py"
-    cat /etc/sudoers | grep ^cantian
+    cantian_sudo="cantian ALL=(root) NOPASSWD:/usr/bin/chrt,/opt/cantian/action/docker/get_pod_ip_info.py,/usr/sbin/setcap"
+    cat /etc/sudoers | grep "cantian ALL"
     if [[ -n $? ]];then
         sed -i '/^cantian*/d' /etc/sudoers
     fi
+    echo "${cantian_sudo}" >> /etc/sudoers
+
+    deploy_user_sudo="${deploy_user} ALL=(root) NOPASSWD:/usr/sbin/setcap"
+    cat /etc/sudoers | grep "${deploy_user_sudo} ALL"
+    if [[ -n $? ]];then
+        sed -i "/^${deploy_user}*/d" /etc/sudoers
+    fi
+    echo "${deploy_user_sudo}" >> /etc/sudoers
+
     SERVICE_NAME=$(printenv SERVICE_NAME)
     cat /etc/sudoers | grep SERVICE_NAME
     if [[ $? -ne 0 ]];then
@@ -155,7 +168,7 @@ function config_sudo() {
           echo "export SERVICE_NAME=${SERVICE_NAME}" >> /home/cantian/.bashrc
       fi
     fi
-    echo "${cantian_sudo}" >> /etc/sudoers
+    
     local chmod_script="/opt/cantian/action/change_log_priority.sh"
     ctmgruser_sudo="ctmgruser ALL=(root) NOPASSWD:${chmod_script}"
     cat /etc/sudoers | grep ctmgruser
@@ -166,8 +179,7 @@ function config_sudo() {
 }
 
 # 创建用户用户组
-function initUserAndGroup()
-{
+function initUserAndGroup() {
     # 删除残留用户和用户组
     userdel cantian > /dev/null 2>&1
     userdel ctmgruser > /dev/null 2>&1
@@ -251,9 +263,9 @@ function check_port() {
   exit 1
 }
 
-function rpm_check(){
+function rpm_check() {
     local count=2
-    if [ x"${deploy_mode}" != x"file" ];then
+    if [[ ${use_dorado["${deploy_mode}"]} ]];then
       count=3
     fi
     rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
@@ -302,7 +314,7 @@ function uninstall() {
     fi
 }
 
-function install_dbstor(){
+function install_dbstor() {
     local arrch=$(uname -p)
     local dbstor_path="${CURRENT_PATH}"/../repo
     local dbstor_package_file=$(ls "${dbstor_path}"/DBStor_Client*_"${arrch}"*.tgz)
@@ -357,8 +369,7 @@ function install_dbstor(){
     return 0
 }
 
-function install_rpm()
-{
+function install_rpm() {
     RPM_PATH=${CURRENT_PATH}/../repo/cantian-*.rpm
     RPM_UNPACK_PATH_FILE="/opt/cantian/image/cantian_connector/CantianKernel/Cantian-DATABASE-CENTOS-64bit"
     RPM_PACK_ORG_PATH="/opt/cantian/image"
@@ -371,7 +382,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" != x"file" ];then
+    if [[ ${use_dorado["${deploy_mode}"]} ]];then
         install_dbstor
         if [ $? -ne 0 ];then
             sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
@@ -381,6 +392,10 @@ function install_rpm()
     chmod -R 750 ${RPM_PACK_ORG_PATH}/Cantian-RUN-CENTOS-64bit
     chown ${cantian_user}:${cantian_group} -hR ${RPM_PACK_ORG_PATH}/
     chown root:root ${RPM_PACK_ORG_PATH}
+    if [[ ${deploy_mode} == "dss" ]];then
+        cp  ${RPM_PACK_ORG_PATH}/Cantian-RUN-CENTOS-64bit/lib/* /usr/lib64/
+        chown ${cantian_user}:${cantian_group} -hR /usr/lib64/libze*
+    fi
 }
 
 function show_cantian_version() {
@@ -401,24 +416,23 @@ EOF
 
 # 检查dbstor的user与pwd是否正确
 function check_dbstor_usr_passwd() {
-    if [[ x"${deploy_mode}" != x"file" ]];then
-        logAndEchoInfo "check username and password of dbstor and check filesystem. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
-        install_result=$?
-        if [ ${install_result} -ne 0 ]; then
-            logAndEchoError "check username and password of dbstor or check filesystem failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            uninstall
-            exit 1
-        else
-            logAndEchoInfo "user and password of dbstor check and filesystem check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        fi
+    logAndEchoInfo "check username and password of dbstor. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${CURRENT_PATH}/dbstor/check_usr_pwd.sh"
+    install_result=$?
+    if [ ${install_result} -ne 0 ]; then
+        logAndEchoError "check dbstor passwd failed, possible reasons:
+            1 username or password of dbstor storage service is incorrect.
+            2 cgw create link failed.
+            3 ip address of dbstor storage service is incorrect.
+            please contact the engineer to solve. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        uninstall
+        exit 1
+    else
+        logAndEchoInfo "user and password of dbstor check pass. [Line:${LINENO}, File:${SCRIPT_NAME}]"
     fi
 }
 
 function check_dbstore_client_compatibility() {
-    if [[ x"${deploy_mode}" == x"file" ]]; then
-        return 0
-    fi
     logAndEchoInfo "begin to check dbstore client compatibility."
     if [ ! -f "${DBSTORE_CHECK_FILE}" ];then
         logAndEchoError "${DBSTORE_CHECK_FILE} file is not exists."
@@ -447,7 +461,7 @@ function mount_fs() {
     fi
     mkdir -m 770 -p /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
     chown ${deploy_user}:${cantian_common_group} /mnt/dbdata/remote/metadata_${storage_metadata_fs}/node${node_id}
-    if [[ "${cantian_in_container}" != "0" ]] || [[ x"${deploy_mode}" == x"dbstor" ]]; then
+    if [[ "${cantian_in_container}" != "0" ]] || [[ x"${deploy_mode}" == x"dbstor" ]] || [[ x"${deploy_mode}" == x"dss" ]]; then
         return 0
     fi
 
@@ -460,7 +474,7 @@ function mount_fs() {
     fi
     metadata_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "metadata_logic_ip"`
 
-    if [[ x"${deploy_mode}" != x"file" ]]; then
+    if [[ ${use_dorado["${deploy_mode}"]} ]]; then
         kerberos_type=`python3 ${CURRENT_PATH}/get_config_info.py "kerberos_key"`
         mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${metadata_logic_ip}:/${storage_metadata_fs} /mnt/dbdata/remote/metadata_${storage_metadata_fs}
     else
@@ -476,7 +490,7 @@ function mount_fs() {
     check_port
     sysctl fs.nfs.nfs_callback_tcpport="${NFS_PORT}" > /dev/null 2>&1
     if [[ ${storage_archive_fs} != '' ]]; then
-        if [[ x"${deploy_mode}" != x"file" ]]; then
+        if [[ ${use_dorado["${deploy_mode}"]} ]]; then
             mount -t nfs -o sec="${kerberos_type}",timeo=${NFS_TIMEO},nosuid,nodev ${archive_logic_ip}:/${storage_archive_fs} /mnt/dbdata/remote/archive_${storage_archive_fs}
             archive_result=$?
         else
@@ -564,6 +578,9 @@ mv -f ${CURRENT_PATH}/deploy_param.json ${CONFIG_PATH}
 python3 ${CURRENT_PATH}/write_config.py "install_type" ${INSTALL_TYPE}
 
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
+if [[ x"${deploy_mode}" == x"dss" ]]; then
+    cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
+fi
 cantian_in_container=`python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container"`
 # 公共预安装检查
 rpm_check
@@ -589,7 +606,7 @@ if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
     sed -i "s/cantian_group=\"cantian\"/cantian_group=\"${deploy_group}\"/g" "${CURRENT_PATH}"/env.sh
 fi
 
-if [[ x"${deploy_mode}" == x"file" ]];then
+if [[ ${use_dorado["${deploy_mode}"]} -ne 1 ]];then
     python3 "${CURRENT_PATH}"/modify_env.py
     if [  $? -ne 0 ];then
         echo "Current deploy mode is ${deploy_mode}, modify env.sh failed."
@@ -740,6 +757,8 @@ if [[ ${config_install_type} = 'override' ]]; then
   storage_share_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_share_fs"`
   storage_archive_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_archive_fs"`
   storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
+  mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
+  chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
 
   # 创建公共路径
   mkdir -m 755 -p /opt/cantian/image
@@ -809,6 +828,10 @@ cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
 # 适配开源场景，使用file，不使用dbstore，提前安装参天rpm包
 install_rpm
 
+if [[ x"${deploy_mode}" == x"dss" ]];then
+    chown "${cantian_user}":"${cantian_group}" /dev/*-disk*
+fi
+
 # 调用各模块安装脚本，如果有模块安装失败直接退出，不继续安装接下来的模块
 logAndEchoInfo "Begin to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 for lib_name in "${INSTALL_ORDER[@]}"
@@ -838,7 +861,7 @@ do
                 exit 1
             fi
         fi
-        if [[ "${cantian_in_container}" == "0" ]]; then
+        if [[ "${cantian_in_container}" == "0" ]] && [[ ${use_dorado["${deploy_mode}"]} ]]; then
             check_dbstor_usr_passwd
             # 检查dbstore client 与server端是否兼容
             check_dbstore_client_compatibility

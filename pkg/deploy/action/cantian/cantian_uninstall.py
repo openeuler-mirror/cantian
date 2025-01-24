@@ -113,7 +113,7 @@ def cantian_check_share_logic_ip_isvalid(node_ip, deploy_mode):
             return False
         return True
 
-    if deploy_mode == "dbstor":
+    if deploy_mode in ["dbstor", "dss"]:
         return True
     LOGGER.info("check nfs logic ip address or domain name.")
     if not ping_execute("ping") and not ping_execute("ping6"):

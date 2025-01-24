@@ -89,11 +89,12 @@ status_t knl_startup(knl_handle_t kernel)
     }
 
     if (DB_ATTR_CLUSTER(session)) {
-        if (g_knl_callback.device_init((const char *)session->kernel->dtc_attr.ctstore_inst_path) != CT_SUCCESS) {
+        cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
+        if (cfg->enable &&
+            g_knl_callback.device_init((const char *)session->kernel->dtc_attr.ctstore_inst_path) != CT_SUCCESS) {
             CT_LOG_RUN_INF("RAFT: db init raw type device failed");
             return CT_ERROR;
         }
-        cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
         if (!cfg->enable) {
             CT_LOG_RUN_INF("Note: dbstore is not enabled, the disaster recovery funcs would not work.");
         } else {

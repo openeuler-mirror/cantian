@@ -9,7 +9,7 @@ CTDB_CODE_PATH="${CURRENT_PATH}"/..
 MYSQL_SERVER_PATH="${CTDB_CODE_PATH}"/../cantian-connector-mysql
 BUILD_TARGET_NAME="cantian_connector"
 SYMBOL_TARGET_NAME="Cantian_connector_symbol"
-BUILD_PACK_NAME="Cantian_24.12"
+BUILD_PACK_NAME="Cantian_25.06"
 ENV_TYPE=$(uname -p)
 TMP_PKG_PATH=${CTDB_CODE_PATH}/package
 CTDB_TARGET_PATH=${CANTIANDB_BIN}/${BUILD_TARGET_NAME}/CantianKernel
@@ -39,6 +39,10 @@ function buildCtOmPackage() {
       echo "build ct_om fail"
       return 1
   fi
+}
+
+function buildDssPackage() {
+  sh "${CURRENT_PATH}"/build_dss.sh ${BUILD_TYPE}
 }
 
 function packageSymbol() {
@@ -84,7 +88,7 @@ function newPackageTarget() {
   fi
   local pkg_real_path=${TMP_PKG_PATH}/${pkg_dir_name}
 
-  mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep}
+  mkdir -p ${pkg_real_path}/{action,repo,config,common,zlogicrep,dss}
   mkdir -p ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file
   B_VERSION=$(grep -oP '<Bversion>\K[^<]+' "${CTDB_CODE_PATH}"/../ProductComm_DoradoAA/CI/conf/cmc/dbstore/archive_cmc_versions.xml | sed 's/Cantian //g')
   # 提取B_VERSION最后一个点之后的部分
@@ -104,6 +108,7 @@ function newPackageTarget() {
   if [[ ${BUILD_MODE} == "single" ]]; then
     cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
   fi
+  cp -arf "${CTDB_CODE_PATH}"/dss/* ${pkg_real_path}/dss/
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
@@ -272,5 +277,6 @@ MYSQL_BUILD_TYPE="mysql_${BUILD_TYPE}"
 prepare
 buildCtOmPackage
 packageTarget
+buildDssPackage
 newPackageTarget
 #packageSymbol

@@ -1106,6 +1106,7 @@ typedef enum en_errno {
     ERR_CMS_VOTEDISK_PATH = 2825,
 
     ERR_ACCESS_DEPOSIT_INST = 2900,
+    ERR_DSS_FAILED = 2901,
 
     /* DCS */
     ERR_DCS_REQ_PAGE_FAILED = 3000,

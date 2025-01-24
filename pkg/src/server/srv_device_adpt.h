@@ -14,43 +14,33 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * cm_system.h
+ * srv_device_adpt.h
  *
  *
  * IDENTIFICATION
- * src/common/cm_system.h
+ * src/server/srv_device_adpt.h
  *
  * -------------------------------------------------------------------------
  */
-#ifndef __CM_SYSTEM_H__
-#define __CM_SYSTEM_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef __SS_DEVICE_ADPT_H__
+#define __SS_DEVICE_ADPT_H__
 
 #include "cm_defs.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-status_t cm_get_host_ip(char *ipstr, uint32 len);
-uint64 cm_sys_pid(void);
-char *cm_sys_program_name(void);
-char *cm_sys_user_name(void);
-char *cm_sys_host_name(void);
-char *cm_sys_platform_name(void);
-int64 cm_sys_ticks(void);
-int64 cm_sys_process_start_time_s(uint64 pid);
-bool32 cm_sys_process_alived(uint64 pid, int64 start_time);
-void cm_try_init_system(void);
-uint32 cm_sys_get_nprocs(void);
-#ifndef WIN32
-status_t cm_get_file_host_name(char *path, char *host_name);
-#endif
+typedef enum en_dss_log_level {
+    DSS_LOG_LEVEL_ERROR = 0,  // error conditions
+    DSS_LOG_LEVEL_WARN,       // warning conditions
+    DSS_LOG_LEVEL_INFO,       // informational messages
+    DSS_LOG_LEVEL_COUNT,
+} dss_log_level_t;
 
-#ifdef __cplusplus
-}
-#endif
+typedef enum en_dss_log_id {
+    DSS_LOG_ID_RUN = 0,
+    DSS_LOG_ID_DEBUG,
+    DSS_LOG_ID_COUNT,
+} dss_log_id_t;
 
-#endif
+status_t srv_device_init(const char *conn_path);
+
+#endif  // __SRV_DEVICE_ADPT_H__

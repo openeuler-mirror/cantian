@@ -54,7 +54,7 @@ function err() {
 function wait_node1_online() {
 
   function is_db1_online_by_cms() {
-    ${CTDB_HOME}/bin/cms stat -res db | grep -E "^1[[:blank:]]+db[[:blank:]]+ONLINE"
+    cms stat -res db | grep -E "^1[[:blank:]]+db[[:blank:]]+ONLINE"
   }
 
   function is_db1_online_by_query() {
@@ -68,19 +68,21 @@ function wait_node1_online() {
 
 function wait_node0_online() {
   function is_db0_online_by_cms() {
-    ${CTDB_HOME}/bin/cms stat -res db | awk '{print $1, $3, $6}' | grep "0 ONLINE 1"
+    cms stat -res db | awk '{print $1, $3, $6}' | grep "0 ONLINE 1"
   }
   wait_for_success 5400 is_db0_online_by_cms
 }
 
 function start_cantiand() {
   log "================ start cantiand ${NODE_ID} ================"
+  ever_started=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_EVER_START"`
+  deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
   numactl_str=" "
   set +e
   numactl --hardware
   if [ $? -eq 0 ]; then
     OS_ARCH=$(uname -i)
-    if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+    if [[ ${OS_ARCH} =~ "aarch64" ]] && [[ ${deploy_mode} != "dss" ]]; then
       result_str=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_NUMA_CPU_INFO"`
       if [ -z "$result_str" ]; then
           echo "Error: CANTIAN_NUMA_CPU_INFO is empty."
@@ -181,51 +183,13 @@ function start_cantiand() {
 
 function wait_for_node1_in_cluster() {
   function is_node1_joined_cluster() {
-    ${CTDB_HOME}/bin/cms node -list | grep -q node1
+    cms node -list | grep -q node1
   }
   wait_for_success 60 is_node1_joined_cluster
 }
 
-function start_cms() {
-  log "=========== start cms ${NODE_ID} ================"
-  if [ ${NODE_ID} == 0 ]; then
-    if [ ${CLUSTER_SIZE} == 1 ]; then
-      ${CTDB_HOME}/bin/cms node -add 0 node0 127.0.0.1 ${CMS_PORT[0]}
-    else
-      for ((i = 0; i < ${CLUSTER_SIZE}; i++)); do
-        ${CTDB_HOME}/bin/cms node -add ${i} node${i} ${NODE_IP[$i]} ${CMS_PORT[$i]}
-      done
-    fi
-
-    ${CTDB_HOME}/bin/cms res -add db -type db -attr "script=${CTDB_HOME}/bin/cluster.sh"
-  elif [ ${NODE_ID} == 1 ]; then
-    wait_for_node1_in_cluster
-  fi
-
-  ${CTDB_HOME}/bin/cms node -list
-  ${CTDB_HOME}/bin/cms res -list
-  ${CTDB_HOME}/bin/cms server -start >> ${STATUS_LOG} 2>&1 &
-}
-
-function prepare_cms_gcc() {
-  if [ "${IS_RERUN}" == 1 ]; then
-    return 0
-  fi
-
-  if [ "${NODE_ID}" == 0 ]; then
-    log "zeroing ${GCC_HOME} on node ${NODE_ID}"
-    dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
-    ${CTDB_HOME}/bin/cms gcc -reset -f
-  fi
-}
-
 function install_cantiand() {
   start_cantiand
-}
-
-function install_cms() {
-  prepare_cms_gcc
-  start_cms
 }
 
 function parse_parameter() {

@@ -259,10 +259,7 @@ static inline void cms_info_log_print(cms_cmd_def_t* cmd_def)
 
 status_t cm_get_gcc_file_handle()
 {
-    if (g_cms_param->gcc_type == CMS_DEV_TYPE_DBS) {
-        // 去nas时cms tool命令没有初始化dbstor，tool命令内部有去加载dbstor，若g_cms_param->gcc_home文件不存在，正常报错即可。
-        return CT_SUCCESS;
-    } else {
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_NFS) {
         if (cm_file_exist(g_cms_param->gcc_home) == CT_FALSE) {
             return CT_ERROR;
         }

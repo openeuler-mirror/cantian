@@ -64,12 +64,19 @@ function start_cantian() {
 	numactl --hardware > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
 		OS_ARCH=$(uname -i)
+		deploy_mode=$(python3 /opt/cantian/action/cantian/get_config_info.py "deploy_mode")
+		if [[ ${OS_ARCH} =~ "aarch64" ]] && [[ x"${deploy_mode}" != x"dss" ]]; then
+            CPU_CORES_NUM=`cat /proc/cpuinfo |grep "architecture" |wc -l`
+            CPU_CORES_NUM=$((CPU_CORES_NUM - 1))
+            numactl_str="numactl -C 0-1,6-11,16-"${CPU_CORES_NUM}" "
+		fi
+
 		if [[ ${OS_ARCH} =~ "aarch64" ]]; then
 			result_str=$(python3 /opt/cantian/action/cantian/get_config_info.py "CANTIAN_NUMA_CPU_INFO")
 			if [ -z "$result_str" ]; then
-          echo "Error: CANTIAN_NUMA_CPU_INFO is empty."
-          exit 1
-      fi
+				echo "Error: CANTIAN_NUMA_CPU_INFO is empty."
+				exit 1
+			fi
 			numactl_str="numactl -C ${result_str}"
 		fi
 	fi

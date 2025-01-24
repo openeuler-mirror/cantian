@@ -14,43 +14,22 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * cm_system.h
+ * cms_test_log.h
  *
  *
  * IDENTIFICATION
- * src/common/cm_system.h
+ * src/cms/cbb/cbb_test_log.h
  *
  * -------------------------------------------------------------------------
  */
-#ifndef __CM_SYSTEM_H__
-#define __CM_SYSTEM_H__
+#ifndef __CBB_TEST_LOG_H__
+#define __CBB_TEST_LOG_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#define LOG(format, ...) write_log_to_file(__FILE__, __LINE__, format, ##__VA_ARGS__)
 
-#include "cm_defs.h"
-
-#ifdef __cplusplus
-extern "C" {
+#ifdef TEST_LOG_ENABLED
+void get_current_time(char *buffer, size_t size);
 #endif
-status_t cm_get_host_ip(char *ipstr, uint32 len);
-uint64 cm_sys_pid(void);
-char *cm_sys_program_name(void);
-char *cm_sys_user_name(void);
-char *cm_sys_host_name(void);
-char *cm_sys_platform_name(void);
-int64 cm_sys_ticks(void);
-int64 cm_sys_process_start_time_s(uint64 pid);
-bool32 cm_sys_process_alived(uint64 pid, int64 start_time);
-void cm_try_init_system(void);
-uint32 cm_sys_get_nprocs(void);
-#ifndef WIN32
-status_t cm_get_file_host_name(char *path, char *host_name);
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+void write_log_to_file(const char *file, int line, const char *format, ...);
 
 #endif

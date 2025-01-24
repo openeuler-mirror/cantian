@@ -1164,6 +1164,8 @@ config_item_t g_parameters[] = {
     { "CREATE_INDEX_PARALLELISM", CT_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0, 10]", "CT_TYPE_INTEGER", NULL,
       PARAM_CREATE_INDEX_PARALLELISM, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_create_index_parallelism,
       sql_notify_als_create_index_parallelism, NULL, NULL },
+    { "ENABLE_DSS", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
+      PARAM_ENABLE_DSS, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)
