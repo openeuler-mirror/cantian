@@ -25,6 +25,7 @@
 
 #include "cm_defs.h"
 #include "cm_log.h"
+#include "cm_timer.h"
 
 #ifndef MODULE_ID
 #define MODULE_ID DBSTORE
@@ -41,6 +42,9 @@
 #define NUM_NINE    9
 #define DEFAULT_LINK_CHECK_TIMEOUT 5
 #define LINK_STATE_UNKNOWN 7
+#define DBS_BACKUP_FILE_COUNT 10
+#define DBS_LOGFILE_SIZE (10 * 1024 * 1024)
+#define DBS_TOOL_LOG_FILE_NAME "dbs_tool.log"
 
 #define DBS_PERF_ITEM_NAME_LEN 32
 #define DBS_UDS_BUFFER_SIZE 1024
@@ -83,6 +87,7 @@ typedef struct {
 } dbs_uds_rsp_comm_msg;
 
 status_t dbstool_init();
+status_t dbs_init_loggers();
 int32 dbs_arch_import(int32 argc, char *argv[]);
 int32 dbs_arch_export(int32 argc, char *argv[]);
 int32 dbs_arch_clean(int32 argc, char *argv[]);
