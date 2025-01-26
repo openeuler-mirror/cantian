@@ -167,6 +167,23 @@ static status_t cms_get_node_stat(uint32 node_id, char *node_stat)
     return CT_SUCCESS;
 }
 
+bool32 cms_check_node_dead(uint32 node_id){
+    char disk_hb[32];
+    char now_str[32];
+    uint64_t now_time = cm_now();
+    cms_node_stat_t *node_stat = CMS_NODE_STAT(node_id);
+    CT_RETURN_IFERR(cms_get_node_stat(node_id, (char *)node_stat));
+    cms_date2str(node_stat->disk_hb, disk_hb, sizeof(disk_hb));
+    cms_date2str(now_time, now_str, sizeof(now_str));
+
+    if (node_stat->disk_hb + CMS_LIVE_DETECT_TIMEOUT * CMS_SECOND_TRANS_MICROSECOND >= now_time){
+        CMS_LOG_INF("deleting node: node %u cms is alive, last disk_hb %s, now time %s", node_id, disk_hb, now_str);
+        return CT_FALSE;
+    }
+    CMS_LOG_INF("deleting node: node %u cms is dead, last disk_hb %s, now time %s", node_id, disk_hb, now_str);
+    return CT_TRUE;
+}
+
 status_t cms_sync_cur_res_stat(uint32 res_id, cms_res_stat_t* res_stat)
 {
     if (cms_disk_lock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WAIT_TIMEOUT,

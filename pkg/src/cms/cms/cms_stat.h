@@ -87,6 +87,7 @@ typedef struct st_cms_hb_aync_start_t {
 #define CMS_HB_AYNC_UPDATE_INTERNAL 5000
 #define CMS_CHECK_RES_RUNING_TIMES 10
 #define CMS_DBS_DETECT_TIMEOUT 11
+#define CMS_LIVE_DETECT_TIMEOUT 10
 
 // range lock defs for nfs
 #define CMS_RLOCK_VOTE_RESULT_LOCK_START    (0)
@@ -332,6 +333,7 @@ status_t cms_stat_get_uds(uint64 session_id, socket_t *uds_sock, uint8 msg_type,
 status_t cms_server_stat(uint32 node_id, bool32* cms_online);
 status_t cms_get_node_view(uint64* cms_online_bitmap);
 status_t cms_check_res_running(uint32 res_id);
+bool32 cms_check_node_dead(uint32 node_id);
 
 status_t cms_init_mes_channel_version(void);
 status_t cms_get_mes_channel_version(uint64* version);
