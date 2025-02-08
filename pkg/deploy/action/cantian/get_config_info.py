@@ -142,7 +142,11 @@ def get_value(param):
     if param in kernel_params_list:
         return info_cantian_config.get(param, "")
     if param in mysql_kernel_params_list:
-        return info_cantian_config.get(param, "") 
+        return info_cantian_config.get(param, "")
+    if param == "deploy_mode":
+        if info.get('deploy_mode', ""):
+            return info.get('deploy_mode')
+        return "dbstor" if info.get('deploy_policy', "") in ["ModeB", "ModeC"] else "file"
 
     return info.get(param, "")
 

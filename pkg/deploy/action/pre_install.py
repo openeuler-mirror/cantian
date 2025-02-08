@@ -52,7 +52,7 @@ kernel_element = {
     'VARIANT_MEMORY_AREA_SIZE',
     '_INDEX_BUFFER_SIZE'
 }
-use_dbstor = ["dbstor", "combine"]
+use_dbstor = ["dbstor", "combined"]
 UnitConversionInfo = collections.namedtuple('UnitConversionInfo', ['tmp_gb', 'tmp_mb', 'tmp_kb', 'key', 'value',
                                                                    'sga_buff_size', 'temp_buffer_size',
                                                                    'data_buffer_size', 'shared_pool_size',

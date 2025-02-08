@@ -301,7 +301,7 @@ def load_config_param(json_data):
     if json_data.get('cantian_in_container', 0) == '1':
         g_opts.cantian_in_container = True
     global DEPLOY_MODE
-    DEPLOY_MODE = json_data.get("deploy_mode", "").strip()
+    DEPLOY_MODE = get_value("deploy_mode")
     g_opts.db_type = json_data.get('db_type', '').strip()
     g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs", "").strip()
     g_opts.storage_share_fs = json_data.get('storage_share_fs', "").strip()

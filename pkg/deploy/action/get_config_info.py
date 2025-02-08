@@ -24,6 +24,11 @@ def get_value(param):
     if param == "cluster_scale":
         return len(info.get("cms_ip").split(";"))
 
+    if param == "deploy_mode":
+        if info.get('deploy_mode', ""):
+            return info.get('deploy_mode')
+        return "dbstor" if info.get('deploy_policy', "") in ["ModeB", "ModeC"] else "file"
+
     return info.get(param, "")
 
 
