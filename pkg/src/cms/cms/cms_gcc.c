@@ -1159,13 +1159,10 @@ const cms_res_t* cms_find_res_type(const cms_gcc_t* gcc, const char* res_type)
         if (gcc->res[res_id].magic == CMS_GCC_RES_MAGIC &&
            cm_strcmpi(gcc->res[res_id].type, res_type) == 0) {
             res = &gcc->res[res_id];
-            break;
+            return res;
         }
-        CMS_LOG_WAR("res type is not found, res_id = %u, res[res_id].magic = %llu, CMS_GCC_RES_MAGIC = "
-            "%llu,res[res_id].type = %s, ",
-            res_id, gcc->res[res_id].magic, CMS_GCC_RES_MAGIC, gcc->res[res_id].type);
     }
-
+    CMS_LOG_WAR("res type [%s] is not found", res_type);
     return res;
 }
 

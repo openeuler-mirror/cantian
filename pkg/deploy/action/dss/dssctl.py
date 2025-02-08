@@ -27,7 +27,7 @@ CMS_HOME = "/opt/cantian/cms/service"
 DSS_CFG = "/opt/cantian/dss/cfg"
 BACKUP_NAME = "/opt/cantian/backup/files/dss"
 SCRIPTS_DIR = "/opt/cantian/action/dss"
-DSS_CTRL_SCRIPTS = "%s/bin/dss_contrl.sh" % DSS_HOME
+DSS_CTRL_SCRIPTS = "%s/dss_contrl.sh" % SCRIPTS_DIR
 RETRY_TIMES = 20
 
 
@@ -86,7 +86,7 @@ class DssCtl(object):
         self.ca_path = get_value("ca_path")
         self.crt_path = get_value("crt_path")
         self.key_path = get_value("key_path")
-        self.log_file = os.path.join(DSS_HOME, "log/run/dssinstance.rlog")
+        self.log_file = os.path.join(DSS_LOG, "run/dssinstance.rlog")
         self.begin_time = None
 
     @staticmethod
@@ -239,6 +239,10 @@ class DssCtl(object):
         add dss res for cms
         :return:
         """
+        os.chmod(DSS_CTRL_SCRIPTS, 0o700)
+        dss_contrl_path = os.path.join(DSS_HOME, "dss_contrl.sh")
+        shutil.copyfile(DSS_CTRL_SCRIPTS, dss_contrl_path)
+        os.chmod(dss_contrl_path, 0o700)
         if self.node_id == "0":
             LOG.info("Start to add dss res.")
             cmd = ("source ~/.bashrc && %s/bin/cms res -add dss -type dss -attr \"script=%s\""
@@ -249,6 +253,7 @@ class DssCtl(object):
                 err_msg = "Failed to add dss res, details: %s" % (str(output))
                 raise Exception(err_msg)
             LOG.info("Success to add dss res.")
+        LOG.info("Success to copy dss control script.")
 
     def config_perctrl_permission(self) -> None:
         """
@@ -319,8 +324,8 @@ class DssCtl(object):
             shutil.rmtree(os.path.join(DSS_HOME, "lib"))
         if os.path.exists(os.path.join(DSS_HOME, "bin")):
             shutil.rmtree(os.path.join(DSS_HOME, "bin"))
-        if os.path.exists(os.path.join(DSS_HOME, "cfg")):
-            shutil.rmtree(os.path.join(DSS_HOME, "cfg"))
+        if os.path.exists(DSS_CFG):
+            shutil.rmtree(DSS_CFG)
         LOG.info("Success to clean soft.")
 
     def pre_install(self, *args) -> None:
@@ -347,7 +352,7 @@ class DssCtl(object):
         self.modify_env(action="add")
         self.prepare_cfg()
         self.prepare_source()
-        #self.cms_add_dss_res()
+        self.cms_add_dss_res()
         self.config_perctrl_permission()
         self.prepare_dss_dick()
         self.reghl_dss_disk()
@@ -381,6 +386,7 @@ class DssCtl(object):
         """
         start dss server:
              - check dss server status
+             - register dss disk
              - start dss server
         :param args:
         :return:
@@ -388,6 +394,7 @@ class DssCtl(object):
         LOG.info("Start dss server.")
         if self.check_status():
             return
+        self.reghl_dss_disk()
         self.begin_time = str(datetime.datetime.now()).split(".")[0]
         dssserver_cmd = "source ~/.bashrc && nohup dssserver -D %s &" % DSS_HOME
         subprocess.Popen(dssserver_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

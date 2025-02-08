@@ -33,6 +33,7 @@
 #include "cm_dbs_intf.h"
 #include "ct_tbox.h"
 #include "cm_file_iofence.h"
+#include "cm_dss_iofence.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -635,12 +636,21 @@ status_t dbc_register_iof(knl_instance_t *kernel)
             CT_LOG_RUN_ERR("Failed to open dbstore namespace.");
             return CT_ERROR;
         }
-    } else {
-        if (kernel->file_iof_thd.id == 0) {
-            if (cm_file_iof_register(kernel->id, &kernel->file_iof_thd) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("Failed to iof reg file, inst id %u", kernel->id);
-                return CT_ERROR;
-            }
+        return CT_SUCCESS;
+    }
+    
+    if (kernel->attr.enable_dss) {
+        if (cm_dss_iof_register() != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("failed to iof reg dss, inst id %u", kernel->id);
+            return CT_ERROR;
+        }
+        return CT_SUCCESS;
+    }
+    
+    if (kernel->file_iof_thd.id == 0) {
+        if (cm_file_iof_register(kernel->id, &kernel->file_iof_thd) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("Failed to iof reg file, inst id %u", kernel->id);
+            return CT_ERROR;
         }
     }
     return CT_SUCCESS;

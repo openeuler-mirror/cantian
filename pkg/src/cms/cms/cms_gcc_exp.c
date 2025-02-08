@@ -661,7 +661,9 @@ status_t cms_keep_recent_files_remote(const char *bak_path, char *prefix)
         return CT_ERROR;
     }
 
-    if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
+    if (CMS_DEV_TYPE_SD == g_cms_param->gcc_type) {
+        return CT_SUCCESS;
+    } else if (g_cms_param->gcc_type != CMS_DEV_TYPE_DBS) {
         ret = cms_remove_old_files(dirname, prefix);
     } else {
         ret = cms_remove_old_files_dbs(dirname, prefix);

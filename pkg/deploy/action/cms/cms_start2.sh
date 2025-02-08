@@ -66,6 +66,11 @@ start_cms() {
 	cms_srv_pid=$!
 	log "=========== wait for cms server start, pid[${cms_srv_pid}]================"
 	wait_for_cms_start
+	cms_if_use_dss=`cms res -list | grep "dss" | wc -l`
+	if [ $cms_if_use_dss -ne 0 ]; then
+		log "=========== start dss ${NODE_ID} ================"
+		cms res -start dss -node ${NODE_ID}
+	fi
 	log "=========== start cantian ${NODE_ID} ================"
 	cms res -start db -node ${NODE_ID}
 }

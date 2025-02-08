@@ -65,8 +65,11 @@ function permission_opt() {
     chown -hR "${cantian_user}":"${cantian_group}" "${DSS_SOURCE}"
     chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/*
     chown root:root "${CURRENT_PATH}"/appctl.sh
-    mkdir -p /opt/cantian/dss/log
-    touch /opt/cantian/dss/log/dss_deploy.log
+    mkdir -p /opt/cantian/log/dss
+    touch /opt/cantian/log/dss/dss_deploy.log
+    chmod -R 750 /opt/cantian/log/dss/
+    chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/log/dss/
+    mkdir -m 750 -p /opt/cantian/dss/
     chown -hR "${cantian_user}":"${cantian_group}" /opt/cantian/dss/
 }
 
