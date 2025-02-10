@@ -2846,6 +2846,11 @@ status_t cms_del_node_local(uint32 node_id, char* err_info)
         printf("cms lock gcc disk failed. \n");
         return CT_ERROR;
     }
+    if (cms_check_node_dead(node_id) != CT_TRUE){
+        CMS_LOG_ERR("node %u is still alive", node_id);
+        return CT_ERROR;
+    }
+
     ret = cms_del_node(node_id);
     cms_unlock_gcc_disk();
     if (ret == CT_ERROR) {
