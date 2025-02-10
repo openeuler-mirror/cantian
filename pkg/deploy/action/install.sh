@@ -882,8 +882,10 @@ done
 # 把升级备份相关路径拷贝到/opt/cantian
 cp -rfp ${CURRENT_PATH}/../repo /opt/cantian/
 cp -rfp ${CURRENT_PATH}/../versions.yml /opt/cantian/
-source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
-update_version_yml_by_dbstor
+if [[ "${cantian_in_container}" == "0" ]]; then
+    source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
+    update_version_yml_by_dbstor
+fi
 
 config_security_limits > /dev/null 2>&1
 

@@ -33,6 +33,11 @@ def get_value(param):
             cms_conf = json.loads(file.read())
         return cms_conf.get("install_step")
 
+    if param == "deploy_mode":
+        if info.get('deploy_mode', ""):
+            return info.get('deploy_mode')
+        return "dbstor" if info.get('deploy_policy', "") in ["ModeB", "ModeC"] else "file"
+
     return info.get(param, "")
 
 
