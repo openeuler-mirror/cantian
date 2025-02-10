@@ -811,6 +811,10 @@ status_t cms_exec_add_node(cms_packet_head_t* msg, char* info, uint32 info_len)
 status_t cms_exec_del_node(cms_packet_head_t* msg, char* info, uint32 info_len)
 {
     cms_msg_req_del_node_t* req = (cms_msg_req_del_node_t*)msg;
+    if (cms_check_node_dead(req->node_id) != CT_TRUE){
+        CMS_LOG_ERR("node %u is still alive", req->node_id);
+        return CT_ERROR;
+    }
 
     status_t ret = cms_del_node(req->node_id);
     if (ret != CT_SUCCESS) {
