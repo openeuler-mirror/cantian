@@ -129,8 +129,8 @@ def execute_command(command, raise_flag=False, timeout=None):
 def get_dm_password():
     password_file = os.path.join(DORADO_CONF_PATH, DM_PWD)
     if not os.path.exists(password_file):
-        LOG.error("DM password file not found.")
-        raise Exception("get dm password file not found.")
+        LOG.error("DM file not found.")
+        raise Exception("get dm file not found.")
 
     encode_dm_password = get_file_content(password_file)
     decode_dm_password = resolve_kmc_pwd(encode_dm_password)
@@ -141,7 +141,7 @@ def get_dr_status(dm_password=None):
     if not dm_password:
         dm_password = get_dm_password()
     if dm_password == "":
-        LOG.error("DM Password is empty.")
+        LOG.error("DM pass word is empty.")
     cmd = (f"echo -e '{dm_password}' | sh {SCRIPT_PATH}/appctl.sh dr_operate progress_query "
            f"--action=check --display=table 2>&1 | grep -E '^\-|^\|'")
     execute_command(cmd, raise_flag=True, timeout=30)
@@ -200,8 +200,8 @@ def dr_deploy(role=None, dm_password=None, mysql_pwd='', delete_flag=False):
     if not dm_password:
         dm_password = get_dm_password()
     if dm_password == "":
-        LOG.error("DM Password is empty.")
-        raise Exception("get dm_password failed.")
+        LOG.error("DM Pass word is empty.")
+        raise Exception("get dm_pass word failed.")
     if not role:
         role = get_value("dr_deploy.role")
     cmd = (f"echo -e '{dm_password}' | sh {SCRIPT_PATH}/appctl.sh dr_operate pre_check {role} "
@@ -328,7 +328,7 @@ def main():
     mysql_pwd = ''
     delete_config = False
     if len(sys.argv) == 1:
-        mysql_pwd = getpass.getpass("Please input mysql login passwd:")
+        mysql_pwd = getpass.getpass("Please input mysql login password:")
         delete_config = True
 
     if len(sys.argv) > 1:
