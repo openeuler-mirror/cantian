@@ -46,8 +46,8 @@ class SnapShotRestClient(object):
         if not self.storage_operate.rest_client.token:
             self.storage_operate.login()
         config_params = json.loads(read_helper(DEPLOY_PARAM_PATH))
-        storage_dbstore_page_fs = config_params.get("storage_dbstore_page_fs")
-        page_fs_info = self.storage_operate.query_filesystem_info(storage_dbstore_page_fs)
+        storage_dbstor_page_fs = config_params.get("storage_dbstor_page_fs")
+        page_fs_info = self.storage_operate.query_filesystem_info(storage_dbstor_page_fs)
         page_fs_id = page_fs_info.get("ID")
         dr_deploy_opt = DRDeployCommon(self.storage_operate)
         page_pair_info = dr_deploy_opt.query_remote_replication_pair_info(page_fs_id)
@@ -157,13 +157,13 @@ def main(mode, ip_address, main_path):
 
     config_params = json.loads(read_helper(DEPLOY_PARAM_PATH))
     vstore_id = config_params.get("vstore_id", 0)
-    dbstore_fs_vstore_id = config_params.get("dbstore_fs_vstore_id", 0)
+    dbstor_fs_vstore_id = config_params.get("dbstor_fs_vstore_id", 0)
     fs_names_type = []
     for fs_type, fs_name in config_params.items():
         if fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_share_fs" and fs_name:
             fs_names_type.append((fs_name, fs_type, vstore_id))
-        elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_dbstore_fs" and fs_name:
-            fs_names_type.append((fs_name, fs_type, dbstore_fs_vstore_id))
+        elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_type == "storage_dbstor_fs" and fs_name:
+            fs_names_type.append((fs_name, fs_type, dbstor_fs_vstore_id))
         elif fs_type.endswith('_fs') and fs_type.startswith("storage") and fs_name:
             fs_names_type.append((fs_name, fs_type, 0))
     fs_names = [

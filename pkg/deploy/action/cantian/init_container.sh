@@ -21,7 +21,7 @@ cantian_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
 archive_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_archive_fs"`
 cluster_id=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_id"`
 deploy_mode=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode"`
-storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
+storage_dbstor_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstor_fs"`
 cluster_name=`python3 ${CURRENT_PATH}/get_config_info.py "cluster_name"`
 max_arch_files_size=`python3 ${CURRENT_PATH}/get_config_info.py "MAX_ARCH_FILES_SIZE"`
 cms_ip=`python3 ${CURRENT_PATH}/get_config_info.py "cms_ip"`
@@ -88,7 +88,7 @@ function set_cantian_config() {
     elif [[ "$deploy_mode" == "file" ]]; then
         sed -i -r "s/(ENABLE_DBSTOR = ).*/\1FALSE/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
         sed -i -r "s/(INTERCONNECT_TYPE = ).*/\1TCP/" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
-        sed -i "s|SHARED_PATH.*|SHARED_PATH = /mnt/dbdata/remote/storage_${storage_dbstore_fs}/data|g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
+        sed -i "s|SHARED_PATH.*|SHARED_PATH = /mnt/dbdata/remote/storage_${storage_dbstor_fs}/data|g" ${CONFIG_PATH}/${CANTIAN_CONFIG_NAME}
     else
         echo "Unknown deployment mode: $deploy_mode"
         exit 1

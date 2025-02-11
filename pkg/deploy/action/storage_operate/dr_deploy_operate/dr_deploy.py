@@ -408,8 +408,8 @@ class DRDeploy(object):
         health_status = None
         running_status = None
 
-        remote_vstore_id = self.dr_deploy_info.get("remote_dbstore_fs_vstore_id")
-        local_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
+        remote_vstore_id = self.dr_deploy_info.get("remote_dbstor_fs_vstore_id")
+        local_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
         vstore_pair_id = self.dr_deploy_info.get("vstore_pair_id")
         domain_id = domain_info.get("ID")
 
@@ -470,17 +470,17 @@ class DRDeploy(object):
         vstore_pair_id = vstore_pair_info.get("ID")
         hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
         remote_pool_id = self.dr_deploy_info.get("remote_pool_id")
-        dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
+        dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
         filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
-        storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
-        dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
-            dbstore_fs_vstore_id)
-        dbstore_fs_id = dbstore_fs_info.get("ID")
+        storage_dbstor_fs = self.dr_deploy_info.get("storage_dbstor_fs")
+        dbstor_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstor_fs,
+            dbstor_fs_vstore_id)
+        dbstor_fs_id = dbstor_fs_info.get("ID")
         if filesystem_pair_id is None:
-            filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+            filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstor_fs_id)
             if filesystem_pair_infos is None:
                 filesystem_pair_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
-                    filesystem_id=dbstore_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
+                    filesystem_id=dbstor_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
                 task_id = filesystem_pair_info.get("taskId")
                 self.record_deploy_process("create_metro_fs_pair", "running")
                 self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
@@ -489,7 +489,7 @@ class DRDeploy(object):
                 pair_id=filesystem_pair_id)
             if filesystem_pair_info is None:
                 filesystem_pair_info = self.dr_deploy_opt.create_hyper_metro_filesystem_pair(
-                    filesystem_id=dbstore_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
+                    filesystem_id=dbstor_fs_id, pool_id=remote_pool_id, vstore_pair_id=vstore_pair_id)
                 task_id = filesystem_pair_info.get("taskId")
                 self.record_deploy_process("create_metro_fs_pair", "running")
                 self.dr_deploy_opt.query_omtask_process(task_id, timeout=120)
@@ -501,7 +501,7 @@ class DRDeploy(object):
                               (exist_domain_id, hyper_domain_id, filesystem_pair_info)
                     LOG.error(err_msg)
                     raise Exception(err_msg)
-        filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+        filesystem_pair_infos = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstor_fs_id)
 
         if len(filesystem_pair_infos) != 1:
             err_msg = "The metro filesystem pair create failed, Details: %s" % filesystem_pair_infos
@@ -900,15 +900,15 @@ class DRDeploy(object):
         :param ulog_fs_pair_ready_flag:
         :return:
         """
-        dbstore_fs_name = self.dr_deploy_info.get("storage_dbstore_fs")
-        dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
-        dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
-            dbstore_fs_name, vstore_id=dbstore_fs_vstore_id)
+        dbstor_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
+        dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+        dbstor_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
+            dbstor_fs_name, vstore_id=dbstor_fs_vstore_id)
         ulog_fs_pair_info = None
-        if dbstore_fs_info and not ulog_fs_pair_ready_flag:
-            dbstore_fs_id = dbstore_fs_info.get("ID")
+        if dbstor_fs_info and not ulog_fs_pair_ready_flag:
+            dbstor_fs_id = dbstor_fs_info.get("ID")
             try:
-                ulog_fs_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+                ulog_fs_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstor_fs_id)
             except Exception as err:
                 self.record_deploy_process("create_metro_fs_pair", "failed",
                                            code=-1, description=str(err))
@@ -934,7 +934,7 @@ class DRDeploy(object):
                 if running_status == FilesystemPairRunningStatus.Normal \
                         and health_status == HealthStatus.Normal \
                         and sync_progress == "100":
-                    LOG.info("Hyper metro filesystem[%s] pair ready", dbstore_fs_name)
+                    LOG.info("Hyper metro filesystem[%s] pair ready", dbstor_fs_name)
                     self.record_deploy_process("sync_metro_fs_pair", "success")
                     ulog_fs_pair_ready_flag = True
         return ulog_fs_pair_info, ulog_fs_pair_ready_flag
@@ -945,14 +945,14 @@ class DRDeploy(object):
         :param page_fs_pair_ready_flag:
         :return:
         """
-        dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
-        dbstore_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
-            dbstore_page_fs_name)
+        dbstor_page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
+        dbstor_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
+            dbstor_page_fs_name)
         page_fs_pair_info = None
-        if dbstore_page_fs_info and not page_fs_pair_ready_flag:
+        if dbstor_page_fs_info and not page_fs_pair_ready_flag:
             self.record_deploy_process("create_rep_page_fs_pair", "success")
-            dbstore_page_fs_id = dbstore_page_fs_info.get("ID")
-            page_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstore_page_fs_id)
+            dbstor_page_fs_id = dbstor_page_fs_info.get("ID")
+            page_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstor_page_fs_id)
             if page_fs_pair_info:
                 # 当已经设置从端可读写状态，且为分裂状态时，表示当前同步完成
                 page_fs_pair_id = page_fs_pair_info[0].get("ID")
@@ -964,7 +964,7 @@ class DRDeploy(object):
                 replication_progress = remote_replication_pair_info.get("REPLICATIONPROGRESS")
                 self.record_deploy_process("sync_rep_page_fs_pair", str(replication_progress) + "%")
                 if secres_access == SecresAccess.ReadAndWrite and running_status == ReplicationRunningStatus.Split:
-                    LOG.info("Remote replication pair[%s] ready.", dbstore_page_fs_name)
+                    LOG.info("Remote replication pair[%s] ready.", dbstor_page_fs_name)
                     self.record_deploy_process("sync_rep_page_fs_pair", "success")
                     page_fs_pair_ready_flag = True
         return page_fs_pair_info, page_fs_pair_ready_flag
@@ -1225,12 +1225,12 @@ class DRDeploy(object):
         self.do_lock_instance_for_backup()
         self.do_full_check_point()
         self.do_flush_table_with_read_lock()
-        dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
+        dbstor_page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
         metadata_fs_name = self.dr_deploy_info.get("storage_metadata_fs")
         self.sync_speed = int(SPEED.get(self.dr_deploy_info.get("sync_speed", "medium")))
         self.deploy_hyper_metro_pair()
         try:
-            self.page_fs_pair_id = self.deploy_remote_replication_pair(dbstore_page_fs_name, True)
+            self.page_fs_pair_id = self.deploy_remote_replication_pair(dbstor_page_fs_name, True)
         except Exception as err:
             self.record_deploy_process("create_rep_page_fs_pair", "failed", code=-1, description=str(err))
             raise err

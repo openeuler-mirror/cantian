@@ -46,9 +46,9 @@ function check_dr_status_in_container()
 function execute_dbstor_query_file()
 {
   local fs=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "$1")
-  if [ $1 == "storage_dbstore_fs" ];then
-    local dbstore_fs_vstore_id=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstore_fs_vstore_id")
-    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}" )
+  if [ $1 == "storage_dbstor_fs" ];then
+    local dbstor_fs_vstore_id=$(python3 ${CURRENT_PATH}/../cantian/get_config_info.py "dbstor_fs_vstore_id")
+    out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id="${dbstor_fs_vstore_id}" )
     result=$?
   else
     out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-fs-info --fs-name="${fs}" --vstore_id=0 )
@@ -66,8 +66,8 @@ function execute_dbstor_query_file()
   else
     fs_mode=$(echo ${out} | grep -c "fs_mode = 1")
     if [[ ${fs_mode} -gt 0 ]];then
-      if [ $1 == "storage_dbstore_fs" ];then
-        out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${fs}" --vstore_id="${dbstore_fs_vstore_id}" )
+      if [ $1 == "storage_dbstor_fs" ];then
+        out=$(/opt/cantian/image/Cantian-RUN-CENTOS-64bit/bin/dbstor --query-file --fs-name="${fs}" --vstore_id="${dbstor_fs_vstore_id}" )
         return_code=$?
         echo ${out} >> /opt/cantian/log/dbstor/install.log
         if [[ ${return_code} -ne 0 ]];then
@@ -90,8 +90,8 @@ function check_file_system()
   check_dr_status_in_container
   dr_stat=$?
   if [[ ! -f "${CURRENT_PATH}/../../config/dr_deploy_param.json" ]] && [[ ${dr_stat} -ne 1 ]];then
-    execute_dbstor_query_file "storage_dbstore_fs"
-    execute_dbstor_query_file "storage_dbstore_page_fs"
+    execute_dbstor_query_file "storage_dbstor_fs"
+    execute_dbstor_query_file "storage_dbstor_page_fs"
   fi
   echo "File system check pass" >> /opt/cantian/log/dbstor/install.log
 }

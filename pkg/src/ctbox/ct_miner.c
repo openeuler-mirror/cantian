@@ -39,7 +39,7 @@
 #include "ct_tbox_audit.h"
 #include "knl_ctrl_restore.h"
 #include "dtc_database.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #ifdef WIN32
 #define cm_strdup _strdup
 #else

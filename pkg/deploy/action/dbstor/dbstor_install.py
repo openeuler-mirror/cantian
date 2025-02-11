@@ -28,7 +28,6 @@ try:
     from kmc_adapter import CApiWrapper
     from init_unify_config import ConfigTool
 
-    DBSTORE_LOG_PATH = "/opt/cantian/dbstor"
     LOG_PATH = "/opt/cantian/log/dbstor"
     LOG_FILE = "/opt/cantian/log/dbstor/install.log"
     JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
@@ -283,7 +282,7 @@ class DBStor:
         self.cluster_name = ""
         self.cluster_id = ""
         self.cantian_in_container = ""
-        self.dbstore_fs_vstore_id = "0"
+        self.dbstor_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
         self.dbstor_log="/opt/cantian/log/dbstor"
@@ -325,13 +324,13 @@ class DBStor:
     def read_dbstor_para(self):
         with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r") as file_obj:
             json_data = json.load(file_obj)
-            self.dbstor_config['NAMESPACE_FSNAME'] = json_data.get('storage_dbstore_fs', "").strip()
-            self.dbstor_config['NAMESPACE_PAGE_FSNAME'] = json_data.get('storage_dbstore_page_fs', "").strip()
+            self.dbstor_config['NAMESPACE_FSNAME'] = json_data.get('storage_dbstor_fs', "").strip()
+            self.dbstor_config['NAMESPACE_PAGE_FSNAME'] = json_data.get('storage_dbstor_page_fs', "").strip()
             self.dbstor_config['LOCAL_IP'] = json_data.get('cantian_vlan_ip', "").strip()
             self.dbstor_config['REMOTE_IP'] = json_data.get('storage_vlan_ip', "").strip()
             self.dbstor_config['NODE_ID'] = json_data.get('node_id', "").strip()
             self.dbstor_config['LINK_TYPE'] = json_data.get('link_type', "").strip()
-            self.dbstor_config['LOG_VSTOR'] = json_data.get('dbstore_fs_vstore_id', "0").strip()
+            self.dbstor_config['LOG_VSTOR'] = json_data.get('dbstor_fs_vstore_id', "0").strip()
             self.dbstor_config['PAGE_VSTOR'] = json_data.get('dbstor_page_fs_vstore_id', "0").strip()
             if json_data.get('link_type', "").strip() != '0':
                 self.dbstor_config['LINK_TYPE'] = '1'
@@ -345,11 +344,11 @@ class DBStor:
     def check_dbstor_para(self):
         logger.info("Checking parameters.")
         if len(self.dbstor_config.get('NAMESPACE_FSNAME', "").strip()) == 0:
-            message = "The storage_dbstore_fs parameter is not entered"
+            message = "The storage_dbstor_fs parameter is not entered"
             console_and_log(message)
             raise ValueError(message)
         if len(self.dbstor_config.get('NAMESPACE_PAGE_FSNAME', "").strip()) == 0:
-            message = "The storage_dbstore_page_fs parameter is not entered"
+            message = "The storage_dbstor_page_fs parameter is not entered"
             console_and_log(message)
             raise ValueError(message)
         if len(self.dbstor_config.get('LOCAL_IP', "").strip()) == 0:
@@ -593,7 +592,7 @@ class DBStor:
                 value = conf.get(SECTION, option)
                 self.dbstor_config[option.strip().upper()] = value.strip()
             if "LOG_VSTOR" not in self.dbstor_config.keys():
-                self.dbstor_config["LOG_VSTOR"] = self.dbstore_fs_vstore_id
+                self.dbstor_config["LOG_VSTOR"] = self.dbstor_fs_vstore_id
             if "PAGE_VSTOR" not in self.dbstor_config.keys():
                 self.dbstor_config["PAGE_VSTOR"] = self.dbstor_page_fs_vstore_id
             if "DBS_LOG_PATH" not in self.dbstor_config.keys():
@@ -636,7 +635,7 @@ class DBStor:
             self.node_id = json_data.get('node_id', "").strip()
             self.cluster_id = json_data.get('cluster_id', "").strip()
             self.cantian_in_container = json_data.get('cantian_in_container', "0").strip()
-            self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
+            self.dbstor_fs_vstore_id = json_data.get('dbstor_fs_vstore_id', "0").strip()
             self.conf_file_path = "/opt/cantian/dbstor/tools"
             self.backup_conf_file = os.path.join(BACKUP_CONF_FILE, "dbstor_config.ini")
             self.cluster_name = json_data.get("cluster_name", '')

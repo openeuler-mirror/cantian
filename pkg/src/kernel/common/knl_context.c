@@ -28,7 +28,7 @@
 #include "cm_dbs_intf.h"
 #include "mes_config.h"
 #include "cms_interface.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,7 +96,7 @@ status_t knl_startup(knl_handle_t kernel)
             return CT_ERROR;
         }
         if (!cfg->enable) {
-            CT_LOG_RUN_INF("Note: dbstore is not enabled, the disaster recovery funcs would not work.");
+            CT_LOG_RUN_INF("Note: dbstor is not enabled, the disaster recovery funcs would not work.");
         } else {
             const char* uuid = get_config_uuid(session->kernel->id);
             uint32 lsid = get_config_lsid(session->kernel->id);

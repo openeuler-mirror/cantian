@@ -112,7 +112,7 @@ function mount_fs() {
 
     if [[ x"${deploy_mode}" == x"file" ]]; then
         share_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "share_logic_ip"`
-        storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
+        storage_dbstor_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstor_fs"`
         storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
         # nas模式才挂载share nfs
         mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev ${share_logic_ip}:/${storage_share_fs} /mnt/dbdata/remote/share_${storage_share_fs}
@@ -123,22 +123,22 @@ function mount_fs() {
         chown -hR "${cantian_user}":"${cantian_group}" /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
         checkMountNFS ${share_result}
 
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        dbstore_result=$?
-        if [ ${dbstore_result} -ne 0 ]; then
-            logAndEchoError "mount dbstore nfs failed"
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstor_fs}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        dbstor_result=$?
+        if [ ${dbstor_result} -ne 0 ]; then
+            logAndEchoError "mount dbstor nfs failed"
         fi
-        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        checkMountNFS ${dbstore_result}
+        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        checkMountNFS ${dbstor_result}
 
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/data
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/share_data
         rm -rf /mnt/dbdata/local/cantian/tmp/data/data
-        ln -s /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data/ /mnt/dbdata/local/cantian/tmp/data/data
+        ln -s /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/data/ /mnt/dbdata/local/cantian/tmp/data/data
         chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/local/cantian/tmp/data/data
-        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/data
+        chown -h ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/share_data
     fi
 
     # 检查nfs是否都挂载成功

@@ -2,7 +2,7 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
-DBSTORE_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
+DBSTOR_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
 cantian_user=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_user"`
 cantian_group=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_group"`
 deploy_mode=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "deploy_mode"`
@@ -10,7 +10,7 @@ storage_share_fs=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "storage_sh
 cluster_name=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "cluster_name"`
 node_id=`python3 ${CURRENT_PATH}/cantian/get_config_info.py "node_id"`
 storage_metadata_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_metadata_fs"`
-storage_dbstore_page_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_page_fs"`
+storage_dbstor_page_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstor_page_fs"`
 metadata_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}"
 dr_setup=`python3 ${CURRENT_PATH}/docker/get_config_info.py "dr_deploy.dr_setup"`
 
@@ -31,18 +31,18 @@ function check_dbstor_usr_passwd() {
     fi
 }
 
-function check_dbstore_client_compatibility() {
-    logAndEchoInfo "begin to check dbstore client compatibility."
-    if [ ! -f "${DBSTORE_CHECK_FILE}" ];then
-        logAndEchoError "${DBSTORE_CHECK_FILE} file is not exists."
+function check_dbstor_client_compatibility() {
+    logAndEchoInfo "begin to check dbstor client compatibility."
+    if [ ! -f "${DBSTOR_CHECK_FILE}" ];then
+        logAndEchoError "${DBSTOR_CHECK_FILE} file is not exists."
         exit 1
     fi
-    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTORE_CHECK_FILE}"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTOR_CHECK_FILE}"
     if [[ $? -ne 0 ]];then
-        logAndEchoError "dbstore client compatibility check failed."
+        logAndEchoError "dbstor client compatibility check failed."
         exit 1
     fi
-    logAndEchoInfo "dbstore client compatibility check success."
+    logAndEchoInfo "dbstor client compatibility check success."
 }
 
 function check_gcc_file() {
@@ -66,7 +66,7 @@ function check_gcc_file() {
 
         logAndEchoInfo "begin to check cluster name."
         is_cluster_name_exist=$(su -s /bin/bash - "${cantian_user}" \
-            -c 'dbstor --query-file --fs-name='"${storage_dbstore_page_fs}"' --file-dir=/' | grep "${cluster_name}$" | wc -l)
+            -c 'dbstor --query-file --fs-name='"${storage_dbstor_page_fs}"' --file-dir=/' | grep "${cluster_name}$" | wc -l)
         if [[ ${is_cluster_name_exist} -eq 0 ]];then
             logAndEchoError "query cluster name failed, please check whether cluster config parameters conflict."
             exit 1
@@ -120,8 +120,8 @@ function init_module() {
 
         if [[ ${lib_name} = 'dbstor' ]]; then
             check_dbstor_usr_passwd
-            # 检查dbstore client 与server端是否兼容
-            check_dbstore_client_compatibility
+            # 检查dbstor client 与server端是否兼容
+            check_dbstor_client_compatibility
             check_gcc_file
         fi
     done

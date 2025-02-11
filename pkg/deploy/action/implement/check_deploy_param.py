@@ -7,8 +7,8 @@ DEPLOY_PARAM_FILE = os.path.join(CUR_PATH, '../../config/deploy_param.json')
 CHECK_LIST = [
     "cluster_id",
     "cluster_name",
-    "storage_dbstore_fs",
-    "storage_dbstore_page_fs",
+    "storage_dbstor_fs",
+    "storage_dbstor_page_fs",
     "storage_share_fs",
     "storage_archive_fs",
     "storage_metadata_fs",

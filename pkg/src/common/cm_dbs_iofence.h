@@ -35,7 +35,7 @@ extern "C" {
 
 typedef struct st_iof_info {
     uint32 nodeid;
-    NameSpaceId nsid;   // dbstore name space id
+    NameSpaceId nsid;   // dbstor name space id
     char* nsName;
     uint32 termid;      // ctd process id
     uint64 sn;          // serial num for dbstor iof request

@@ -32,7 +32,7 @@
 #include "cm_malloc.h"
 #include "cm_defs.h"
 #include "cms_log.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_file.h"
 
 #define DBS_CONFIG_MAX_PARAM 256

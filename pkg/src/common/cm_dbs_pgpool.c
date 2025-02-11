@@ -35,7 +35,7 @@
 #include "cm_dbs_map.h"
 #include "cm_dbs_ctrl.h"
 #include "cm_dbs_intf.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #define DBS_DEFAULT_POOL_SIZE (1 << 20)
 #define DBS_PAGE_POOL_PART_SIZE SIZE_M(64) // PagePool的Partition大小

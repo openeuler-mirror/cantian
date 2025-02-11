@@ -1,13 +1,13 @@
 {
     "PARENTID": 0,
     "client_ip": "127.0.0.1/24",
-    "storage_dbstore_fs": {
+    "storage_dbstor_fs": {
         "vstoreId": 0,
         "SNAPSHOTRESERVEPER": 20,
         "CAPACITYTHRESHOLD": 90,
         "CAPACITY": "300GB"
     },
-    "storage_dbstore_page_fs": {
+    "storage_dbstor_page_fs": {
         "vstoreId": 0,
         "SNAPSHOTRESERVEPER": 20,
         "CAPACITYTHRESHOLD": 90,

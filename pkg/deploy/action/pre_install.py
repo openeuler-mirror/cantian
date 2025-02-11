@@ -215,12 +215,12 @@ class ConfigChecker:
         return True
 
     @staticmethod
-    def dbstore_fs_vstore_id(value):
+    def dbstor_fs_vstore_id(value):
         try:
             value = int(value)
 
         except Exception as error:
-            LOG.error('dbstore_fs_vstore id type must be int : %s', str(error))
+            LOG.error('dbstor_fs_vstore id type must be int : %s', str(error))
             return False
         return True
 
@@ -323,7 +323,7 @@ class CheckInstallConfig(CheckBase):
         self.config_path = config_path
         self.value_checker = ConfigChecker
         self.config_key = {
-            'deploy_user', 'node_id', 'cms_ip', 'storage_dbstore_fs', 'storage_share_fs', 'storage_archive_fs',
+            'deploy_user', 'node_id', 'cms_ip', 'storage_dbstor_fs', 'storage_share_fs', 'storage_archive_fs',
             'storage_metadata_fs', 'share_logic_ip', 'archive_logic_ip', 'metadata_logic_ip', 'db_type',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian', 'storage_logic_ip', 'deploy_mode',
             'mes_ssl_switch', 'cantian_in_container', 'deploy_policy', 'link_type', 'ca_path', 'crt_path', 'key_path'
@@ -332,9 +332,9 @@ class CheckInstallConfig(CheckBase):
             'deploy_user', 'node_id', 'cms_ip',  'db_type', 'cantian_in_container',
             'MAX_ARCH_FILES_SIZE', 'mysql_in_container', 'mysql_metadata_in_cantian',
             'deploy_mode', 'mes_ssl_switch', "redo_num", "redo_size"}
-        self.dbstore_config_key = {
-            'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstore_page_fs',
-            'kerberos_key', 'cluster_id', 'mes_type', "vstore_id", "dbstore_fs_vstore_id"
+        self.dbstor_config_key = {
+            'cluster_name', 'cantian_vlan_ip', 'storage_vlan_ip', 'link_type', 'storage_dbstor_page_fs',
+            'kerberos_key', 'cluster_id', 'mes_type', "vstore_id", "dbstor_fs_vstore_id"
         }
         self.file_config_key = {
             "redo_num", "redo_size"
@@ -615,7 +615,7 @@ class CheckInstallConfig(CheckBase):
 
         if install_config_params['deploy_mode'] in use_dbstor:
             self.config_key.remove("storage_logic_ip")
-            self.config_key.update(self.dbstore_config_key)
+            self.config_key.update(self.dbstor_config_key)
             ping_check_element.remove("storage_logic_ip")
             if install_config_params['deploy_mode'] == "dbstor":
                 if not install_config_params['mysql_metadata_in_cantian']:
@@ -714,8 +714,8 @@ class CheckInstallConfig(CheckBase):
             install_config_params['mes_ssl_switch'] = False
         if 'deploy_mode' not in install_config_params.keys():
             install_config_params['deploy_mode'] = "combined"
-        if 'dbstore_fs_vstore_id' not in install_config_params.keys():
-            install_config_params['dbstore_fs_vstore_id'] = "0"
+        if 'dbstor_fs_vstore_id' not in install_config_params.keys():
+            install_config_params['dbstor_fs_vstore_id'] = "0"
         if (install_config_params.get("mes_ssl_switch") and
                 install_config_params.get("cantian_in_container", "-1") == "0"):
             self.config_key.update(self.mes_type_key)

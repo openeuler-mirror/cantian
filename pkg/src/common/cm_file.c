@@ -27,7 +27,7 @@
 #include "cm_log.h"
 #include "cm_system.h"
 #include "cm_date.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 #ifdef WIN32
 #else
@@ -190,7 +190,7 @@ status_t cm_get_dbs_root_dir_handle(char* fs_name, object_id_t* root_handle)
 {
     int ret = 0;
     if (fs_name == NULL || root_handle == NULL) {
-        CT_LOG_RUN_ERR("get dbstore root dir fd failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor root dir fd failed, invalid param.");
         return CT_ERROR;
     }
 
@@ -209,7 +209,7 @@ status_t cm_get_dbs_dir_handle(object_id_t* phandle, char* dir_name, object_id_t
 {
     int ret = 0;
     if (phandle == NULL || dir_name == NULL || handle == NULL) {
-        CT_LOG_RUN_ERR("get dbstore dir handle failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor dir handle failed, invalid param.");
         return CT_ERROR;
     }
     ret = dbs_global_handle()->dbs_file_open(phandle, dir_name, DIR_TYPE, handle);
@@ -225,7 +225,7 @@ status_t cm_open_dbs_dir_handle(object_id_t* phandle, char* dir_name, object_id_
 {
     int ret = 0;
     if (phandle == NULL || dir_name == NULL || handle == NULL) {
-        CT_LOG_RUN_ERR("get dbstore dir handle failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor dir handle failed, invalid param.");
         return CT_ERROR;
     }
     ret = dbs_global_handle()->dbs_file_open(phandle, dir_name, DIR_TYPE, handle);
@@ -237,7 +237,7 @@ status_t cm_get_dbs_file_handle(object_id_t* phandle, char* file_name, object_id
 {
     int ret = 0;
     if (phandle == NULL || file_name == NULL || handle == NULL) {
-        CT_LOG_RUN_ERR("get dbstore file handle failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor file handle failed, invalid param.");
         return CT_ERROR;
     }
 
@@ -262,7 +262,7 @@ status_t cm_open_dbs_file(object_id_t* pHandle, char* file, object_id_t* handle)
     status_t ret;
     char file_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     if (pHandle == NULL || file == NULL || handle == NULL) {
-        CT_LOG_RUN_ERR("get dbstore file fd failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor file fd failed, invalid param.");
         return CT_ERROR;
     }
     ret = cm_get_path_file_name(file, file_name, CT_FILE_NAME_BUFFER_SIZE);
@@ -285,7 +285,7 @@ status_t cm_open_dbs_file(object_id_t* pHandle, char* file, object_id_t* handle)
 status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
 {
     if (path == NULL || handle_ids == NULL || handle_len == 0) {
-        CT_LOG_RUN_ERR("get dbstore file path fd failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor file path fd failed, invalid param.");
         return CT_ERROR;
     }
     char* token = NULL;
@@ -308,17 +308,17 @@ status_t cm_get_dbs_file_path_handle(const char* path, const char* delim, object
         if (cur_depth == 0) { // token中保存的是根目录名
             MEMS_RETURN_IFERR(strcpy_sp(fs_name, CT_MAX_FILE_NAME_LEN, token));
             if (cm_get_dbs_root_dir_handle(fs_name, &handle_ids[cur_depth]) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get dbstore fs(%s) root dir(%s) fd failed.", fs_name, token);
+                CT_LOG_RUN_ERR("get dbstor fs(%s) root dir(%s) fd failed.", fs_name, token);
                 return CT_ERROR;
             }
         } else if (cur_depth < handle_len - 1) { // token中保存的是目录名
             if (cm_get_dbs_dir_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get dbstore fs(%s) dir(%s) fd failed.", fs_name, token);
+                CT_LOG_RUN_ERR("get dbstor fs(%s) dir(%s) fd failed.", fs_name, token);
                 return CT_ERROR;
             }
         } else if (cur_depth == handle_len - 1) { // token中保存的是文件名
             if (cm_get_dbs_file_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get dbstore fs(%s) file(%s) fd failed.", fs_name, token);
+                CT_LOG_RUN_ERR("get dbstor fs(%s) file(%s) fd failed.", fs_name, token);
                 return CT_ERROR;
             }
         }
@@ -334,7 +334,7 @@ status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
     errno_t ret = 0;
     int path_depth = 0;
     if (cm_get_file_path_depth(file, "/", &path_depth) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("get dbstore file(%s) path depth failed.", file);
+        CT_LOG_RUN_ERR("get dbstor file(%s) path depth failed.", file);
         return CT_ERROR;
     }
     object_id_t* handle = (object_id_t *)malloc((path_depth + 1) * sizeof(object_id_t));
@@ -343,7 +343,7 @@ status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
         return CT_ERROR;
     }
     if (cm_get_dbs_file_path_handle(file, "/", handle, path_depth) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("get dbstore file path fd failed, file %s, ret %d", file, ret);
+        CT_LOG_RUN_ERR("get dbstor file path fd failed, file %s, ret %d", file, ret);
         CM_FREE_PTR(handle);
         return CT_ERROR;
     }
@@ -362,7 +362,7 @@ status_t cm_get_dbs_last_file_handle(const char* file, object_id_t* last_handle)
 status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_id_t* handle_ids, int handle_len)
 {
     if (path == NULL || handle_ids == NULL || handle_len == 0) {
-        CT_LOG_RUN_ERR("get dbstore file path fd failed, invalid param.");
+        CT_LOG_RUN_ERR("get dbstor file path fd failed, invalid param.");
         return CT_ERROR;
     }
     char* token = NULL;
@@ -379,18 +379,18 @@ status_t cm_get_dbs_full_dir_handle(const char* path, const char* delim, object_
     token = strtok_s(file, delim, &context);
     while (token != NULL) {
         if (cur_depth >= handle_len) {
-            CT_LOG_RUN_ERR("get dbstore file(%s) fd failed, fd len exceed (%d - %d).", path, handle_len, cur_depth);
+            CT_LOG_RUN_ERR("get dbstor file(%s) fd failed, fd len exceed (%d - %d).", path, handle_len, cur_depth);
             return CT_ERROR;
         }
         if (cur_depth == 0) {
             MEMS_RETURN_IFERR(strcpy_sp(fs_name, CT_MAX_FILE_NAME_LEN, token));
             if (cm_get_dbs_root_dir_handle(fs_name, &handle_ids[cur_depth]) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get dbstore fs(%s) root dir(%s) fd failed.", fs_name, token);
+                CT_LOG_RUN_ERR("get dbstor fs(%s) root dir(%s) fd failed.", fs_name, token);
                 return CT_ERROR;
             }
         } else if (cur_depth <= handle_len - 1) { // token中保存的是目录名
             if (cm_get_dbs_dir_handle(&handle_ids[cur_depth - 1], token, &handle_ids[cur_depth]) != CT_SUCCESS) {
-                CT_LOG_RUN_ERR("get dbstore fs(%s) dir(%s) fd failed.", fs_name, token);
+                CT_LOG_RUN_ERR("get dbstor fs(%s) dir(%s) fd failed.", fs_name, token);
                 return CT_ERROR;
             }
         }
@@ -406,7 +406,7 @@ status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle)
     errno_t ret = 0;
     int path_depth = 0;
     if (cm_get_file_path_depth(file, "/", &path_depth) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("get dbstore file(%s) path depth failed.", file);
+        CT_LOG_RUN_ERR("get dbstor file(%s) path depth failed.", file);
         return CT_ERROR;
     }
     object_id_t* handle = (object_id_t *)malloc((path_depth + 1) * sizeof(object_id_t));
@@ -415,7 +415,7 @@ status_t cm_get_dbs_last_dir_handle(const char* file, object_id_t* last_handle)
         return CT_ERROR;
     }
     if (cm_get_dbs_full_dir_handle(file, "/", handle, path_depth) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("get dbstore file path fd failed, file %s, ret %d", file, ret);
+        CT_LOG_RUN_ERR("get dbstor file path fd failed, file %s, ret %d", file, ret);
         CM_FREE_PTR(handle);
         return CT_ERROR;
     }
@@ -434,7 +434,7 @@ status_t cm_rm_dbs_dir_file(object_id_t* phandle, char* name)
 {
     int ret = 0;
     if (phandle == NULL || name == NULL) {
-        CT_LOG_RUN_ERR("delete dbstore file or dir failed, invalid param.");
+        CT_LOG_RUN_ERR("delete dbstor file or dir failed, invalid param.");
         return CT_ERROR;
     }
 

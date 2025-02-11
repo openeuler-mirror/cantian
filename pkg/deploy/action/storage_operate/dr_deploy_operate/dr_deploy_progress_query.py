@@ -164,11 +164,11 @@ class DrStatusCheck(object):
             return "Unknown"
 
     def query_page_fs_pair_status(self) -> str:
-        dbstore_page_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
+        dbstor_page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
         try:
-            dbstore_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(dbstore_page_fs_name)
-            dbstore_page_fs_id = dbstore_page_fs_info.get("ID")
-            page_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstore_page_fs_id)
+            dbstor_page_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(dbstor_page_fs_name)
+            dbstor_page_fs_id = dbstor_page_fs_info.get("ID")
+            page_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstor_page_fs_id)
             if page_fs_pair_info:
                 if page_fs_pair_info[0].get("HEALTHSTATUS") == HealthStatus.Normal:
                     return "Normal"

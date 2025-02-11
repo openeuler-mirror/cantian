@@ -137,7 +137,7 @@ status_t cms_disk_lock_init_nfs(cms_disk_lock_t* lock, const char* dev, const ch
     return CT_SUCCESS;
 }
 
-status_t cms_dbstore_lock_init(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
+status_t cms_dbstor_lock_init(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
 {
     status_t ret = CT_SUCCESS;
     char file_name[CMS_MAX_NAME_LEN] = {0};
@@ -156,15 +156,15 @@ status_t cms_dbstore_lock_init(cms_disk_lock_t* lock, uint64 l_start, uint64 l_l
         return CT_ERROR;
     }
     if (cm_dbs_lock_init(file_name, l_start, l_len, &lock->fd) != CT_SUCCESS) {
-        CMS_LOG_ERR("init dbstore lock(%s) start(%llu) len(%llu) failed.", file_name, l_start, l_len);
+        CMS_LOG_ERR("init dbstor lock(%s) start(%llu) len(%llu) failed.", file_name, l_start, l_len);
         return CT_ERROR;
     }
 
     return CT_SUCCESS;
 }
  
-/* 生成当前加锁路径文件的dbstore lock锁句柄 */
-status_t cms_gen_dbstore_lock_obj(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
+/* 生成当前加锁路径文件的dbstor lock锁句柄 */
+status_t cms_gen_dbstor_lock_obj(cms_disk_lock_t* lock, uint64 l_start, uint64 l_len)
 {
     int path_depth = 0;
     status_t ret = cm_get_file_path_depth(lock->flock->file_name, "/", &path_depth);
@@ -180,13 +180,13 @@ status_t cms_gen_dbstore_lock_obj(cms_disk_lock_t* lock, uint64 l_start, uint64 
     
     ret = cm_get_dbs_file_path_handle(lock->flock->file_name, "/", lock->dbs_fd, path_depth);
     if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("get dbstore file path fd failed, file %s, ret %d", lock->flock->file_name, ret);
+        CMS_LOG_ERR("get dbstor file path fd failed, file %s, ret %d", lock->flock->file_name, ret);
         CM_FREE_PTR(lock->dbs_fd);
         return ret;
     }
-    ret = cms_dbstore_lock_init(lock, l_start, l_len);
+    ret = cms_dbstor_lock_init(lock, l_start, l_len);
     if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("dbstore lock init name:%s offset:%lld len:%lld failed.", lock->flock->file_name, l_start, l_len);
+        CMS_LOG_ERR("dbstor lock init name:%s offset:%lld len:%lld failed.", lock->flock->file_name, l_start, l_len);
         CM_FREE_PTR(lock->dbs_fd);
         return ret;
     }
@@ -215,9 +215,9 @@ status_t cms_disk_lock_init_dbs(cms_disk_lock_t* lock, const char* dev, const ch
         CM_FREE_PTR(lock->flock);
         return CT_ERROR;
     }
-    ret = cms_gen_dbstore_lock_obj(lock, l_start, l_len);
+    ret = cms_gen_dbstor_lock_obj(lock, l_start, l_len);
     if (ret != CT_SUCCESS) {
-        CMS_LOG_ERR("gen dbstore lock obj failed, file %s, ret %d", lock->flock->file_name, ret);
+        CMS_LOG_ERR("gen dbstor lock obj failed, file %s, ret %d", lock->flock->file_name, ret);
         CM_FREE_PTR(lock->flock);
         return ret;
     }
@@ -278,7 +278,7 @@ status_t cms_disk_lock_init(cms_dev_type_t type, const char* dev, const char* fi
     } else if (type == CMS_DEV_TYPE_DBS) {
         ret = cms_disk_lock_init_dbs(lock, dev, file, l_start, l_len, inst_id, is_write);
         if (ret != CT_SUCCESS) {
-            CMS_LOG_ERR("cms disk lock init dbstore failed, ret %d, dev %s, file %s, l_start %llu, l_len %llu, "
+            CMS_LOG_ERR("cms disk lock init dbstor failed, ret %d, dev %s, file %s, l_start %llu, l_len %llu, "
                 " inst_id %lld", ret, dev, file, l_start, l_len, inst_id);
             return ret;
         }

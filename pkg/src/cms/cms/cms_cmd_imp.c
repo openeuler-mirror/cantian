@@ -43,7 +43,7 @@
 #include "cms_vote.h"
 #include "cms_log.h"
 #include "cms_uds_client.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_file.h"
 
 static const char *g_cms_lock_file = "cms_server.lck";

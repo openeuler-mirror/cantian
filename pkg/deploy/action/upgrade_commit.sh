@@ -14,14 +14,14 @@ cluster_status_flag=""
 business_code_backup_path=""
 cluster_commit_flag=""
 modify_sys_table_success_flag=""
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
+DEPLOY_MODE_DBSTOR_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 
 
 source "${CURRENT_PATH}"/log4sh.sh
 source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 source "${CURRENT_PATH}"/env.sh
 
-if [ -f DEPLOY_MODE_DBSTORE_UNIFY_FLAG ]; then
+if [ -f DEPLOY_MODE_DBSTOR_UNIFY_FLAG ]; then
   CLUSTER_COMMIT_STATUS=("prepared" "commit")
 else
   CLUSTER_COMMIT_STATUS=("rollup" "prepared" "commit")

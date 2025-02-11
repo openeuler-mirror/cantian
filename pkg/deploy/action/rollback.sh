@@ -173,7 +173,7 @@ function stop_cantian() {
     logAndEchoInfo "stop cantian success"
 }
 
-function install_dbstore(){
+function install_dbstor(){
     local arrch=$(uname -p)
     local dbstor_path="${CURRENT_PATH}"/../repo
     local dbstor_package_file=$(ls "${dbstor_path}"/DBStor_Client*_"${arrch}"*.tgz)
@@ -244,7 +244,7 @@ function install_rpm()
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
     if [ x"${deploy_mode}" != x"file" ];then
         echo "start rollback rpm package"
-        install_dbstore
+        install_dbstor
         if [ $? -ne 0 ];then
             sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
             exit 1

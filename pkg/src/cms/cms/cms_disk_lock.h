@@ -76,9 +76,9 @@ typedef struct _st_cms_disk_lock_t {
     thread_lock_t       slock; // protect seek&read(reopen) or seek&write(reopen) as atomic operation
     uint32              flag;
     char                dev_name[CMS_FILE_NAME_BUFFER_SIZE];
-    object_id_t*        dbs_fd; // only used when type is CMS_DEV_TYPE_DBSTORE
-    int                 fd_len; // only used when type is CMS_DEV_TYPE_DBSTORE
-    char                file_name[CMS_MAX_NAME_LEN]; // only used when type is CMS_DEV_TYPE_DBSTORE
+    object_id_t*        dbs_fd; // only used when type is CMS_DEV_TYPE_DBSTOR
+    int                 fd_len; // only used when type is CMS_DEV_TYPE_DBSTOR
+    char                file_name[CMS_MAX_NAME_LEN]; // only used when type is CMS_DEV_TYPE_DBSTOR
 }cms_disk_lock_t;
 
 typedef union u_cms_master_info_t {

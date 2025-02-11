@@ -42,8 +42,8 @@ def modify_env():
  
 def modify_cantian_config():
     data = json.loads(read_file(CANTIAN_CONFIG))
-    if "USE_DBSTORE" in data.keys():
-        del data["USE_DBSTORE"]
+    if "USE_DBSTOR" in data.keys():
+        del data["USE_DBSTOR"]
     data = json.dumps(data, indent=4)
     write_file(data, CANTIAN_CONFIG)
  

@@ -171,7 +171,7 @@ status_t cms_kick_node_by_ns(const char* name, uint32 node_id, iofence_type_t io
     ret = cm_dbs_iof_kick_by_ns(&iof);
     CMS_SYNC_POINT_GLOBAL_END;
     if (ret != CT_SUCCESS) {
-        CT_LOG_RUN_WAR("dbstore iof failed, node_id : %u", node_id);
+        CT_LOG_RUN_WAR("dbstor iof failed, node_id : %u", node_id);
     }
     return ret;
 }
@@ -216,7 +216,7 @@ void try_cms_dbs_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence
     date_t now_time;
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
     if (!cfg->enable) {
-        CT_LOG_RUN_INF("dbstore is not enabled");
+        CT_LOG_RUN_INF("dbstor is not enabled");
         return;
     }
 
@@ -236,12 +236,12 @@ void try_cms_dbs_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence
             return;
         }
         cm_sleep(IOF_CHECK_INTERVAL);
-        CMS_LOG_ERR("dbstore iof failed, ret %d, namespace %s, node_id %u", ret, (char *)cfg->ns, node_id);
+        CMS_LOG_ERR("dbstor iof failed, ret %d, namespace %s, node_id %u", ret, (char *)cfg->ns, node_id);
     }
     if (cms_daemon_stop_pull() != CT_SUCCESS) {
         CMS_LOG_ERR("stop cms daemon process failed.");
     }
-    CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: cms exec iof error, please check if dbstoreclient and dbstoreserver are disconnected.");
+    CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: cms exec iof error, please check if dbstorclient and dbstorserver are disconnected.");
 }
 
 void try_cms_file_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence_type)

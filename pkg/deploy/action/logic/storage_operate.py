@@ -23,7 +23,7 @@ class StorageInf(object):
     @staticmethod
     def umount_file_system(fs_name):
         """
-        挂载dbstore文件系统
+        挂载dbstor文件系统
         :param fs_name: 文件系统名称
         :return:
         """
@@ -53,7 +53,7 @@ class StorageInf(object):
     @staticmethod
     def mount_file_system(fs_name, logic_ip, prefix=None, params=""):
         """
-        取消dbstore文件系统挂载
+        取消dbstor文件系统挂载
         :param logic_ip: 挂载ip
         :param prefix: 挂载路径前缀
         :param params: 挂载参数

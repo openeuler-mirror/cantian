@@ -237,9 +237,9 @@ def parse_parameter():
 def check_parameter():
     console_and_log("Checking parameters.")
     if len(db_opts.dbstor_config.get("NAMESPACE_FSNAME", "").strip()) == 0:
-        log_exit("The storage_dbstore_fs parameter is not entered")
+        log_exit("The storage_dbstor_fs parameter is not entered")
     if len(db_opts.dbstor_config.get("NAMESPACE_PAGE_FSNAME", "").strip()) == 0:
-        log_exit("The storage_dbstore_page_fs parameter is not entered")
+        log_exit("The storage_dbstor_page_fs parameter is not entered")
     if len(db_opts.dbstor_config.get("DPU_UUID", "").strip()) == 0:
         log_exit("The uuid parameter is not exist")
     if len(db_opts.dbstor_config.get("LOCAL_IP", "").strip()) == 0:

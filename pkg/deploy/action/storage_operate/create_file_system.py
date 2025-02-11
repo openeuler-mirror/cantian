@@ -23,13 +23,13 @@ DEPLOY_PARAM_PATH = str(pathlib.Path(CUR_PATH, "../../config/deploy_param.json")
 DEPLOY_PARAM = json.loads(read_helper(DEPLOY_PARAM_PATH))
 DEPLOY_MODE = DEPLOY_PARAM.get("deploy_mode")
 FS_TYPE_LIST = [
-    "storage_dbstore_fs", "storage_dbstore_page_fs",
+    "storage_dbstor_fs", "storage_dbstor_page_fs",
     "storage_share_fs", "storage_archive_fs",
     "storage_metadata_fs"
 ]
 if DEPLOY_MODE == "dbstor":
     FS_TYPE_LIST = [
-        "storage_dbstore_fs", "storage_dbstore_page_fs",
+        "storage_dbstor_fs", "storage_dbstor_page_fs",
         "storage_share_fs", "storage_archive_fs"
     ]
 SHARE_FS_TYPE_LIST = [
@@ -38,14 +38,14 @@ SHARE_FS_TYPE_LIST = [
 ]
 if DEPLOY_MODE == "file":
     FS_TYPE_LIST = [
-        "storage_dbstore_fs","storage_share_fs",
+        "storage_dbstor_fs","storage_share_fs",
         "storage_archive_fs", "storage_metadata_fs"
     ]
     SHARE_FS_TYPE_LIST = [
-        "storage_dbstore_fs", "storage_share_fs",
+        "storage_dbstor_fs", "storage_share_fs",
         "storage_archive_fs", "storage_metadata_fs"
     ]
-ID_NAS_DBSTORE = 1038
+ID_NAS_DBSTOR = 1038
 ID_NAS_DEFAULT = 11
 
 
@@ -191,7 +191,7 @@ class CreateFS(object):
                     nfs_share_id = self._create_nfs_share(fs_id, fs_type)
                     nfs_share_client_id = self._add_nfs_client(nfs_share_id, fs_type)
                 else:
-                    fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DBSTORE)
+                    fs_id = self._create_fs(fs_type, work_load_type=ID_NAS_DBSTOR)
                 fs_info[fs_type] = {
                     "fs_id": fs_id,
                     "nfs_share_id": nfs_share_id,
@@ -245,13 +245,13 @@ class CreateFS(object):
 
     def _check_vstore_id(self):
         deploy_info = json.loads(read_helper(DEPLOY_PARAM_PATH))
-        deploy_info_dbstore_fs_vstore_id = deploy_info.get("dbstore_fs_vstore_id")
-        fs_info_dbstore_fs_vstore_id = self.fs_info.get("storage_dbstore_fs").get("vstoreId")
-        if int(deploy_info_dbstore_fs_vstore_id) != int(fs_info_dbstore_fs_vstore_id):
-            err_msg = "dbstore_fs_vstore_id  of config_params.json is " \
+        deploy_info_dbstor_fs_vstore_id = deploy_info.get("dbstor_fs_vstore_id")
+        fs_info_dbstor_fs_vstore_id = self.fs_info.get("storage_dbstor_fs").get("vstoreId")
+        if int(deploy_info_dbstor_fs_vstore_id) != int(fs_info_dbstor_fs_vstore_id):
+            err_msg = "dbstor_fs_vstore_id  of config_params.json is " \
                       "different from file_system_info.json,details:" \
-                      " dbstore_fs_vstore_id:(%s, %s)" % (fs_info_dbstore_fs_vstore_id,
-                                                          deploy_info_dbstore_fs_vstore_id)
+                      " dbstor_fs_vstore_id:(%s, %s)" % (fs_info_dbstor_fs_vstore_id,
+                                                          deploy_info_dbstor_fs_vstore_id)
             LOG.error(err_msg)
             raise Exception(err_msg)
 
@@ -388,7 +388,7 @@ class CreateFS(object):
 
     def _create_fs(self, fs_type, work_load_type):
         """
-        param fs_type: storage_dbstore_fs、storage_share_fs、storage_archive_fs、storage_metadata_fs
+        param fs_type: storage_dbstor_fs、storage_share_fs、storage_archive_fs、storage_metadata_fs
         :return:the file system id
         """
         data = self._get_fs_info(fs_type, work_load_type)
@@ -398,7 +398,7 @@ class CreateFS(object):
         """
         add nfs share
         :param fs_id: the file system id
-        :param fs_type: storage_dbstore_fs、storage_share_fs、storage_archive_fs、storage_metadata_fs
+        :param fs_type: storage_dbstor_fs、storage_share_fs、storage_archive_fs、storage_metadata_fs
         :return: nfs share id
         """
         data = self._get_nfs_share_info(fs_type, fs_id)

@@ -37,7 +37,7 @@
 #include "cms_interface.h"
 #include "cms_persistent.h"
 #include "cms_log.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 typedef enum e_proc_type_t {
     CMS_SERVER,
     CMS_TOOLS,
