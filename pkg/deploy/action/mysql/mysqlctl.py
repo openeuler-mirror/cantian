@@ -13,7 +13,7 @@ from get_config_info import get_value
 INSTALL_PATH = CUR_PATH.parent.parent
 INFO_SRC = "/opt/cantian/mysql/install/mysql/docs/INFO_SRC"
 CANTIAN_INSTALL_CONFIG = os.path.join(CUR_PATH.parent, "cantian", "install_config.json")
-TARGET_VERSION = "1.0.0"
+TARGET_VERSION = "1.0.1"
 
 
 class MysqlCtl(object):
