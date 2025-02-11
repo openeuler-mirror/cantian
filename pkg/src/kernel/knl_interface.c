@@ -9600,7 +9600,7 @@ status_t knl_restore(knl_handle_t session, knl_restore_t *param)
     }
 
     if (knl_db_open_dbstor_ns(session) != CT_SUCCESS) {
-        CT_LOG_RUN_INF("failed to open dbstore namespace");
+        CT_LOG_RUN_INF("failed to open dbstor namespace");
         return CT_ERROR;
     }
 
@@ -9657,7 +9657,7 @@ status_t knl_register_iof(knl_session_t *se)
 {
     if (knl_dbs_is_enable_dbs()) {
         if (knl_db_open_dbstor_ns((knl_handle_t)se) != CT_SUCCESS) {
-            CT_LOG_RUN_INF("failed to open dbstore namespace");
+            CT_LOG_RUN_INF("failed to open dbstor namespace");
             return CT_ERROR;
         }
     } else {
@@ -14818,13 +14818,13 @@ status_t knl_db_open_dbstor_ns(knl_handle_t session)
     status = cm_dbs_open_all_ns();
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("failed to open dbstore namespace.");
+        CT_LOG_RUN_ERR("failed to open dbstor namespace.");
         return CT_ERROR;
     }
     knl_session_t *se = (knl_session_t *)session;
     knl_instance_t *kernel = (knl_instance_t *)se->kernel;
     if (cm_dbs_iof_reg_all_ns(kernel->id) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("failed to iof reg dbstore namespace, inst id %u", kernel->id);
+        CT_LOG_RUN_ERR("failed to iof reg dbstor namespace, inst id %u", kernel->id);
         return CT_ERROR;
     }
     return CT_SUCCESS;

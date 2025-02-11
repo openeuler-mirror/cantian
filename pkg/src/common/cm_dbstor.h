@@ -14,17 +14,17 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * cm_dbstore.h
+ * cm_dbstor.h
  *
  *
  * IDENTIFICATION
- * src/common/cm_dbstore.h
+ * src/common/cm_dbstor.h
  *
  * -------------------------------------------------------------------------
  */
 
-#ifndef __CM_DBSTORE_H__
-#define __CM_DBSTORE_H__
+#ifndef __CM_DBSTOR_H__
+#define __CM_DBSTOR_H__
 
 #include "cm_dbs_defs.h"
 
@@ -56,7 +56,7 @@ typedef struct {
     char remote_ip[DBS_ADDR_STR_LEN];
 } dbs_ip_pairs;
 
-// libdbstoreClient.so
+// libdbstorClient.so
 // namespace
 typedef int (*create_namespace_t)(char *, NameSpaceAttr *);
 typedef int (*open_namespace_t)(char *, NameSpaceAttr *);
@@ -252,4 +252,4 @@ typedef struct cm_dbstor_fs_info {
 }
 #endif
 
-#endif // __CM_DBSTORE_H__
+#endif // __CM_DBSTOR_H__

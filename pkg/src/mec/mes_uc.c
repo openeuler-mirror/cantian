@@ -125,13 +125,17 @@ static status_t mes_load_symbol(void *lib_handle, char *symbol, void **sym_lib_h
 status_t uc_init_lib(void)
 {
     mes_interface_t *intf = &g_mes_interface;
-    intf->uc_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
     const char *dlopen_err = NULL;
+    intf->uc_handle = dlopen("libdbstorClient.so", RTLD_LAZY);
     dlopen_err = dlerror();
-
     if (intf->uc_handle == NULL) {
-        CT_LOG_RUN_ERR("fail to load libdbstoreClient.so, maybe lib path error, errno %s", dlopen_err);
-        return CT_ERROR;
+        CT_LOG_RUN_WAR("Failed to load libdbstorClient.so, trying libdbstoreClient.so instead, original error: %s", dlopen_err);
+        intf->uc_handle = dlopen("libdbstoreClient.so", RTLD_LAZY);
+        dlopen_err = dlerror();   
+        if (intf->uc_handle == NULL) {
+            CT_LOG_RUN_ERR("Failed to load libdbstoreClient.so, maybe lib path error, errno %s", dlopen_err);
+            return CT_ERROR;
+        }
     }
 
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_msg_alloc", (void **)(&intf->dpuc_msg_alloc)));
@@ -156,7 +160,7 @@ status_t uc_init_lib(void)
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_link_create_with_addr", (void **)(&intf->dpuc_link_create_with_addr)));
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_qlink_close", (void **)(&intf->dpuc_qlink_close)));
     CT_RETURN_IFERR(mes_load_symbol(intf->uc_handle, "dpuc_set_security_cert_info", (void **)(&intf->dpuc_set_security_cert_info)));
-    CT_LOG_RUN_INF("load uc from libdbstoreClient.so done");
+    CT_LOG_RUN_INF("load uc from libdbstorClient.so done");
 
     return CT_SUCCESS;
 }

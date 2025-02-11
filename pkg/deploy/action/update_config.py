@@ -116,7 +116,7 @@ def write_config_file(file_path, content):
         file_obj.write(json.dumps(content))
 
 
-def update_dbstore_conf(action, key, value=None):
+def update_dbstor_conf(action, key, value=None):
     file_list = [
         "/mnt/dbdata/local/cantian/tmp/data/dbstor/conf/dbs/dbstor_config.ini",
         "/opt/cantian/dbstor/conf/dbs/dbstor_config.ini",
@@ -129,8 +129,8 @@ def update_dbstore_conf(action, key, value=None):
         "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config_tool_3.ini",
         "/opt/cantian/cms/dbstor/conf/dbs/dbstor_config.ini"
     ]
-    opt_dbstore_config = "/opt/cantian/dbstor/tools/dbstor_config.ini"
-    file_list.append(opt_dbstore_config)
+    opt_dbstor_config = "/opt/cantian/dbstor/tools/dbstor_config.ini"
+    file_list.append(opt_dbstor_config)
     for file_path in file_list:
         if not os.path.exists(file_path):
             continue
@@ -255,7 +255,7 @@ def main():
     key = args.key
     value = args.value
     func_dict = {
-        "dbstor": update_dbstore_conf,
+        "dbstor": update_dbstor_conf,
         "cantian": update_cantian_conf,
         "cantian_ini": update_cantian_ini_conf,
         "cms": update_cms_conf,

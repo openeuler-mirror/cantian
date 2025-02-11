@@ -2561,7 +2561,7 @@ void dbwr_proc(thread_t *thread)
         if (thread->closed) {
             break;
         }
-        // if enable dbstore batch flush, dbwr->begin and dbwr->end will unuse
+        // if enable dbstor batch flush, dbwr->begin and dbwr->end will unuse
         knl_panic(dbwr->end >= dbwr->begin || (cm_dbs_is_enable_dbs() && cm_dbs_is_enable_batch_flush()));
         knl_panic(dbwr->dbwr_trigger);
 

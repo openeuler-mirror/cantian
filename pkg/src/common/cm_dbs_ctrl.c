@@ -30,7 +30,7 @@
 #include "cm_dbs_map.h"
 #include "cm_text.h"
 #include "cm_dbs_iofence.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "srv_param_common.h"
 
 typedef struct {
@@ -243,7 +243,7 @@ void exit_panic(void)
 void cm_set_dbs_uuid_lsid(const char* uuid, uint32 lsid)
 {
     dbs_global_handle()->dbs_client_set_uuid_lsid(uuid, lsid);
-    CT_LOG_RUN_INF("set dbstore uuid %s and lsid %u", uuid, lsid);
+    CT_LOG_RUN_INF("set dbstor uuid %s and lsid %u", uuid, lsid);
     return;
 }
 
@@ -274,9 +274,9 @@ status_t cm_dbs_init(const char *home_path, char *cfg_name, dbs_init_mode init_m
         CT_LOG_RUN_ERR("Failed(%d) to init dbstor client at %s.", ret, dbstor_work_path);
         return CT_ERROR;
     }
-    CT_LOG_RUN_INF("START WAIT DBSTORE INIT");
+    CT_LOG_RUN_INF("START WAIT DBSTOR INIT");
     cm_dbs_map_init();
-    CT_LOG_RUN_INF("END WAIT DBSTORE INIT");
+    CT_LOG_RUN_INF("END WAIT DBSTOR INIT");
     return CT_SUCCESS;
 }
 
@@ -287,7 +287,7 @@ status_t cm_dbs_iof_reg_all_ns(uint32 inst_id)
     iof_info_t iof = {0};
 
     if (!cfg->enable) {
-        CT_LOG_RUN_INF("dbstore is not enabled");
+        CT_LOG_RUN_INF("dbstor is not enabled");
         return CT_SUCCESS;
     }
 

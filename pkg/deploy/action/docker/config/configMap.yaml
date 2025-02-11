@@ -15,11 +15,11 @@ data:
       "cantian_vlan_ip": "net1|net2",
       "storage_vlan_ip": "66.66.66.10;66.66.66.11|77.77.77.10;77.77.77.11",
       "cms_ip": "cantian-1-node0.cantian-svc-1.cantian.svc.cluster.local;cantian-1-node1.cantian-svc-1.cantian.svc.cluster.local",
-      "storage_dbstore_fs": "foo",
-      "storage_dbstore_page_fs": "foo_page",
+      "storage_dbstor_fs": "foo",
+      "storage_dbstor_page_fs": "foo_page",
       "storage_share_fs": "share",
       "storage_archive_fs": "archive",
-      "dbstore_fs_vstore_id": "0",
+      "dbstor_fs_vstore_id": "0",
       "mes_type": "UC",
       "mes_ssl_switch": true,
       "MAX_ARCH_FILES_SIZE": "300G",
@@ -38,7 +38,7 @@ data:
           "dm_user": "",
           "esn": "",
           "pool_id": "",
-          "dbstore_fs_vstore_id": ""
+          "dbstor_fs_vstore_id": ""
         }
       }
     }
@@ -61,11 +61,11 @@ data:
       "cantian_vlan_ip": "net1|net2",
       "storage_vlan_ip": "66.66.66.10;66.66.66.11|77.77.77.10;77.77.77.11",
       "cms_ip": "cantian-1-node0.cantian-svc-1.cantian.svc.cluster.local;cantian-1-node1.cantian-svc-1.cantian.svc.cluster.local",
-      "storage_dbstore_fs": "foo",
-      "storage_dbstore_page_fs": "foo_page",
+      "storage_dbstor_fs": "foo",
+      "storage_dbstor_page_fs": "foo_page",
       "storage_share_fs": "share",
       "storage_archive_fs": "archive",
-      "dbstore_fs_vstore_id": "0",
+      "dbstor_fs_vstore_id": "0",
       "mes_type": "UC",
       "mes_ssl_switch": true,
       "MAX_ARCH_FILES_SIZE": "300G",
@@ -84,7 +84,7 @@ data:
           "dm_user": "",
           "esn": "",
           "pool_id": "",
-          "dbstore_fs_vstore_id": ""
+          "dbstor_fs_vstore_id": ""
         }
       }
     }

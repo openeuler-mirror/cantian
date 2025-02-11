@@ -26,7 +26,7 @@
 #include "cm_log.h"
 #include "cm_dbs_iofence.h"
 #include "cm_dbs_intf.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 int32 cm_dbs_iof_register(iof_info_t* iof_info)
 {

@@ -88,28 +88,28 @@ class UNDeploy(object):
         删除双活pair 文件系统的pair id
         """
         # 双活文件系统租户id
-        dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
-        if not dbstore_fs_vstore_id:
+        dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+        if not dbstor_fs_vstore_id:
             return
         # 双活文件系统名字
-        storage_dbstore_fs = self.dr_deploy_info.get("storage_dbstore_fs")
-        if not storage_dbstore_fs:
+        storage_dbstor_fs = self.dr_deploy_info.get("storage_dbstor_fs")
+        if not storage_dbstor_fs:
             return
-        dbstore_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstore_fs,
-                                                                               dbstore_fs_vstore_id)
-        if not dbstore_fs_info:
-            LOG.info("Filesystem[%s] is not exist.", storage_dbstore_fs)
+        dbstor_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(storage_dbstor_fs,
+                                                                               dbstor_fs_vstore_id)
+        if not dbstor_fs_info:
+            LOG.info("Filesystem[%s] is not exist.", storage_dbstor_fs)
             return
         # 双活文件系统id
-        dbstore_fs_id = dbstore_fs_info.get("ID")
+        dbstor_fs_id = dbstor_fs_info.get("ID")
         # 通过双活文件系统id查询双活文件系统pair id
-        hyper_filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstore_fs_id)
+        hyper_filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info(dbstor_fs_id)
         if hyper_filesystem_pair_info:
             hyper_filesystem_pair_id = hyper_filesystem_pair_info[0].get("ID")
             try:
-                self.dr_deploy_opt.delete_hyper_metro_filesystem_pair(hyper_filesystem_pair_id, dbstore_fs_vstore_id)
+                self.dr_deploy_opt.delete_hyper_metro_filesystem_pair(hyper_filesystem_pair_id, dbstor_fs_vstore_id)
             except Exception as err:
-                self.dr_deploy_opt.delete_hyper_metro_filesystem_pair(hyper_filesystem_pair_id, dbstore_fs_vstore_id,
+                self.dr_deploy_opt.delete_hyper_metro_filesystem_pair(hyper_filesystem_pair_id, dbstor_fs_vstore_id,
                                                                       is_local_del=True)
             LOG.info("Delete Hyper Metro filesystem pair id[%s] success", hyper_filesystem_pair_id)
         LOG.info("Delete Hyper Metro filesystem pair id success")
@@ -129,11 +129,11 @@ class UNDeploy(object):
                 return False
             else:
                 raise err
-        dbstore_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
-        file_system_count = self.dr_deploy_opt.query_hyper_metro_filesystem_count_info(dbstore_fs_vstore_id)
+        dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+        file_system_count = self.dr_deploy_opt.query_hyper_metro_filesystem_count_info(dbstor_fs_vstore_id)
         if file_system_count and file_system_count.get("COUNT") != "0":
             msg = "Delete Hyper Metro pair id[id:%s], " \
-                  "but there are also other pair file systems" % dbstore_fs_vstore_id
+                  "but there are also other pair file systems" % dbstor_fs_vstore_id
             LOG.info(msg)
             return False
         try:
@@ -286,15 +286,15 @@ class UNDeploy(object):
             LOG.info("Stop Cantian engine success.")
         if node_id == "0":
             LOG.info("Start to delete dr deploy!")
-            rep_fs_name = self.dr_deploy_info.get("storage_dbstore_page_fs")
+            rep_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
             mysql_metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
             metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
             self.delete_replication()
             self.delete_filesystem(vstore_id="0", fs_name=rep_fs_name)
             if not mysql_metadata_in_cantian:
                 self.delete_filesystem(vstore_id="0", fs_name=metadata_fs)
-            fs_name = self.dr_deploy_info.get("storage_dbstore_fs")
-            dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstore_fs_vstore_id")
+            fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
+            dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
             self.delete_hyper()
             try:
                 self.delete_filesystem(dbstor_fs_vstore_id, fs_name)

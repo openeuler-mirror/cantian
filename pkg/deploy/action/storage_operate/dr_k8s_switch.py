@@ -31,7 +31,7 @@ CANTIAN_DATABASE_ROLE_CHECK = ("echo -e 'select DATABASE_ROLE from DV_LRPL_DETAI
                                "export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && "
                                "python3 -B %s'")
 
-DBSTORE_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
+DBSTOR_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
 DEPLOY_LOG_FILE = "/opt/cantian/log/deploy/deploy.log"
 
 
@@ -335,11 +335,11 @@ class K8sDRContainer:
                                 break
                         if "run_user" in value:
                             continue
-                    value["storage_dbstore_fs"] = deploy_param.get("storage_dbstore_fs")
+                    value["storage_dbstor_fs"] = deploy_param.get("storage_dbstor_fs")
                     value["run_user"] = deploy_param.get("deploy_user").strip().split(":")[0]
                     value["cluster_name"] = deploy_param.get("cluster_name").strip()
-                    value["storage_dbstore_page_fs"] = deploy_param.get("storage_dbstore_page_fs")
-                    value["dbstore_fs_vstore_id"] = deploy_param.get("dbstore_fs_vstore_id")
+                    value["storage_dbstor_page_fs"] = deploy_param.get("storage_dbstor_page_fs")
+                    value["dbstor_fs_vstore_id"] = deploy_param.get("dbstor_fs_vstore_id")
                     value["storage_metadata_fs"] = deploy_param.get("storage_metadata_fs", "")
                     value["cluster_id"] = deploy_param.get("cluster_id")
         return config_flag
@@ -552,7 +552,7 @@ class K8sDRContainer:
         log_fs_name = ulog_pair_info.get("LOCALOBJNAME").strip()
         vstore_id = ulog_pair_info.get("vstoreId").strip()
         value = self.server_info[ip][index]
-        if value.get("storage_dbstore_fs") == log_fs_name and value.get("dbstore_fs_vstore_id") == vstore_id:
+        if value.get("storage_dbstor_fs") == log_fs_name and value.get("dbstor_fs_vstore_id") == vstore_id:
             value["log_fs_id"] = ulog_pair_info.get("LOCALOBJID")
             value["log_pair_id"] = ulog_pair_info.get("ID")
             return True
@@ -1004,7 +1004,7 @@ class K8sDRContainer:
     def check_replication_filesystem_pair_stat(self):
         for ip in self.server_info:
             for value in self.server_info[ip]:
-                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstor_page_fs"))
                 page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_pair_id = page_pair_info.get("ID")
                 value["page_pair_id"] = page_pair_id
@@ -1071,7 +1071,7 @@ class K8sDRContainer:
     def switch_replication_pair_role(self):
         for ip in self.server_info:
             for value in self.server_info[ip]:
-                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstor_page_fs"))
                 page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_role = page_pair_info.get("ISPRIMARY")
                 pair_id = page_pair_info.get("ID")
@@ -1169,7 +1169,7 @@ class K8sDRContainer:
             raise Exception(err_msg)
 
     def get_single_write_flag(self, ssh_client, pod_name, namespace, cluster_name, islocal=False, timeout=60):
-        get_cmd = "sh %s getbase %s" % (DBSTORE_CHECK_VERSION_FILE, cluster_name)
+        get_cmd = "sh %s getbase %s" % (DBSTOR_CHECK_VERSION_FILE, cluster_name)
         cmd = f"single=$(kubectl exec -it {pod_name} -n {namespace} -- {get_cmd}); echo single=$single"
         try:
             ret_err = ""
@@ -1310,7 +1310,7 @@ class K8sDRContainer:
         single_config = get_json_config(self.single_file_path)
         for ip in single_config:
             for value in single_config[ip]:
-                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstore_page_fs"))
+                page_fs_info = self.storage_opt.query_filesystem_info(value.get("storage_dbstor_page_fs"))
                 page_pair_info = self.dr_option.query_remote_replication_pair_info(page_fs_info.get("ID"))[0]
                 page_role = page_pair_info.get("ISPRIMARY")
                 running_status = page_pair_info.get("RUNNINGSTATUS")

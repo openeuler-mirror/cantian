@@ -7,7 +7,7 @@ import logging
 import subprocess
 from configparser import ConfigParser
 
-DBSTORE_LOG_PATH = "/opt/cantian/dbstor"
+
 LOG_PATH = "/opt/cantian/log/dbstor"
 LOG_FILE = "/opt/cantian/log/dbstor/install.log"
 JS_CONF_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../config/deploy_param.json")
@@ -76,7 +76,7 @@ class ConfigTool:
         self.cluster_name = ""
         self.cluster_id = ""
         self.cantian_in_container = ""
-        self.dbstore_fs_vstore_id = "0"
+        self.dbstor_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
         self.dbstor_log_path="/opt/cantian/log/dbstor"
@@ -99,7 +99,7 @@ class ConfigTool:
             self.node_id = json_data.get('node_id', "").strip()
             self.cluster_id = json_data.get('cluster_id', "").strip()
             self.cantian_in_container = json_data.get('cantian_in_container', "0").strip()
-            self.dbstore_fs_vstore_id = json_data.get('dbstore_fs_vstore_id', "0").strip()
+            self.dbstor_fs_vstore_id = json_data.get('dbstor_fs_vstore_id', "0").strip()
             self.cluster_name = json_data.get("cluster_name", '')
             
     def create_unify_dbstor_config(self):

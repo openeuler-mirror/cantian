@@ -622,17 +622,17 @@ status_t dbc_register_iof(knl_instance_t *kernel)
 {
     if (knl_dbs_is_enable_dbs()) {
         if (cm_dbs_create_all_ns() != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("Failed to build dbstore namespace.");
+            CT_LOG_RUN_ERR("Failed to build dbstor namespace.");
             return CT_ERROR;
         }
 
         if (cm_dbs_iof_reg_all_ns(kernel->id) != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("Failed to iof reg dbstore namespace, inst id %u", kernel->id);
+            CT_LOG_RUN_ERR("Failed to iof reg dbstor namespace, inst id %u", kernel->id);
             return CT_ERROR;
         }
 
         if (cm_dbs_open_all_ns() != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("Failed to open dbstore namespace.");
+            CT_LOG_RUN_ERR("Failed to open dbstor namespace.");
             return CT_ERROR;
         }
     } else {

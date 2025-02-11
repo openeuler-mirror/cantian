@@ -171,7 +171,7 @@ cc_library (
         "//library:mockcpp",
         "//library:protobuf-c",
         "//library:cgw_client",
-        "//library:dbstoreClient",
+        "//library:dbstorClient",
         "//library:dbstor_tool",
         "//library:nomlnx/xnetlite",
         "//library:iod",

@@ -142,7 +142,7 @@ cc_binary (
         ":zecms",
         "//library:z",
         "//library:cgw_client",
-        "//library:dbstoreClient",
+        "//library:dbstorClient",
         "//library:dbstor_tool",
         "//library:nomlnx/xnetlite",
         "//library:iod",

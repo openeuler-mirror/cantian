@@ -707,20 +707,20 @@ class GetDbstorInfo:
     def __init__(self):
         self.deploy_config = self.get_deploy_info()
         self.std_output = {
-            self.deploy_config.get("storage_dbstore_fs"):
+            self.deploy_config.get("storage_dbstor_fs"):
                 {
                     'limit': 0, 'used': 0, 'free': 0,
                     'snapshotLimit': 0, 'snapshotUsed': 0,
                     'fsId': '', 'linkState': ''
                 },
-            self.deploy_config.get("storage_dbstore_page_fs"):
+            self.deploy_config.get("storage_dbstor_page_fs"):
                 {
                     'limit': 0, 'used': 0, 'free': 0,
                     'snapshotLimit': 0, 'snapshotUsed': 0,
                     'fsId': '', 'linkState': ''
                 }
         }
-        self.info_file_path = '/opt/cantian/common/data/dbstore_info.json'
+        self.info_file_path = '/opt/cantian/common/data/dbstor_info.json'
         self.index = 0
         self.max_index = 10
         self.last_time_stamp = None

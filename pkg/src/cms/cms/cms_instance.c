@@ -43,7 +43,7 @@
 #include "cm_dbs_intf.h"
 #include "mes_config.h"
 #include "cms_log.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 static cms_instance_t g_cms_instance = {.is_server = CT_FALSE, .is_dbstor_cli_init = CT_FALSE};
 
@@ -185,7 +185,7 @@ status_t cms_init_dbs_client(char* cfg_name, dbs_init_mode init_mode)
     CT_RETURN_IFERR(dbs_init_lib());
     cm_dbs_cfg_s *cfg = cm_dbs_get_cfg();
     if (!cfg->enable) {
-        CT_LOG_RUN_INF("dbstore is not enabled");
+        CT_LOG_RUN_INF("dbstor is not enabled");
         return CT_SUCCESS;
     }
 

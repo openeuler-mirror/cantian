@@ -25,7 +25,7 @@
 #include "cm_device_module.h"
 #include "cm_device.h"
 #include "cm_file.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 #include "cm_dbs_ulog.h"
 #include "cm_dbs_pgpool.h"
 #include "cm_dbs_file.h"

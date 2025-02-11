@@ -5,7 +5,6 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 source ${CURRENT_PATH}/../../action/env.sh
 source ${CURRENT_PATH}/log4sh.sh
 NFS_TIMEO=50
@@ -74,19 +73,19 @@ function mountNfs()
     # 防止日志输出到/var/log/messages中
 
     if [[ x"${deploy_mode}" == x"file" ]]; then
-        storage_dbstore_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_dbstore_fs"`
+        storage_dbstor_fs=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_dbstor_fs"`
         storage_logic_ip=`python3 ${CURRENT_PATH}/../../action/get_config_info.py "storage_logic_ip"`
-        mountpoint /mnt/dbdata/remote/storage_"${storage_dbstore_fs}" > /dev/null 2>&1
+        mountpoint /mnt/dbdata/remote/storage_"${storage_dbstor_fs}" > /dev/null 2>&1
 
         if [ $? -ne 0 ]; then
-            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+            mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstor_fs}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
         fi
 
         if [ $? -ne 0 ]; then
-            logAndEchoError "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "mount /mnt/dbdata/remote/storage_"${storage_dbstor_fs} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             exit 1
         else
-            logAndEchoInfo "mount /mnt/dbdata/remote/storage_"${storage_dbstore_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoInfo "mount /mnt/dbdata/remote/storage_"${storage_dbstor_fs} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         fi
     fi
     if [[ x"${deploy_mode}" == x"file" ]] || [[ -f /opt/cantian/youmai_demo ]];then

@@ -11,8 +11,8 @@ CONFIG_PATH=${CURRENT_PATH}/../config
 ENV_FILE=${CURRENT_PATH}/env.sh
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 UPDATE_CONFIG_FILE_PATH="${CURRENT_PATH}"/update_config.py
-DBSTORE_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
-DEPLOY_MODE_DBSTORE_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
+DBSTOR_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
+DEPLOY_MODE_DBSTOR_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 config_install_type="override"
 pass_check='true'
 add_group_user_ceck='true'
@@ -432,20 +432,20 @@ function check_dbstor_usr_passwd() {
     fi
 }
 
-function check_dbstore_client_compatibility() {
-    logAndEchoInfo "begin to check dbstore client compatibility."
-    if [ ! -f "${DBSTORE_CHECK_FILE}" ];then
-        logAndEchoError "${DBSTORE_CHECK_FILE} file is not exists."
+function check_dbstor_client_compatibility() {
+    logAndEchoInfo "begin to check dbstor client compatibility."
+    if [ ! -f "${DBSTOR_CHECK_FILE}" ];then
+        logAndEchoError "${DBSTOR_CHECK_FILE} file is not exists."
         uninstall
         exit 1
     fi
-    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTORE_CHECK_FILE}"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTOR_CHECK_FILE}"
     if [[ $? -ne 0 ]];then
-        logAndEchoError "dbstore client compatibility check failed."
+        logAndEchoError "dbstor client compatibility check failed."
         uninstall
         exit 1
     fi
-    logAndEchoInfo "dbstore client compatibility check success."
+    logAndEchoInfo "dbstor client compatibility check success."
 }
 
 function mount_fs() {
@@ -509,17 +509,17 @@ function mount_fs() {
     checkMountNFS ${metadata_result}
 
     if [[ x"${deploy_mode}" == x"file" ]]; then
-        storage_dbstore_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstore_fs"`
+        storage_dbstor_fs=`python3 ${CURRENT_PATH}/get_config_info.py "storage_dbstor_fs"`
         storage_logic_ip=`python3 ${CURRENT_PATH}/get_config_info.py "storage_logic_ip"`
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstore_fs}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        mount -t nfs -o vers=4.0,timeo=${NFS_TIMEO},nosuid,nodev "${storage_logic_ip}":/"${storage_dbstor_fs}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
         checkMountNFS $?
-        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
-        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/data
-        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstore_fs}"/share_data
+        chown "${cantian_user}":"${cantian_user}" /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/data
+        mkdir -m 750 -p /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/share_data
+        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/data
+        chown ${cantian_user}:${cantian_user} /mnt/dbdata/remote/storage_"${storage_dbstor_fs}"/share_data
     fi
     if [[ x"${deploy_mode}" == x"file" ]] || [[ -f /opt/cantian/youmai_demo ]];then
         # nas模式才挂载share nfs
@@ -825,7 +825,7 @@ cp -rfp ${CURRENT_PATH}/../common /opt/cantian/
 cp -rfp ${CURRENT_PATH}/wsr_report /opt/cantian/action
 cp -rfp ${CURRENT_PATH}/dbstor /opt/cantian/action
 
-# 适配开源场景，使用file，不使用dbstore，提前安装参天rpm包
+# 适配开源场景，使用file，不使用dbstor，提前安装参天rpm包
 install_rpm
 
 if [[ x"${deploy_mode}" == x"dss" ]];then
@@ -863,8 +863,8 @@ do
         fi
         if [[ "${cantian_in_container}" == "0" ]] && [[ ${use_dorado["${deploy_mode}"]} ]]; then
             check_dbstor_usr_passwd
-            # 检查dbstore client 与server端是否兼容
-            check_dbstore_client_compatibility
+            # 检查dbstor client 与server端是否兼容
+            check_dbstor_client_compatibility
         fi
     else
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1

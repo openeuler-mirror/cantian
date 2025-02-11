@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 #ifndef MODULE_ID
-#define MODULE_ID DBSTORE
+#define MODULE_ID DBSTOR
 #endif
 
 #ifdef __cplusplus

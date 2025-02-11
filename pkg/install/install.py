@@ -2521,7 +2521,7 @@ class Installer:
                 raise ValueError("The content got from pipe not find passwd.")
             self.verify_new_passwd(g_opts.db_passwd, 8)
 
-    def copy_dbstore_path(self):
+    def copy_dbstor_path(self):
         str_cmd = ""
         if g_opts.use_dbstor:
             os.makedirs("%s/dbstor/conf/dbs" % self.data, CommonValue.KEY_DIRECTORY_PERMISSION)
@@ -2570,7 +2570,7 @@ class Installer:
                      cantian_pkg_file, cantian_pkg_file, cantian_pkg_file,
                      self.installPath))
         
-        str_cmd += self.copy_dbstore_path()
+        str_cmd += self.copy_dbstor_path()
         str_cmd += " && rm -rf %s" % cantian_pkg_file
         log("Decompress cmd: " + str_cmd)
         ret_code, _, stderr = _exec_popen(str_cmd)

@@ -303,7 +303,7 @@ def load_config_param(json_data):
     global DEPLOY_MODE
     DEPLOY_MODE = get_value("deploy_mode")
     g_opts.db_type = json_data.get('db_type', '').strip()
-    g_opts.storage_dbstore_fs = json_data.get("storage_dbstore_fs", "").strip()
+    g_opts.storage_dbstor_fs = json_data.get("storage_dbstor_fs", "").strip()
     g_opts.storage_share_fs = json_data.get('storage_share_fs', "").strip()
     g_opts.namespace = json_data.get('cluster_name', 'test1').strip()
     g_opts.share_logic_ip = json_data.get('share_logic_ip', '127.0.0.1').strip() if DEPLOY_MODE == "file" else None
@@ -1041,7 +1041,7 @@ class Installer:
         self.cantiand_configs["ARCHIVE_DEST_1"] = g_opts.archive_location
         self.cantiand_configs["MAX_ARCH_FILES_SIZE"] = g_opts.max_arch_files_size
         self.cantiand_configs["CLUSTER_ID"] = g_opts.cluster_id
-        self.add_config_for_dbstore()
+        self.add_config_for_dbstor()
         self.ssl_path = os.path.join(self.install_path, "sslkeys")
         self.show_parse_result()
 
@@ -1063,7 +1063,7 @@ class Installer:
         LOGGER.info("Using set cantiand config parameters : " + str(conf_parameters))
         LOGGER.info("End check parameters.")
 
-    def add_config_for_dbstore(self):
+    def add_config_for_dbstor(self):
         self.cantiand_configs["CONTROL_FILES"] = "{0}, {1}, {2}".format(os.path.join(self.data, "data/ctrl1"),
                                                                         os.path.join(self.data, "data/ctrl2"),
                                                                         os.path.join(self.data, "data/ctrl3"))
@@ -1080,7 +1080,7 @@ class Installer:
         else:
             self.cantiand_configs["ENABLE_DBSTOR"] = "FALSE"
             self.cantiand_configs["SHARED_PATH"] = \
-                '/mnt/dbdata/remote/storage_{}/data'.format(g_opts.storage_dbstore_fs)
+                '/mnt/dbdata/remote/storage_{}/data'.format(g_opts.storage_dbstor_fs)
 
     def parse_key_and_value(self):
         flags = os.O_RDONLY
@@ -2410,7 +2410,7 @@ class Installer:
             # create data, cfg, log dir, trc
             data_dir = "%s/data" % self.data
             if not g_opts.use_dbstor:
-                mount_storage_data = f"/mnt/dbdata/remote/storage_{g_opts.storage_dbstore_fs}/data"
+                mount_storage_data = f"/mnt/dbdata/remote/storage_{g_opts.storage_dbstor_fs}/data"
                 cmd = "ln -s %s %s;" % (mount_storage_data, self.data)
                 ret_code, _, stderr = _exec_popen(cmd)
                 if ret_code:
@@ -2734,7 +2734,7 @@ class Installer:
                 self.cantiand_configs["SHARED_PATH"] = "+vg1"
             else:
                 self.cantiand_configs["SHARED_PATH"] = '/mnt/dbdata/remote/storage_{}/data'.format(
-                    g_opts.storage_dbstore_fs)
+                    g_opts.storage_dbstor_fs)
 
         # clean old backup log
         # backup log file before rm data
@@ -3420,10 +3420,10 @@ def check_archive_dir():
                 raise Exception(err_msg)
         else:
             if any("arch" in line and (".arc" in line or "arch_file.tmp" in line) for line in output.splitlines()):
-                err_msg = "Archive files found in dbstore: %s" % output
+                err_msg = "Archive files found in dbstor: %s" % output
                 LOGGER.error(err_msg)
                 raise Exception(err_msg)
-            log("Checked the archive status in dbstore.")
+            log("Checked the archive status in dbstor.")
 
 
 class CanTian(object):

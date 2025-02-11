@@ -20,13 +20,13 @@ class UpdateDRParams(object):
 
     def __init__(self):
         self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
-        self.storage_dbstore_page_fs = self.deploy_params.get("storage_dbstore_page_fs")
-        self.storage_dbstore_fs = self.deploy_params.get("storage_dbstore_fs")
+        self.storage_dbstor_page_fs = self.deploy_params.get("storage_dbstor_page_fs")
+        self.storage_dbstor_fs = self.deploy_params.get("storage_dbstor_fs")
         self.storage_metadata_fs = self.deploy_params.get("storage_metadata_fs")
         self.storage_share_fs = self.deploy_params.get("storage_share_fs")
         self.cluster_name = self.deploy_params.get("cluster_name")
         self.mysql_metadata_in_cantian = self.deploy_params.get("mysql_metadata_in_cantian")
-        self.dbstore_fs_vstore_id = self.deploy_params.get("dbstore_fs_vstore_id")
+        self.dbstor_fs_vstore_id = self.deploy_params.get("dbstor_fs_vstore_id")
         self.deploy_mode = self.deploy_params.get("deploy_mode")
 
     @staticmethod
@@ -41,8 +41,8 @@ class UpdateDRParams(object):
 
     def copy_dr_deploy_param_file(self):
         """
-        处理 dbstore_unify 模式下的 dr_deploy_param.json 文件读取逻辑，
-        如果不是 dbstore_unify 模式，则从共享路径中读取文件。
+        处理 dbstor 模式下的 dr_deploy_param.json 文件读取逻辑，
+        如果不是 dbstor 模式，则从共享路径中读取文件。
         :return: dr_deploy_param_file 的路径
         """
         if self.deploy_mode == "dbstor":
@@ -80,7 +80,7 @@ class UpdateDRParams(object):
                 LOG.error(err_msg)
                 raise Exception(err_msg)
         else:
-            # 处理非 dbstore_unify 模式的逻辑
+            # 处理非 dbstor 模式的逻辑
             share_path = f"/mnt/dbdata/remote/metadata_{self.storage_metadata_fs}"
             dr_deploy_param_file = os.path.join(share_path, "dr_deploy_param.json")
 

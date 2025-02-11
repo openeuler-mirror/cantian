@@ -259,15 +259,15 @@ function creat_snapshot() {
 #######################################################################################
 ##  文件系统拆分
 #######################################################################################
-function split_dbstore_file_system() {
-    logAndEchoInfo "Begin to split dbstore file system."
-    echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstore_fs.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
+function check_dbstor_client_compatibility() {
+    logAndEchoInfo "Begin to split dbstor file system."
+    echo -e "${DORADO_IP}\n${dorado_user}\n${dorado_pwd}\n" | python3 "${CURRENT_PATH}"/storage_operate/split_dbstor_fs.py "upgrade" "${CURRENT_PATH}"/../config/deploy_param.json
     if [ $? -ne 0 ]; then
-        logAndEchoError "Split dbstore file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
+        logAndEchoError "Split dbstor file system failed, details see /opt/cantian/ct_om/log/om_deploy.log"
         exit 1
     fi
 
-    logAndEchoInfo "Split dbstore file system success"
+    logAndEchoInfo "Split dbstor file system success"
 }
 
 function migrate_file_system() {
@@ -334,7 +334,7 @@ function update_config() {
 
 }
 
-function install_dbstore(){
+function install_dbstor(){
     local arrch=$(uname -p)
     local dbstor_path="${CURRENT_PATH}"/../repo
     local dbstor_package_file=$(ls "${dbstor_path}"/DBStor_Client*_"${arrch}"*.tgz)
@@ -404,7 +404,7 @@ function install_rpm()
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
     if [ x"${deploy_mode}" != x"file" ];then
         echo  "start replace rpm package"
-        install_dbstore
+        install_dbstor
         if [ $? -ne 0 ];then
             sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
             exit 1

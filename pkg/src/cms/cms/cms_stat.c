@@ -44,7 +44,7 @@
 #include "cms_log.h"
 #include "cms_cmd_upgrade.h"
 #include "cms_stat.h"
-#include "cm_dbstore.h"
+#include "cm_dbstor.h"
 
 void cms_date2str(date_t date, char* str, uint32 max_size);
 
@@ -322,7 +322,7 @@ status_t cms_init_file_dbs(object_id_t *handle, const char *filename)
     uint64 file_size = 0;
     int ret = dbs_global_handle()->dbs_get_file_size(handle, &file_size);
     if (ret != 0) {
-        CT_LOG_RUN_ERR("Failed to get file size by dbstore, file: %s", (char*)filename);
+        CT_LOG_RUN_ERR("Failed to get file size by dbstor, file: %s", (char*)filename);
         return CT_ERROR;
     }
 

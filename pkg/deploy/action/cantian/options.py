@@ -73,4 +73,4 @@ class Options(object):
 
         self.cert_encrypt_pwd = ""
 
-        self.storage_dbstore_fs = ""
+        self.storage_dbstor_fs = ""

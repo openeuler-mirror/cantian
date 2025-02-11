@@ -63,8 +63,8 @@ cc_import (
 )
 
 cc_import (
-    name = "dbstoreClient",
-    shared_library = "dbstor/lib/libdbstoreClient.so",
+    name = "dbstorClient",
+    shared_library = "dbstor/lib/libdbstorClient.so",
 )
 
 cc_import (
