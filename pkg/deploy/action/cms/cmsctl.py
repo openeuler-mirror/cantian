@@ -1475,7 +1475,7 @@ class CmsCtl(object):
             if ret_code == 0:
                 LOGGER.info("clean gcc home cmd : %s" % str_cmd)
                 ret_code, stdout, stderr = _exec_popen(str_cmd)
-                if ret_code and deploy_mode not in USE_DBSTOR and self.install_step < 2:
+                if ret_code and deploy_mode in USE_DBSTOR and self.install_step < 2:
                     LOGGER.info("cms install failed, no need to clean gcc file")
                 elif ret_code:
                     output = stdout + stderr
