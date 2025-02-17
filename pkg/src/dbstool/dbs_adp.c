@@ -2386,10 +2386,19 @@ void parse_uint_params_list(int32 argc, char *argv[], const char *param_key, uin
     for (uint32 i = 0; i < argc; i++) {
         if (strncmp(argv[i], param_key, strlen(param_key)) == 0) {
             char *equal_sign = strchr(argv[i], '=');
-            if (equal_sign != NULL) {
-                *param_value = strtoul(equal_sign + 1, NULL, 10);
-                return;
+            
+            if (equal_sign != NULL && strchr(equal_sign + 1, '-') == NULL) {
+                char *end_ptr = '\0';
+                *param_value = strtoul(equal_sign + 1, &end_ptr, 10);
+                if (*end_ptr != '\0'){
+                    *param_value = 0;
+                }
+            } else {
+                *param_value = 0;
             }
+
+            printf("%s%u\n", param_key, *param_value);
+            return;
         }
     }
     printf("param %s is not found. \n", param_key);
@@ -2406,6 +2415,14 @@ int32 dbs_perf_show(int32 argc, char *argv[])
     parse_uint_params_list(argc, argv, DBS_PERF_SHOW_INTERVAL, &interval);
     parse_uint_params_list(argc, argv, DBS_PERF_SHOW_TIMES, &times);
 
+    if (interval <= 0 || interval > MAX_DBS_STATISTICAL_SIZE){
+        printf("Converted interval:%u is not within the range of(0,7200]\n", interval);
+        return CT_ERROR;
+    }
+    if (times <= 0){
+        printf("Converted times:%u is is not greater than 0", times);
+        return CT_ERROR;
+    }
     dbs_uds_req_comm_msg* req_msg = (dbs_uds_req_comm_msg*)malloc(sizeof(dbs_uds_req_comm_msg));
     if (req_msg == NULL) {
         printf("Failed to malloc req msg. \n");

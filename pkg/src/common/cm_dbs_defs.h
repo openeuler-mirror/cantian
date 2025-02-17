@@ -54,7 +54,7 @@ extern "C" {
 #define MAX_DBS_FILE_NAME_LEN 64
 #define MAX_DBS_FILE_NUM_INDIR 1024
 #define MAX_DBS_VSTORE_ID_LEN 11
-
+#define MAX_DBS_STATISTICAL_SIZE 7200
 // define-namespace
 #define NS_MAX_NODE_NUM 64
 #define NS_MAX_TERM_NUM 64
