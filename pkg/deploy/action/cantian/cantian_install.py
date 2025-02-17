@@ -3484,11 +3484,20 @@ class CanTian(object):
             if ret_code:
                 LOGGER.error("can not get pid of cantiand or mysqld, command: %s, err: %s" % (cmd, stderr))
                 raise Exception("can not get pid of cantiand or mysqld, command: %s, err: %s" % (cmd, stderr))
-            cantiand_pid = cantiand_pid.strip(" ")
-            if cantiand_pid is not None and len(cantiand_pid) > 0:
-                cmd = "echo 0x6f > " + sep_mark + "proc" + sep_mark + str(cantiand_pid) + \
-                      sep_mark + "coredump_filter"
-                ret_code, cantiand_pid, stderr = _exec_popen(cmd)
+
+            cantiand_pids = cantiand_pid.strip().split()
+            if len(cantiand_pids) > 1:
+                error_message = (f"Detected multiple cantiand/mysqld processes ({', '.join(cantiand_pids)}). "
+                                 f"Please manually clean up the abnormal processes and retry.")
+                LOGGER.error(error_message)
+                raise Exception(error_message)
+
+            cantiand_pid = cantiand_pids[0]
+            coredump_filter_path = os.path.join(sep_mark, "proc", str(cantiand_pid), "coredump_filter")
+
+            if cantiand_pid:
+                cmd = f"echo 0x6f > {coredump_filter_path}"
+                ret_code, _, stderr = _exec_popen(cmd)
                 if ret_code:
                     LOGGER.error("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
                     raise Exception("can not set coredump_filter, command: %s, err: %s" % (cmd, stderr))
