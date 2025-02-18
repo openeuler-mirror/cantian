@@ -4784,6 +4784,16 @@ uint16 knl_get_column_id(knl_dictionary_t *dc, text_t *name)
         index = column->next;
     }
 
+    for (uint32 i = 0; i < entity->vircol_count; i++) {
+        column = entity->virtual_columns[i];
+        if (column == NULL || KNL_COLUMN_IS_HIDDEN(column) || KNL_COLUMN_IS_DELETED(column)) {
+            continue;
+        }
+        if (strcmp(column->name, column_name) == 0) {
+            return column->id;
+        }
+    }
+
     return CT_INVALID_ID16;
 }
 
@@ -15318,9 +15328,6 @@ status_t knl_alter_table4mysql(knl_handle_t se, knl_handle_t stmt,
         return CT_ERROR;
     }
     log_add_lrep_ddl_begin(session);
-    if (def->action == ALTABLE_ADD_COLUMN && def->contains_vircol) {
-        CT_RETURN_IFERR(db_altable_drop_logical_log(session, dc, def));
-    }
     for (; count < def_count; count++) {
         cur_def = &def[count];
         ret = knl_alter_single_action(session, stmt, cur_def, dc, is_lrep_log, &contain_hash_part);

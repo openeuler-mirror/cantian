@@ -2115,6 +2115,9 @@ static int ctc_fill_def_for_create_table(sql_stmt_t *stmt, TcDb__CtcDDLCreateTab
         if (column->primary) {
             def->pk_inline = CT_TRUE;
         }
+        if (column->is_virtual) {
+            def->vcol_count++;
+        }
         def->rf_inline = def->rf_inline || (column->is_ref);
         def->uq_inline = def->uq_inline || (column->unique);
         def->chk_inline = def->chk_inline || (column->is_check);
@@ -2134,11 +2137,10 @@ static int ctc_fill_def_for_create_table(sql_stmt_t *stmt, TcDb__CtcDDLCreateTab
         def->pctfree = CT_PCT_FREE;
     }
     def->cr_mode = CR_PAGE;
-    if (ddl_ctrl->table_flags & CTC_INTERNAL_TMP_TABLE) {
+    if (ddl_ctrl->table_flags & CTC_FLAG_INTERNAL_TMP_TABLE) {
         def->is_intrinsic = CT_TRUE;
     }
 
-    def->contains_vircol = (ddl_ctrl->table_flags & CTC_TABLE_CONTAINS_VIRCOL) ? CT_TRUE : CT_FALSE;
     return CT_SUCCESS;
 }
 
@@ -2203,14 +2205,19 @@ static int ctc_create_table_impl(TcDb__CtcDDLCreateTableDef *req, ddl_ctrl_t *dd
     CT_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(ctc_ddl_def_node_t), (void **)&def_node));
 
     // 创建临时表
-    if (ddl_ctrl->table_flags & CTC_TMP_TABLE) {
+    if (ddl_ctrl->table_flags & CTC_FLAG_TMP_TABLE) {
+        // Temp table unsupport virtual columns
+        if (ddl_ctrl->table_flags & CTC_FLAG_TABLE_CONTAINS_VIRCOL) {
+            CT_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "create with virtual column", "tmp table");
+            return CT_ERROR;
+        }
         bool32 is_existed = CT_FALSE;
         cm_latch_x(&stmt->session->knl_session.ltt_latch, stmt->session->knl_session.id, NULL);
         def->type = TABLE_TYPE_SESSION_TEMP;
         status = knl_create_ltt(&stmt->session->knl_session, def, &is_existed);
         cm_unlatch(&stmt->session->knl_session.ltt_latch, NULL);
         CT_RETURN_IFERR_EX(status, stmt, ddl_ctrl);
-        if (!(ddl_ctrl->table_flags & CTC_INTERNAL_TMP_TABLE)) {
+        if (!(ddl_ctrl->table_flags & CTC_FLAG_INTERNAL_TMP_TABLE)) {
             ctc_ddl_clear_stmt(stmt);
         }
         return CT_SUCCESS;
@@ -3017,7 +3024,6 @@ static int ctc_alter_table_atomic_impl(TcDb__CtcDDLAlterTableDef *req, ddl_ctrl_
     if (status != CT_SUCCESS) {
         return status;
     }
-    start_def->contains_vircol = (ddl_ctrl->table_flags & CTC_TABLE_CONTAINS_VIRCOL) ? CT_TRUE : CT_FALSE;
 
     uint32 def_count = ((uint64)def - (uint64)start_def) / sizeof(knl_altable_def_t);
     ctc_context_t *ctc_context = ctc_get_ctx_by_addr(ddl_ctrl->tch.ctx_addr);
@@ -3066,7 +3072,7 @@ EXTER_ATTACK int ctc_alter_table(void *alter_def, ddl_ctrl_t *ddl_ctrl)
     return ret;
 }
 
-static void ctc_fill_column_by_dc(knl_column_def_t *column, knl_column_t *dc_column, sql_stmt_t *stmt)
+static void ctc_fill_column_by_dc(knl_column_def_t *column, knl_column_t *dc_column, sql_stmt_t *stmt, knl_table_def_t *table_def)
 {
     proto_str2text(dc_column->name, &column->name);
     column->datatype = dc_column->datatype;
@@ -3084,9 +3090,14 @@ static void ctc_fill_column_by_dc(knl_column_def_t *column, knl_column_t *dc_col
     column->is_default_null = KNL_COLUMN_IS_DEFAULT_NULL(dc_column);
     column->typmod.is_array = KNL_COLUMN_IS_ARRAY(dc_column);
     column->is_jsonb = KNL_COLUMN_IS_JSONB(dc_column);
+    column->is_virtual =  KNL_COLUMN_IS_VIRTUAL(dc_column);
+
+    if (column->is_virtual) {
+        table_def->vcol_count++;
+    }
 
     if (dc_column->default_text.len > 0) {
-        column->is_default = CT_TRUE;
+        column->is_default = !column->is_virtual;
         if (sql_alloc_mem(stmt->context, dc_column->default_text.len,
             (pointer_t *)&column->default_text.str) != CT_SUCCESS) {
             return;
@@ -3383,11 +3394,11 @@ static status_t ctc_fill_index_by_dc(TcDb__CtcDDLRenameTableDef *req, dc_entity_
     return status;
 }
 
-static status_t ctc_get_auto_increment(knl_table_def_t *def, dc_entity_t *entity,
-                                       knl_session_t *knl_session, knl_column_t *dc_column)
+static void ctc_get_auto_increment(knl_table_def_t *def, dc_entity_t *entity,
+                                   knl_session_t *knl_session, knl_column_t *dc_column)
 {
     if (!KNL_COLUMN_IS_SERIAL(dc_column)) {
-        return CT_SUCCESS;
+        return;
     }
     if (entity->has_serial_col) {
         if (!entity->table.heap.segment) {
@@ -3395,6 +3406,56 @@ static status_t ctc_get_auto_increment(knl_table_def_t *def, dc_entity_t *entity
         } else {
             def->serial_start = HEAP_SEGMENT(knl_session, entity->table.heap.entry, entity->table.heap.segment)->serial;
         }
+    }
+}
+
+static status_t ctc_fill_col_def_from_dc(knl_table_def_t *def, dc_entity_t *entity, knl_session_t *knl_session,
+                                         sql_stmt_t *stmt)
+{
+    for (uint32 i = 0; i < entity->column_count; i++) {
+        knl_column_def_t *column = NULL;
+        CT_RETURN_IFERR(cm_galist_new(&def->columns, sizeof(knl_column_def_t), (pointer_t *)&column));
+        column->table = (void *)def;
+        knl_column_t *dc_column = dc_get_column(entity, i);
+        if (dc_column == NULL) {
+            CT_LOG_RUN_ERR("fill columns from dc failed, table_name: %s-%s, col_id: %u",
+                           def->schema.str, def->name.str, i);
+            return CT_ERROR;
+        }
+        cm_galist_init(&column->ref_columns, stmt->context, sql_alloc_mem);
+        ctc_fill_column_by_dc(column, dc_column, stmt, def);
+        for (uint32 j = 0; j < entity->table.index_set.count; j++) {
+            knl_index_desc_t *index = &entity->table.index_set.items[j]->desc;
+            if (index->primary && index->columns[0] == dc_column->id) {
+                def->pk_inline = CT_TRUE;
+            }
+        }
+        def->rf_inline = def->rf_inline || column->is_ref;
+        def->uq_inline = def->uq_inline || column->unique;
+        def->chk_inline = def->chk_inline || column->is_check;
+        ctc_get_auto_increment(def, entity, knl_session, dc_column);
+    }
+    return CT_SUCCESS;
+}
+
+static status_t ctc_fill_vircol_def_from_dc(knl_table_def_t *def, dc_entity_t *entity, knl_session_t *knl_session,
+                                            sql_stmt_t *stmt)
+{
+    for (uint32 i = 0; i < entity->vircol_count; i++) {
+        knl_column_def_t *column = NULL;
+        CT_RETURN_IFERR(cm_galist_new(&def->columns, sizeof(knl_column_def_t), (pointer_t *)&column));
+        column->table = (void *)def;
+        knl_column_t *dc_column = entity->virtual_columns[i];
+        if (dc_column == NULL) {
+            CT_LOG_RUN_ERR("fill columns from dc failed, table_name: %s-%s, col_id: %u",
+                           def->schema.str, def->name.str, i + DC_VIRTUAL_COL_START);
+            return CT_ERROR;
+        }
+        cm_galist_init(&column->ref_columns, stmt->context, sql_alloc_mem);
+        ctc_fill_column_by_dc(column, dc_column, stmt, def);
+        def->rf_inline = def->rf_inline || column->is_ref;
+        def->uq_inline = def->uq_inline || column->unique;
+        def->chk_inline = def->chk_inline || column->is_check;
     }
     return CT_SUCCESS;
 }
@@ -3426,30 +3487,9 @@ static status_t ctc_fill_def_base_from_dc(TcDb__CtcDDLRenameTableDef *req, knl_t
     cm_galist_init(&def->indexs, stmt->context, sql_alloc_mem);
     cm_galist_init(&def->lob_stores, stmt->context, sql_alloc_mem);
 
-    for (int i = 0; i < entity->column_count; i++) {
-        knl_column_def_t *column = NULL;
-        if ((ret = cm_galist_new(&def->columns, sizeof(knl_column_def_t), (pointer_t *)&column))) {
-            break;
-        }
-        column->table = (void *)def;
-        knl_column_t *dc_column = dc_get_column(entity, i);
-        cm_galist_init(&column->ref_columns, stmt->context, sql_alloc_mem);
-        ctc_fill_column_by_dc(column, dc_column, stmt);
-        for (uint32 j = 0; j < entity->table.index_set.count; j++) {
-            if (entity->table.index_set.items[j]->desc.primary &&
-                entity->table.index_set.items[j]->desc.columns[0] == dc_column->id) {
-                def->pk_inline = CT_TRUE;
-            }
-        }
-        def->rf_inline = def->rf_inline || (column->is_ref);
-        def->uq_inline = def->uq_inline || (column->unique);
-        def->chk_inline = def->chk_inline || (column->is_check);
-        ret = ctc_get_auto_increment(def, entity, knl_session, dc_column);
-        if (ret != CT_SUCCESS) {
-            break;
-        }
-    }
-    return ret;
+    CT_RETURN_IFERR(ctc_fill_col_def_from_dc(def, entity, knl_session, stmt));
+    CT_RETURN_IFERR(ctc_fill_vircol_def_from_dc(def, entity, knl_session, stmt));
+    return CT_SUCCESS;
 }
 
 static status_t ctc_fill_def_from_dc(TcDb__CtcDDLRenameTableDef *req, knl_table_def_t *def,
@@ -3979,7 +4019,7 @@ static int ctc_drop_table_impl(TcDb__CtcDDLDropTableDef *req, ddl_ctrl_t *ddl_ct
     def->purge = true;
 
     // 删除临时表
-    if (ddl_ctrl->table_flags & CTC_TMP_TABLE) {
+    if (ddl_ctrl->table_flags & CTC_FLAG_TMP_TABLE) {
         status = knl_drop_ltt(&stmt->session->knl_session, def);
         ctc_ddl_clear_stmt(stmt);
         return status;

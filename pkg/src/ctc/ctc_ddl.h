@@ -40,9 +40,9 @@
 
 #define DDL_ATOMIC_TABLE_LOCKED 2
 
-#define CTC_TMP_TABLE 1
-#define CTC_INTERNAL_TMP_TABLE 2
-#define CTC_TABLE_CONTAINS_VIRCOL 4
+#define CTC_FLAG_TMP_TABLE 1
+#define CTC_FLAG_INTERNAL_TMP_TABLE 2
+#define CTC_FLAG_TABLE_CONTAINS_VIRCOL 4
 
 #define FILL_BROADCAST_REQ(broadcast_req, _db_name, _sql_str, _user_name, _user_ip, _mysql_inst_id, _sql_command) \
     do {                                                                                                          \
