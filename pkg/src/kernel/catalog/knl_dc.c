@@ -3320,12 +3320,5 @@ void dc_recycle_table_dls(knl_session_t *session, dc_entry_t *entry)
         return;
     }
     drc_recycle_lock_res(session, &entry->serial_lock.drid, DRC_GET_CURR_REFORM_VERSION);
-    bool8 is_found = CT_TRUE;
-    if (drc_lock_local_lock_res_by_id_for_recycle(session, &entry->ddl_latch.drid, DRC_GET_CURR_REFORM_VERSION, &is_found) == CT_ERROR) {
-        return;
-    }
-    if (!is_found) {
-        return;
-    }
-    drc_release_local_lock_res_by_id(session, &entry->ddl_latch.drid);
+    drc_recycle_lock_res(session, &entry->ddl_latch.drid, DRC_GET_CURR_REFORM_VERSION);
 }
