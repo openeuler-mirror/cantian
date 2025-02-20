@@ -12,8 +12,9 @@ import traceback
 
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from storage_operate.dr_deploy_operate.dr_deploy_common import KmcResolve
-from utils.config.rest_constant import HealthStatus, MetroDomainRunningStatus, SecresAccess, VstorePairRunningStatus, \
-    FilesystemPairRunningStatus, ReplicationRunningStatus, CANTIAN_DOMAIN_PREFIX, Constant, SPEED, VstorePairConfigStatus
+from utils.config.rest_constant import (HealthStatus, MetroDomainRunningStatus, SecresAccess, VstorePairRunningStatus, \
+    FilesystemPairRunningStatus, ReplicationRunningStatus, RemoteDeviceStatus, CANTIAN_DOMAIN_PREFIX, Constant, SPEED,
+                                        VstorePairConfigStatus)
 from logic.storage_operate import StorageInf
 from logic.common_func import read_json_config
 from logic.common_func import write_json_config
@@ -25,6 +26,7 @@ from cantian_common.mysql_shell import MysqlShell
 from get_config_info import get_env_info
 from storage_operate.dr_deploy_operate import install_mysql
 from obtains_lsid import LSIDGenerate
+from update_config import update_dbstor_conf
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 RUN_USER = get_env_info("cantian_user")
@@ -52,28 +54,63 @@ INSTALL_TIMEOUT = 900
 START_TIMEOUT = 3600
 FS_CREAT_TIMEOUT = 300
 TOTAL_CHECK_DURATION = 180    # 创建双活pair检查时间
+ASYNC_TIME_INTERVAL = 15      # 创建异步ulog pair的同步间隔时间
+AUTO_RECOVERY_POLICY = 1      # 故障后自动恢复模式
+SYNC_TYPE_POLICY = 3          # 同步类型：同步完成后定时等待
+ASYNC_DR_TYPE = "2"             # 与dbstor异步容灾类型匹配
+SYNC_DR_TYPE = "1"             # 与dbstor同步容灾类型匹配
 
 
-ACTIVE_RECORD_DICT = {
-    "do_lock_instance_for_backup": "default",
-    "do_full_check_point": "default",
-    "do_flush_table_with_read_lock": "default",
-    "create_metro_domain": "default",
-    "create_metro_vstore_pair": "default",
-    "create_metro_fs_pair": "default",
-    "create_rep_page_fs_pair": "default",
-    "sync_metro_fs_pair": "default",
-    "sync_rep_page_fs_pair": "default"
+STEP_RECORD_DICT = {
+    "active": {
+        "async": {
+            "do_lock_instance_for_backup": "default",
+            "do_full_check_point": "default",
+            "do_flush_table_with_read_lock": "default",
+            "create_rep_log_fs_pair": "default",
+            "create_rep_page_fs_pair": "default",
+            "sync_rep_ulog_fs_pair": "default",
+            "sync_rep_page_fs_pair": "default"
+        },
+        "sync": {
+            "do_lock_instance_for_backup": "default",
+            "do_full_check_point": "default",
+            "do_flush_table_with_read_lock": "default",
+            "create_metro_domain": "default",
+            "create_metro_vstore_pair": "default",
+            "create_metro_fs_pair": "default",
+            "create_rep_page_fs_pair": "default",
+            "sync_metro_fs_pair": "default",
+            "sync_rep_page_fs_pair": "default"
+        }
+    },
+    "standby": {
+        "async": {
+            "create_rep_log_fs_pair": "default",
+            "sync_rep_ulog_fs_pair": "default",
+            "create_rep_page_fs_pair": "default",
+            "standby_install": "default",
+            "sync_rep_page_fs_pair": "default",
+            "standby_start": "default"
+        },
+        "sync": {
+            "create_metro_domain": "default",
+            "create_metro_vstore_pair": "default",
+            "create_metro_fs_pair": "default",
+            "create_rep_page_fs_pair": "default",
+            "standby_install": "default",
+            "sync_metro_fs_pair": "default",
+            "sync_rep_page_fs_pair": "default",
+            "standby_start": "default"
+        }
+    }
 }
-STANDBY_RECORD_DICT = {
-    "create_metro_domain": "default",
-    "create_metro_vstore_pair": "default",
-    "create_metro_fs_pair": "default",
-    "create_rep_page_fs_pair": "default",
-    "standby_install": "default",
-    "sync_metro_fs_pair": "default",
-    "sync_rep_page_fs_pair": "default",
-    "standby_start": "default"
+
+
+SYNC_PAIR_STEP_STR_DICT = {
+    "page": "sync_rep_page_fs_pair",
+    "ulog": "sync_rep_ulog_fs_pair",
+    "meta": "sync_rep_meta_fs_pair"
 }
 
 
@@ -88,6 +125,7 @@ class DRDeploy(object):
         self.page_fs_pair_id = None
         self.meta_fs_pair_id = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.dr_type = self.dr_deploy_info.get("dr_type", "")
         if self.dr_deploy_info.get("cantian_in_container") != "0":
             self.deploy_params = read_json_config(DEPLOY_PARAM_FILE)
         else:
@@ -105,6 +143,20 @@ class DRDeploy(object):
         self.metadata_fs = None
         self.share_fs = None
         self.cluster_name = None
+        self.remote_ulog_fs_id = None
+
+    def update_dbstor_init_config_file(self):
+        dbstor_config_key_dict = {
+            "REMOTE_ULOG_ID": str(self.remote_ulog_fs_id),
+            "LOCAL_REMOTE_DEVICE_ID": str(self.dr_deploy_info.get("remote_device_id")),
+            "DR_TYPE": SYNC_DR_TYPE,
+            "CLUSTER_NAME": self.dr_deploy_info.get("cluster_name")
+        }
+        self.record_disaster_recovery_info("remote_ulog_id", self.remote_ulog_fs_id)
+        if self.dr_type == "async":
+            dbstor_config_key_dict["DR_TYPE"] = ASYNC_DR_TYPE
+        for key, value in dbstor_config_key_dict.items():
+            update_dbstor_conf("add", key, value)
 
     @staticmethod
     def restart_cantian_exporter():
@@ -165,7 +217,7 @@ class DRDeploy(object):
         :return:
         """
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
-        dr_record_dict = ACTIVE_RECORD_DICT if self.site == "active" else STANDBY_RECORD_DICT
+        dr_record_dict = STEP_RECORD_DICT.get(self.site).get(self.dr_type)
 
         if not self.metadata_in_cantian:
             dr_record_dict.update({
@@ -349,6 +401,17 @@ class DRDeploy(object):
         storage_opt = StorageInf((dm_ip, dm_user, self.dm_passwd))
         storage_opt.login()
         self.dr_deploy_opt = DRDeployCommon(storage_opt)
+
+    def set_rep_pair_id(self, pair_id, pair_type):
+        if pair_type == "page":
+            self.page_fs_pair_id = pair_id
+        elif pair_type == "ulog":
+            self.ulog_fs_pair_id = pair_id
+        elif pair_type == "meta":
+            self.meta_fs_pair_id = pair_id
+        else:
+            return False
+        return True
 
     def do_create_filesystem_hyper_metro_domain(self) -> dict:
         """
@@ -571,7 +634,7 @@ class DRDeploy(object):
             self.record_deploy_process("sync_metro_fs_pair", sync_progress + "%")
         return False
 
-    def do_create_remote_replication_filesystem_pair(self, page_fs_id):
+    def do_create_remote_replication_filesystem_pair(self, page_fs_id, isasync=False):
         """
         创建远程复制pair对
         :param page_fs_id:
@@ -584,14 +647,19 @@ class DRDeploy(object):
         remote_replication_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(
             filesystem_id=page_fs_id)
         if remote_replication_pair_info is None:
-            rep_filesystem_pair_task_info = self.dr_deploy_opt.create_remote_replication_filesystem_pair(
-                remote_device_id=remote_device_id,
-                remote_pool_id=remote_pool_id,
-                local_fs_id=page_fs_id,
-                remote_name_rule=remote_name_rule,
-                name_suffix=name_suffix,
-                speed=self.sync_speed
-            )
+            data_dict = {
+                "remote_device_id": remote_device_id,
+                "remote_pool_id": remote_pool_id,
+                "local_fs_id": page_fs_id,
+                "remote_name_rule": remote_name_rule,
+                "name_suffix": name_suffix,
+                "speed": self.sync_speed
+            }
+            if isasync:
+                data_dict["synchronizeType"] = SYNC_TYPE_POLICY
+                data_dict["timingval"] = ASYNC_TIME_INTERVAL
+                data_dict["recoveryPolicy"] = AUTO_RECOVERY_POLICY
+            rep_filesystem_pair_task_info = self.dr_deploy_opt.create_remote_replication_filesystem_pair(data_dict)
             rep_filesystem_pair_task_id = rep_filesystem_pair_task_info.get("taskId")
             self.dr_deploy_opt.query_omtask_process(rep_filesystem_pair_task_id, timeout=120)
             remote_replication_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(
@@ -599,16 +667,18 @@ class DRDeploy(object):
         return remote_replication_pair_info
 
     @retry(retry_times=3, wait_times=20, log=LOG, task="do_sync_remote_replication_filesystem_pair")
-    def do_sync_remote_replication_filesystem_pair(self, pair_id: str, is_page: bool) -> bool:
+    def do_sync_remote_replication_filesystem_pair(self, pair_id: str, pair_type: str) -> bool:
         """
         同步远程复制pair
-        :param is_page: page文件系统或者是meta文件系统
+        :param pair_type: 远程复制pair类型
         :param pair_id: 远程复制ID
         :return:
         """
-        exec_step = "sync_rep_meta_fs_pair" if not is_page else "sync_rep_page_fs_pair"
-        remote_replication_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
-            pair_id=pair_id)
+        exec_step = SYNC_PAIR_STEP_STR_DICT.get(pair_type, "")
+        if exec_step == "":
+            return False
+        correct_run_stat = ReplicationRunningStatus.Normal if pair_type == "ulog" else ReplicationRunningStatus.Split
+        remote_replication_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(pair_id=pair_id)
         replication_pair_id = remote_replication_pair_info.get("ID")
         replication_progress = remote_replication_pair_info.get("REPLICATIONPROGRESS")
         start_time = remote_replication_pair_info.get("STARTTIME")
@@ -617,16 +687,14 @@ class DRDeploy(object):
         replication_pair_running_status = remote_replication_pair_info.get("RUNNINGSTATUS")
         # 当已经设置从端可读写状态，且为分裂状态时，直接返回
         secres_access = remote_replication_pair_info.get("SECRESACCESS")
-        if not is_page:
-            self.meta_fs_pair_id = replication_pair_id
-        else:
-            self.page_fs_pair_id = replication_pair_id
+        if not self.set_rep_pair_id(pair_id, pair_type):
+            return False
         if secres_access == SecresAccess.ReadAndWrite and \
-                replication_pair_running_status == ReplicationRunningStatus.Split:
-            LOG.info("Create remote replication pair success.")
+                replication_pair_running_status == correct_run_stat:
+            LOG.info("Sync remote replication pair success.")
             self.record_deploy_process(exec_step, "success")
             return True
-        self.replication_status_check_and_sync(exec_step, remote_replication_pair_info)
+        self.replication_status_check_and_sync(exec_step, remote_replication_pair_info, pair_type)
         time.sleep(20)
         LOG.info("Sync remote replication filesystem pair[%s], health status:[%s], "
                  "running status[%s], progress[%s%%], start time[%s]",
@@ -657,7 +725,7 @@ class DRDeploy(object):
         self.record_deploy_process(exec_step, replication_progress + "%")
         return False
 
-    def replication_status_check_and_sync(self, exec_step, remote_replication_pair_info):
+    def replication_status_check_and_sync(self, exec_step, remote_replication_pair_info, pair_type):
         """
         检查复制pair对状态，并进行同步
         :param exec_step:
@@ -681,20 +749,21 @@ class DRDeploy(object):
             self.record_deploy_process(exec_step, "failed", code=-1, description=err_msg)
             LOG.error(err_msg)
             raise Exception(err_msg)
-        # 当前远程复制pair对状态为分裂且没有同步开始时间时，表示当前为首次创建还未同步，执行全量同步
-        if replication_pair_running_status == ReplicationRunningStatus.Split and start_time is None:
-            LOG.info("Do sync remote replication filesystem[%s] pair of full copy." % replication_pair_id)
-            self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=replication_pair_id,
-                                                                       vstore_id="0",
-                                                                       is_full_copy=True)
-        # 当前远程复制pair对状态为分裂且有同步开始时间时，表示当前为首次创建还未同步，执行增量同步
-        if replication_pair_running_status in \
-                [ReplicationRunningStatus.Split, ReplicationRunningStatus.TobeRecovered] \
-                and start_time is not None:
-            LOG.info("Do sync remote replication filesystem[%s] pair of incremental." % replication_pair_id)
-            self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=replication_pair_id,
-                                                                       vstore_id="0",
-                                                                       is_full_copy=False)
+        if pair_type != "ulog":
+            # 当前远程复制pair对状态为分裂且没有同步开始时间时，表示当前为首次创建还未同步，执行全量同步
+            if replication_pair_running_status == ReplicationRunningStatus.Split and start_time is None:
+                LOG.info("Do sync remote replication filesystem[%s] pair of full copy." % replication_pair_id)
+                self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=replication_pair_id,
+                                                                           vstore_id="0",
+                                                                           is_full_copy=True)
+            # 当前远程复制pair对状态为分裂且有同步开始时间时，表示当前为首次创建还未同步，执行增量同步
+            if replication_pair_running_status in \
+                    [ReplicationRunningStatus.Split, ReplicationRunningStatus.TobeRecovered] \
+                    and start_time is not None:
+                LOG.info("Do sync remote replication filesystem[%s] pair of incremental." % replication_pair_id)
+                self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=replication_pair_id,
+                                                                           vstore_id="0",
+                                                                           is_full_copy=False)
 
     def do_remote_replication_filesystem_pair_cancel_secondary_write_lock(self, pair_id: str, is_page: bool) -> None:
         """
@@ -777,6 +846,7 @@ class DRDeploy(object):
             self.record_deploy_process("create_metro_fs_pair", "failed", code=-1, description=str(err))
             raise err
         self.ulog_fs_pair_id = filesystem_pair_info.get("ID")
+        self.remote_ulog_fs_id = filesystem_pair_info.get("REMOTEOBJID")
         self.dr_deploy_opt.modify_hyper_metro_filesystem_pair_sync_speed(vstore_pair_id=self.ulog_fs_pair_id,
                                                                          speed=self.sync_speed)
         self.record_disaster_recovery_info("ulog_fs_pair_id", filesystem_pair_info.get("ID"))
@@ -894,12 +964,41 @@ class DRDeploy(object):
             return True
         return False
 
+    def standby_check_async_ulog_fs_pair_ready(self, ulog_fs_pair_ready_flag):
+        dbstor_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
+        dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+        dbstor_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
+            dbstor_fs_name, vstore_id=dbstor_fs_vstore_id)
+        ulog_fs_pair_info = None
+        if dbstor_fs_info and not ulog_fs_pair_ready_flag:
+            dbstor_fs_id = dbstor_fs_info.get("ID")
+            try:
+                ulog_fs_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info(dbstor_fs_id)
+            except Exception as err:
+                self.record_deploy_process("create_rep_log_fs_pair", "failed",
+                                           code=-1, description=str(err))
+                raise err
+            self.record_deploy_process("create_rep_log_fs_pair", "success")
+            self.record_deploy_process("sync_rep_ulog_fs_pair", "success")
+            if ulog_fs_pair_info:
+                ulog_fs_pair_id = ulog_fs_pair_info[0].get("ID")
+                running_status = ulog_fs_pair_info[0].get("RUNNINGSTATUS")
+                secres_access = ulog_fs_pair_info[0].get("SECRESACCESS")
+                self.record_disaster_recovery_info("ulog_fs_pair_id", ulog_fs_pair_id)
+                if secres_access == SecresAccess.ReadOnly and running_status == ReplicationRunningStatus.Normal:
+                    LOG.info("Remote replication pair[%s] ready.", dbstor_fs_name)
+                    self.remote_ulog_fs_id = ulog_fs_pair_info[0].get("REMOTERESID")
+                    ulog_fs_pair_ready_flag = True
+        return ulog_fs_pair_info, ulog_fs_pair_ready_flag
+
     def standby_check_ulog_fs_pair_ready(self, ulog_fs_pair_ready_flag):
         """
         备端检查ulog文件系统pair对创建进度
         :param ulog_fs_pair_ready_flag:
         :return:
         """
+        if self.dr_type == "async":
+            return self.standby_check_async_ulog_fs_pair_ready(ulog_fs_pair_ready_flag)
         dbstor_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
         dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
         dbstor_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
@@ -935,6 +1034,7 @@ class DRDeploy(object):
                         and health_status == HealthStatus.Normal \
                         and sync_progress == "100":
                     LOG.info("Hyper metro filesystem[%s] pair ready", dbstor_fs_name)
+                    self.remote_ulog_fs_id = ulog_fs_pair_info[0].get("REMOTEOBJID")
                     self.record_deploy_process("sync_metro_fs_pair", "success")
                     ulog_fs_pair_ready_flag = True
         return ulog_fs_pair_info, ulog_fs_pair_ready_flag
@@ -1105,19 +1205,26 @@ class DRDeploy(object):
         """
         ulog_ready, page_ready, meta_ready = True, True, True
         while True:
+            if self.dr_type != "async":
+                try:
+                    ulog_ready = self.do_sync_hyper_metro_filesystem_pair(self.ulog_fs_pair_id)
+                except Exception as err:
+                    self.record_deploy_process("sync_metro_fs_pair", "failed", code=-1, description=str(err))
+                    raise err
+            else:
+                try:
+                    ulog_ready = self.do_sync_remote_replication_filesystem_pair(self.ulog_fs_pair_id, "ulog")
+                except Exception as err:
+                    self.record_deploy_process("sync_rep_ulog_fs_pair", "failed", code=-1, description=str(err))
+                    raise err
             try:
-                ulog_ready = self.do_sync_hyper_metro_filesystem_pair(self.ulog_fs_pair_id)
-            except Exception as err:
-                self.record_deploy_process("sync_metro_fs_pair", "failed", code=-1, description=str(err))
-                raise err
-            try:
-                page_ready = self.do_sync_remote_replication_filesystem_pair(self.page_fs_pair_id, True)
+                page_ready = self.do_sync_remote_replication_filesystem_pair(self.page_fs_pair_id, "page")
             except Exception as err:
                 self.record_deploy_process("sync_rep_page_fs_pair", "failed", code=-1, description=str(err))
                 raise err
             if not self.metadata_in_cantian:
                 try:
-                    meta_ready = self.do_sync_remote_replication_filesystem_pair(self.meta_fs_pair_id, False)
+                    meta_ready = self.do_sync_remote_replication_filesystem_pair(self.meta_fs_pair_id, "meta")
                 except Exception as err:
                     self.record_deploy_process("sync_rep_meta_fs_pair", "failed", code=-1, description=str(err))
                     raise err
@@ -1197,6 +1304,38 @@ class DRDeploy(object):
             except Exception as _err:
                 LOG.info(f"copy dr_deploy_param failed")
 
+    def async_active_execute(self):
+        """
+        1、查询远端设备
+        2、创建远程复制pair
+        :return:
+        """
+        remote_device_info = self.dr_deploy_opt.query_remote_device_info(self.dr_deploy_info.get("remote_device_id"))
+        health_status = remote_device_info.get("HEALTHSTATUS")
+        running_status = remote_device_info.get("RUNNINGSTATUS")
+        if health_status != HealthStatus.Normal:
+            err_msg = ("Remote device health status is not normal: health status[%s]." %
+                       get_status(health_status, HealthStatus))
+            raise Exception(err_msg)
+        if running_status != RemoteDeviceStatus.LinkUp:
+            err_msg = ("Remote device running status is not normal: running status[%s]." %
+                       get_status(running_status, RemoteDeviceStatus))
+            raise Exception(err_msg)
+        self.record_deploy_process("create_rep_log_fs_pair", "start")
+        log_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
+        LOG.info("Start to create [%s]remote replication pair success.", log_fs_name)
+        LOG.info("Create remote replication pair step 1: query filesystem[%s] info.", log_fs_name)
+        log_fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(
+            log_fs_name, self.dr_deploy_info.get("dbstor_fs_vstore_id"))
+        log_fs_id = log_fs_info.get("ID")
+        LOG.info("Create remote replication pair step 2: create filesystem[%s] pair.", log_fs_name)
+        self.record_deploy_process("create_rep_log_fs_pair", "running")
+        remote_replication_pair_info = self.do_create_remote_replication_filesystem_pair(log_fs_id, True)
+        self.ulog_fs_pair_id = remote_replication_pair_info[0].get("ID")
+        self.remote_ulog_fs_id = remote_replication_pair_info[0].get("REMOTERESID")
+        self.record_disaster_recovery_info("ulog_fs_pair_id", self.ulog_fs_pair_id)
+        self.record_deploy_process("create_rep_log_fs_pair", "success")
+
     def active_execute(self):
         """
         主端灾备搭建
@@ -1228,7 +1367,10 @@ class DRDeploy(object):
         dbstor_page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
         metadata_fs_name = self.dr_deploy_info.get("storage_metadata_fs")
         self.sync_speed = int(SPEED.get(self.dr_deploy_info.get("sync_speed", "medium")))
-        self.deploy_hyper_metro_pair()
+        if self.dr_type == "async":
+            self.async_active_execute()
+        else:
+            self.deploy_hyper_metro_pair()
         try:
             self.page_fs_pair_id = self.deploy_remote_replication_pair(dbstor_page_fs_name, True)
         except Exception as err:
@@ -1283,6 +1425,7 @@ class DRDeploy(object):
                     self.create_nfs_share_and_client(metadata_fs_info)
 
                 self.standby_do_install()
+                self.update_dbstor_init_config_file()
                 self.record_deploy_process("standby_install", "success")
                 self.do_install_mysql()
                 is_installed_flag = True
@@ -1343,6 +1486,7 @@ class DRDeploy(object):
             finally:
                 self.dr_deploy_opt.storage_opt.logout()
             # 安装部署完成后记录加密密码到配置文件
+            self.update_dbstor_init_config_file()
             encrypted_pwd = KmcResolve.kmc_resolve_password("encrypted", self.dm_passwd)
             self.record_disaster_recovery_info("dm_pwd", encrypted_pwd)
             os.chmod(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), mode=0o644)

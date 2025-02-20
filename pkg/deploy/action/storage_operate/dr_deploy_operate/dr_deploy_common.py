@@ -426,9 +426,8 @@ class DRDeployCommon(object):
         LOG.info("Start to modify hyper metro filesystem pair speed.")
 
     @retry(retry_times=3, wait_times=20, log=LOG, task="create_remote_replication_filesystem_pair")
-    def create_remote_replication_filesystem_pair(self, **pair_args) -> dict:
+    def create_remote_replication_filesystem_pair(self, pair_args) -> dict:
         """
-
         :param pair_args:
           remote_device_id: 远端设备id
           remote_pool_id: 远端存储池id
@@ -468,6 +467,10 @@ class DRDeployCommon(object):
                 }
             ]
         }
+        if pair_args.get("synchronizeType", ""):
+            data["replication"]["synchronizeType"] = pair_args.get("synchronizeType", "")
+            data["replication"]["timingval"] = pair_args.get("timingval", "")
+            data["replication"]["recoveryPolicy"] = pair_args.get("recoveryPolicy", "")
         if remote_name_rule == 2:
             data["replication"]["namePrefix"] = RepFileSystemNameRule.NamePrefix
             data["replication"]["nameSuffix"] = name_suffix

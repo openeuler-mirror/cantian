@@ -27,6 +27,7 @@ data:
         "dr_setup": false,
         "domain_name": "",
         "role": "",
+        "dr_type": "",
         "active": {
           "dm_ip": "",
           "dm_user": "",
@@ -73,6 +74,7 @@ data:
         "dr_setup": false,
         "domain_name": "",
         "role": "",
+        "dr_type": "",
         "active": {
           "dm_ip": "",
           "dm_user": "",

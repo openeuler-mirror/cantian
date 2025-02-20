@@ -65,6 +65,7 @@ class DRDeployPreCheck(object):
         self.ulog_fs_pair_id = None
         self.page_fs_pair_id = None
         self.meta_fs_pair_id = None
+        self.dr_type = None
 
     @staticmethod
     def clean_env():
@@ -116,6 +117,9 @@ class DRDeployPreCheck(object):
             err_msg = ["Execute command[cms stat] failed, details:%s" % stderr]
         else:
             cms_stat = [re.split(r"\s+", item.strip()) for item in output.strip().split("\n")]
+            if cms_stat[0][0] == '':
+                err_msg.append("Cantian stat exception, output:%s" % output)
+                return err_msg
             for index, item in enumerate(cms_stat):
                 if item[0].strip(" ") != "ONLINE":
                     err_msg.append("Node[%s] status is not ONLINE." % index)
@@ -168,6 +172,7 @@ class DRDeployPreCheck(object):
         DEVICEMODEL：远端设备型号。
         :return: bool
         """
+
         LOG.info("Check remote device info start.")
         err_msg = []
         remote_esn = self.remote_conf_params.get("esn")
@@ -224,6 +229,7 @@ class DRDeployPreCheck(object):
         err_msg = []
         if self.site == "standby":
             return err_msg
+        LOG.info("Standby pool check begin")
         remote_pool_info = {}
         remote_pool_id = self.local_conf_params.get("remote_pool_id")
         self.remote_operate = RemoteStorageOPT(self.storage_opt, self.remote_device_id)
@@ -243,6 +249,7 @@ class DRDeployPreCheck(object):
             if health_status != PoolHealth.Normal:
                 err_msg.append("Pool health status is not normal, current status:[%s]" %
                                get_status(health_status, PoolHealth))
+        LOG.info("Standby pool check end")
         return err_msg
 
     def check_standby_filesystem(self) -> list:
@@ -303,6 +310,10 @@ class DRDeployPreCheck(object):
         LOG.info("Check standby filesystem nums success.")
         return err_msg
 
+    def check_dr_type(self):
+        if self.dr_type not in ["async", "sync"]:
+            raise Exception("[ERROR] DrType must be async or sync")
+
     def check_license_effectivity(self) -> list:
         """
         检查license有效性：远程复制（HyperReplication）和NAS基础特性（NAS Foundation）有效
@@ -333,7 +344,7 @@ class DRDeployPreCheck(object):
         :return: bool
         """
         err_msg = []
-        if self.site == "standby":
+        if self.site == "standby" or self.dr_type == "async":
             return err_msg
         LOG.info("Check disaster status start.")
         dbstor_fs = self.local_conf_params.get("storage_dbstor_fs")
@@ -494,10 +505,13 @@ class DRDeployPreCheck(object):
         conf_params = read_json_config(self.conf)
         local_site = self.site
         remote_site = ({"standby", "active"} - {self.site}).pop()
+        self.dr_type = conf_params.get("dr_deploy").get("dr_type", "")
         local_dr_deploy_param = conf_params.get("dr_deploy").get(local_site)
         local_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name", "")
+
         remote_dr_deploy_param = conf_params.get("dr_deploy").get(remote_site)
         remote_dr_deploy_param["domain_name"] = conf_params.get("dr_deploy").get("domain_name", "")
+
         remote_pool_id = conf_params.get("dr_deploy").get("standby").get("pool_id")
         remote_dbstor_fs_vstore_id = conf_params.get("dr_deploy").get("standby").get("dbstor_fs_vstore_id")
         name_suffix = conf_params.get("dr_deploy").get("standby").get("name_suffix", "")
@@ -534,7 +548,10 @@ class DRDeployPreCheck(object):
             "domain_name": self.local_conf_params.get("domain_name"),
             "hyper_domain_id": self.hyper_domain_id,
             "vstore_pair_id": self.vstore_pair_id,
-            "ulog_fs_pair_id": self.ulog_fs_pair_id
+            "ulog_fs_pair_id": self.ulog_fs_pair_id,
+            "local_esn": self.local_conf_params.get("esn"),
+            "dr_type": self.dr_type,
+            "remote_ulog_id": None
         }
         name_suffix = self.local_conf_params.get("name_suffix")
         if name_suffix and self.site == "standby":
@@ -572,6 +589,7 @@ class DRDeployPreCheck(object):
         check_result = []
         if self.site == "standby":
             return check_result
+        LOG.info("Active param check begin")
         if not os.path.exists(os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")):
             shutil.copy("/opt/cantian/config/deploy_param.json", os.path.join(CURRENT_PATH, "../../../config"))
             return check_result
@@ -591,6 +609,7 @@ class DRDeployPreCheck(object):
         sync_speed = self.local_conf_params.get("sync_speed", "medium")
         if sync_speed not in speed_val_list:
             check_result.append("sync_speed[%s] is invalid, the option is %s" % (sync_speed, speed_val_list))
+        LOG.info("Active param check end")
         return check_result
 
     def check_nfs_lif_info(self):
@@ -643,6 +662,7 @@ class DRDeployPreCheck(object):
         check_result = []
         if self.site == "active":
             return check_result
+        LOG.info("Standby param check begin")
         pre_install = PreInstall(install_model="override", config_path=self.conf)
         if pre_install.check_main() == 1:
             check_result.append("Params check failed")
@@ -659,7 +679,7 @@ class DRDeployPreCheck(object):
             check_result.append("Vstore[%s] is not exist, details: %s" % (dbstor_fs_vstore_id, str(err)))
             return check_result
         check_result.extend(self.check_nfs_lif_info())
-        LOG.info("Param check success")
+        LOG.info("Standby param check end")
         return check_result
 
     def check_common_params(self):
@@ -680,6 +700,7 @@ class DRDeployPreCheck(object):
         conf_params = read_json_config(self.conf)
         if self.site == "active" or conf_params.get("cantian_in_container") != "0":
             return check_result
+        LOG.info("Standby install check begin")
         check_cantain_cmd = "rpm -qa |grep cantian"
         check_ctom_cmd = "rpm -qa |grep ct_om"
         cantain_result_code, _, _ = exec_popen(check_cantain_cmd)
@@ -698,6 +719,7 @@ class DRDeployPreCheck(object):
             return_code, file, _ = exec_popen(check_pkg_cmd)
             if return_code:
                 check_result.append("No such file: %s" % check_pkg_cmd)
+        LOG.info("Standby install check end")
         return check_result
 
     def execute(self):
@@ -706,14 +728,15 @@ class DRDeployPreCheck(object):
         self.parse_input_params()
         check_result = []
         self.params_parse()
+        self.check_dr_type()
         self.init_opt()
         try:
             check_result.extend(self.check_common_params())
             check_result.extend(self.check_active_params())
             check_result.extend(self.check_standby_params())
             check_result.extend(self.check_standby_install())
-            check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_remote_device_info())
+            check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_license_effectivity())
             check_result.extend(self.check_standby_pool_info())
             check_result.extend(self.check_disaster_exist())
