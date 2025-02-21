@@ -20,16 +20,12 @@ su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/ct_om -type f -pri
 su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/deploy -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/logicrep -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/cantian_exporter -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/mysql -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
+su - "${deploy_user}" -s /bin/bash -c "find /opt/cantian/log/mysql -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/dbstor -type f -print0 | xargs -0 chmod 660" > /dev/null 2>&1
 
 su - "${cantian_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /opt/cantian/log" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/log" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/dbstor/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/cantian/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/cms/" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/logicrep" > /dev/null 2>&1
-su - "${cantian_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/mysql" > /dev/null 2>&1
+su - "${deploy_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /opt/cantian/log" > /dev/null 2>&1
+su - "${cantian_user}" -s /bin/bash -c "chown -R ${cantian_common_group} /opt/cantian/log/mysql" > /dev/null 2>&1
+su - "${deploy_user}" -s /bin/bash -c "chown -R :${cantian_common_group} /opt/cantian/mysql" > /dev/null 2>&1
 
 
