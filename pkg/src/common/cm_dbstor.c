@@ -93,6 +93,7 @@ status_t dbs_init_lib(void)
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsGetFileSize",                 (void **)(&intf->dbs_get_file_size)));
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsUlogArchive",                 (void **)(&intf->dbs_ulog_archive)));
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsGetNsIoForbiddenStat",         (void **)(&intf->dbs_get_ns_io_forbidden_stat)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "SetNsTermHandle",                 (void **)(&intf->dbs_set_ns_term_handle)));
     // dbs
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsQueryFsInfo",                          (void **)(&intf->dbs_query_fs_info)));
     cm_reset_error();
