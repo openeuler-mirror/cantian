@@ -1067,6 +1067,7 @@ status_t dc_load_index_part_segment(knl_session_t *session, knl_handle_t dc_enti
                 entity->corrupted = CT_TRUE;
                 CT_THROW_ERROR(ERR_DC_CORRUPTED);
             } else {
+                CT_LOG_RUN_ERR("Index has been dropped or truncated.");
                 CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "index");
             }
         }
@@ -1340,6 +1341,7 @@ status_t dc_load_table_part_segment(knl_session_t *session, knl_handle_t dc_enti
             ((dc_entity_t *)dc_entity)->corrupted = CT_TRUE;
             CT_THROW_ERROR(ERR_DC_CORRUPTED);
         } else {
+            CT_LOG_RUN_ERR("Table has been dropped or truncated");
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         }
 

@@ -2942,6 +2942,7 @@ static status_t dcs_process_heap_pcr_construct(knl_session_t *session, msg_pcr_r
     // if current page is not heap page, just return error to requester
     if (page->head.type != PAGE_TYPE_PCRH_DATA) {
         buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated, page->head.type: %d", page->head.type);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }

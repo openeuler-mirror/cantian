@@ -1210,6 +1210,7 @@ status_t stats_next_page_in_extent(knl_session_t *session, knl_cursor_t *cursor,
     page_id.page += random_step;
 
     if (!spc_validate_page_id(session, page_id)) {
+        CT_LOG_RUN_ERR("%s has been dropped or truncated. Invalid page id %u-%u", name, page_id.page, page_id.file);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
         return CT_ERROR;
     }
@@ -1298,6 +1299,7 @@ static status_t stats_next_extent_page(knl_session_t *session, knl_cursor_t *cur
         }
 
         if (!spc_validate_page_id(session, extent)) {
+            CT_LOG_RUN_ERR("%s has been dropped or truncated. Invalid page id %u-%u", name, extent.page, extent.file);
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
             return CT_ERROR;
         }
@@ -1314,6 +1316,9 @@ static status_t stats_next_extent_page(knl_session_t *session, knl_cursor_t *cur
             if (cursor->page_soft_damaged) {
                 CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
             } else {
+                CT_LOG_RUN_ERR("%s has been dropped or truncated, "
+                    "stat_sample->hwm_extents: %u, page->head.type: %d",
+                    name, stat_sample->hwm_extents, page->head.type);
                 CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
             }
             return CT_ERROR;
@@ -1358,6 +1363,7 @@ static status_t stats_next_sample_page(knl_session_t *session, knl_cursor_t *cur
         table->desc.name;  // table name or table part name
 
     if (!spc_validate_page_id(session, entry)) {
+        CT_LOG_RUN_ERR("%s has been dropped or truncated. Invalid page id %u-%u", name, entry.page, entry.file);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
         return CT_ERROR;
     }
@@ -1366,6 +1372,9 @@ static status_t stats_next_sample_page(knl_session_t *session, knl_cursor_t *cur
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     segment = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || segment->seg_scn != seg_scn) {
+        CT_LOG_RUN_ERR("%s has been dropped or truncated, "
+            "page->type: %u, segment->seg_scn: %llu, seg_scn: %llu",
+            name, page->type, segment->seg_scn, seg_scn);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
         buf_leave_page(session, CT_FALSE);
         return CT_ERROR;
@@ -2602,6 +2611,7 @@ static status_t stats_get_nonsample_page(knl_session_t *session, knl_cursor_t *c
         if (cursor->page_soft_damaged) {
             CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page);
         } else {
+            CT_LOG_RUN_ERR("%s has been dropped or truncated, page_id: %u-%u", name, page_id.page, page_id.file);
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, name);
         }
         return CT_ERROR;
@@ -4702,6 +4712,7 @@ static status_t stats_update_sys_column(knl_session_t *session, stats_col_handle
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", column->name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, column->name);
         return CT_ERROR;
     }
@@ -5130,6 +5141,7 @@ status_t stats_update_sys_subtablepart(knl_session_t *session, table_part_t *tab
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", table_sub->desc.name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_sub->desc.name);
         stats_try_end_auton_rm(session, CT_ERROR, is_dynamic);
         return CT_ERROR;
@@ -5208,6 +5220,7 @@ status_t stats_update_sys_tablepart(knl_session_t *session, knl_dictionary_t *dc
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", table_part->desc.name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
         stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
         return CT_ERROR;
@@ -7058,6 +7071,7 @@ static status_t stats_check_segment_valid(knl_session_t *session, table_part_t *
     page_head_t *page = (page_head_t *)CURR_PAGE(session);
     *seg = HEAP_SEG_HEAD(session);
     if (page->type != PAGE_TYPE_HEAP_HEAD || (*seg)->seg_scn != table_part->desc.seg_scn) {
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", table_part->desc.name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
         buf_leave_page(session, CT_FALSE);
         return CT_ERROR;
@@ -7687,6 +7701,7 @@ static status_t stats_update_sys_table(knl_session_t *session, stats_table_t *ta
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", table->desc.name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table->desc.name);
         stats_try_end_auton_rm(session, CT_ERROR, tab_stats->is_dynamic);
         return CT_ERROR;
@@ -10787,6 +10802,7 @@ status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, boo
         }
 
         if (cursor->eof) {
+            CT_LOG_RUN_ERR("Table has been dropped or truncated.");
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
             status = CT_ERROR;
             break;
@@ -10951,6 +10967,7 @@ status_t stats_set_analyze_time(knl_session_t *session, knl_dictionary_t *dc, bo
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated.");
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -11072,6 +11089,7 @@ static status_t stats_update_sys_table_force(knl_session_t *session, knl_diction
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated.");
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -11135,6 +11153,7 @@ static status_t stats_update_sys_tablepart_force(knl_session_t *session, knl_dic
 
     if (cursor->eof) {
         CM_RESTORE_STACK(session->stack);
+        CT_LOG_RUN_ERR("%s has been dropped or truncated.", table_part->desc.name);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, table_part->desc.name);
         return CT_ERROR;
     }

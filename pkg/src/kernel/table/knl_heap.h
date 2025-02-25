@@ -271,6 +271,7 @@ typedef struct st_heap_compact_def {
         if ((cursor)->page_soft_damaged) {                                                     \
             CT_THROW_ERROR(ERR_PAGE_SOFT_DAMAGED, (cursor)->rowid.file, (cursor)->rowid.page); \
         } else if ((cursor)->rowid_count == 0) {                                               \
+            CT_LOG_RUN_ERR("Table has been dropped or truncated.");                            \
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");                               \
         } else {                                                                               \
             CT_THROW_ERROR(ERR_INVALID_ROWID);                                                 \
