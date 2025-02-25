@@ -2270,9 +2270,11 @@ EXTER_ATTACK int ctc_trx_rollback(ctc_handler_t *tch, uint64_t *cursors, int32_t
     for (int32_t i = def_list->count - 1; i >= 0; i--) {
         ctc_ddl_dc_array_t *dc_node = &(dc_array[i]);
         ctc_ddl_table_after_rollback(knl_session, dc_node);
+        // because of copy algorithm and creating table with constraints of key will lock link tables,  
+        // we need invoke unlock_table_directly in the end of trx to release the lock.
         if (dc_node->def_mode == CREATE_DEF) {
             knl_table_def_t *create_def = (knl_table_def_t *)dc_node->ddl_def;
-            unlock_tables = !create_def->is_mysql_copy ? CT_FALSE : CT_TRUE;
+            unlock_tables = create_def->is_mysql_copy || create_def->constraints.count > 0 ? CT_TRUE : CT_FALSE;
         }
     }
 
