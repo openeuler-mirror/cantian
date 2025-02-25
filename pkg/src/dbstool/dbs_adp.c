@@ -2233,13 +2233,13 @@ int32 dbs_query_fs_info(int32 argc, char *argv[])
 void dbs_perf_display(dbs_stat_item_query* items, uint32 item_num)
 {
     printf("-------------------------------------------------------------\n");
-    printf("%-32s %-24s %-24s %-24s %-24s %-24s %-24s %-24s\n",
-        "ItemName", "SuccCnt", "ErrCnt", "MaxDelay", "MinDelay", "AvgDelay", "Iops", "BandWidth");
+    printf("%-32s %-24s %-24s %-24s %-24s %-24s %-24s %-24s %-24s\n",
+        "ItemName", "SuccCnt", "ErrCnt", "MaxDelay", "MinDelay", "AvgDelay", "Iops", "BandWidth", "IoSize");
     for (uint32 i = 0; i < item_num; i++)
     {
-        printf("%-32s %-24u %-24u %-24u %-24u %-24u %-24u %-24u\n",
+        printf("%-32s %-24u %-24u %-24u %-24u %-24u %-24u %-24u %-24llu\n",
             items[i].name, items[i].item.success_cnt, items[i].item.fail_cnt, items[i].item.max_delay,
-            items[i].item.min_delay, items[i].avg_delay, items[i].iops, items[i].bandWidth);
+            items[i].item.min_delay, items[i].avg_delay, items[i].iops, items[i].bandWidth, items[i].item.io_size);
     }
     printf("-------------------------------------------------------------\n");
 }
@@ -2390,7 +2390,7 @@ void parse_uint_params_list(int32 argc, char *argv[], const char *param_key, uin
             if (equal_sign != NULL && strchr(equal_sign + 1, '-') == NULL) {
                 char *end_ptr = '\0';
                 *param_value = strtoul(equal_sign + 1, &end_ptr, 10);
-                if (*end_ptr != '\0'){
+                if (*end_ptr != '\0') {
                     *param_value = 0;
                 }
             } else {
@@ -2415,12 +2415,12 @@ int32 dbs_perf_show(int32 argc, char *argv[])
     parse_uint_params_list(argc, argv, DBS_PERF_SHOW_INTERVAL, &interval);
     parse_uint_params_list(argc, argv, DBS_PERF_SHOW_TIMES, &times);
 
-    if (interval <= 0 || interval > MAX_DBS_STATISTICAL_SIZE){
+    if (interval <= 0 || interval > MAX_DBS_STATISTICAL_SIZE) {
         printf("Converted interval:%u is not within the range of(0,7200]\n", interval);
         return CT_ERROR;
     }
-    if (times <= 0){
-        printf("Converted times:%u is is not greater than 0", times);
+    if (times <= 0) {
+        printf("Converted times:%u is not greater than 0", times);
         return CT_ERROR;
     }
     dbs_uds_req_comm_msg* req_msg = (dbs_uds_req_comm_msg*)malloc(sizeof(dbs_uds_req_comm_msg));
