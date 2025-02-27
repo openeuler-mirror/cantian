@@ -602,8 +602,8 @@ fi
 # 单进程场景使用deploy_user
 is_single=$(cat "${CURRENT_PATH}"/cantian/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
 if [[ x"${is_single}" == x"cantiand_with_mysql_in_cluster" ]];then
-    sed -i "s/cantian_user=\"cantian\"/cantian_user=\"${deploy_user}\"/g" "${CURRENT_PATH}"/env.sh
-    sed -i "s/cantian_group=\"cantian\"/cantian_group=\"${deploy_group}\"/g" "${CURRENT_PATH}"/env.sh
+    sed -i "/^cantian_user=/ c\cantian_user=\"${deploy_user}"\" "${CURRENT_PATH}"/env.sh
+    sed -i "/^cantian_group=/ c\cantian_group=\"${deploy_group}"\" "${CURRENT_PATH}"/env.sh
 fi
 
 if [[ ${use_dorado["${deploy_mode}"]} -ne 1 ]];then
