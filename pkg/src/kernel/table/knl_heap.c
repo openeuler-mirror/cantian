@@ -5874,6 +5874,8 @@ static status_t heap_fetch_chain_row(knl_session_t *session, knl_cursor_t *curso
 
     if ((uint16)next_rid.slot >= page->dirs) {
         buf_leave_page(session, CT_FALSE);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated. next_rid.slot: %u, page->dirs: %u",
+            next_rid.slot, page->dirs);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -6158,6 +6160,8 @@ static status_t heap_scan_full_page(knl_session_t *session, knl_cursor_t *cursor
         }
 
         if ((uint16)cursor->rowid.slot > page->dirs) {
+            CT_LOG_RUN_ERR("Table has been dropped or truncated. cursor->rowid.slot: %u, page->dirs: %u",
+                cursor->rowid.slot, page->dirs);
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
             return CT_ERROR;
         }

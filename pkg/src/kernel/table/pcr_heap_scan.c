@@ -365,6 +365,8 @@ static status_t pcrh_search_cr_page(knl_session_t *session, knl_cursor_t *cursor
 
             return CT_SUCCESS;
         } else if (cursor->rowid.slot > cr_page->dirs) {
+            CT_LOG_RUN_ERR("Table has been dropped or truncated, cursor->rowid.slot: %u, cr_page->dirs: %u",
+                cursor->rowid.slot, cr_page->dirs);
             CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
             return CT_ERROR;
         }
@@ -619,6 +621,8 @@ status_t pcrh_fetch_chain_r(knl_session_t *session, knl_cursor_t *cursor, knl_sc
     page = pcrh_get_current_page(session, cursor);
     if (rowid.slot >= page->dirs) {
         pcrh_leave_current_page(session, cursor);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated, rowid.slot: %u, page->dirs: %u",
+            rowid.slot, page->dirs);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -626,6 +630,7 @@ status_t pcrh_fetch_chain_r(knl_session_t *session, knl_cursor_t *cursor, knl_sc
     dir = pcrh_get_dir(page, (uint16)rowid.slot);
     if (PCRH_DIR_IS_FREE(dir)) {
         pcrh_leave_current_page(session, cursor);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated, dir: %u", *dir);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -826,6 +831,7 @@ static status_t pcrh_fetch_link_r(knl_session_t *session, knl_cursor_t *cursor, 
     pcr_row_dir_t *dir = pcrh_get_dir(page, (uint16)cursor->link_rid.slot);
     if (PCRH_DIR_IS_FREE(dir)) {
         pcrh_leave_current_page(session, cursor);
+        CT_LOG_RUN_ERR("Table has been dropped or truncated.");
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
