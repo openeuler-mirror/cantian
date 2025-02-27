@@ -359,7 +359,7 @@ status_t dc_convert_column(knl_session_t *session, knl_cursor_t *cursor, dc_enti
         }
     }
 
-    if (!KNL_COLUMN_IS_VIRTUAL(column) && column->default_text.len != 0) {
+    if (!((session_t *)session)->is_ctc && !KNL_COLUMN_IS_VIRTUAL(column) && column->default_text.len != 0) {
         /* get default expr tree from defalut_text directly instead of default_data */
         if (g_knl_callback.parse_default_from_text((knl_handle_t)session, (knl_handle_t)entity,
             (knl_handle_t)column, entity->memory,

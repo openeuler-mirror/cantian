@@ -529,6 +529,9 @@ static status_t temp_heap_get_migr_row(knl_session_t *session, knl_cursor_t *cur
     page = TEMP_HEAP_CURR_PAGE(session);
     if (!temp_heap_check_page(session, cursor, page, PAGE_TYPE_TEMP_HEAP)) {
         buf_leave_temp_page_nolock(session, CT_FALSE);
+        CT_LOG_RUN_ERR("Temp table has been dropped or truncated, "
+            "page->head.type: %d, page->org_scn: %llu, table->desc.org_scn: %llu",
+            page->head.type, page->org_scn, ((table_t *)cursor->table)->desc.org_scn);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "temp table");
         return CT_ERROR;
     }
@@ -612,6 +615,9 @@ static status_t temp_heap_fetch_by_page(knl_session_t *session, knl_cursor_t *cu
     page = TEMP_HEAP_CURR_PAGE(session);
     if (!temp_heap_check_page(session, cursor, page, PAGE_TYPE_TEMP_HEAP)) {
         buf_leave_temp_page_nolock(session, CT_FALSE);
+        CT_LOG_RUN_ERR("Temp table has been dropped or truncated, "
+            "page->head.type: %d, page->org_scn: %llu, table->desc.org_scn: %llu",
+            page->head.type, page->org_scn, ((table_t *)cursor->table)->desc.org_scn);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "temp table");
         return CT_ERROR;
     }

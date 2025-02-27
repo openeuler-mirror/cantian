@@ -2373,6 +2373,7 @@ status_t knl_read_lob_check(knl_session_t *session, page_id_t page_id, lob_locat
 
     data = LOB_CURR_DATA_PAGE(session);
     if (data->head.type != PAGE_TYPE_LOB_DATA) {
+        CT_LOG_RUN_ERR("Table has been dropped or truncated. data->head.type: %d", data->head.type);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -2386,6 +2387,9 @@ status_t knl_read_lob_check(knl_session_t *session, page_id_t page_id, lob_locat
     }
 
     if (!LOB_CHECK_ORG_SCN(locator, data)) {
+        CT_LOG_RUN_ERR("Table has been dropped or truncated, "
+            "data->head.type: %d, data->chunk.org_scn: %llu, locator->org_scn: %llu",
+            data->head.type, data->chunk.org_scn, locator->org_scn);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -2405,6 +2409,7 @@ status_t lob_temp_read_lob_check(knl_session_t *session, page_id_t page_id, lob_
     data = (lob_data_page_t *)(buf_curr_temp_page(session))->data;
 
     if (data->head.type != PAGE_TYPE_LOB_DATA) {
+        CT_LOG_RUN_ERR("Table has been dropped or truncated, data->head.type: %d", data->head.type);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }
@@ -2419,6 +2424,7 @@ status_t lob_temp_read_lob_check(knl_session_t *session, page_id_t page_id, lob_
     }
 
     if (!LOB_CHECK_ORG_SCN(locator, data)) {
+        CT_LOG_RUN_ERR("Table has been dropped or truncated.");
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "table");
         return CT_ERROR;
     }

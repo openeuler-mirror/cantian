@@ -653,7 +653,7 @@ static void cms_cli_proc_msg(cms_packet_head_t* msg)
 static void cms_uds_cli_retry_conn(void)
 {
     status_t ret = CT_SUCCESS;
-    for (int32 i = 0; i < CMS_RETRY_CONN_COUNT; i++) {
+    for (int32 i = 0; i <= CMS_RETRY_CONN_COUNT; i++) {
         if (g_cli_conn_try == CT_FALSE) {
             return;
         }
@@ -664,7 +664,9 @@ static void cms_uds_cli_retry_conn(void)
             return;
         }
         CT_LOG_RUN_ERR("cms cli retry conn failed, ret %d, i %d", ret, i);
-        cm_sleep(CMS_RETRY_CONN_INTERVAL);
+        if (i < CMS_RETRY_CONN_COUNT) {
+            cm_sleep(CMS_RETRY_CONN_INTERVAL);
+        }        
     }
     
     CM_ABORT_REASONABLE(0, "[CMS_CLI] ABORT INFO: cms cli conn retry failed");

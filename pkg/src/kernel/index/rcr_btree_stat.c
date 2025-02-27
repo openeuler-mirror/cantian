@@ -308,6 +308,7 @@ status_t btree_level_first_page(knl_session_t *session, btree_t *btree, uint16 l
     page_type_t page_type;
 
     if (segment == NULL) {
+        CT_LOG_RUN_ERR("Index has been dropped or truncated.");
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "index");
         return CT_ERROR;
     }
@@ -317,6 +318,7 @@ status_t btree_level_first_page(knl_session_t *session, btree_t *btree, uint16 l
     page_type = (btree->index->desc.cr_mode == CR_PAGE) ? PAGE_TYPE_PCRB_NODE : PAGE_TYPE_BTREE_NODE;
 
     if (!spc_validate_page_id(session, *page_id)) {
+        CT_LOG_RUN_ERR("Index has been dropped or truncated. Inavlid page id %u-%u", page_id->page, page_id->file);
         CT_THROW_ERROR(ERR_OBJECT_ALREADY_DROPPED, "index");
         return CT_ERROR;
     }
