@@ -13,8 +13,7 @@ from get_config_info import get_value
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from update_config import update_dbstor_conf
 
-# 需要的路径和配置
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cpu_bind_config.json")
+CONFIG_PATH = "/opt/cantian/action/cantian/cpu_bind_config.json"
 CPU_CONFIG_INFO = "/opt/cantian/cantian/cfg/cpu_config.json"
 CONFIG_DIR = "/mnt/dbdata/local/cantian/tmp/data"
 XNET_MODULE = "NETWORK_BIND_CPU"
@@ -199,6 +198,36 @@ class NumaConfigBase:
             err_msg = "ERROR: cpu_bind_config.json does not exist"
             raise Exception(err_msg)
 
+    def get_module_bind_cpu_list(self, module_thread_num):
+        """ 获取模块绑核的 CPU 列表 """
+        result_ranges = []
+        count = module_thread_num
+
+        numa_pointer = {numa_id: 0 for numa_id in self.available_cpu_for_binding_dict}
+
+        # 过滤掉已经绑定的 CPU
+        if self.bind_cpu_list:
+            available_cpu_for_binding_filtered = {
+                numa_id: [cpu for cpu in available_cpu_list if cpu not in self.bind_cpu_list]
+                for numa_id, available_cpu_list in self.available_cpu_for_binding_dict.items()
+            }
+        else:
+            available_cpu_for_binding_filtered = self.available_cpu_for_binding_dict
+
+        while count > 0:
+            for numa_id, available_cpu_list in available_cpu_for_binding_filtered.items():
+                if numa_pointer[numa_id] < len(available_cpu_list):
+                    result_ranges.append(available_cpu_list[numa_pointer[numa_id]])
+                    numa_pointer[numa_id] += 1
+                    count -= 1
+                    if count == 0:
+                        break
+
+        for numa_id, available_cpu_list in available_cpu_for_binding_filtered.items():
+            self.available_cpu_for_binding_dict[numa_id] = available_cpu_list[numa_pointer[numa_id]:]
+
+        return result_ranges
+
     def update_dbstor_config_file(self, cpu_config_info):
         """
         Modifies the dbstor configuration file based on the provided CPU configuration.
@@ -353,8 +382,17 @@ class PhysicalCpuConfig(NumaConfigBase):
                                f"Cannot use CPUs outside the available range or in 0-5.")
                     LOGGER.error(err_msg)
                     raise Exception(err_msg)
+
+                duplicate_cpus = set(manually_configured_cpus) & set(self.bind_cpu_list)
+                if duplicate_cpus:
+                    err_msg = (f"Currently bound CPUs: {self.bind_cpu_list}. "
+                               f"Conflict in CPU binding for {module_id_key}: CPUs {duplicate_cpus} are already bound.")
+                    LOGGER.error(err_msg)
+                    raise Exception(err_msg)
                 LOGGER.info(f"{module_id_key} is manually configured, skipping CPU binding generation.")
                 bind_cpu_list.extend(manually_configured_cpus)
+                self.bind_cpu_dict[module_id_key] = ",".join(map(str, manually_configured_cpus))
+                self.bind_cpu_list = bind_cpu_list
                 continue
 
             if not module_info:
@@ -374,29 +412,7 @@ class PhysicalCpuConfig(NumaConfigBase):
             module_cpu_list = self.get_module_bind_cpu_list(module_info)
             bind_cpu_list.extend(module_cpu_list)
             self.bind_cpu_dict[module_id_key] = ",".join(map(str, module_cpu_list))
-
-        self.bind_cpu_list = bind_cpu_list
-
-    def get_module_bind_cpu_list(self, module_thread_num):
-        """ 获取模块绑核的 CPU 列表 """
-        result_ranges = []
-        count = module_thread_num
-
-        numa_pointer = {numa_id: 0 for numa_id in self.available_cpu_for_binding_dict}
-
-        while count > 0:
-            for numa_id, available_cpu_list in self.available_cpu_for_binding_dict.items():
-                if numa_pointer[numa_id] < len(available_cpu_list):
-                    result_ranges.append(available_cpu_list[numa_pointer[numa_id]])
-                    numa_pointer[numa_id] += 1
-                    count -= 1
-                    if count == 0:
-                        break
-
-        for numa_id, available_cpu_list in self.available_cpu_for_binding_dict.items():
-            self.available_cpu_for_binding_dict[numa_id] = available_cpu_list[numa_pointer[numa_id]:]
-
-        return result_ranges
+            self.bind_cpu_list = bind_cpu_list
 
     def get_mysql_cpu_info(self):
         """
@@ -519,27 +535,6 @@ class ContainerCpuConfig(NumaConfigBase):
         self.bind_cpu_list = bind_cpu_list
 
         return bind_cpu_list
-
-    def get_module_bind_cpu_list(self, module_thread_num):
-        """ 轮流选 CPU 进行绑核 """
-        result_ranges = []
-        count = module_thread_num
-
-        numa_pointer = {numa_id: 0 for numa_id in self.available_cpu_for_binding_dict}
-
-        while count > 0:
-            for numa_id, available_cpu_list in self.available_cpu_for_binding_dict.items():
-                if numa_pointer[numa_id] < len(available_cpu_list):
-                    result_ranges.append(available_cpu_list[numa_pointer[numa_id]])
-                    numa_pointer[numa_id] += 1
-                    count -= 1
-                    if count == 0:
-                        break
-
-        for numa_id, available_cpu_list in self.available_cpu_for_binding_dict.items():
-            self.available_cpu_for_binding_dict[numa_id] = available_cpu_list[numa_pointer[numa_id]:]
-
-        return result_ranges
 
     def get_mysql_cpu_info(self):
         """
