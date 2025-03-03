@@ -157,7 +157,6 @@ typedef struct st_instance_attr {
     bool32 disable_var_peek;
     bool32 enable_cursor_sharing;
     bool32 enable_use_spm;
-    bool32 enable_dss;
 } instance_attr_t;
 
 typedef struct st_os_run_desc {

@@ -52,6 +52,7 @@ function check_process()
 			return 0
 		else
 			echo "res_count= ${res_count}"
+			echo "RES_EAGAIN"
 			return 1
 		fi
 	fi
@@ -142,8 +143,8 @@ function stop_cantian() {
 			echo "RES_SUCCESS"
 			exit 0
 		else
-			echo "RES_MULTI"
-			exit 1
+			echo "RES_EAGAIN"
+			exit 3
 		fi
 	fi
 }
@@ -169,8 +170,8 @@ function stop_cantian_by_force() {
 			echo "RES_SUCCESS"
 			exit 0
 		else
-			echo "RES_FAILED"
-			exit 1
+			echo "RES_EAGAIN"
+			exit 3
 		fi
 	fi
 }

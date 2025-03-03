@@ -73,6 +73,12 @@ function wait_node0_online() {
   wait_for_success 5400 is_db0_online_by_cms
 }
 
+function dss_reghl() {
+  log "start register node ${NODE_ID} by dss"
+  dsscmd reghl -D ${DSS_HOME} >> /dev/null 2>&1
+  if [ $? != 0 ]; then err "failed to register node ${NODE_ID} by dss"; fi
+}
+
 function start_cantiand() {
   log "================ start cantiand ${NODE_ID} ================"
   ever_started=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_EVER_START"`
@@ -92,14 +98,16 @@ function start_cantiand() {
     fi
   fi
   set -e
-  ever_started=`python3 ${CURRENT_PATH}/get_config_info.py "CANTIAN_EVER_START"`
   if [ "${NODE_ID}" != 0 ] && [ "${ever_started}" != "True" ]; then
     wait_node0_online || err "timeout waiting for node0"
     sleep 60
   fi
 
   log "Start cantiand with mode=${START_MODE}, CTDB_HOME=${CTDB_HOME}, RUN_MODE=${RUN_MODE}"
-
+  if [ ${deploy_mode} == "dss" ]; then
+    dss_reghl
+  fi
+  
   if [ "${RUN_MODE}" == "cantiand_with_mysql" ] || [ "${RUN_MODE}" == "cantiand_with_mysql_st" ] || [ "${RUN_MODE}" == "cantiand_with_mysql_in_cluster" ]; then
     if [ ! -f "${MYSQL_CONFIG_FILE}" ]; then
       err "Invalid mysql config file: ${MYSQL_CONFIG_FILE}"

@@ -310,6 +310,7 @@ typedef struct st_knl_attr {
     bool32 drc_in_reformer_mode;
     uint32 res_recycle_ratio;
     uint32 create_index_parallelism;
+    bool32 enable_dss;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name

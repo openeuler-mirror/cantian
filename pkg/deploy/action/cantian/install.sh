@@ -66,6 +66,7 @@ function cantian_install()
 
     cp -rf ${RPM_UNPACK_PATH}/add-ons /opt/cantian/cantian/server/
     cp -rf ${RPM_UNPACK_PATH}/bin /opt/cantian/cantian/server/
+    rm -rf /opt/cantian/cantian/server/bin/cms
     cp -rf ${RPM_UNPACK_PATH}/lib /opt/cantian/cantian/server/
     cp -rf ${RPM_UNPACK_PATH}/admin /opt/cantian/cantian/server/
     cp -rf ${RPM_UNPACK_PATH}/cfg /opt/cantian/cantian/server/

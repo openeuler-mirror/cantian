@@ -432,7 +432,7 @@ static status_t srv_get_file_options_params(knl_attr_t *attr)
     }
 
     if (cm_str_equal_ins(value, "ASYNCH")) {
-        if (g_instance->attr.enable_dss != CT_TRUE) {
+        if (g_instance->kernel.attr.enable_dss != CT_TRUE) {
             attr->enable_asynch = CT_TRUE;
         }
         attr->enable_directIO = CT_TRUE;
@@ -451,7 +451,7 @@ static status_t srv_get_file_options_params(knl_attr_t *attr)
     }
 
     if (cm_str_equal_ins(value, "SETALL")) {
-        if (g_instance->attr.enable_dss != CT_TRUE) {
+        if (g_instance->kernel.attr.enable_dss != CT_TRUE) {
             attr->enable_asynch = CT_TRUE;
         }
         attr->enable_directIO = CT_TRUE;

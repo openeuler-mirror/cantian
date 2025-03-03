@@ -39,6 +39,7 @@ extern "C"
 #define CMS_CFG_FILENAME            "cms.ini"
 #define CMS_RES_TYPE_CTSTORE            "CTSTORE"
 #define CMS_RES_TYPE_DB             "DB"
+#define CMS_RES_TYPE_DSS             "DSS"
 #define CMS_MAX_RES_SLOT_COUNT      8
 #define CMS_CLI_HB_INTERVAL         (MICROSECS_PER_SECOND * 2)
 #define CMS_CLI_UDS_SEND_TMOUT      1000

@@ -558,7 +558,7 @@ void cms_exec_res_script_print_log(const char* arg, char *cmd)
 
 status_t cms_exec_res_script(const char* script, const char* arg, uint32 timeout_ms, status_t* result)
 {
-    CMS_LOG_INF("begin cms exec res script.");
+    CMS_LOG_TIMER("begin cms exec res script.");
     char cmd[CMS_CMD_BUFFER_SIZE] = {0};
     *result = CT_ERROR;
     errno_t ret = EOK;
@@ -595,19 +595,20 @@ status_t cms_exec_res_script(const char* script, const char* arg, uint32 timeout
     }
 
     cmd_out[size] = 0;
-    CMS_LOG_INF("end cms exec res script.");
-    if (strstr(cmd_out, "RES_SUCCESS") != NULL) {
-        *result = CT_SUCCESS;
-        return CT_SUCCESS;
-    }
+    CMS_LOG_TIMER("end cms exec res script.");
 
     if (strstr(cmd_out, CMS_TIMEOUT_ERROR_NUMBER) != NULL) {
         *result = CT_TIMEDOUT;
         return CT_SUCCESS;
     }
 
-    if (strstr(cmd_out, "RES_MULTI") != NULL) {
+    if (strstr(cmd_out, "RES_EAGAIN") != NULL) {
         *result = CT_EAGAIN;
+        return CT_SUCCESS;
+    }
+
+    if (strstr(cmd_out, "RES_SUCCESS") != NULL) {
+        *result = CT_SUCCESS;
         return CT_SUCCESS;
     }
 
@@ -926,6 +927,33 @@ status_t cms_check_res_running(uint32 res_id)
     return CT_SUCCESS;
 }
 
+status_t cms_check_dss_stat(cms_res_t res, cms_res_stat_t stat)
+{
+    status_t dss_status;
+    status_t ret;
+
+    ret = cms_res_check(res.res_id, &dss_status);
+    if (ret != CT_SUCCESS || dss_status == CT_ERROR) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, 
+        "check dss failed, res_id=%u, script=%s, ret=%d, dss_status=%d", res.res_id, res.script, ret, dss_status);
+        return CT_ERROR;
+    }
+
+    if (dss_status == CT_TIMEDOUT) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, 
+        "check dss stat timeout, res_id=%u, script=%s", res.res_id, res.script);
+        return CT_ERROR;
+    }
+
+    if (dss_status == CT_EAGAIN) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20, 
+        "dss work stat is abnormal, res_id=%u, script=%s", res.res_id, res.script);
+        return CT_ERROR;
+    }
+    cms_res_hb(res.res_id);
+    return CT_SUCCESS;
+}
+
 status_t cms_res_start(uint32 res_id, uint32 timeout_ms)
 {
     status_t ret;
@@ -936,6 +964,24 @@ status_t cms_res_start(uint32 res_id, uint32 timeout_ms)
     CT_RETURN_IFERR(cms_get_res_by_id(res_id, &res));
 
     CMS_LOG_INF("begin start res, res_id=%u", res_id);
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_SD && cm_strcmpi(res.name, CMS_RES_TYPE_DB) == 0) {
+        CMS_LOG_INF("cms check dss stat before start db, res_id=%u", res_id);
+        cms_res_t dss_res;
+        uint32 dss_res_id;
+        cms_res_stat_t dss_res_stat;
+        // find dss resource
+        if (cms_get_res_id_by_type(CMS_RES_TYPE_DSS, &dss_res_id) != CT_SUCCESS) {
+            CMS_LOG_ERR("cms get res id failed, res_type %s", CMS_RES_TYPE_DSS);
+            return CT_ERROR;
+        }
+        
+        CT_RETURN_IFERR(cms_get_res_by_id(dss_res_id, &dss_res));
+        get_cur_res_stat(dss_res_id, &dss_res_stat);
+        if (cms_check_dss_stat(dss_res, dss_res_stat) != CT_SUCCESS) {
+            CMS_LOG_ERR("DSS status is abnormal, unable to start Cantian.");
+            return CT_ERROR;
+        }
+    }
 
     CMS_LOG_INF("begin to get start lock, res_id=%u", res_id);
     if (cms_get_res_start_lock(res_id) != CT_SUCCESS) {
@@ -950,7 +996,9 @@ status_t cms_res_start(uint32 res_id, uint32 timeout_ms)
         return CT_SUCCESS;
     }
 
-    if (wait_for_cluster_reform_done(res_id) != CT_SUCCESS) {
+    if (cm_strcmpi(res.name, CMS_RES_TYPE_DSS) == 0) {
+        CMS_LOG_INF("CMS does not need to wait for reform when starting DSS");
+    } else if (wait_for_cluster_reform_done(res_id) != CT_SUCCESS) {
         CMS_LOG_ERR("cms wait cluster reform done failed");
         cms_release_res_start_lock(res_id);
         return CT_ERROR;
@@ -1170,6 +1218,11 @@ status_t cms_res_detect_online(uint32 res_id, cms_res_stat_t *old_stat)
         cm_thread_unlock(&g_res_session[res_id].lock);
         return CT_ERROR;
     }
+    res_stat->last_stat_change = cm_now();
+    res_stat->work_stat = 1;
+    res_stat->hb_time = cm_now();
+    res_stat->session_id = res_id;
+    res_stat->inst_id = g_cms_param->node_id;
     cms_stat_set(res_stat, CMS_RES_ONLINE, &is_changed);
     if (!(is_changed)) {
         cm_thread_unlock(&g_res_session[res_id].lock);
