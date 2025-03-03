@@ -25,5 +25,5 @@ su - "${cantian_user}" -s /bin/bash -c "find /opt/cantian/log/dbstor -type f -pr
 
 su - "${cantian_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /mnt/dbdata/local/cantian/tmp/data/log/cantianstatus.log" > /dev/null 2>&1
 su - "${cantian_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /opt/cantian/log" > /dev/null 2>&1
-
+su - "${deploy_user}" -s /bin/bash -c "chgrp -R ${cantian_common_group} /opt/cantian/log/mysql" > /dev/null 2>&1
 
