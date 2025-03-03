@@ -1438,6 +1438,12 @@ status_t fill_column_default_text(session_t *session, sql_stmt_t *stmt, knl_colu
     int ret = sprintf_s(column->default_text.str, strlen(def->default_text) + appendLen, format, def->default_text);
     column->default_text.len = strlen(column->default_text.str);
     knl_securec_check_ss(ret);
+    knl_column_t column_t = { 0 };
+    char column_name[CT_NAME_BUFFER_SIZE] = { 0 };
+    column_t.name = column_name;
+    db_convert_column_def(&column_t, CT_INVALID_ID32, CT_INVALID_ID32, column, NULL, CT_INVALID_ID32);
+    ret = g_knl_callback.verify_default_from_text(session, &column_t, column->default_text);
+    CT_RETURN_IFERR_NOCLEAR(ret, ddl_ctrl);
     return CT_SUCCESS;
 }
 
