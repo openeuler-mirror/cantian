@@ -43,6 +43,7 @@
 #include "cm_signal.h"
 #include "cm_dbs_intf.h"
 #include "cm_file_iofence.h"
+#include "cm_dss_iofence.h"
 
 const char* g_stat_str[] = {
     "UNKNOWN",
@@ -64,6 +65,7 @@ static thread_t             g_cli_worker_thread;
 static bool32               g_cli_workert_term = CT_TRUE;
 static char                 g_cms_home[CT_MAX_PATH_LEN] = {0};
 static uint16               g_node_id = -1;
+static bool32               g_dss_enable = CT_FALSE;
 static thread_lock_t        g_cli_lock;
 static cms_que_t            g_cli_recv_que;
 static config_item_t        g_cms_params[] = {
@@ -72,6 +74,8 @@ static config_item_t        g_cms_params[] = {
     {"_IP", CT_TRUE, CT_FALSE, "", NULL, NULL, "-", "-", "CT_TYPE_STRING", NULL, 0, \
         EFFECT_REBOOT, CFG_INS, NULL, NULL},
     {"_PORT", CT_TRUE, CT_FALSE, "", NULL, NULL, "-", "-", "CT_TYPE_STRING", NULL, 0, \
+        EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    {"GCC_TYPE", CT_TRUE, CT_FALSE, "", NULL, NULL, "-", "-", "CT_TYPE_STRING", NULL, 0, \
         EFFECT_REBOOT, CFG_INS, NULL, NULL},
 };
 
@@ -153,7 +157,12 @@ static status_t cms_load_param(void)
 
     g_node_id = (uint16)size;
     CT_LOG_RUN_INF("CMS NODE_ID:%d", (int32)g_node_id);
-
+    value = cm_get_config_value(&cfg, "GCC_TYPE");
+    if (value != NULL && cm_strcmpi(value, "SD") == 0) {
+        g_dss_enable = CT_TRUE;
+    } else {
+        g_dss_enable = CT_FALSE;
+    }
     return CT_SUCCESS;
 }
 
@@ -582,6 +591,21 @@ static void cms_cli_proc_msg_req_dbs_iof_kick(cms_packet_head_t* msg)
     CT_LOG_DEBUG_INF("proc msg req iof kick succ");
 }
 
+static void cms_cli_proc_msg_req_dss_iof_kick(cms_packet_head_t* msg)
+{
+    int32 ret = CT_SUCCESS;
+    cms_cli_msg_req_iof_kick_t* req = (cms_cli_msg_req_iof_kick_t*)msg;
+
+    CT_LOG_DEBUG_INF("begin proc msg req iof kick");
+    ret = cm_dss_iof_kick_by_inst_id(req->node_id);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("proc msg req iof kick failed, kick node %u, ret %d.", req->node_id, ret);
+    }
+
+    (void)cms_cli_iof_kick_res(ret);
+    CT_LOG_DEBUG_INF("proc msg req iof kick succ");
+}
+
 static void cms_cli_proc_msg_req_file_iof_kick(cms_packet_head_t* msg)
 {
     int32 ret = CT_SUCCESS;
@@ -601,6 +625,8 @@ static void cms_cli_proc_msg_req_iof_kick(cms_packet_head_t* msg)
 {
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         cms_cli_proc_msg_req_dbs_iof_kick(msg);
+    } else if (g_dss_enable == CT_TRUE) {
+        cms_cli_proc_msg_req_dss_iof_kick(msg);
     } else {
         cms_cli_proc_msg_req_file_iof_kick(msg);
     }

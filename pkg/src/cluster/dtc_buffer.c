@@ -287,12 +287,22 @@ status_t dtc_get_exclusive_owner_pages(knl_session_t *session, buf_ctrl_t **ctrl
     return CT_SUCCESS;
 }
 
-bool32 dtc_lock_in_rcy_space_set(uint16 uid)
+bool32 dtc_lock_in_rcy_space_set(knl_session_t *session, uint16 uid)
 {
     dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
     rcy_set_t *rcy_set = &dtc_rcy->rcy_set;
+    if (uid >= CT_MAX_USERS || uid == CT_INVALID_ID16) {
+        CT_LOG_RUN_ERR("Invalid user id:%u when get space id", uid);
+        return CT_FALSE;
+    }
+    dc_user_t *user = session->kernel->dc_ctx.users[uid];
+    if (user == NULL) {
+        CT_LOG_RUN_ERR("User context is null for uid:%u", uid);
+        return CT_FALSE;
+    }
+    uint32 space_id = user->desc.data_space_id;
     for (uint32 i = 0; i < rcy_set->space_set_size; i++) {
-        if (uid == rcy_set->space_id_set[i]) {
+        if (space_id == rcy_set->space_id_set[i]) {
             return CT_TRUE;
         }
     }
@@ -370,6 +380,6 @@ bool32 dtc_dls_readable(knl_session_t *session, drid_t *lock_id)
     if (uid == CT_INVALID_ID16) {
         return CT_FALSE;
     }
-    bool32 lock_need_recover = dtc_lock_in_rcy_space_set(uid);
+    bool32 lock_need_recover = dtc_lock_in_rcy_space_set(session, uid);
     return !lock_need_recover;
 }

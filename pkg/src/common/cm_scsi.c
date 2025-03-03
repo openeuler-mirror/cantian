@@ -586,7 +586,7 @@ int32 cm_scsi3_caw(int32 fd, int64 block_addr, char *buff, int32 buff_len)
 
     status = ioctl(fd, SG_IO, &hdr);
     if (status < 0) {
-        CT_LOG_DEBUG_ERR("Sending SCSI caw command failed, status %d, errno %d.", status, errno);
+        CT_LOG_RUN_ERR("Sending SCSI caw command failed, status %d, errno %d.", status, errno);
         return CT_ERROR;
     }
 

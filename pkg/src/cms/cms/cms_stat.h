@@ -335,6 +335,7 @@ status_t cms_get_node_view(uint64* cms_online_bitmap);
 status_t cms_check_res_running(uint32 res_id);
 bool32 cms_check_node_dead(uint32 node_id);
 
+status_t cms_check_dss_stat(cms_res_t res, cms_res_stat_t stat);
 status_t cms_init_mes_channel_version(void);
 status_t cms_get_mes_channel_version(uint64* version);
 status_t cms_get_cluster_res_list_4tool(uint32 res_id, cms_tool_res_stat_list_t *res_list);

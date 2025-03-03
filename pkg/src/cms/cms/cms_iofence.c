@@ -26,6 +26,7 @@
 #include "cms_iofence.h"
 #include "cm_dbs_iofence.h"
 #include "cm_file_iofence.h"
+#include "cm_dss_iofence.h"
 #include "cms_gcc.h"
 #include "cm_queue.h"
 #include "cms_client.h"
@@ -262,11 +263,35 @@ void try_cms_file_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofenc
     CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: cms exec iof error.");
 }
 
+void try_cms_dss_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence_type)
+{   
+    status_t ret = CT_ERROR;
+    for (int i = 0; i < IOF_RETRY_NUM; i++) {
+        ret = cm_dss_iof_kick_by_inst_id(node_id);
+        if (ret == CT_SUCCESS) {
+            CMS_LOG_INF("kick node succ, node_id %u", node_id);
+            return;
+        }
+        cm_sleep(IOF_CHECK_INTERVAL);
+        CMS_LOG_ERR("dss iof failed, ret %d, node_id %u", ret, node_id);
+    }
+    if (cms_daemon_stop_pull() != CT_SUCCESS) {
+        CMS_LOG_ERR("stop cms daemon process failed.");
+    }
+    CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: cms exec iof error.");
+}
+
 void try_cms_kick_node(uint32 node_id, uint32 res_id, iofence_type_t iofence_type)
 {
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         try_cms_dbs_kick_node(node_id, res_id, iofence_type);
-    } else {
-        try_cms_file_kick_node(node_id, res_id, iofence_type);
+        return;
+    } 
+    
+    if (g_cms_param->gcc_type == CMS_DEV_TYPE_SD) {
+        try_cms_dss_kick_node(node_id, res_id, iofence_type);
+        return;
     }
+
+    try_cms_file_kick_node(node_id, res_id, iofence_type);
 }
