@@ -1654,6 +1654,9 @@ int32 ulog_export_handle(char *cluster_name, uint32 total_log_export_len, uint64
                          char *target_dir)
 {
     int32 ret = CT_SUCCESS;
+    // 先设置dbstor工具ID，跳过后续dbstor校验
+    NsTermHandle nsTerm = {.nsIdx = NS_TERM_CLIENT_TEST_NS_IDX, .termIdx = 0};
+    dbs_global_handle()->dbs_set_ns_term_handle(&nsTerm);
     // 根据输入填充lsn区间
     ReadBatchLogOption option = { 0 };
     ulog_export_option_init(&option, cluster_name, total_log_export_len, start_lsn);
@@ -1892,6 +1895,9 @@ int32 dbs_page_export(int32 argc, char *argv[])
     }
     printf("Fs name %s, cluster name %s\n", fs_name, cluster_name);
 
+    // 先设置dbstor工具ID，跳过后续dbstor校验
+    NsTermHandle nsTerm = {.nsIdx = NS_TERM_CLIENT_TEST_NS_IDX, .termIdx = 0};
+    dbs_global_handle()->dbs_set_ns_term_handle(&nsTerm);
     NameSpaceAttr ns_attr;
     if (dbs_global_handle()->open_namespace((char *)cluster_name, &ns_attr) != CT_SUCCESS) {
         printf("Failed to open namespace %s \n", cluster_name);

@@ -518,68 +518,68 @@ static inline int wsr_prepare(wsr_options_t *wsr_opts, const char *node_name)
 
 static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char *node_name)
 {
-    CT_LOG_AND_RETURN_IFERR(wsr_prepare(wsr_opts, node_name), "wsr_prepare failed");
-    CT_LOG_AND_RETURN_IFERR(wsr_get_dbinfo(wsr_opts, wsr_info), "wsr_get_dbinfo failed");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_prepare(wsr_opts, node_name), "wsr_prepare failed\n");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_get_dbinfo(wsr_opts, wsr_info), "wsr_get_dbinfo failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_wsr_info_t(wsr_opts, wsr_info), "wsr_build_wsr_info_t failed");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_wsr_info_t(wsr_opts, wsr_info), "wsr_build_wsr_info_t failed\n");
     }
 
-    CT_LOG_AND_RETURN_IFERR(wsr_build_header(wsr_opts, wsr_info), "wsr_build_header failed");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_header(wsr_opts, wsr_info), "wsr_build_header failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_load_profile(wsr_opts, wsr_info), "wsr_build_load_profile failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_efficiency(wsr_opts, wsr_info), "wsr_build_efficiency failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_top_events(wsr_opts, wsr_info), "wsr_build_top_events failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_host_cpu(wsr_opts, wsr_info), "wsr_build_host_cpu failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_host_mem(wsr_opts, wsr_info), "wsr_build_host_mem failed");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_load_profile(wsr_opts, wsr_info), "wsr_build_load_profile failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_efficiency(wsr_opts, wsr_info), "wsr_build_efficiency failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_events(wsr_opts, wsr_info), "wsr_build_top_events failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_host_cpu(wsr_opts, wsr_info), "wsr_build_host_cpu failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_host_mem(wsr_opts, wsr_info), "wsr_build_host_mem failed\n");
     }
 
-    CT_LOG_AND_RETURN_IFERR(wsr_build_instance_snap(wsr_opts, wsr_info), "wsr_build_instance_snap failed");
-    CT_LOG_AND_RETURN_IFERR(wsr_build_instance_buffer(wsr_opts, wsr_info), "wsr_build_instance_buffer failed");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_instance_snap(wsr_opts, wsr_info), "wsr_build_instance_snap failed\n");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_instance_buffer(wsr_opts, wsr_info), "wsr_build_instance_buffer failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_top_session(wsr_opts, wsr_info), "wsr_build_top_session failed");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session(wsr_opts, wsr_info), "wsr_build_top_session failed\n");
     }
 
-    CT_LOG_AND_RETURN_IFERR(wsr_build_top_session_sql(wsr_opts, wsr_info), "wsr_build_top_session_sql failed");
-    CT_LOG_AND_RETURN_IFERR(wsr_build_top_session_trans(wsr_opts, wsr_info), "wsr_bild_top_session_trans failed");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_sql(wsr_opts, wsr_info), "wsr_build_top_session_sql failed\n");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_trans(wsr_opts, wsr_info), "wsr_bild_top_session_trans failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_top_session_cursors_start(wsr_opts, wsr_info), "wsr_build_top_session_cursors_start failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_top_session_cursors_end(wsr_opts, wsr_info), "wsr_build_top_session_cursors_end failed");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_start(wsr_opts, wsr_info), "wsr_build_top_session_cursors_start failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_end(wsr_opts, wsr_info), "wsr_build_top_session_cursors_end failed\n");
     }
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_elapsed(wsr_opts, wsr_info), "wsr_build_sql_elapsed failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_longsql_time(wsr_opts, wsr_info), "wsr_build_longsql_time failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_cpu_time(wsr_opts, wsr_info), "wsr_build_cpu_time failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_io_wait(wsr_opts, wsr_info), "wsr_build_io_wait failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_gets(wsr_opts, wsr_info), "wsr_build_sql_gets failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_reads(wsr_opts, wsr_info), "wsr_build_sql_reads failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_executions(wsr_opts, wsr_info), "wsr_build_sql_executions failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_parses(wsr_opts, wsr_info), "wsr_build_sql_parses failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_6), 
-            "wsr_build_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_6);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_10), 
-            "wsr_build_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_10);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15), 
-            "wsr_build_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_15);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_20), 
-            "wsr_build_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_20);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30), 
-            "wsr_build_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_30);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15),
-            "wsr_build_long_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_15);
-        CT_LOG_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30),
-            "wsr_build_long_sql_first_letters failed, prefix num: %d", CT_WSR_SQL_PREFIX_30);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_elapsed(wsr_opts, wsr_info), "wsr_build_sql_elapsed failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_longsql_time(wsr_opts, wsr_info), "wsr_build_longsql_time failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_cpu_time(wsr_opts, wsr_info), "wsr_build_cpu_time failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_io_wait(wsr_opts, wsr_info), "wsr_build_io_wait failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_gets(wsr_opts, wsr_info), "wsr_build_sql_gets failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_reads(wsr_opts, wsr_info), "wsr_build_sql_reads failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_executions(wsr_opts, wsr_info), "wsr_build_sql_executions failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_parses(wsr_opts, wsr_info), "wsr_build_sql_parses failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_6), 
+            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_6);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_10), 
+            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_10);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15), 
+            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_20), 
+            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_20);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30), 
+            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15),
+            "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30),
+            "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
     }
-    CT_LOG_AND_RETURN_IFERR(wsr_build_sql_content(wsr_opts, wsr_info), "wsr_build_sql_content failed");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_content(wsr_opts, wsr_info), "wsr_build_sql_content failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CT_LOG_AND_RETURN_IFERR(wsr_build_segment_stat(wsr_opts, wsr_info), "wsr_build_segment_stat failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_report_summary(wsr_opts, wsr_info), "wsr_build_report_summary failed");
-        CT_LOG_AND_RETURN_IFERR(wsr_build_parameter(wsr_opts, wsr_info), "wsr_build_parameter failed");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_segment_stat(wsr_opts, wsr_info), "wsr_build_segment_stat failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_report_summary(wsr_opts, wsr_info), "wsr_build_report_summary failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_parameter(wsr_opts, wsr_info), "wsr_build_parameter failed\n");
     }
     return CTCONN_SUCCESS;
 }

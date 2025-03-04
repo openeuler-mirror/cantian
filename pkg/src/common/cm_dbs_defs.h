@@ -58,6 +58,9 @@ extern "C" {
 // define-namespace
 #define NS_MAX_NODE_NUM 64
 #define NS_MAX_TERM_NUM 64
+#define INVALID_VALUE32 0xFFFFFFFF
+// dbstor 工具进程id，需要与dbstor保持一致
+#define NS_TERM_CLIENT_TEST_NS_IDX (INVALID_VALUE32 - 10)
 
 // define-pagepool
 #define MAX_PAGE_POOL_NUM_IN_NAMESPACE (8192)
@@ -297,6 +300,11 @@ typedef struct {
     uint64_t sn;       // 顺序号递增，同一nsId、nodeId、termId对象先发起后到达的不处理
     CsTermAccess accessMode;    // 设置权限
 } TermAccessAttr;
+
+typedef struct {
+    uint32_t nsIdx;   // dbstor内部namespace数组下标
+    uint32_t termIdx;   // namespace中进程下标
+} NsTermHandle;
 
 // struct-pagepool
 typedef struct {
