@@ -313,6 +313,15 @@ status_t ctsql_execute_sql(void);
         }                                              \
     } while (0)
 
+#define CTSQL_PRINT_AND_RETURN_IFERR(ret, format, ...)                                                       \
+    do {                                                                                                \
+        status_t _status_ = (ret);                                                                      \
+        if (SECUREC_UNLIKELY(_status_ == -1)) {                                                         \
+            printf(format, ##__VA_ARGS__);                                                      \
+            return _status_;                                                                            \
+        }                                                                                               \
+    } while (0)
+
 static inline void ctsql_print_disconn_error(void)
 {
     ctsql_printf("CT-%05d, %s\n", ERR_CLT_CONN_CLOSE, "connect is not established");

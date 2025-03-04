@@ -1265,15 +1265,6 @@ typedef struct st_handle_mutiple_ptrs {
         }                                                                                   \
     } while (0)
 
-#define CT_LOG_AND_RETURN_IFERR(ret, format, ...)                                                       \
-    do {                                                                                                \
-        status_t _status_ = (ret);                                                                      \
-        if (SECUREC_UNLIKELY(_status_ == -1)) {                                                         \
-            CT_LOG_RUN_ERR(format, ##__VA_ARGS__);                                                      \
-            return _status_;                                                                            \
-        }                                                                                               \
-    } while (0)
-
 // return CT_SUCCESS if success occurs
 #define CT_RETURN_IFSUC(ret)                          \
     do {                                              \
