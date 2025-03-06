@@ -9,6 +9,7 @@ import sys
 import time
 import logging
 import traceback
+import collections
 from datetime import datetime
 
 import yaml
@@ -33,6 +34,9 @@ CANTIAN_DATABASE_ROLE_CHECK = ("echo -e 'select DATABASE_ROLE from DV_LRPL_DETAI
 
 DBSTOR_CHECK_VERSION_FILE = "/opt/cantian/dbstor/tools/cs_baseline.sh"
 DEPLOY_LOG_FILE = "/opt/cantian/log/deploy/deploy.log"
+
+KUBECTL_TRY_COUNT = 5
+CHECK_DEL_TRY_COUNT = 30
 
 
 class LogGer:
@@ -188,20 +192,21 @@ def check_cantian_yaml_config(value, cantian_path):
     with open(cantian_path, 'r') as f:
         configs = yaml.safe_load_all(f)
         for config in configs:
-            if config.get("kind") == "Deployment":
-                cantian_flag = True
-                if "namespace" not in value:
-                    value["namespace"] = config.get("metadata").get("namespace")
-                value["pod_name"].append(config.get("metadata").get("name").strip())
-                volumes = config.get("spec").get("template").get("spec").get("volumes")
-                for volume in volumes:
-                    if volume.get("name") == "config-volume":
-                        data = {
-                            "name": volume.get("configMap").get("name").strip(),
-                            "pod_name": config.get("metadata").get("name").strip()
-                        }
-                        value["config_map"].append(data)
-                        break
+            if config.get("kind") != "Deployment":
+                continue
+            cantian_flag = True
+            if "namespace" not in value:
+                value["namespace"] = config.get("metadata").get("namespace")
+            value["pod_name"].append(config.get("metadata").get("name").strip())
+            volumes = config.get("spec").get("template").get("spec").get("volumes")
+            for volume in volumes:
+                if volume.get("name") == "config-volume":
+                    data = {
+                        "name": volume.get("configMap").get("name").strip(),
+                        "pod_name": config.get("metadata").get("name").strip()
+                    }
+                    value["config_map"].append(data)
+                    break
     return cantian_flag
 
 
@@ -222,16 +227,20 @@ class K8sDRContainer:
         self.ulog_pair_list = []
         self.ssh_cmd_end = " ; echo last_cmd=$?"
         self.vstore_pair_list = []
-        self.single_pod = {}
+        self.single_pod = collections.defaultdict(list)
         self.abnormal_pod = {}
         self.check_flag = True
-        self.action_list = ["delete", "switch_over", "fail_over", "recover"]
+        self.action_list = ["delete", "switch_over", "fail_over", "recover", "unconnected_switch_delete",
+                            "unconnected_fail_over", "unconnected_switch", "unconnected_recover",
+                            "unconnected_check","unconnected_delete"]
         self.ip_info = ""
         self.config_count = 0
         self.ssh_expect = "]# "
         self.change_apply = False
         self.dm_logic_ip = []
         self.skip_login = False
+        self.unconnected_ip = []
+        self.is_unconnected_flag = False
 
     def warning_tip(self):
         warning_msgs = {
@@ -255,7 +264,24 @@ class K8sDRContainer:
                          "\tAfter this operation,\n"
                          "\tplease ensure that the original active cluster is not accessed for write operations,\n"
                          "\totherwise it will cause data inconsistency.\n",
-            "delete": "\tDeletion operation will delete the all Cantian nodes under hyper metro domain.\n"
+            "delete": "\tDeletion operation will delete the all Cantian nodes under hyper metro domain.\n",
+            "unconnected_switch_delete": "\tDeletion operation will delete the all Cantian nodes under hyper "
+                                         "metro domain.\n",
+            "unconnected_delete": "\tDeletion operation will delete the all Cantian nodes under hyper metro domain.\n",
+            "unconnected_switch": "\tSwitchover operation will be performed.\n"
+                                  "\tThe current operation will cause the active-standby switch,\n"
+                                  "\tplease make sure the standby data is consistent with the main data,\n"
+                                  "\tif the data is not consistent, "
+                                  "the execution of the switch operation may cause data loss,\n"
+                                  "\tplease make sure the standby and DeviceManager are in good condition, "
+                                  "if not, the new active will hang after switch over.\n"
+                                  "\tAfter the command is executed, check the replay status on the standby "
+                                  "side to determine if the active-standby switch was successful.\n",
+            "unconnected_recover": "\tRecover operation will downgrade current station to standby,\n"
+                                   "\tsynchronize data from remote to local, and cover local data.\n"
+                                   "\tEnsure remote data consistency to avoid data loss.\n",
+            "unconnected_check": "\tThis operation will check query single_even write tags.\n",
+            "unconnected_fail_over": "\tThis operation will check pods' stat\n"
         }
         if self.action in warning_msgs:
             warning("Warning:")
@@ -301,7 +327,7 @@ class K8sDRContainer:
 
     def get_self_ip_info(self):
         cmd = "hostname -I"
-        ret_code, ret, stderr = exec_popen(cmd, 20)
+        ret_code, ret, _ = exec_popen(cmd, 20)
         if ret_code:
             err_msg = f"Failed to get ip info for {cmd}"
             LOG.error(err_msg)
@@ -316,32 +342,32 @@ class K8sDRContainer:
         with open(config_path, 'r') as f:
             configs = yaml.safe_load_all(f)
             for config in configs:
-                if config.get("kind") == "ConfigMap":
-                    config_flag = True
-                    deploy_param = json.loads(config.get("data").get("deploy_param.json"))
-                    domain_name = deploy_param.get("dr_deploy").get("domain_name")
-                    if domain_name != self.domain_name:
-                        err_msg = f"Domain name is not match, server ip[{ip}], config path[{config_yaml}]"
-                        LOG.error(err_msg)
-                        return False
-                    if not self.check_info_contain_logic_ip(deploy_param.get("storage_vlan_ip")):
-                        LOG.error(f"This configuration file[{config_yaml}] "
-                                  f"does not belong to the current DM IP address")
-                        return False
-                    if "config_map" in value:
-                        for configMap in value["config_map"]:
-                            if configMap.get("name") == config.get("metadata").get("name").strip():
-                                configMap["node_id"] = deploy_param.get("node_id")
-                                break
-                        if "run_user" in value:
-                            continue
-                    value["storage_dbstor_fs"] = deploy_param.get("storage_dbstor_fs")
-                    value["run_user"] = deploy_param.get("deploy_user").strip().split(":")[0]
-                    value["cluster_name"] = deploy_param.get("cluster_name").strip()
-                    value["storage_dbstor_page_fs"] = deploy_param.get("storage_dbstor_page_fs")
-                    value["dbstor_fs_vstore_id"] = deploy_param.get("dbstor_fs_vstore_id")
-                    value["storage_metadata_fs"] = deploy_param.get("storage_metadata_fs", "")
-                    value["cluster_id"] = deploy_param.get("cluster_id")
+                if config.get("kind") != "ConfigMap":
+                    continue
+                config_flag = True
+                deploy_param = json.loads(config.get("data").get("deploy_param.json"))
+                domain_name = deploy_param.get("dr_deploy").get("domain_name")
+                if domain_name != self.domain_name:
+                    LOG.error(f"Domain name is not match, server ip[{ip}], config path[{config_yaml}]")
+                    return False
+                if not self.check_info_contain_logic_ip(deploy_param.get("storage_vlan_ip")):
+                    LOG.error(f"This configuration file[{config_yaml}] "
+                              f"does not belong to the current DM IP address")
+                    return False
+                configMaps = value.get("config_map", [])
+                for configMap in configMaps:
+                    if configMap.get("name") == config.get("metadata").get("name").strip():
+                        configMap["node_id"] = deploy_param.get("node_id")
+                        break
+                if "run_user" in value:
+                    continue
+                value["storage_dbstor_fs"] = deploy_param.get("storage_dbstor_fs")
+                value["run_user"] = deploy_param.get("deploy_user").strip().split(":")[0]
+                value["cluster_name"] = deploy_param.get("cluster_name").strip()
+                value["storage_dbstor_page_fs"] = deploy_param.get("storage_dbstor_page_fs")
+                value["dbstor_fs_vstore_id"] = deploy_param.get("dbstor_fs_vstore_id")
+                value["storage_metadata_fs"] = deploy_param.get("storage_metadata_fs", "")
+                value["cluster_id"] = deploy_param.get("cluster_id")
         return config_flag
 
     def check_k8s_config(self, ip, index, dir_path):
@@ -409,7 +435,7 @@ class K8sDRContainer:
             return False
         return True
 
-    def pre_check_link(self):
+    def pre_check_dir(self):
         if not os.path.exists(self.server_key_file):
             err_msg = f"Server key file {self.server_key_file} does not exist"
             LOG.error(err_msg)
@@ -418,20 +444,28 @@ class K8sDRContainer:
 
         server_path = os.path.join(CURRENT_PATH, "server")
         if not os.path.exists(server_path):
-            os.makedirs(server_path)
-        config_index = 0
+            os.makedirs(server_path)        
         if not remove_dir(server_path):
             err_msg = f"Failed to remove {server_path}."
             LOG.error(err_msg)
             raise Exception(err_msg)
+        
+    def pre_check_link(self):
+        config_index = 0
+        server_path = os.path.join(CURRENT_PATH, "server")
         for ip in self.server_info:
             if ip in self.ip_info:
                 ssh_client = None
                 islocal = True
             else:
-                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
-                ssh_client.create_client()
+                ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)                
                 islocal = False
+                try:
+                    ssh_client.create_client()
+                except:
+                    LOG.error(f"Failed to create ssh client for {ip}")
+                    self.unconnected_ip.append(ip)
+                    continue
             self.config_count += len(self.server_info[ip])
             for index, value in enumerate(self.server_info[ip]):
                 dir_path = os.path.join(server_path, str(config_index))
@@ -473,13 +507,48 @@ class K8sDRContainer:
                 ssh_client.close_client()
         LOG.info("pre_check_link finish")
 
+    def user_confirm_twice(self, warning_info):
+        if self.unconnected_ip:
+            warning(f"Existing unconnected ip: {self.unconnected_ip}, are you sure continue manually?")
+            if confirm():                    
+                warning(f"Please upload the same package to the node {self.unconnected_ip} and decompress it.\n"
+                        "Then modify the configuration file k8s_dr_config.json.\n"
+                        "Input {warning_info}.")
+                self.is_unconnected_flag = False
+                if not confirm(): 
+                    raise Exception("User abort the program.")
+            else:
+                raise Exception("User abort the program.")
+
+    def pre_check_unconnected_confirm(self):
+        if self.unconnected_ip:
+            self.is_unconnected_flag = True
+            for ip in self.unconnected_ip:
+                del self.server_info[ip]
+            if self.action in ["delete", "switch_over", "unconnected_switch_delete","unconnected_delete"
+                               "fail_over", "unconnected_fail_over"]:
+                warning(f"Existing unconnected ip: {self.unconnected_ip}, are you sure continue manually?")
+                if confirm():
+                    warning(f"Please upload the same package to the node {self.unconnected_ip} and decompress it.\n"
+                            "Then modify the configuration file k8s_dr_config.json.\n")                   
+                    if self.action in ["switch_over", "unconnected_switch_delete"]:
+                        warning("Input 'python3 dr_k8s_switch.py unconnected_switch_delete'.")
+                    if self.action in ["delete", "unconnected_delete"]:
+                        warning("Input 'python3 dr_k8s_switch.py unconnected_delete'.")
+                    if self.action in ["fail_over", "unconnected_fail_over"]:
+                        warning("Input 'python3 dr_k8s_switch.py unconnected_fail_over'.")
+                    if not confirm():
+                        self.check_flag = False
+                else:
+                    self.check_flag = False
+
     def init_dr_option(self):
         ping_cmd = f"ping -c 1 -i 1 {self.dm_ip}"
-        code, out, err = exec_popen(ping_cmd, timeout=20)
+        code, _, _ = exec_popen(ping_cmd, timeout=20)
         if code:
             err_msg = f"Fail to ping DM ip[{self.dm_ip}], maybe DM is fault."
             warning(err_msg)
-            if self.action != "delete":
+            if self.action not in ["delete", "unconnected_delete"]:
                 raise Exception(err_msg)
             if confirm():
                 self.skip_login = True
@@ -490,7 +559,7 @@ class K8sDRContainer:
         try:
             self.storage_opt.login()
         except Exception as e:
-            if self.action != "delete":
+            if self.action not in ["delete", "unconnected_delete"]:
                 raise e
             if "user name or password is incorrect" in str(e) or "verification code is not entered" in str(e):
                 raise e
@@ -518,7 +587,8 @@ class K8sDRContainer:
         return False
 
     def check_hyper_metro_domain_role(self, role):
-        primary_action = ["switch_over", "delete"]
+        primary_action = ["switch_over", "delete", "unconnected_delete", "unconnected_switch",
+                          "unconnected_switch_delete"]
         if self.action in primary_action and role != ConfigRole.Primary:
             LOG.error(f"Current action[{self.action}] not supporting operations on the standby side")
             self.check_flag = False
@@ -548,10 +618,9 @@ class K8sDRContainer:
                         self.ulog_pair_list.append(pair)
         LOG.info("get_ulog_pair_info_list finish")
 
-    def match_config_and_pair_with_fs_name(self, ip, index, ulog_pair_info):
+    def match_config_and_pair_with_fs_name(self, value, ulog_pair_info):
         log_fs_name = ulog_pair_info.get("LOCALOBJNAME").strip()
         vstore_id = ulog_pair_info.get("vstoreId").strip()
-        value = self.server_info[ip][index]
         if value.get("storage_dbstor_fs") == log_fs_name and value.get("dbstor_fs_vstore_id") == vstore_id:
             value["log_fs_id"] = ulog_pair_info.get("LOCALOBJID")
             value["log_pair_id"] = ulog_pair_info.get("ID")
@@ -560,18 +629,19 @@ class K8sDRContainer:
 
     def check_and_match_ulog_page_info(self):
         LOG.info("begin to check_and_match_ulog_page_info")
-        filter_server_info = {}
+        filter_server_info = collections.defaultdict(list)
+        ulog_pair_list = []
         for ulog_pair_info in self.ulog_pair_list:
             for ip in self.server_info:
                 for index, value in enumerate(self.server_info[ip]):
                     if ip in filter_server_info and index in filter_server_info[ip]:
                         continue
-                    if self.match_config_and_pair_with_fs_name(ip, index, ulog_pair_info):
-                        if ip in filter_server_info:
-                            filter_server_info[ip].append(index)
-                        else:
-                            filter_server_info[ip] = [index]
+                    if self.match_config_and_pair_with_fs_name(value, ulog_pair_info):
+                        filter_server_info[ip].append(index)
+                        ulog_pair_list.append(ulog_pair_info)
                         break
+        if self.is_unconnected_flag == True:
+            self.ulog_pair_list = ulog_pair_list
         LOG.info("check_and_match_ulog_page_info finish")
 
     def check_hyper_metro_stat(self):
@@ -589,7 +659,9 @@ class K8sDRContainer:
         self.get_self_ip_info()
         self.init_dr_option()
         self.get_dm_logic_ip()
+        self.pre_check_dir()
         self.pre_check_link()
+        self.pre_check_unconnected_confirm()
         self.check_flag_stat()
         if self.skip_login:
             return
@@ -631,16 +703,10 @@ class K8sDRContainer:
 
     def get_pod_list(self, ssh_client, namespace, islocal=False):
         count = 0
-        while True:
+        while count <= KUBECTL_TRY_COUNT:
             cmd = f"kubectl get pod -n {namespace}"
             res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
-            if not flag:
-                if count == 3:
-                    err_msg = f"Failed to get the pod list more than 3 times."
-                    if not islocal:
-                        err_msg = f"Failed to get the pod list more than 3 times, server ip[{ssh_client.ip}]."
-                    LOG.error(err_msg)
-                    return []
+            if not flag: 
                 time.sleep(5)
                 count += 1
                 continue
@@ -649,6 +715,12 @@ class K8sDRContainer:
                 if "NAME" in i:
                     get_flag = True
             return res if get_flag else []
+        if count == KUBECTL_TRY_COUNT:
+            err_msg = f"Failed to get the pod list more than 3 times."
+            if not islocal:
+                err_msg = f"Failed to get the pod list more than 3 times, server ip[{ssh_client.ip}]."
+            LOG.error(err_msg)
+            return []
 
     def get_pod_name_list_by_stat(self, ssh_client, namespace, pod_list, stat="default", islocal=False):
         pod_name_list = []
@@ -685,7 +757,7 @@ class K8sDRContainer:
         cantian_yaml = value.get("cantian_yaml")
         config_yaml = value.get("config_yaml")
         cmd = f"kubectl delete -f {cantian_yaml} -f {config_yaml}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
             err_msg = f"Failed to delete pod, IP[{ip}] cantian path[{cantian_yaml}] config path[{config_yaml}]."
             LOG.error(err_msg)
@@ -711,7 +783,7 @@ class K8sDRContainer:
         cantian_yaml = value.get("cantian_yaml", "")
         config_yaml = value.get("config_yaml", "")
         cmd = f"kubectl apply -f {config_yaml} -f {cantian_yaml}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
             err_msg = f"Failed to apply pod, IP[{ip}] config path[{config_yaml}] cantian path[{cantian_yaml}]"
             LOG.error(err_msg)
@@ -725,12 +797,12 @@ class K8sDRContainer:
             ssh_client.create_client()
             islocal = False
         cmd = f"kubectl apply -f {config_yaml}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
             err_msg = f"Failed to apply pod ,path[{config_yaml}]"
             LOG.error(err_msg)
         cmd = f"kubectl apply -f {cantian_yaml}"
-        res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+        _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
         if not flag:
             err_msg = f"Failed to apply pod ,path[{cantian_yaml}]"
             LOG.error(err_msg)
@@ -746,7 +818,7 @@ class K8sDRContainer:
         while True:
             if not config_del:
                 cmd = f"kubectl delete -f {config_yaml}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                 if not flag:
                     err_msg = f"Failed to delete pod, path[{config_yaml}]"
                     LOG.error(err_msg)
@@ -754,7 +826,7 @@ class K8sDRContainer:
                     config_del = True
             if not cantian_del:
                 cmd = f"kubectl delete -f {cantian_yaml}"
-                res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                 if not flag:
                     err_msg = f"Failed to delete pod, path[{cantian_yaml}]"
                     LOG.error(err_msg)
@@ -762,7 +834,7 @@ class K8sDRContainer:
                     cantian_del = True
             if config_del and cantian_del:
                 break
-            if count == 5:
+            if count == KUBECTL_TRY_COUNT:
                 LOG.error(f"ip[{ip}] delete pod err, please check.")
             count += 1
 
@@ -784,7 +856,7 @@ class K8sDRContainer:
                 value["dst_config_yaml"] = source_config_yml
                 if not config_apply:
                     cmd = f"kubectl apply -f {source_config_yml}"
-                    res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                    _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
                         err_msg = f"Failed to apply pod, path[{source_config_yml}]"
                         LOG.error(err_msg)
@@ -792,7 +864,7 @@ class K8sDRContainer:
                         config_apply = True
                 if not cantian_apply:
                     cmd = f"kubectl apply -f {source_cantian_yaml}"
-                    res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                    _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
                         err_msg = f"Failed to apply pod, path[{source_cantian_yaml}]"
                         LOG.error(err_msg)
@@ -805,7 +877,7 @@ class K8sDRContainer:
                     config_flag = True
                 if not config_apply:
                     cmd = f"kubectl apply -f {dst_config_yaml}"
-                    res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                    _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
                         err_msg = f"Failed to apply pod, path[{dst_config_yaml}]"
                         LOG.error(err_msg)
@@ -817,7 +889,7 @@ class K8sDRContainer:
                     config_flag = True
                 if not cantian_apply:
                     cmd = f"kubectl apply -f {dst_cantian_yaml}"
-                    res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+                    _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
                     if not flag:
                         err_msg = f"Failed to apply pod, path[{dst_cantian_yaml}]"
                         LOG.error(err_msg)
@@ -825,7 +897,7 @@ class K8sDRContainer:
                         cantian_apply = True
             if config_apply and cantian_apply:
                 break
-            if count == 5:
+            if count == KUBECTL_TRY_COUNT:
                 LOG.error(f"ip[{ip}] copy file and apply err, please check.")
                 raise Exception("copy_file or apply error")
             count += 1
@@ -856,11 +928,10 @@ class K8sDRContainer:
                                                                   pod_name_list, islocal=islocal)
                         if len(pod_list) == 0:
                             break
-                        else:
-                            if count == 20:
-                                exist_pod = True
-                                break
-                            count += 1
+                        if count == CHECK_DEL_TRY_COUNT:
+                            exist_pod = True
+                            break
+                        count += 1
                         time.sleep(3)
                         run_time += 3
                 if ssh_client is not None:
@@ -953,9 +1024,9 @@ class K8sDRContainer:
         warning_flag = False
         for ip in self.server_info:
             for value in self.server_info[ip]:
-                pod_name_list = value.get("pod_name")
+                pod_name_list = value.get("pod_name", [])
                 namespace = value.get("namespace")
-                abnormal_pod_list = value.get("abnormal_pods")
+                abnormal_pod_list = value.get("abnormal_pods", [])
                 if len(abnormal_pod_list) == len(pod_name_list):
                     err_msg = (f"IP[{ip}], namespace[{namespace}], "
                                f"pod name[{pod_name_list}], all pods Abnormal status")
@@ -1218,7 +1289,7 @@ class K8sDRContainer:
             time.sleep(5)
             for pod_name in self.get_pod_name_list_by_stat(ssh_client, namespace, pod_name_list,
                                                            stat="running", islocal=islocal):
-                ret, check_flag = self.pod_exe_cmd(pod_name, namespace, check_cmd, ssh_client, islocal=islocal)
+                _, check_flag = self.pod_exe_cmd(pod_name, namespace, check_cmd, ssh_client, islocal=islocal)
                 if not check_flag:
                     continue
                 else:
@@ -1236,7 +1307,7 @@ class K8sDRContainer:
                     ssh_client = SshClient(ip, self.server_user, private_key_file=self.server_key_file)
                     ssh_client.create_client()
                     islocal = False
-                for index, value in enumerate(self.server_info[ip]):
+                for index, _ in enumerate(self.server_info[ip]):
                     self.do_check_pod_dbstor_init(ip, ssh_client, index, islocal=islocal)
                 if ssh_client is not None:
                     ssh_client.close_client()
@@ -1268,6 +1339,7 @@ class K8sDRContainer:
             finally:
                 self.exe_func(self.del_pods_with_change_file)
             LOG.info("delete pods with change config finish")
+            self.user_confirm_twice("'python3 dr_k8s_switch.py unconnected_check' and wait for the indication")            
             self.dr_option.change_fs_hyper_metro_domain_second_access(self.domain_id, DomainAccess.ReadOnly)
             try:
                 self.dr_option.join_fs_hyper_metro_domain(self.domain_id)
@@ -1279,6 +1351,7 @@ class K8sDRContainer:
             LOG.info("The current hyper_metro_status running_status is not Split.")
             return
         self.query_sync_status()
+        self.user_confirm_twice("'python3 dr_k8s_switch.py unconnected_recover'")
         LOG.info("switch hyper metro domain with recover finish.")
 
     def wait_remote_replication_pair_sync(self, pair_id):
@@ -1316,14 +1389,9 @@ class K8sDRContainer:
                 running_status = page_pair_info.get("RUNNINGSTATUS")
                 pair_id = page_pair_info.get("ID")
                 if page_role == "true":
-                    if ip not in self.single_pod:
-                        if value["single"] == "1":
-                            self.single_pod[ip] = [value]
-                            self.del_pod(ip, value["cantian_yaml"], )
-                    else:
-                        if value["single"] == "1":
-                            self.single_pod[ip].append(value)
-                            self.del_pod(ip, value["cantian_yaml"], )
+                    if value["single"] == "1":
+                        self.single_pod[ip].append(value)
+                        self.del_pod(ip, value["cantian_yaml"], )
                     self.dr_option.swap_role_replication_pair(pair_id)
                     self.dr_option.remote_replication_filesystem_pair_set_secondary_write_lock(pair_id)
                     self.execute_replication_steps(running_status, value, pair_id=pair_id)
@@ -1353,7 +1421,7 @@ class K8sDRContainer:
                 os.remove(config_yaml)
         else:
             cmd = f"rm -rf {cantian_yaml} {config_yaml}"
-            res, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
+            _, flag = self.ssh_exec_cmd(ssh_client, cmd, timeout=10, islocal=islocal)
             if not flag:
                 err_msg = (f"Failed to delete config file, IP[{ip}] cantian path[{cantian_yaml}] "
                            f"config path[{config_yaml}].]")
@@ -1396,11 +1464,20 @@ class K8sDRContainer:
             LOG.info(f"Ip[{ip}] namespace[{namespace}] pod[{pod_name}] begin to backup pod logs.")
             cmd = (f"sh /ctdb/cantian_install/cantian_connector/action/docker/log_backup.sh "
                    f"{cluster_name} {cluster_id} {node_id} {run_user} {storage_metadata_fs}")
-            ret, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client, islocal=islocal)
+            _, flag = self.pod_exe_cmd(pod_name, namespace, cmd, ssh_client, islocal=islocal)
             if not flag:
                 LOG.error(f"IP[{ip}] namespace[{namespace}] "
                           f"pod_name[{pod_name}] back pod logs failed.")
         LOG.info(f"Ip[{ip}] namespace[{namespace}] backup_pod_log finish.")
+
+    def delete_pods(self):
+        self.exe_func(self.backup_pod_log)
+        self.exe_func(self.del_all_pod)
+        LOG.info("active pods delete finish.")
+        if not self.check_pod_del():
+            LOG.error("active pods delete failed.")
+            return False
+        return True
 
     def exe_func(self, func):
         ssh_client = None
@@ -1427,16 +1504,13 @@ class K8sDRContainer:
         if not self.check_abnormal_pod_stat():
             LOG.info("active pods stat abnormal, exit.")
             return
-        self.exe_func(self.backup_pod_log)
-        self.exe_func(self.del_all_pod)
-        LOG.info("active pods delete finish.")
-        if not self.check_pod_del():
-            LOG.error("active pods delete failed.")
-            return
+        self.delete_pods()
         self.switch_hyper_metro_domain_role()
         self.switch_replication_pair_role()
         self.exe_func(self.apply_pods)
         LOG.info("apply pods finish")
+        if self.unconnected_ip:
+            warning(f"Go to the node {self.unconnected_ip} and input 'python3 dr_k8s_switch.py unconnected_switch'.")
         self.check_pod_start()
 
     def fail_over(self):
@@ -1447,6 +1521,11 @@ class K8sDRContainer:
         self.do_fail_over()
         self.exe_func(self.check_database_role)
         LOG.info("check database role finish.")
+
+    def unconnected_fail_over(self):
+        self.exe_func(self.check_pod_stat)
+        if not self.check_abnormal_pod_stat():
+            warning("pod stat is abnormal, back to the orginal node and input 'no'.")
 
     def recover(self):
         try:
@@ -1464,13 +1543,60 @@ class K8sDRContainer:
                 self.exe_func(self.delete_config_file)
 
     def delete(self):
-        self.exe_func(self.backup_pod_log)
-        self.exe_func(self.del_all_pod)
-        LOG.info("active pods delete finish.")
-        if not self.check_pod_del():
-            LOG.error("active pods delete failed.")
+        if self.delete_pods():
+            LOG.info("active pods delete success.")
+
+    def unconnected_delete(self):
+        if self.delete_pods():
+            LOG.info("active pods delete success.")
+
+    def unconnected_switch_delete(self):
+        if not self.check_abnormal_pod_stat():
+            LOG.info("active pods stat abnormal, exit.")
             return
-        LOG.info("active pods delete success.")
+        self.delete_pods()
+        warning("Script complete, back to the original node and wait for the next indication.")
+
+    def unconnected_switch(self):
+        self.switch_replication_pair_role()
+        self.exe_func(self.apply_pods)
+        LOG.info("apply pods finish")
+        if self.unconnected_ip:
+            warning(f"Go to the node {self.unconnected_ip} and input 'python3 dr_k8s_switch.py unconnected_switch'.")
+        self.check_pod_start()
+        warning("Script complete, succeed to switch_over in this unconnected node.")
+    
+    def unconnected_check(self):
+        self.exe_func(self.change_config_and_apply_pod)
+        LOG.info("apply pods with change config finish")
+        self.change_apply = True
+        try:
+            self.check_dbstor_init()
+        except Exception as e:
+            LOG.error(f"Check dbstor init fialed, detail: {e}")
+            raise e
+        finally:
+            self.exe_func(self.del_pods_with_change_file)
+        LOG.info("delete pods with change config finish")
+        self.user_confirm_twice("'python3 dr_k8s_switch.py unconnected_check' and wait for the indication")
+        warning("Script complete, back to the original node and wait for the next indication.") 
+
+    def unconnected_recover(self):
+        self.user_confirm_twice("'python3 dr_k8s_switch.py unconnected_recover'")
+        try:
+            self.switch_replication_pair_role_recover()
+            self.exe_func(self.apply_pods)
+            LOG.info("apply pods finish")
+            self.check_pod_start()
+            self.exe_func(self.ctbackup_purge_log)
+            LOG.info("ctbackup_purge_log finish.")
+        except Exception as e:
+            LOG.error(f"Cannot apply pods and ctbackup purge log, detail: {e}")
+            raise e
+        finally:
+            if self.change_apply:
+                self.exe_func(self.delete_config_file)
+        warning("Script complete, succeed to recover in the unconnected node.")
 
     def check_flag_stat(self):
         if not self.check_flag:
@@ -1487,14 +1613,18 @@ class K8sDRContainer:
             return
         if not self.warning_tip():
             return
+        if "unconnected" in self.action:
+            self.is_unconnected_flag = True
         self.init_k8s_config()
         self.check_flag_stat()
         try:
             self.pre_check()
-            try:
+            try:  
                 getattr(self, self.action)
             except AttributeError as _err:
-                err_msg = "The supported types of operations include[fail_over, recover, switch_over, delete]"
+                err_msg = "The supported types of operations include [delete, switch_over, fail_over, recover,\n"
+                          "unconnected_switch_delete, unconnected_fail_over, unconnected_switch, unconnected_recover,
+                          "unconnected_check, unconnected_delete]\n"
                 raise Exception(err_msg) from _err
             getattr(self, self.action)()
         except Exception as e:
