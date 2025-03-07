@@ -709,13 +709,13 @@ function main_deploy() {
         pre_install)
             check_old_install
             chown_mod_scripts
-            init_cpu_config
             do_deploy ${PRE_INSTALL_NAME} ${INSTALL_TYPE}
             exit $?
             ;;
         install)
             copy_cantian_scripts
             create_mysql_dir
+            init_cpu_config
             do_deploy ${INSTALL_NAME} ${INSTALL_TYPE}
             exit $?
             ;;
