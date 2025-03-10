@@ -36,16 +36,17 @@ drwxr-xr-x  7 root root      4096 Sep 20 10:25 cantian-connector-mysql // cantia
 drwxr-xr-x  4 root root      4096 Sep 25 18:11 cantian_data // cantian 数据文件目录
 ```
 
-### 下载最新docker镜像
+### 下载最新docker基础镜像
 
 ```shell
 # x86版本
-docker pull ykfnxx/cantian_dev:0.1.0
+docker pull quay.io/centos/centos:centos8.2.2004
+docker tag quay.io/centos/centos:centos8.2.2004 centos:8.2.2004
 # arm版本
-docker pull ykfnxx/cantian_dev:0.1.1
-# x决定是arm/x86版本
-docker tag ykfnxx/cantian_dev:0.1.[x] cantian_dev:latest
+docker pull hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1
+docker tag hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1 openeuler/openeuler:22.03-lts-sp1
 ```
+
 
 ### 准备代码
 
@@ -59,6 +60,20 @@ tar -zxf mysql-8.0.26.tar.gz
 mv mysql-server-mysql-8.0.26 cantian-connector-mysql/mysql-source
 
 mkdir -p cantian_data
+```
+屏蔽编译告警
+```shell
+# 注释maintainer.cmake文件中两行
+sed -i '/STRING_APPEND(MY_C_WARNING_FLAGS   " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
+sed -i '/STRING_APPEND(MY_CXX_WARNING_FLAGS " -Werror")/s/^/#/' cantian-connector-mysql/mysql-source/cmake/maintainer.cmake
+```
+编译容器镜像
+```shell
+cd cantian/docker
+# arm环境执行以下命令
+docker build -t cantian_dev -f Dockerfile_ARM64 .
+# x86环境执行以下命令
+docker build -t cantian_dev -f Dockerfile .
 ```
 
 <a id="start_docker"></a>
