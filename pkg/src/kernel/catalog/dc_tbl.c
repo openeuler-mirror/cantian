@@ -883,7 +883,8 @@ status_t dc_load_entity_internal(knl_session_t *session, dc_user_t *user, uint32
             return CT_ERROR;
         }
 
-        if (entity->column_count >= session->kernel->attr.max_column_count) {
+        if (entity->column_count >= session->kernel->attr.max_column_count ||
+            entity->vircol_count > CT_MAX_INDEX_COLUMNS * CT_MAX_TABLE_INDEXES + CT_MAX_VIRTUAL_COLS) {
             dc_entry_dec_ref(entity);
             mctx_destroy(entity->memory);
             CT_THROW_ERROR_EX(ERR_INVALID_PARAMETER,
@@ -1818,9 +1819,9 @@ static status_t db_load_virtual_column(knl_session_t *session, dc_entity_t *enti
 
         ret = memset_sp((void *)entity->virtual_columns, size, 0, size);
         knl_securec_check(ret);
-        entity->max_virtual_cols = col_pos + 1;
     }
 
+    entity->vircol_count++;
     entity->virtual_columns[col_pos] = column;
     return CT_SUCCESS;
 }
@@ -1935,19 +1936,24 @@ static status_t dc_load_column(knl_session_t *session, knl_cursor_t *cursor, dc_
 static status_t dc_load_vcolumn_default_expr(knl_session_t *session, dc_entity_t *entity)
 {
     knl_column_t *column = NULL;
-
-    for (uint32 id = 0; id < entity->max_virtual_cols; ++id) {
+    session_t *session_ctc = (session_t *)session;
+    for (uint32 id = 0; id < entity->vircol_count; ++id) {
         column = entity->virtual_columns[id];
         if (column == NULL || KNL_COLUMN_IS_DELETED(column)) {
             continue;
         }
-        CM_ASSERT(column->default_text.len != 0);
-
-        /* get default expr tree from defalut_text directly instead of default_data */
-        if (g_knl_callback.parse_default_from_text((knl_handle_t)session,
-            (knl_handle_t)entity, (knl_handle_t)column, entity->memory,
-            &column->default_expr, &column->update_default_expr, column->default_text) != CT_SUCCESS) {
-            return CT_ERROR;
+        
+        // The default_text of VGCs store location in SYS_COLUMNS, no parsing
+        if (!session_ctc->is_ctc || KNL_COLUMN_IS_HIDDEN(column)) {
+            CM_ASSERT(column->default_text.len != 0);
+            /* get default expr tree from defalut_text directly instead of default_data */
+            if (g_knl_callback.parse_default_from_text((knl_handle_t)session,
+                (knl_handle_t)entity, (knl_handle_t)column, entity->memory,
+                &column->default_expr, &column->update_default_expr, column->default_text) != CT_SUCCESS) {
+                CT_LOG_RUN_ERR("the default_text: %s , len: %u parse failed!",
+                               column->default_text.str, column->default_text.len);
+                return CT_ERROR;
+            }
         }
     }
 

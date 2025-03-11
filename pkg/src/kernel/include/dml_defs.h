@@ -77,7 +77,7 @@ typedef enum st_nologing_type {
 #define KNL_COLUMN_FLAG_JSONB          0x00000800 /* column is an jsonb, actually is blob */
 
 #define KNL_COLUMN_INVISIBLE(col) \
-    ((col)->flags & (KNL_COLUMN_FLAG_HIDDEN | KNL_COLUMN_FLAG_DELETED | KNL_COLUMN_FLAG_VIRTUAL))
+    ((col)->flags & (KNL_COLUMN_FLAG_HIDDEN | KNL_COLUMN_FLAG_DELETED))
 #define KNL_COLUMN_IS_DELETED(col)        (((col)->flags & KNL_COLUMN_FLAG_DELETED) != 0)
 #define KNL_COLUMN_IS_HIDDEN(col)         (((col)->flags & KNL_COLUMN_FLAG_HIDDEN) != 0)
 #define KNL_COLUMN_IS_UPDATE_DEFAULT(col) (((col)->flags & KNL_COLUMN_FLAG_UPDATE_DEFAULT) != 0)

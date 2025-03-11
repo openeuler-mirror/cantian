@@ -432,6 +432,7 @@ typedef enum en_cs_distribute_type {
 #define CT_MAX_PART_COLUMN_SIZE (uint32)4000
 #define CT_MAX_LOB_SIZE ((uint64)SIZE_M(1024) * 4)
 #define CT_MAX_SQL_PARAM_COUNT (uint32)0x8000
+#define CT_MAX_VIRTUAL_COLS (uint32)512
 #define CT_MAX_INDEX_COLUMNS (uint32)16
 #define CT_MAX_PARTKEY_COLUMNS (uint32)16
 #define CT_MAX_PART_COUNT (uint32)(PART_GROUP_SIZE * PART_GROUP_SIZE)
