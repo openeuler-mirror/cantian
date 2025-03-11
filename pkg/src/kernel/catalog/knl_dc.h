@@ -219,8 +219,8 @@ typedef struct st_dc_entity {
     volatile bool32 valid;         /* valid or not, changed by ddl */
     atomic32_t ref_count; /* reference number, inc/dec by sql */
     spinlock_t ref_lock;
-    uint32 column_count;      /* column count */
-    uint32 max_virtual_cols; /* max virtual column id */
+    uint32 column_count; /* column count, including virtual stored column */
+    uint32 vircol_count; /* includes virtual generated and created by func_index */
     bool32 contain_lob;
     bool32 corrupted; /* table segment corrupted */
     knl_dict_type_t type;

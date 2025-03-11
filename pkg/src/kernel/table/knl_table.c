@@ -244,7 +244,7 @@ status_t db_init_table_desc_spc(knl_session_t *session, knl_table_desc_t *desc, 
 
 static status_t db_init_table_desc_by_def(knl_session_t *session, knl_table_desc_t *desc, knl_table_def_t *def)
 {
-    desc->column_count = def->columns.count;
+    desc->column_count = def->columns.count - def->vcol_count;
     (void)cm_text2str(&def->name, desc->name, CT_NAME_BUFFER_SIZE);
     desc->entry = INVALID_PAGID;
     desc->type = def->type;
@@ -351,7 +351,7 @@ status_t db_init_table_desc(knl_session_t *session, knl_table_desc_t *desc, knl_
         return CT_ERROR;
     }
 
-    if (def->columns.count > session->kernel->attr.max_column_count - 1) {
+    if (def->columns.count - def->vcol_count > session->kernel->attr.max_column_count - 1) {
         CT_THROW_ERROR(ERR_MAX_COLUMN_SIZE, session->kernel->attr.max_column_count - 1);
         return CT_ERROR;
     }
@@ -428,6 +428,11 @@ static void db_init_column_flg(knl_column_def_t *def, knl_column_t *column)
             // modify to char(BYTE) need reset KNL_COLUMN_FLAG_CHARACTER to 0;
             COLUMN_SET_NOCHARACTER(column);
         }
+    }
+
+    if (def->is_virtual) {
+        COLUMN_SET_VIRTUAL(column);
+        column->default_text = def->default_text;
     }
 
     if (!def->is_default_null) {
@@ -1817,7 +1822,7 @@ static void db_alloc_vcol_id(dc_entity_t *entity, uint32 *vcol_id)
 {
     knl_column_t *column = NULL;
 
-    while (*vcol_id < entity->max_virtual_cols + DC_VIRTUAL_COL_START) {
+    while (*vcol_id < entity->vircol_count + DC_VIRTUAL_COL_START) {
         column = dc_get_column(entity, *vcol_id);
         if (column == NULL) {
             return;
@@ -1864,7 +1869,7 @@ static status_t db_prepare_idx_cols(knl_session_t *session, knl_index_def_t *def
             type = index_col->datatype;
             col_size = index_col->size;
             index_col->nullable = column->nullable;
-
+            // Process the virtual column created by func_index
             if (db_create_virtual_icol(session, dc, index_col, vcol_id, column) != CT_SUCCESS) {
                 return CT_ERROR;
             }
@@ -2850,7 +2855,7 @@ static status_t db_create_cons(knl_session_t *session, knl_dictionary_t *dc, knl
     }
 
     if (IS_COMPATIBLE_MYSQL_INST && !IS_SQL_SERVER_INITIALIZING &&
-        table->desc.type == TABLE_TYPE_HEAP && def->type == CONS_TYPE_PRIMARY && !def->cons_state.is_contains_vircol) {
+        table->desc.type == TABLE_TYPE_HEAP && def->type == CONS_TYPE_PRIMARY) {
         if (db_write_syslogicrep(session, table->desc.uid, table->desc.id, index_id)) {
             return CT_ERROR;
         }
@@ -2953,8 +2958,6 @@ static status_t db_create_constraints(knl_session_t *session, knl_table_desc_t *
             dc_close_table_private(&dc);
             continue;
         }
-
-        cons_def->cons_state.is_contains_vircol = def->contains_vircol;
 
         if (db_create_cons(session, &dc, cons_def) != CT_SUCCESS) {
             dc_close_table_private(&dc);
@@ -3212,6 +3215,18 @@ static status_t db_write_sys_external(knl_session_t *session, knl_cursor_t *curs
     return knl_internal_insert(session, cursor);
 }
 
+// The default_text of VGC indicates the position in the SYS_COLUMNS
+static status_t db_set_default_text(knl_session_t *session, knl_column_def_t *column_def, uint32 location)
+{
+    char *pos_buf = (char *)cm_push(session->stack, CT_MAX_INT32_STRLEN + 1);
+    int32 len = snprintf_s(pos_buf, CT_MAX_INT32_STRLEN + 1, 
+                           CT_MAX_INT32_STRLEN, PRINT_FMT_UINT32, location);
+    knl_securec_check_ss(len);
+    column_def->default_text.str = pos_buf;
+    column_def->default_text.len = (uint32)len;
+    return CT_SUCCESS;
+}
+
 static status_t db_construct_columns(knl_session_t *session, knl_cursor_t *cursor, knl_table_def_t *def, table_t *table)
 {
     knl_column_def_t *column_def = NULL;
@@ -3220,7 +3235,17 @@ static status_t db_construct_columns(knl_session_t *session, knl_cursor_t *curso
     bool32 is_encrypt = SPACE_IS_ENCRYPT(space);
 
     column.name = (char *)cm_push(session->stack, CT_NAME_BUFFER_SIZE);
-
+    /*
+     For virtual generated column (VGC), the column_id start with DC_VIRTUAL_COL_START,
+     virtual columns and ordinary columns use independent ID generation methods.
+     For example, table (cola, colb, colc_v, cold, cole_v, colf), column_ids ={0, 1, 60000, 2, 60001, 3}
+    */
+    uint32 id, col_id = 0;
+    uint32 vcol_id = DC_VIRTUAL_COL_START;
+    /*
+    Here only handle VGCs and regular columns. vir_cols created by func_indexes at the end of all columns,
+    which can be seen @db_prepare_idx_cols, @db_create_virtual_icol.
+    */
     for (uint32 i = 0; i < def->columns.count; i++) {
         column_def = (knl_column_def_t *)cm_galist_get(&def->columns, i);
         if (is_encrypt && (!CT_IS_LOB_TYPE(column_def->typmod.datatype) && !column_def->typmod.is_array)) {
@@ -3231,8 +3256,17 @@ static status_t db_construct_columns(knl_session_t *session, knl_cursor_t *curso
                 return CT_ERROR;
             }
         }
+        id = column_def->is_virtual ? vcol_id++ : col_id++;
 
-        db_convert_column_def(&column, table->desc.uid, table->desc.id, column_def, NULL, i);
+        if (column_def->is_virtual) {
+            if(db_set_default_text(session, column_def, i) != CT_SUCCESS) {
+               cm_pop(session->stack);
+               return CT_ERROR;
+            }
+        }
+        
+        db_convert_column_def(&column, table->desc.uid, table->desc.id, column_def, NULL, id);
+
         if (def->type != TABLE_TYPE_HEAP && KNL_COLUMN_IS_ARRAY(&column)) {
             CT_THROW_ERROR(ERR_WRONG_TABLE_TYPE);
             cm_pop(session->stack);
@@ -9667,7 +9701,13 @@ static status_t db_prepare_add_column(knl_session_t *session, knl_dictionary_t *
     bool32 is_table_null = CT_FALSE;
     char col_name[CT_NAME_BUFFER_SIZE];
 
-    if (entity->column_count >= session->kernel->attr.max_column_count - 1) {
+    if (def->is_virtual && entity->vircol_count >= CT_MAX_VIRTUAL_COLS + 
+        CT_MAX_INDEX_COLUMNS * CT_MAX_TABLE_INDEXES - 1) {
+        CT_THROW_ERROR(ERR_TOO_MANY_COLUMNS, "virtual column");
+        return CT_ERROR;
+    }
+
+    if (!def->is_virtual && entity->column_count >= session->kernel->attr.max_column_count - 1) {
         CT_THROW_ERROR(ERR_MAX_COLUMN_SIZE, session->kernel->attr.max_column_count - 1);
         return CT_ERROR;
     }
@@ -9814,8 +9854,11 @@ status_t db_altable_add_column(knl_session_t *session, knl_dictionary_t *dc, voi
     knl_dictionary_t new_dc;
     bool32 update_default = CT_FALSE;
     space_t *space = NULL;
+    uint32 col_id = 0;
 
     for (i = 0; i < def->column_defs.count; i++) {
+        bool32 is_change_col_cnt = CT_TRUE;
+        bool32 is_add = CT_TRUE;
         column_def = (knl_alt_column_prop_t *)cm_galist_get(&def->column_defs, i);
         new_column = &column_def->new_column;
 
@@ -9846,7 +9889,19 @@ status_t db_altable_add_column(knl_session_t *session, knl_dictionary_t *dc, voi
         cursor = knl_push_cursor(session);
 
         column.name = (char *)cm_push(session->stack, CT_NAME_BUFFER_SIZE);
-        db_convert_column_def(&column, table->desc.uid, table->desc.id, new_column, NULL, entity->column_count);
+
+        col_id = new_column->is_virtual ? 
+                 entity->vircol_count + DC_VIRTUAL_COL_START : entity->column_count;
+
+        if (new_column->is_virtual) {
+            if (db_set_default_text(session, new_column, i) != CT_SUCCESS) {
+                CM_RESTORE_STACK(session->stack);
+                dc_close_table_private(&new_dc);
+                return CT_ERROR;
+            }
+        }
+
+        db_convert_column_def(&column, table->desc.uid, table->desc.id, new_column, NULL, col_id);
 
         if (db_write_syscolumn(session, cursor, &column) != CT_SUCCESS) {
             CM_RESTORE_STACK(session->stack);
@@ -9862,7 +9917,13 @@ status_t db_altable_add_column(knl_session_t *session, knl_dictionary_t *dc, voi
             }
         }
 
-        if (db_update_table_desc(session, &table->desc, CT_TRUE, CT_TRUE) != CT_SUCCESS) {
+        // For virtual generated columns, it does not affect column_count in table->desc.
+        if (new_column->is_virtual) {
+            is_change_col_cnt = CT_FALSE;
+            is_add = CT_FALSE;
+        }
+
+        if (db_update_table_desc(session, &table->desc, is_change_col_cnt, is_add) != CT_SUCCESS) {
             dc_close_table_private(&new_dc);
             CM_RESTORE_STACK(session->stack);
             return CT_ERROR;
@@ -11523,7 +11584,6 @@ status_t db_altable_add_cons(knl_session_t *session, knl_dictionary_t *dc, knl_a
         def->cons_def.new_cons.name.str = cons_name;
         def->cons_def.new_cons.cons_state.is_anonymous = CT_TRUE;
     }
-    def->cons_def.new_cons.cons_state.is_contains_vircol = def->contains_vircol;
 
     switch (def->cons_def.new_cons.type) {
         case CONS_TYPE_PRIMARY:

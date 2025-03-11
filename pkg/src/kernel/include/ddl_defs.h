@@ -131,8 +131,7 @@ typedef struct st_knl_constraint_state {
             uint32 rely_ops : 2;
             uint32 is_encode : 1; // deprecated field
             uint32 is_cascade : 1;
-            uint32 is_contains_vircol : 1;
-            uint32 unused_ops : 19;
+            uint32 unused_ops : 20;
         };
         uint32 option;
     };
@@ -358,6 +357,7 @@ typedef struct st_knl_column_def {
             bool32 nullable : 1;
             bool32 primary : 1;  // if it is a primary key
             bool32 unique : 1;
+            bool32 is_virtual : 1;
             bool32 is_serial : 1;
             bool32 is_check : 1;
             bool32 is_ref : 1;
@@ -371,7 +371,7 @@ typedef struct st_knl_column_def {
             bool32 is_default_null : 1; // empty string treat as null or ''
             bool32 is_jsonb : 1;  // this col must be jsonb type(blob type in fact)
             bool32 is_unsigned : 1; // unsigned for mysql
-            bool32 unused_ops : 16;
+            bool32 unused_ops : 15;
         };
         bool32 is_option_set;
     };
@@ -448,7 +448,6 @@ typedef struct st_knl_altable_def {
     void *drop_index_def;
     uint8 is_for_create_db;
     uint8 is_mysql_copy;
-    uint8 contains_vircol;
 } knl_altable_def_t;
 
 typedef struct st_loginfo_base_rec {
@@ -492,6 +491,7 @@ typedef struct st_knl_table_def {
     uint32 pctfree;
     uint32 parted;
     uint32 sysid;
+    uint16 vcol_count;
     uint8 cr_mode;
     uint8 csf;
     knl_storage_def_t storage_def;
@@ -508,8 +508,7 @@ typedef struct st_knl_table_def {
         bool32 is_mysql_copy : 1; // copy algorithm for mysql
         bool32 is_for_create_db : 1;
         bool32 is_intrinsic : 1;
-        bool32 contains_vircol : 1;
-        bool32 unused : 23;
+        bool32 unused : 24;
     };
 
     uint32 options;      // if not exists
