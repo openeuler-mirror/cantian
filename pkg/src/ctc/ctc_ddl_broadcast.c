@@ -231,6 +231,7 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
     broadcast_req.buff[invalid_info->buff_len] = '\0';
     broadcast_req.buff_len = invalid_info->buff_len;
     broadcast_req.is_dcl = invalid_info->is_dcl;
+    broadcast_req.is_flush = invalid_info->is_flush;
     broadcast_req.mysql_inst_id = CT_INVALID_ID32 - 1;
     broadcast_req.err_code = 0;
     CT_LOG_DEBUG_INF("[ctc_invalid_dd_in_slave_node] redo op_type = %d, buff = %s, buff_len = %d, is_dcl = %u",
