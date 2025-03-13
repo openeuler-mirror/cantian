@@ -546,6 +546,12 @@ static void ctc_write_rd_invalid_dd_4mysql_ddl(knl_session_t *knl_session, ctc_i
         redo->op_type = RD_INVALID_DD_FOR_MYSQL_DDL;
         redo->buff_len = broadcast_req->buff_len;
         redo->is_dcl = broadcast_req->is_dcl;
+
+        ctrl_version_t release_version = FLUSH_PRIVILEGES_BROADCAST_FIX_VERSION;
+        if (db_cur_ctrl_version_is_higher_or_equal(knl_session, release_version)) {
+            redo->is_flush = broadcast_req->is_flush;
+        }
+
         if (broadcast_req->buff_len > 0) {
             ret = memcpy_sp(redo->buff, broadcast_req->buff_len, broadcast_req->buff, broadcast_req->buff_len);
             knl_securec_check(ret);

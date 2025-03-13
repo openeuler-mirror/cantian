@@ -123,7 +123,9 @@ typedef struct st_rd_lock_info_4mysql_ddl {
 typedef struct st_rd_invalid_dd_4mysql_ddl {
     uint32 op_type;
     uint32_t buff_len : 24;
-    uint32_t is_dcl : 8;
+    uint32_t is_dcl : 1;
+    uint32_t is_flush : 1;
+    uint32_t reserved : 6;
     char buff[];
 } rd_invalid_dd_4mysql_ddl;
 

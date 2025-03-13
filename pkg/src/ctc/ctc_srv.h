@@ -245,6 +245,7 @@ typedef struct {
     uint32_t buff_len;
     uint32_t mysql_inst_id;
     bool is_dcl;
+    bool is_flush;
     int err_code;
 } ctc_invalidate_broadcast_request;
 

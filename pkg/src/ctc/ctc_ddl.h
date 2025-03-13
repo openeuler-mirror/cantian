@@ -37,6 +37,7 @@
 #define EMPTY_DATABASE ""
 #define INVALID_PART_ID (uint32)0xFFFFFFFF
 #define CTC_DROP_NO_CHECK_FK_FOR_CANTIAN_AND_BROADCAST 0x01000000 // value need equal to "ha_ctc_ddl.h" file defined
+#define FLUSH_PRIVILEGES_BROADCAST_FIX_VERSION {25, 6, 0, 4}
 
 #define DDL_ATOMIC_TABLE_LOCKED 2
 
