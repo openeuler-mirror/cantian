@@ -98,7 +98,8 @@ function input_params_check() {
     fi
 
     # 若使用入湖，需校验so依赖文件路径进行文件拷贝
-    if [[ -f /opt/software/tools/logicrep/start.success ]]; then
+    if [[ -f /opt/software/tools/logicrep/start.success ]] || [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+        touch /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success
         read -p "please input the so rely path of logicrep: " SO_PATH
         if [ ! -d "${SO_PATH}" ]; then
             logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
@@ -1055,8 +1056,8 @@ function show_cantian_version() {
 
 function main() {
     logAndEchoInfo ">>>>> begin to upgrade, current upgrade mode: ${UPGRADE_MODE} <<<<<"
-    input_params_check
     get_mnt_dir_name
+    input_params_check
     get_config_info
     rpm_check
 
