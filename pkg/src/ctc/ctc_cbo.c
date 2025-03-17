@@ -109,6 +109,8 @@ status_t fill_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t *ent
                                            cbo_stats_table_t *table_stats, uint32 part_id, uint32 stats_idx)
 {
     ctc_cbo_stats_table[stats_idx].estimate_rows = table_stats->rows;
+    ctc_cbo_stats_table[stats_idx].avg_row_len = table_stats->avg_row_len;
+    ctc_cbo_stats_table[stats_idx].blocks = table_stats->blocks;
     for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
         cbo_stats_column_t *column = knl_get_cbo_part_column(handle, entity, part_id, col_id);
         if (fill_cbo_stats_column(column, &ctc_cbo_stats_table[stats_idx].columns[col_id], col_id, entity) != CT_SUCCESS) {
@@ -123,6 +125,8 @@ status_t fill_sub_part_table_cbo_stats_table_t(knl_handle_t handle, dc_entity_t 
                                                uint32 stats_idx)
 {
     ctc_cbo_stats_table[stats_idx].estimate_rows = table_stats->rows;
+    ctc_cbo_stats_table[stats_idx].avg_row_len = table_stats->avg_row_len;
+    ctc_cbo_stats_table[stats_idx].blocks = table_stats->blocks;
     for (uint32 col_id = 0; col_id <= table_stats->max_col_id; col_id++) {
         cbo_stats_column_t *column = knl_get_cbo_subpart_column(handle, entity, part_id, col_id, subpart_id);
         if (fill_cbo_stats_column(column, &ctc_cbo_stats_table[stats_idx].columns[col_id], col_id, entity) != CT_SUCCESS) {
@@ -151,12 +155,15 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
     cbo_stats_table_t *table_stats = NULL;
     ctc_cbo_stats_table->estimate_rows = 0;
     stats->records = 0;
+    stats->page_size = DEFAULT_PAGE_SIZE(handle);
     uint32 max_part_no = 0;
     uint32 max_sub_part_no = 0;
     if (!knl_is_part_table(entity)) {
         table_stats = knl_get_cbo_table(handle, entity);
         if (table_stats != NULL && table_stats->is_ready && STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
             ctc_cbo_stats_table->estimate_rows = table_stats->rows;
+            ctc_cbo_stats_table->avg_row_len = table_stats->avg_row_len;
+            ctc_cbo_stats_table->blocks = table_stats->blocks;
             stats->records = table_stats->rows;
             stats->is_updated = CT_TRUE;
             ret = fill_cbo_stats_table_t(handle, entity, stats, table_stats, ctc_cbo_stats_table);
@@ -175,6 +182,8 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
                 max_part_no = table_stats->max_part_no;
             } else {
                 ctc_cbo_stats_table[i].estimate_rows = 0;
+                ctc_cbo_stats_table[i].avg_row_len = 0;
+                ctc_cbo_stats_table[i].blocks = 0;
             }
             stats->records += ctc_cbo_stats_table[i].estimate_rows;
         }
@@ -196,6 +205,8 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
                 max_sub_part_no = table_stats->max_subpart_info.subpart_no;
             } else {
                 ctc_cbo_stats_table[i].estimate_rows = 0;
+                ctc_cbo_stats_table[i].avg_row_len = 0;
+                ctc_cbo_stats_table[i].blocks = 0;
             }
             stats->records += ctc_cbo_stats_table[i].estimate_rows;
         }

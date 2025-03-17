@@ -160,6 +160,8 @@ typedef struct {
 typedef struct {
     uint32_t estimate_rows;
     ctc_cbo_stats_column_t *columns;
+    uint32_t blocks;
+    uint32_t avg_row_len;
 } ctc_cbo_stats_table_t;
 
 /*
@@ -176,6 +178,7 @@ typedef struct {
     uint32_t num_str_cols;
     bool *col_type;
     ctc_cbo_stats_table_t *ctc_cbo_stats_table;
+    uint32_t page_size;
 } ctc_cbo_stats_t;
 #pragma pack()
 
