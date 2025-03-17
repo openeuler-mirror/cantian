@@ -495,7 +495,7 @@ status_t ctc_get_new_session(session_t **session_ptr)
     agent->session = NULL;
     status_t status;
     do {
-        status = srv_create_agent_private_area(agent);
+        status = srv_alloc_agent_res(agent);
         CT_BREAK_IF_ERROR(status);
         status = srv_alloc_session(&session, NULL, SESSION_TYPE_USER);
         CT_BREAK_IF_ERROR(status);
