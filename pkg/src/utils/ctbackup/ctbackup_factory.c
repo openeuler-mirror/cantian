@@ -25,6 +25,9 @@
 #include "ctbackup_module.h"
 #include "ctbackup_factory.h"
 #include "ctbackup_backup.h"
+#include "ctbackup_snapshot.h"
+#include "ctbackup_snapshot_backup.h"
+#include "ctbackup_snapshot_restore.h"
 #include "ctbackup_prepare.h"
 #include "ctbackup_copyback.h"
 #include "ctbackup_archivelog.h"
@@ -42,7 +45,10 @@ const char* g_ctbak_cmd_name[] = {
     [CTBAK_ARCHIVE_LOG] = "archivelog",
     [CTBAK_RECONCIEL_MYSQL] = "reconciel_mysql",
     [CTBAK_QUERY_INCREMENTAL_MODE] = "query_incremental_mode",
-    [CTBAK_PURGE_LOGS] = "purge_logs"
+    [CTBAK_PURGE_LOGS] = "purge_logs",
+    [CTBAK_SNAPSHOT] = "snapshot",
+    [CTBAK_SNAPSHOT_BACKUP] = "snapshot_backup",
+    [CTBAK_SNAPSHOT_RESTORE] = "snapshot_restore"
 };
 
 ctbak_cmd_generate_interface g_ctbak_cmd_generate_set[] = {
@@ -52,7 +58,10 @@ ctbak_cmd_generate_interface g_ctbak_cmd_generate_set[] = {
     [CTBAK_ARCHIVE_LOG] = (ctbak_cmd_generate_interface) ctbak_generate_archivelog_cmd,
     [CTBAK_RECONCIEL_MYSQL] = (ctbak_cmd_generate_interface) ctbak_generate_reconciel_mysql_cmd,
     [CTBAK_QUERY_INCREMENTAL_MODE] = (ctbak_cmd_generate_interface) ctbak_generate_query_incremental_mode_cmd,
-    [CTBAK_PURGE_LOGS] = (ctbak_cmd_generate_interface) ctbak_generate_purge_logs_cmd
+    [CTBAK_PURGE_LOGS] = (ctbak_cmd_generate_interface) ctbak_generate_purge_logs_cmd,
+    [CTBAK_SNAPSHOT] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_cmd,
+    [CTBAK_SNAPSHOT_BACKUP] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_backup_cmd,
+    [CTBAK_SNAPSHOT_RESTORE] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_restore_cmd
 };
 
 ctbak_cmd_t* ctbak_factory_generate_cmd(ctbak_topic_t ctbak_topic)
