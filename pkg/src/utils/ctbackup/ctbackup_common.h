@@ -28,6 +28,7 @@
 #include "dirent.h"
 #include "cm_defs.h"
 #include "cm_file.h"
+#include "cm_dbstor.h"
 #include "ctbackup_info.h"
 
 #ifdef __cplusplus
@@ -68,6 +69,10 @@ extern "C" {
 #define CTSQL_FULL_BACKUP_STATEMENT_PREFIX "BACKUP DATABASE INCREMENTAL LEVEL 0 FORMAT \'"
 #define CTSQL_INCREMENT_BACKUP_STATEMENT_PREFIX "BACKUP DATABASE INCREMENTAL LEVEL 1 FORMAT \'"
 #define CTSQL_INCREMENT_CUMULATIVE_BACKUP_STATEMENT_PREFIX "BACKUP DATABASE INCREMENTAL LEVEL 1 CUMULATIVE FORMAT \'"
+#define CTSQL_SNAPSHOT_BACKUP_STATEMENT_PREFIX "BACKUP DATABASE SNAPSHOT FORMAT \'"
+#define CTSQL_RECYCLE_REDO_STATEMENT_PREFIX "ALTER SYSTEM SET PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO="
+#define CTSQL_TRUE "TRUE"
+#define CTSQL_FALSE "FALSE"
 #define CTSQL_STATEMENT_QUOTE "\'"
 #define CTSQL_PARALLELISM_OPTION " PARALLELISM "
 #define CTSQL_BUFFER_OPTION " BUFFER SIZE "
@@ -81,10 +86,12 @@ extern "C" {
 #define MYSQL_BACKUP_DIR "/mysql"
 // TARGET_DIR_PARAM_OPTION's next level dir, for store cantian backup files
 #define CANTIAN_BACKUP_DIR "/cantian"
+#define CANTIAN_SNAPSHOT_DIR "/snapshot"
 #define CANTIAN_BACKUP_BACKUPSET "/backupset"
 #define DECRYPT_CMD_ECHO "echo "
 #define DECRYPT_CMD_BASE64 " | openssl base64 -d"
 #define CANTIAN_BACKUP_FILE_LENGTH 129
+#define CANTIAN_SNAPSHOT_FILE_LENGTH 129
 #define MAX_TARGET_DIR_LENGTH 120
 #define MAX_PARALLELISM_COUNT 16
 #define MAX_STATEMENT_LENGTH 512
@@ -130,6 +137,9 @@ extern "C" {
 #define STOP_CANTIAND_SERVER_CMD "installdb.sh -P stopcantiand"
 #define TRY_CONN_CTSQL_CMD "installdb.sh -P tryconnctsql"
 
+#define SNAPSHOT_INFO_FS_PATH "/backup"
+#define CTBAK_SNAP_INFO_FILE_NAME "snap_info"
+
 #define CTSQL_QUERY_CANTIAN_PARAMETERS "'SHOW PARAMETERS'"
 #define MYSQL_METADATA_IN_CANTIAN_GREP "| grep MYSQL_METADATA_IN_CANTIAN | awk '{print $4}'"
 
@@ -137,6 +147,7 @@ extern "C" {
 #define CTSQL_CMD_BUFFER_SIZE         (CTSQL_FILE_NAME_BUFFER_SIZE + MAX_STATEMENT_LENGTH)
 #define CTSQL_CMD_OUT_BUFFER_SIZE     (CT_MAX_CMD_LEN + 1)
 #define CTSQL_CMD_IN_BUFFER_SIZE      (CT_MAX_CMD_LEN + 1)
+#define CT_SNAPSHOT_BACKUP_NAME_MAX_LEN 255
 
 #ifndef WIFEXITED
 #define WIFEXITED(w)	(((w) & 0XFFFFFF00) == 0)
@@ -158,6 +169,12 @@ extern "C" {
             return CT_ERROR;            \
         }                               \
     } while (0)
+
+typedef struct st_snapshot_backup_info {
+    snapshot_result_info page_fs_snap_info;
+    snapshot_result_info archive_fs_snap_info;
+    snapshot_result_info log_fs_snap_info;
+} snapshot_backup_info_t;
 
 typedef enum en_ctbak_ctsql_exec_mode {
     CTBAK_CTSQL_EXECV_MODE,
@@ -194,7 +211,7 @@ status_t set_mysql_single_param_value(char **param, text_t ctbak_param_option, c
 
 status_t start_cantiand_server(void);
 
-status_t check_cantiand_status(void);
+status_t check_cantiand_status(bool32 expect_running);
 
 status_t stop_cantiand_server(void);
 
@@ -222,6 +239,8 @@ status_t ctbak_do_shell_get_output(text_t *command, char *cmd_out,
     status_t (*ctback_read_output_from_pipe_fun)(ctbak_child_info_t, char*));
 
 status_t get_cfg_ini_file_name(char *ctsql_ini_file_name, char *cantiand_ini_file_path);
+
+status_t get_cantiand_ini_file_name(char *cantiand_ini_file_path);
 
 #ifdef __cplusplus
 }
