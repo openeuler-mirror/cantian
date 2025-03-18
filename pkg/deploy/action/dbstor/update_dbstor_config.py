@@ -204,7 +204,7 @@ def parse_parameter():
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
         opts, args = getopt.getopt(sys.argv[1:], "",
-         ["help", "NAMESPACE_FSNAME=", "NAMESPACE_PAGE_FSNAME=", "DPU_UUID=", "LINK_TYPE=", "LOCAL_IP=", "REMOTE_IP="])
+         ["help", "NAMESPACE_FSNAME=", "NAMESPACE_PAGE_FSNAME=", "DPU_UUID=", "LINK_TYPE=", "LOCAL_IP=", "REMOTE_IP=", "NAMESPACE_SHARE_FSNAME=", "NAMESPACE_ARCHIVE_FSNAME="])
         if args:
             log_exit("Parameter input error: " + str(args[0]))
 
@@ -230,6 +230,10 @@ def parse_parameter():
                 db_opts.dbstor_config["LOCAL_IP"] = _value.strip().replace('/', ';')
             elif _key == "--REMOTE_IP":
                 db_opts.dbstor_config["REMOTE_IP"] = _value.strip().replace('/', ';')
+            elif _key == "--NAMESPACE_SHARE_FSNAME":
+                db_opts.dbstor_config["NAMESPACE_SHARE_FSNAME"] = _value.strip().replace('/', ';')
+            elif _key == "--NAMESPACE_ARCHIVE_FSNAME":
+                db_opts.dbstor_config["NAMESPACE_ARCHIVE_FSNAME"] = _value.strip().replace('/', ';')
     except getopt.GetoptError as error:
         log_exit("Parameter input error: " + error.msg)
 
@@ -246,6 +250,10 @@ def check_parameter():
         log_exit("The cantian_vlan_ip parameter is not entered")
     if len(db_opts.dbstor_config.get("REMOTE_IP", "").strip()) == 0:
         log_exit("The storage_vlan_ip parameter is not entered")
+    if len(db_opts.dbstor_config.get("NAMESPACE_SHARE_FSNAME", "").strip()) == 0:
+        log_exit("The storage_share_fs parameter is not entered")
+    if len(db_opts.dbstor_config.get("NAMESPACE_ARCHIVE_FSNAME", "").strip()) == 0:
+        log_exit("The storage_archive_fs parameter is not entered")
     else:
         remote_ip_list = re.split(r"[;|,]", db_opts.dbstor_config.get("REMOTE_IP", "").strip())
         for remote_ip in remote_ip_list:

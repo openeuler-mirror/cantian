@@ -269,6 +269,8 @@ class DBStor:
             "USER_NAME": "",
             "PASSWORD": "",
             "CLUSTER_ID": "",
+            "NAMESPACE_SHARE_FSNAME": "",  # 添加共享文件系统配置项
+            "NAMESPACE_ARCHIVE_FSNAME": "",  # 添加归档文件系统配置项
         }
         self.conf_file_path = ""
         self.dbstor_conf_file = ""
@@ -340,6 +342,8 @@ class DBStor:
             else:
                 self.dbstor_config['IS_CONTAINER'] = "1"
             self.cluster_name = json_data.get('cluster_name', '')
+            self.dbstor_config['NAMESPACE_SHARE_FSNAME'] = json_data.get('storage_share_fs', "").strip()
+            self.dbstor_config['NAMESPACE_ARCHIVE_FSNAME'] = json_data.get('storage_archive_fs', "").strip()
 
     def check_dbstor_para(self):
         logger.info("Checking parameters.")
@@ -392,6 +396,15 @@ class DBStor:
 
         if len(self.cluster_name) == 0:
             message = "The cluster_name parameter is not entered"
+            console_and_log(message)
+            raise ValueError(message)
+
+        if len(self.dbstor_config.get('NAMESPACE_SHARE_FSNAME', "").strip()) == 0:
+            message = "The storage_share_fs parameter is not entered"
+            console_and_log(message)
+            raise ValueError(message)
+        if len(self.dbstor_config.get('NAMESPACE_ARCHIVE_FSNAME', "").strip()) == 0:
+            message = "The storage_archive_fs parameter is not entered"
             console_and_log(message)
             raise ValueError(message)
 

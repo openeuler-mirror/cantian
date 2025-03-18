@@ -91,6 +91,8 @@ class ConfigTool:
             "USER_NAME": "",
             "PASSWORD": "",
             "CLUSTER_ID": "",
+            "NAMESPACE_SHARE_FSNAME": "",
+            "NAMESPACE_ARCHIVE_FSNAME": "",
         }
         self.dbstor_config = self.dbstor_config_tmp
         with os.fdopen(os.open(JS_CONF_FILE, os.O_RDONLY | os.O_EXCL, stat.S_IWUSR | stat.S_IRUSR), "r")\
