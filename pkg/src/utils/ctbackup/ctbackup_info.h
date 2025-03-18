@@ -42,12 +42,22 @@ extern "C" {
 #define CTBAK_ARG_RECONCIEL_MYSQL "--reconciel-mysql"
 #define CTBAK_ARG_QUERY_INCREMENTAL_MODE "--query-incremental-mode"
 #define CTBAK_ARG_PURGE_LOGS "--purge-logs"
+#define CTBAK_ARG_SNAPSHOT "--snapshot"
+#define CTBAK_ARG_SNAPSHOT_BACKUP "--snapshot-backup"
+#define CTBAK_ARG_SNAPSHOT_RESTORE "--snapshot-restore"
 
 #define CTBAK_PARSE_OPTION_COMMON 0
+#define CTBAK_PARSE_OPTION_SNAPSHOT 1
+#define CTBAK_PARSE_OPTION_SNAPSHOT_BACKUP 2
+#define CTBAK_PARSE_OPTION_SNAPSHOT_RESTORE 3
 #define CTBAK_PARSE_OPTION_ERR (-1)
 
 // long options for ctbackup
 #define CTBAK_LONG_OPTION_BACKUP "backup"
+#define CTBAK_LONG_OPTION_SNAPSHOT "snapshot"
+#define CTBAK_LONG_OPTION_SNAPSHOT_BACKUP "snapshot-backup"
+#define CTBAK_LONG_OPTION_SNAPSHOT_RESTORE "snapshot-restore"
+#define CTBAK_LONG_OPTION_NOTDELETE "notdelete"
 #define CTBAK_LONG_OPTION_PREPARE "prepare"
 #define CTBAK_LONG_OPTION_COPYBACK "copy-back"
 #define CTBAK_LONG_OPTION_ARCHIVELOG "archivelog"
@@ -111,6 +121,7 @@ extern "C" {
 #define CTBAK_SHORT_OPTION_FORCE_DDL 'F'
 #define CTBAK_SHORT_OPTION_SKIP_BADBLOCK 'k'
 #define CTBAK_SHORT_OPTION_REPAIR_TYPE 'a'
+#define CTBAK_SHORT_OPTION_NOTDELETE 'n'
 
 typedef enum en_ctbak_topic {
     CTBAK_INVALID,
@@ -123,6 +134,9 @@ typedef enum en_ctbak_topic {
     CTBAK_RECONCIEL_MYSQL,
     CTBAK_QUERY_INCREMENTAL_MODE,
     CTBAK_PURGE_LOGS,
+    CTBAK_SNAPSHOT,
+    CTBAK_SNAPSHOT_BACKUP,
+    CTBAK_SNAPSHOT_RESTORE,
 } ctbak_topic_t;
 
 typedef struct ctbak_param {
@@ -142,6 +156,12 @@ typedef struct ctbak_param {
     text_t buffer_size;
     text_t repair_type;
     text_t databases_exclude;
+    text_t share_fs_name;
+    text_t page_fs_name;
+    text_t log_fs_name;
+    text_t archive_fs_name;
+    text_t page_fs_vstore_id;
+    text_t log_fs_vstore_id;
     uint8  is_decompress;
     uint8  is_pitr_cancel;
     uint8  is_restore;
@@ -153,6 +173,9 @@ typedef struct ctbak_param {
     uint8  is_force_ddl;
     uint8  skip_badblock;
     uint8  is_mysql_metadata_in_cantian;
+    uint8  is_snapshot;
+    uint8  is_snapshot_backup;
+    uint8  is_notdelete;
 } ctbak_param_t;
 
 typedef status_t (* ctbak_execute_t)(ctbak_param_t* ctbak_param);
