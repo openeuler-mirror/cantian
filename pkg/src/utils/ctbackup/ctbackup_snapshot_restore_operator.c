@@ -157,7 +157,7 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
             }
 
             ret = dbs_create_path_or_file(DBS_CREATE_DIR_PRAMA_NUM + 1, argv);
-            if (ret!= CT_SUCCESS) {
+            if (ret != CT_SUCCESS) {
                 printf("Failed to create directory.\n");
                 free_system_call_params(argv, 0, DBS_CREATE_DIR_PRAMA_NUM);
                 CM_FREE_PTR(sub_path);
@@ -295,18 +295,21 @@ status_t do_snapshot_restore(ctbak_param_t* ctbak_param){
 
     ret = dbs_pagepool_clean();
     if (ret != CT_SUCCESS) {
+        dbs_set_ns_io_forbidden(CT_FALSE);
         printf("Pagepool clean failed.\n");
         return ret;
     }
 
     ret = dbs_ulog_clean();
     if (ret != CT_SUCCESS) {
+        dbs_set_ns_io_forbidden(CT_FALSE);
         printf("ulog clean failed.\n");
         return ret;
     }
 
     ret = dbs_arch_clean();
     if (ret != CT_SUCCESS) {
+        dbs_set_ns_io_forbidden(CT_FALSE);
         printf("arch clean failed.\n");
         return ret;
     }
@@ -314,12 +317,14 @@ status_t do_snapshot_restore(ctbak_param_t* ctbak_param){
     //备份集目录
     ret = do_snapshot_restore_impl(ctbak_param, BACKUP_PAGE_DIR_NAME, g_dbs_fs_info.page_fs_name);
     if (ret != CT_SUCCESS) {
+        dbs_set_ns_io_forbidden(CT_FALSE);
         printf("Failed to restore page backup files %s\n", BACKUP_PAGE_DIR_NAME);
         return ret;
     }
 
     ret = do_snapshot_restore_impl(ctbak_param, BACKUP_REDO_DIR_NAME, g_dbs_fs_info.log_fs_name);
     if (ret != CT_SUCCESS) {
+        dbs_set_ns_io_forbidden(CT_FALSE);
         printf("Failed to restore redo backup files %s\n", BACKUP_REDO_DIR_NAME);
         return ret;
     }
