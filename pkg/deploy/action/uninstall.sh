@@ -104,6 +104,9 @@ function umount_fs() {
 
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/binlog
+      if [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+        rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success
+      fi
     fi
     if [[ ${storage_archive_fs} != '' ]] && [[ -d /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf ]] && [[ "${node_id}" == "0" ]]; then
       rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/logicrep_conf

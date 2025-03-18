@@ -76,6 +76,20 @@ function input_params_check() {
             fi
         fi
     fi
+
+    # 若使用入湖，需校验so依赖文件路径进行文件拷贝
+    if [[ -f /opt/software/tools/logicrep/start.success ]] || [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+        read -p "please input the so rely path of logicrep: " SO_PATH
+        if [ ! -d "${SO_PATH}" ]; then
+            logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
+            exit 1
+        else
+            if [ -z "$(ls -A "${SO_PATH}")" ]; then
+                logAndEchoInfo "pass upgrade mode check, current upgrade mode: ${UPGRADE_MODE}"
+                exit 1
+            fi
+        fi
+    fi
     logAndEchoInfo ">>>>> pass check input params <<<<<"
 }
 
@@ -437,6 +451,9 @@ function clear_tag_file() {
             rm -rf "${_file}"
         fi
     done
+    if [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success
+    fi
     delete_fs_upgrade_file_or_path_by_dbstor call_ctback_tool.success
     delete_fs_upgrade_file_or_path_by_dbstor cantian_offline_upgrade_commit_${source_version}.success
     # 滚动升级场景进行离线回退，需要清理滚动升级相关文件
@@ -761,6 +778,10 @@ function offline_rollback() {
     if [[ x"${choose}" != x"yes" ]];then
         start_cantian
         check_local_nodes
+    fi
+    if [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+      echo "begin to start logicrep."
+      sh "/opt/cantian/action/logicrep/appctrl.sh startup" ${SO_PATH}
     fi
     if [[ -f ${DR_DEPLOY_FLAG} ]];then
         local warning_msg="\tThe standby side needs to perform recover operation, otherwise there may be data inconsistency situations"
