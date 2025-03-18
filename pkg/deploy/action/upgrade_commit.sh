@@ -225,6 +225,9 @@ function clear_upgrade_residual_data() {
     if [[ -n $(ls "${upgrade_path}"/upgrade_node*."${target_version}") ]];then
         rm -f "${upgrade_path}"/upgrade_node*."${target_version}"
     fi
+    if [[ -f /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success ]]; then
+      rm -rf /mnt/dbdata/remote/archive_"${storage_archive_fs}"/start.success
+    fi
     delete_fs_upgrade_file_or_path_by_dbstor call_ctback_tool.success
     delete_fs_upgrade_file_or_path_by_dbstor cluster_and_node_status
     delete_fs_upgrade_file_or_path_by_dbstor updatesys.*
