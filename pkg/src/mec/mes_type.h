@@ -220,7 +220,7 @@ typedef enum en_mes_command {
 
     MES_CMD_EXECUTE_SET_OPT_REQ,
     MES_CMD_EXECUTE_SET_OPT_RSP,
-
+    MES_CMD_SNAPSHOT_PREVENT_RECYCLE_REDO,
     MES_CMD_CEIL
 } mes_command_t;
 

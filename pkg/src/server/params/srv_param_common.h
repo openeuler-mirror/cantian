@@ -38,6 +38,7 @@ status_t sql_verify_als_onoff(void *se, void *lex, void *def);
 status_t sql_verify_als_uint32(void *se, void *lex, void *def);
 status_t sql_verify_als_bool(void *se, void *lex, void *def);
 status_t sql_notify_als_bool(void *se, void *item, char *value);
+status_t sql_notify_prevent_backup_recycle(void *se, void *item, char *value);
 status_t sql_notify_als_onoff(void *se, void *item, char *value);
 char *srv_get_param(const char *name);
 status_t srv_get_param_bool32(char *param_name, bool32 *param_value);

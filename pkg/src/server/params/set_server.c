@@ -842,6 +842,16 @@ status_t sql_notify_als_create_index_parallelism(void *se, void *item, char *val
     return cm_str2uint32(value, &g_instance->kernel.attr.create_index_parallelism);
 }
 
+status_t sql_notify_als_snapshot_backup_recycle_redo_timeout(void *se, void *item, char *value)
+{
+    return cm_str2uint32(value, &g_instance->kernel.attr.prevent_snapshot_backup_recycle_redo_timeout);
+}
+
+status_t sql_notify_als_prevent_create_snapshot(void *se, void *item, char *value)
+{
+    return cm_str2bool(value, &g_instance->kernel.attr.prevent_create_snapshot);
+}
+
 status_t sql_notify_als_compatible_mysql(void *se, void *item, char *value)
 {
     uint32 val;

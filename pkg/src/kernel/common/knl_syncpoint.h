@@ -332,6 +332,8 @@ typedef enum {
     CTC_FILL_CBO_STATS_INDEX_FAIL,
     CTC_GET_CBO_STATS_FAIL,
     CTC_UNLOCK_MDL_KEY_ABORT,
+    CTC_BACKUP_STOP_REDO_RECYCLE_ABORT,
+    CTC_BACKUP_START_REDO_RECYCLE_ABORT,
 } knl_syncpoint_id;
 
 typedef void (*syncpoint_callback)(int32 *param, int32 ret);

@@ -1166,6 +1166,13 @@ config_item_t g_parameters[] = {
       sql_notify_als_create_index_parallelism, NULL, NULL },
     { "ENABLE_DSS", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_DSS, EFFECT_REBOOT, CFG_INS, sql_verify_als_bool, sql_notify_als_bool, sql_notify_als_bool, NULL },
+    { "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
+      PARAM_PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_prevent_backup_recycle, sql_notify_als_bool, NULL },
+    { "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", CT_TRUE, ATTR_NONE, "10", NULL, NULL, "-", "[1, 30]", "CT_TYPE_INTEGER", NULL,
+      PARAM_PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_snapshot_backup_recycle_redo_timeout,
+      sql_notify_als_snapshot_backup_recycle_redo_timeout, NULL, NULL },
+    { "PREVENT_CREATE_SNAPSHOT", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
+      PARAM_PREVENT_CREATE_SNAPSHOT, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_prevent_create_snapshot, sql_notify_als_bool, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)
