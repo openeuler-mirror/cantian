@@ -27,6 +27,10 @@
 #ifndef CANTIANDB_CTBACKUP_SNAPSHOT_RESTORE_OPERATOR_H
 #define CANTIANDB_CTBACKUP_SNAPSHOT_RESTORE_OPERATOR_H
 
+#define FREE_POINTER_NUM_ONE 1
+#define FREE_POINTER_NUM_TWO 2
+#define FREE_POINTER_NUM_THREE 3
+
 #include "cm_defs.h"
 #include "ctbackup_info.h"
 #include "cm_file.h"
