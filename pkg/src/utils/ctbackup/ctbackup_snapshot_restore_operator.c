@@ -53,14 +53,14 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
             printf("Found directory: %s/%s\n", path, file_list[i].file_name);
             // 构建子目录路径
             char *sub_path = (char*)malloc(MAX_DBS_FS_FILE_PATH_LEN);
-            char *new_fs_path = (char*)malloc(MAX_DBS_FS_FILE_PATH_LEN);
             if (sub_path == NULL) {
-                printf("[ctbackup]Failed to malloc\n");
+                printf("[ctbackup] sub_path Failed to malloc\n");
                 CM_FREE_PTR(file_list);
                 return CT_ERROR;
             }
+            char *new_fs_path = (char*)malloc(MAX_DBS_FS_FILE_PATH_LEN);
             if (new_fs_path == NULL) {
-                printf("[ctbackup]Failed to malloc\n");
+                printf("[ctbackup]new_fs_path Failed to malloc\n");
                 CM_FREE_PTR(file_list);
                 return CT_ERROR;
             }
@@ -96,18 +96,18 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
                     while (--j >= 0) {
                         CM_FREE_PTR(argv[j]);
                     }
-                    printf("[ctbackup]Failed to malloc\n");
+                    printf("[ctbackup]traverse_directory Failed to malloc\n");
                     return CT_ERROR;
                 }
-                errno_t ret1 = memset_sp(argv[j], MAX_DBS_FS_FILE_PATH_LEN, 0, MAX_DBS_FS_FILE_PATH_LEN);
-                if (ret1 != EOK) {
+                errno_t err = memset_sp(argv[j], MAX_DBS_FS_FILE_PATH_LEN, 0, MAX_DBS_FS_FILE_PATH_LEN);
+                if (err != EOK) {
                     CM_FREE_PTR(sub_path);
                     CM_FREE_PTR(new_fs_path);
                     CM_FREE_PTR(file_list);
                     while (--j >= 0) {
                         CM_FREE_PTR(argv[j]);
                     }
-                    printf("[ctbackup]Failed to memset_sp\n");
+                    printf("[ctbackup]Failed to memset_sp (%d)\n", err);
                     return CT_ERROR;
                 }
             }
@@ -189,16 +189,16 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
                     while (--j >= 0) {
                         CM_FREE_PTR(argv[j]);
                     }
-                    printf("[ctbackup]Failed to malloc\n");
+                    printf("[ctbackup]argv Failed to malloc\n");
                     return CT_ERROR;
                 }
-                errno_t ret1 = memset_sp(argv[j], MAX_DBS_FS_FILE_PATH_LEN, 0, MAX_DBS_FS_FILE_PATH_LEN);
-                if (ret1!= EOK) {
+                errno_t err = memset_sp(argv[j], MAX_DBS_FS_FILE_PATH_LEN, 0, MAX_DBS_FS_FILE_PATH_LEN);
+                if (err != EOK) {
                     CM_FREE_PTR(file_list);
                     while (--j >= 0) {
                         CM_FREE_PTR(argv[j]);
                     }
-                    printf("[ctbackup]Failed to memset_sp\n");
+                    printf("[ctbackup]Failed to memset_sp (%d)\n", err);
                     return CT_ERROR;
                 }
             }
