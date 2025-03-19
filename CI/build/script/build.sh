@@ -78,15 +78,6 @@ echo "B_VERSION: ${B_VERSION}"   # 门禁通过传递参数修改versions.yaml�
 CURRENT_DIR=$(dirname $(readlink -f "$0"))
 source ${CURRENT_DIR}/../../../build/function.sh
 
-function pachingBazelCode() {
-  cd ${MYSQL_CODE_PATH}
-  git apply --check bazel_deleted.patch
-  git apply --check bazel_created.patch
-  
-  patch --ignore-whitespace -p1 < bazel_deleted.patch
-  patch --ignore-whitespace -p1 < bazel_created.patch
-}
-
 function pachingMysqlCode() {
   cd ${MYSQL_CODE_PATH}
   git apply --check mysql-scripts-meta.patch
@@ -482,29 +473,6 @@ function buildMysqlMeta() {
   echo "meta version: build plugin so: ha_ctc and libctc_proxy finished"
 }
 
-function bazelBuildMysqlSource() {
-  rm -rf ${LOCAL_MYSQL_PATH}
-  mkdir -p ${LOCAL_MYSQL_PATH}
-
-  if [[ ${OS_ARCH} =~ "x86_64" ]]; then
-    cp ${MYSQL_CODE_PATH}/bazel-out/k8-fastbuild/bin/mysql.tar.gz /usr/local/mysql
-  elif [[ ${OS_ARCH} =~ "aarch64" ]]; then
-    cp ${MYSQL_CODE_PATH}/bazel-out/aarch64-fastbuild/bin/mysql.tar.gz /usr/local/mysql
-  fi
-  tar -xf ${LOCAL_MYSQL_PATH}/mysql.tar.gz -C ${LOCAL_MYSQL_PATH}
-  md5sum /usr/lib64/libctc_proxy.so
-  cp -arf /usr/lib64/libctc_proxy.so ${MYSQL_CODE_PATH}/cantian_lib/
-  cp -arf /usr/lib64/libsecurec.a ${MYSQL_CODE_PATH}/cantian_lib/
-  cp -arf /usr/lib64/libmessage_queue.a ${MYSQL_CODE_PATH}/cantian_lib/
-  if [ "${mrId}" == "" ] && [ "${local_build}" != "true" ];then
-    cp -arf /usr/local/ha_ctc.so.nometa ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so.nometa
-    md5sum ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so.nometa
-  fi
-  cp -arf /usr/local/ha_ctc.so ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so
-  md5sum ${LOCAL_MYSQL_PATH}/lib/plugin/ha_ctc.so
-  cd -
-}
-
 function buildMysqlRelease() {
   LOCAL_REMOTE_FLAG=REMOTE_RELEASE
   rm -rf ${LOCAL_MYSQL_PATH}
@@ -518,8 +486,6 @@ function buildMysqlRelease() {
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
-  cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
-
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
@@ -529,11 +495,6 @@ function buildMysqlRelease() {
   cd ${MYSQL_CODE_PATH}
   echo "pachingMysqlCode for mysql source"
 
-  pachingBazelCode
-  if [ $? -ne 0 ]; then
-    echo "pachingBazelCode fail."
-    exit 1
-  fi
   pachingMysqlCode
   if [ $? -ne 0 ]; then
     echo "pachingMysqlCode fail."
@@ -550,8 +511,6 @@ function buildMysqlRelease() {
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
-
-  bazelBuildMysqlSource
 }
 
 function buildMysqlDebug() {
@@ -568,7 +527,6 @@ function buildMysqlDebug() {
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
-  cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
@@ -577,11 +535,6 @@ function buildMysqlDebug() {
   echo "meta version: declare directory and copy mysql code for ha_ctc.so and libctc_proxy.so"
   cd ${MYSQL_CODE_PATH}
   echo "pachingMysqlCode for mysql source"
-  pachingBazelCode
-  if [ $? -ne 0 ]; then
-    echo "pachingBazelCode fail."
-    exit 1
-  fi
   pachingMysqlCode
   if [ $? -ne 0 ]; then
     echo "pachingMysqlCode fail."
@@ -597,8 +550,6 @@ function buildMysqlDebug() {
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
-
-  bazelBuildMysqlSource
 }
 
 function buildMysqlReleaseAsan() {
@@ -616,8 +567,6 @@ function buildMysqlReleaseAsan() {
   rm -rf ${MYSQL_CODE_PATH}/bld_debug
   mkdir -p ${MYSQL_CODE_PATH}/bld_debug
 
-  cp -arf ${MYSQL_CODE_PATH}/../bazel_code/. ${MYSQL_CODE_PATH}
-
   HACTC_LIBCTCPROXY_DIR=/hactc_libctcproxy_dir/mysql-source
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HACTC_LIBCTCPROXY_DIR}/cantian_lib
 
@@ -626,11 +575,6 @@ function buildMysqlReleaseAsan() {
   echo "declare directory and copy mysql code for ha_ctc.so and libctc_proxy.so -- making meta version so file"
   cd ${MYSQL_CODE_PATH}
   echo "pachingMysqlCode for mysql source"
-  pachingBazelCode
-  if [ $? -ne 0 ]; then
-    echo "pachingBazelCode fail."
-    exit 1
-  fi
   pachingMysqlCode
   if [ $? -ne 0 ]; then
     echo "pachingMysqlCode fail."
@@ -643,8 +587,6 @@ function buildMysqlReleaseAsan() {
 
   cd ${MYSQL_CODE_PATH}/bld_debug
   export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MYSQL_CODE_PATH}/cantian_lib
-
-  bazelBuildMysqlSource
 }
 
 function sync_mysql_code()
@@ -659,7 +601,6 @@ function sync_mysql_code()
     cp -arf ${mysql_dir}/docker ${mysql_source}
     cp -arf ${mysql_dir}/scripts ${mysql_source}
     cp -arf ${mysql_dir}/mysql_patch/* ${mysql_source}
-    cp -arf ${mysql_dir}/bazel_patch/* ${mysql_source}
 }
 
 function checkInterfaceVersion()
