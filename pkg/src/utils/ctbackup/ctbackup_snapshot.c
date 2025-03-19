@@ -313,12 +313,12 @@ static status_t ctback_backup_mysql(ctbak_param_t* ctbak_param)
 status_t ctbak_record_snapshot_info(char* fs_name, snapshot_result_info* src_info, snapshot_result_info* dst_info) {
     errno_t err;
     err = strcpy_s(dst_info->snapName, CSS_MAX_FSNAME_LEN, src_info->snapName);
-    if (err != CT_SUCCESS) {
+    if (err != EOK) {
         printf("[ctbackup]Failed to record %s_fs_snap_name, ERRNO: %d\n", fs_name, err);
         return CT_ERROR;
     }
     err = memcpy_s(dst_info->snapUUID, sizeof(dst_info->snapUUID), src_info->snapUUID,sizeof(src_info->snapUUID));
-    if (err != CT_SUCCESS) {
+    if (err != EOK) {
         printf("[ctbackup]Failed to record %s_fs_snapUUID, , ERRNO: %d\n", fs_name, err);
         return CT_ERROR;
     }
@@ -366,7 +366,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     // 创建redo快照
     errno_t err;
     err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
-    if (err!= CT_SUCCESS) {
+    if (err!= EOK) {
         printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
         return CT_ERROR;
     }
@@ -391,7 +391,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
 
     // 创建归档快照
     err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
-    if (err!= CT_SUCCESS) {
+    if (err!= EOK) {
         printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
         return CT_ERROR;
     }
