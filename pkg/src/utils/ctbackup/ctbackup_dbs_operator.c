@@ -245,7 +245,7 @@ int32 dbs_ulog_clean()
     char vstore_id[MAX_DBS_VSTORE_ID_LEN] = {0};
     MEMS_RETURN_IFERR(strncpy_s(fs_name, MAX_DBS_FS_NAME_LEN, g_dbs_fs_info.log_fs_name,
                                 strlen(g_dbs_fs_info.log_fs_name)));
-    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, cluster_name,
+    MEMS_RETURN_IFERR(strncpy_s(cluster_name, MAX_DBS_FILE_PATH_LEN, g_dbs_fs_info.cluster_name,
                                 strlen(g_dbs_fs_info.cluster_name)));
     MEMS_RETURN_IFERR(strncpy_s(vstore_id, MAX_DBS_VSTORE_ID_LEN, g_dbs_fs_info.log_fs_vstore_id,
                                 strlen(g_dbs_fs_info.log_fs_vstore_id)));
