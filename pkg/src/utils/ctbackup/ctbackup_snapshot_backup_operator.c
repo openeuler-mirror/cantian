@@ -39,7 +39,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(parent_backup_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", backup_dir);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
@@ -48,12 +47,10 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(backup_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s/%s/", backup_dir, file_name);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
     if (cm_create_dir_ex(backup_dir) != CT_SUCCESS) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to cm_create_dir_ex %s\n", backup_dir);
         return CT_ERROR;
     }
@@ -63,7 +60,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(parent_file_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", file_dir);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
@@ -73,7 +69,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(file_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s/%s/", file_dir, file_name);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
@@ -83,7 +78,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(backup_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", parent_backup_dir);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
@@ -91,7 +85,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
     ret = snprintf_s(file_dir, MAX_DBS_FS_FILE_PATH_LEN,
                      MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", parent_file_dir);
     if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
         printf("[ctbackup]Failed to snprintf_s\n");
         return CT_ERROR;
     }
@@ -125,57 +118,54 @@ status_t handle_snapshot_backup_file(void **file_list, char *file_name,
         }
     }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_DBSTOR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "dbstor");
-    if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
-        free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s dbstor\n");
-        return CT_ERROR;
-    }
+    do {
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_DBSTOR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "dbstor");
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s dbstor\n");
+            break;
+        }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_COPY_FILE_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--copy-file");
-    if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
-        free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s --copy-file\n");
-        return CT_ERROR;
-    }
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_COPY_FILE_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "--copy-file");
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s --copy-file\n");
+            break;
+        }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_OP_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--export");
-    if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
-        free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s --export\n");
-        return CT_ERROR;
-    }
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_OP_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "--export");
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s --export\n");
+            break;
+        }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_FS_NAME_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", dbs_query_file_argv[DBS_QUERY_FILE_FS_NAME_PRAMA]);
-    if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
-        free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s\n");
-        return CT_ERROR;
-    }
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_FS_NAME_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "%s", dbs_query_file_argv[DBS_QUERY_FILE_FS_NAME_PRAMA]);
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s DBS_COPY_FILE_FS_NAME_PRAMA\n");
+            break;
+        }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_SOURCE_DIR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--source-dir=%s/", file_dir);
-    if (ret == CT_ERROR) {
-        cm_free_file_list(file_list);
-        free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s\n");
-        return CT_ERROR;
-    }
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_SOURCE_DIR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "--source-dir=%s/", file_dir);
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s --source-dir\n");
+            break;
+        }
 
-    ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_FILE_NAME_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
-                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--file-name=%s", file_name);
+        ret = snprintf_s(dbs_copy_file_argv[DBS_COPY_FILE_FILE_NAME_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                         MAX_DBS_FS_FILE_PATH_LEN - 1, "--file-name=%s", file_name);
+        if (ret == CT_ERROR) {
+            printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s --file-name\n");
+            break;
+        }
+    } while (0);
+
     if (ret == CT_ERROR) {
         cm_free_file_list(file_list);
         free_system_call_params(dbs_copy_file_argv, 0, DBS_COPY_FILE_PRAMA_NUM);
-        printf("[ctbackup]Failed to snprintf_s\n");
+        printf("[ctbackup]handle_snapshot_backup_file Failed to snprintf_s\n");
         return CT_ERROR;
     }
 
