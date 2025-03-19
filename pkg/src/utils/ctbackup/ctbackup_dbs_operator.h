@@ -135,9 +135,6 @@
 
 typedef bool32 (*file_filter_func)(const char *);
 
-//extern dbs_fs_info_t g_dbs_fs_info;
-
-//status_t dbstool_init();
 int32 dbs_arch_clean();
 int32 dbs_ulog_clean();
 int32 dbs_pagepool_clean();

@@ -30,12 +30,12 @@
 
 bool32 ulog_file_filter(const char *file_name)
 {
-    return strcmp(file_name, g_dbs_fs_info.cluster_name) == 0;
+    return (bool32)(strcmp(file_name, g_dbs_fs_info.cluster_name) == 0);
 }
 
 bool32 page_file_filter(const char *file_name)
 {
-    return strcmp(file_name, "SplitLsnInfo") == 0;
+    return (bool32)(strcmp(file_name, "SplitLsnInfo") == 0);
 }
 
 bool32 arch_file_filter(const char *file_name)
@@ -188,6 +188,18 @@ int32 dbs_pagepool_clean()
     return CT_SUCCESS;
 }
 
+static char *get_file_name_from_list(void *file_list, uint32 index, file_info_version_t info_version)
+{
+    if (info_version == DBS_FILE_INFO_VERSION_1) {
+        dbstor_file_info *file_info = (dbstor_file_info *)((char *)file_list + index * sizeof(dbstor_file_info));
+        return file_info->file_name;
+    } else {
+        dbstor_file_info_detail *file_info = (dbstor_file_info_detail *)((char *)file_list +
+                                                                         index * sizeof(dbstor_file_info_detail));
+        return file_info->file_name;
+    }
+}
+
 status_t dbs_clean_files_ulog(uint32 vstore_id, dbs_device_info_t *src_info, void *file_list,
                               uint32 file_num, file_filter_func filter_func)
 {
@@ -199,15 +211,7 @@ status_t dbs_clean_files_ulog(uint32 vstore_id, dbs_device_info_t *src_info, voi
     }
     for (uint32 i = 0; i < file_num; i++) {
         char file_path[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
-        char *file_name = NULL;
-        if (info_version == DBS_FILE_INFO_VERSION_1) {
-            dbstor_file_info *file_info = (dbstor_file_info *)((char *)file_list + i * sizeof(dbstor_file_info));
-            file_name = file_info->file_name;
-        } else {
-            dbstor_file_info_detail *file_info = (dbstor_file_info_detail *)((char *)file_list +
-                                                                             i * sizeof(dbstor_file_info_detail));
-            file_name = file_info->file_name;
-        }
+        char *file_name = get_file_name_from_list(file_list, i, info_version);
 
         if (file_name == NULL || strlen(file_name) == 0) {
             printf("Failed to get file name.\n");

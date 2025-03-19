@@ -95,7 +95,6 @@ status_t ctbak_do_shell_background(text_t* command, int* child_pid, int exec_mod
     sleep(1);
     int wait = waitpid(child, &status, exec_mode);
     if (wait == child && WIFEXITED((unsigned int)status) && WEXITSTATUS((unsigned int)status) != 0) {
-        // printf("[ctbackup]child process exec failed\n");
         return CT_ERROR;
     }
     *child_pid = child;
