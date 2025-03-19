@@ -97,14 +97,11 @@ void rd_enter_page(knl_session_t *session, log_entry_t *log)
         bool32 need_recover = dtc_rcy_page_in_rcyset(page_id);
         // skip this page if it is not in recovery set
         if (!need_recover) {
-            if ((dtc_add_dirtypage_for_recovery(session, page_id) == CT_SUCCESS)) {
-                buf_enter_invalid_page(session, LATCH_MODE_X);
-                session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
-                CT_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u", page_id.file, page_id.page,
-                    redo->pcn);
-                return;
-            }
-            dtc_rcy_page_update_need_replay(page_id);
+            buf_enter_invalid_page(session, LATCH_MODE_X);
+            session->page_stack.is_skip[session->page_stack.depth - 1] = CT_TRUE;
+            CT_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u", page_id.file, page_id.page,
+                redo->pcn);
+            return;
         }
     }
 

@@ -213,7 +213,7 @@ static status_t wait_for_read_buf_finish_read(uint32 index){
     return CT_SUCCESS;
 }
 
-status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t page_id, bool8 need_replay)
+status_t dtc_rcy_set_item_update_noneed_replay(rcy_set_bucket_t *bucket, page_id_t page_id)
 {
     rcy_set_item_t *item = bucket->first;
     uint64 curr_page_lsn = CT_INVALID_ID64;
@@ -233,16 +233,18 @@ status_t dtc_rcy_set_item_update_need_replay(rcy_set_bucket_t *bucket, page_id_t
             cm_spin_unlock(&buf_bucket->lock);
         }
     }
-    while (item != NULL) {
-        if (IS_SAME_PAGID(item->page_id, page_id)) {
-            if (item->last_dirty_lsn <= curr_page_lsn) {
-                item->need_replay = need_replay;
-            }
-            return CT_SUCCESS;
-        }
-        item = item->next_item;
+
+    item = dtc_rcy_get_item(bucket, page_id);
+    knl_panic(item);
+    if (item->last_dirty_lsn <= curr_page_lsn) {
+        item->need_replay = CT_FALSE;
     }
-    return CT_ERROR;
+
+    if (!item->need_replay && (dtc_add_dirtypage_for_recovery(session, page_id) != CT_SUCCESS)) {
+        item->need_replay = CT_TRUE;
+    }
+
+    return CT_SUCCESS;
 }
 
 rcy_set_item_t *dtc_rcy_get_item_internal(page_id_t page_id)
@@ -939,16 +941,14 @@ status_t dtc_rcy_set_update_no_need_replay_batch(rcy_set_t *rcy_set, page_id_t *
     uint32 hash_id;
     page_id_t *page_id = NULL;
     status_t ret = CT_SUCCESS;
-    bool8 need_replay = CT_TRUE;
     for (uint32 i = 0; i < count; i++) {
         page_id = no_rcy_pages + i;
         hash_id = dtc_rcy_bucket_hash(*page_id, rcy_set->bucket_num);
         bucket = &rcy_set->buckets[hash_id];
         cm_spin_lock(&bucket->lock, NULL);
-        need_replay = CT_FALSE;
-        ret = dtc_rcy_set_item_update_need_replay(bucket, *page_id, need_replay);
-        CT_LOG_RUN_RET_INFO(ret, "[DTC RCY][%u-%u] update need replay(%u) in rcy set",
-                            page_id->file, page_id->page, need_replay);
+        ret = dtc_rcy_set_item_update_noneed_replay(bucket, *page_id);
+        CT_LOG_RUN_RET_INFO(ret, "[DTC RCY][%u-%u] update no need replay in rcy set",
+                            page_id->file, page_id->page);
         if (ret != CT_SUCCESS) {
             cm_spin_unlock(&bucket->lock);
             return ret;
