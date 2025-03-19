@@ -62,9 +62,6 @@ status_t ctbak_parse_snapshot_backup_args(int32 argc, char** argv, ctbak_param_t
     while (optind < argc) {
         CT_RETURN_IFERR(check_input_params(argv[optind]));
         opt_s = getopt_long(argc, argv, CTBAK_SHORT_OPTION_EXP, ctbak_snapshot_backup_options, &opt_index);
-        if (opt_s == CTBAK_PARSE_OPTION_ERR) {
-            break;
-        }
         switch (opt_s) {
             case CTBAK_PARSE_OPTION_SNAPSHOT_BACKUP:
                 ctbak_param->is_snapshot = CT_FALSE;
@@ -85,6 +82,7 @@ status_t ctbak_parse_snapshot_backup_args(int32 argc, char** argv, ctbak_param_t
             case CTBAK_SHORT_OPTION_PARALLEL:
                 CT_RETURN_IFERR(ctbak_parse_single_arg(optarg, &ctbak_param->parallelism));
                 break;
+            case CTBAK_PARSE_OPTION_ERR:
             case CTBAK_SHORT_OPTION_UNRECOGNIZED:
             case CTBAK_SHORT_OPTION_NO_ARG:
                 printf("[ctbackup]Parse option arguments of snapshot backup error!\n");
@@ -96,9 +94,14 @@ status_t ctbak_parse_snapshot_backup_args(int32 argc, char** argv, ctbak_param_t
     return CT_SUCCESS;
 }
 
-static status_t ctbak_read_snapshot_info_file(snapshot_backup_info_t *snapshot_backup_info) {
+static status_t ctbak_read_snapshot_info_file(ctbak_param_t* ctbak_param, snapshot_backup_info_t *snapshot_backup_info) {
+    char ct_snapshot_info_path[CANTIAN_SNAPSHOT_FILE_LENGTH] = { 0 };
+    errno_t err;
+    err = snprintf_s(ct_snapshot_info_path, CANTIAN_SNAPSHOT_FILE_LENGTH, CANTIAN_SNAPSHOT_FILE_LENGTH - 1,
+                     "/%s%s", ctbak_param->share_fs_name.str, SNAPSHOT_INFO_FS_PATH);
+    PRTS_RETURN_IFERR(ret);
     object_id_t file_handle;
-    status_t ret = ctbak_get_file_handle_from_share_fs("/share/backup", "snap_info", &file_handle);
+    status_t ret = ctbak_get_file_handle_from_share_fs(ct_snapshot_info_path, CTBAK_SNAP_INFO_FILE_NAME, &file_handle);
     if (ret != CT_SUCCESS) {
         printf("[ctbackup]get file handle from share_fs failed!\n");
         return CT_ERROR;
@@ -118,8 +121,8 @@ status_t ctbak_delete_snapshot(ctbak_param_t* ctbak_param)
     uint32_t log_fs_vstore_id = 0;
     cm_text2uint32(&ctbak_param->page_fs_vstore_id, &page_fs_vstore_id);
     cm_text2uint32(&ctbak_param->log_fs_vstore_id, &log_fs_vstore_id);
-    snapshot_backup_info_t snapshot_backup_info = {0};
-    if (ctbak_read_snapshot_info_file(&snapshot_backup_info)!= CT_SUCCESS) {
+    snapshot_backup_info_t snapshot_backup_info = { 0 };
+    if (ctbak_read_snapshot_info_file(ctbak_param, &snapshot_backup_info)!= CT_SUCCESS) {
         printf("[ctbackup]Failed to read snapshot info file!\n");
         return CT_ERROR;
     }

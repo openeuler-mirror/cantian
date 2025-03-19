@@ -57,9 +57,6 @@ status_t ctbak_parse_snapshot_restore_args(int32 argc, char** argv, ctbak_param_
     while (optind < argc) {
         CT_RETURN_IFERR(check_input_params(argv[optind]));
         opt_s = getopt_long(argc, argv, CTBAK_SHORT_OPTION_EXP, ctbak_snapshot_restore_options, &opt_index);
-        if (opt_s == CTBAK_PARSE_OPTION_ERR) {
-            break;
-        }
         switch (opt_s) {
             case CTBAK_PARSE_OPTION_SNAPSHOT_RESTORE:
                 break;
@@ -75,6 +72,7 @@ status_t ctbak_parse_snapshot_restore_args(int32 argc, char** argv, ctbak_param_
             case CTBAK_SHORT_OPTION_PARALLEL:
                 CT_RETURN_IFERR(ctbak_parse_single_arg(optarg, &ctbak_param->parallelism));
                 break;
+            case CTBAK_PARSE_OPTION_ERR:
             case CTBAK_SHORT_OPTION_UNRECOGNIZED:
             case CTBAK_SHORT_OPTION_NO_ARG:
                 printf("[ctbackup]Parse option arguments of snapshot restore error!\n");
@@ -102,7 +100,6 @@ status_t ctbak_do_snapshot_restore(ctbak_param_t* ctbak_param)
         return CT_ERROR;
     }
 
-    printf("[ctbackup]snapshot restore success!\n");
     printf("[ctbackup]snapshot restore finished\n");
     return CT_SUCCESS;
 }
@@ -112,7 +109,7 @@ ctbak_cmd_t *ctbak_generate_snapshot_restore_cmd(void)
     ctbak_cmd_t* ctbak_cmd = (ctbak_cmd_t*)malloc(sizeof(ctbak_cmd_t));
     if (ctbak_cmd == NULL) {
         printf("[ctbackup]failed to malloc memory for snapshot restore ctbak_cmd!\n");
-        return (ctbak_cmd_t *)NULL;
+        return NULL;
     }
     printf("[ctbackup]process ctbak_generate_snapshot_restore_cmd\n");
     ctbak_cmd->do_exec = ctbak_do_snapshot_restore;

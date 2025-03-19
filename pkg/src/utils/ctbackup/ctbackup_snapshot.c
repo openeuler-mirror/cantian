@@ -1,27 +1,27 @@
 /* -------------------------------------------------------------------------
-*  This file is part of the Cantian project.
-* Copyright (c) 2024 Huawei Technologies Co.,Ltd.
-*
-* Cantian is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-* -------------------------------------------------------------------------
-*
-* ctbackup_snapshot.c
-*
-*
-* IDENTIFICATION
-* src/utils/ctbackup/ctbackup_snapshot.c
-*
-* -------------------------------------------------------------------------
-*/
+ *  This file is part of the Cantian project.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
+ *
+ * Cantian is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ *
+ * ctbackup_snapshot.c
+ *
+ *
+ * IDENTIFICATION
+ * src/utils/ctbackup/ctbackup_snapshot.c
+ *
+ * -------------------------------------------------------------------------
+ */
 #include <pthread.h>
 #include "ctbackup_snapshot.h"
 #include "ctbackup_common.h"
@@ -140,7 +140,8 @@ status_t generate_snapshot_info_path(char *fs_name, char *ct_snapshot_info_path)
     return CT_SUCCESS;
 }
 
-status_t ctbak_generate_snap_info_file(char *target_dir, char *file_name, int32 *handle) {
+status_t ctbak_generate_snap_info_file(char *target_dir, char *file_name, int32 *handle)
+{
     char snapinfo_file_name[CANTIAN_SNAPSHOT_FILE_LENGTH] = {0};
     errno_t ret;
     ret = snprintf_s((char *)snapinfo_file_name, CANTIAN_SNAPSHOT_FILE_LENGTH, CANTIAN_SNAPSHOT_FILE_LENGTH - 1,
@@ -249,7 +250,7 @@ status_t ctbak_do_ctsql_recycle_redo(char *opt, char *path, char *params[], bool
         return CT_ERROR;
     }
     close(pipe_stdout[CHILD_ID]);
-    char output[MAX_STATEMENT_LENGTH];
+    char output[MAX_STATEMENT_LENGTH] = { 0 };
     bool32 need_retry = CT_FALSE;
     FILE *fp = fdopen(pipe_stdout[PARENT_ID], "r");
     while(fgets(output, MAX_STATEMENT_LENGTH, fp) != NULL) {
@@ -274,7 +275,7 @@ status_t ctbak_do_ctsql_recycle_redo(char *opt, char *path, char *params[], bool
 
 status_t ctbak_do_recycle_redo(char* opt, bool32 *retry)
 {
-    char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = {0};
+    char *ct_params[CTBACKUP_MAX_PARAMETER_CNT] = { 0 };
     status_t status = fill_params_for_recycle_redo(opt, ct_params);
     if (status != CT_SUCCESS) {
         printf("[ctbackup]fill_params_for_%s_recycle_redo failed!\n", opt);
@@ -310,13 +311,15 @@ static status_t ctback_backup_mysql(ctbak_param_t* ctbak_param)
 }
 
 status_t ctbak_record_snapshot_info(char* fs_name, snapshot_result_info* src_info, snapshot_result_info* dst_info) {
-    if (EOK != strcpy_s(dst_info->snapName, CSS_MAX_FSNAME_LEN, src_info->snapName)) {
-        printf("[ctbackup]Failed to record %s_fs_snap_name\n", fs_name);
+    errno_t err;
+    err = strcpy_s(dst_info->snapName, CSS_MAX_FSNAME_LEN, src_info->snapName);
+    if (err != CT_SUCCESS) {
+        printf("[ctbackup]Failed to record %s_fs_snap_name, ERRNO: %d\n", fs_name, err);
         return CT_ERROR;
     }
-    if (EOK != memcpy_s(dst_info->snapUUID, sizeof(dst_info->snapUUID), src_info->snapUUID,
-                        sizeof(src_info->snapUUID))) {
-        printf("[ctbackup]Failed to record %s_fs_snapUUID\n", fs_name);
+    err = memcpy_s(dst_info->snapUUID, sizeof(dst_info->snapUUID), src_info->snapUUID,sizeof(src_info->snapUUID));
+    if (err != CT_SUCCESS) {
+        printf("[ctbackup]Failed to record %s_fs_snapUUID, , ERRNO: %d\n", fs_name, err);
         return CT_ERROR;
     }
     dst_info->snapshotID = src_info->snapshotID;
@@ -324,7 +327,8 @@ status_t ctbak_record_snapshot_info(char* fs_name, snapshot_result_info* src_inf
     return CT_SUCCESS;
 }
 
-void print_snapshot_info(const char* fs_name, snapshot_result_info snap_info) {
+void print_snapshot_info(const char* fs_name, snapshot_result_info snap_info)
+{
     printf("[ctbackup]%s_snap_name is %s\n", fs_name, snap_info.snapName);
     printf("[ctbackup]%s_snapUUID is %u\n", fs_name, snap_info.snapshotID);
     printf("[ctbackup]%s_timepoint is %u\n", fs_name, snap_info.timepoint);
@@ -343,7 +347,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     uint32_t log_fs_vstore_id = 0;
     cm_text2uint32(&ctbak_param->page_fs_vstore_id, &page_fs_vstore_id);
     cm_text2uint32(&ctbak_param->log_fs_vstore_id, &log_fs_vstore_id);
-    snapshot_result_info snap_info = {0};
+    snapshot_result_info snap_info = { 0 };
     // 创建page快照
     printf("[ctbackup]start create page_fs snapshot!\n");
     if (dbs_create_fs_snap(ctbak_param->page_fs_name.str, page_fs_vstore_id, &snap_info) != CT_SUCCESS) {
@@ -360,7 +364,12 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     }
 
     // 创建redo快照
-    memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
+    errno_t err;
+    err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
+    if (err!= CT_SUCCESS) {
+        printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
+        return CT_ERROR;
+    }
     printf("[ctbackup]start create redo_fs snapshot!\n");
     if (dbs_create_fs_snap(ctbak_param->log_fs_name.str, log_fs_vstore_id, &snap_info) != CT_SUCCESS) {
         printf("[ctbackup]create redo fs snap failed!\n");
@@ -381,7 +390,11 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     }
 
     // 创建归档快照
-    memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
+    err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
+    if (err!= CT_SUCCESS) {
+        printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
+        return CT_ERROR;
+    }
     printf("[ctbackup]start create redo_fs snapshot!\n");
     if (dbs_create_fs_snap(ctbak_param->archive_fs_name.str, log_fs_vstore_id, &snap_info)!= CT_SUCCESS) {
         printf("[ctbackup]create archive fs snap failed!\n");
@@ -462,8 +475,7 @@ status_t ctbak_create_snapshot_thread(ctbak_param_t* ctbak_param)
 }
 
 status_t ctbak_create_snapshot_info_file(ctbak_param_t* ctbak_param) {
-    char ct_snapshot_info_path[CANTIAN_SNAPSHOT_FILE_LENGTH] = {0};
-    memset_s(ct_snapshot_info_path, CANTIAN_SNAPSHOT_FILE_LENGTH, 0, CANTIAN_SNAPSHOT_FILE_LENGTH);
+    char ct_snapshot_info_path[CANTIAN_SNAPSHOT_FILE_LENGTH] = { 0 };
     if (generate_snapshot_info_path(ctbak_param->share_fs_name.str, (char *)ct_snapshot_info_path) != CT_SUCCESS) {
         printf("[ctbackup]generate_snapshot_info_path failed!\n");
         return CT_ERROR;
@@ -558,7 +570,7 @@ status_t ctbak_do_snapshot(ctbak_param_t* ctbak_param)
             break;
         }
         retry_num++;
-    };
+    }
     free_input_params(ctbak_param);
     printf("[ctbackup]cantian snapshot execute failed!\n");
     return CT_ERROR;
