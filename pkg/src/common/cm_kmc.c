@@ -32,12 +32,10 @@
 #include "cm_debug.h"
 #include "cm_device.h"
 #include <stdlib.h>
-#include "wsecv2_errorcode.h"
 #include "wsecv2_type.h"
 #include "securec.h"
 #include "cm_system.h"
 #include "wsecv2_util.h"
-#include "wsecv2_datetime.h"
 #include "kmc_init.h"
 
 #ifdef _WIN32

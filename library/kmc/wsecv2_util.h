@@ -36,6 +36,7 @@ extern "C" {
 
 /* 2. Macro Definition */
 /* 2.1 Constant Macro */
+#define WSEC_SUCCESS          (unsigned long)0    /* Success */
 #define WSEC_LOG_BUFF_SIZE    512 /* Maximum length of a log. */
 
 /* 2.3 Log Function Macro */
