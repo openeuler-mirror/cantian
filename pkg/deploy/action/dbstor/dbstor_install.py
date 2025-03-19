@@ -269,8 +269,8 @@ class DBStor:
             "USER_NAME": "",
             "PASSWORD": "",
             "CLUSTER_ID": "",
-            "NAMESPACE_SHARE_FSNAME": "",  # 添加共享文件系统配置项
-            "NAMESPACE_ARCHIVE_FSNAME": "",  # 添加归档文件系统配置项
+            "NAMESPACE_SHARE_FSNAME": "",
+            "NAMESPACE_ARCHIVE_FSNAME": "",
         }
         self.conf_file_path = ""
         self.dbstor_conf_file = ""
