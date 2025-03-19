@@ -1,27 +1,27 @@
 /* -------------------------------------------------------------------------
-*  This file is part of the Cantian project.
-* Copyright (c) 2024 Huawei Technologies Co.,Ltd.
-*
-* Cantian is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-* -------------------------------------------------------------------------
-*
-* cm_dbstor.h
-*
-*
-* IDENTIFICATION
-* src/common/cm_dbstor.h
-*
-* -------------------------------------------------------------------------
-*/
+ *  This file is part of the Cantian project.
+ * Copyright (c) 2024 Huawei Technologies Co.,Ltd.
+ *
+ * Cantian is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ *
+ * cm_dbstor.h
+ *
+ *
+ * IDENTIFICATION
+ * src/common/cm_dbstor.h
+ *
+ * -------------------------------------------------------------------------
+ */
 
 #ifndef __CM_DBSTOR_H__
 #define __CM_DBSTOR_H__
@@ -43,38 +43,38 @@ extern "C" {
 #define FS_SNAP_UUID_LEN 16
 
 typedef struct {
-   uint64 offset;
-   uint64 length;
-   uint64 start_lsn;
+    uint64 offset;
+    uint64 length;
+    uint64 start_lsn;
 } ulog_archive_option_t;
 
 typedef struct {
-   uint64 end_lsn;
-   uint64 real_len;
+    uint64 end_lsn;
+    uint64 real_len;
 } ulog_archive_result_t;
 
 typedef struct {
-   char local_ip[DBS_ADDR_STR_LEN];
-   char remote_ip[DBS_ADDR_STR_LEN];
+    char local_ip[DBS_ADDR_STR_LEN];
+    char remote_ip[DBS_ADDR_STR_LEN];
 } dbs_ip_pairs;
 
 typedef struct {
-   char *fsName;
-   uint32_t vstorId;
-   char *snapName;
-   char *buffer;
-   char *bufferLen;
+    char *fsName;
+    uint32_t vstorId;
+    char *snapName;
+    char *buffer;
+    char *bufferLen;
 } dbs_get_page_from_sf_snap_param;
 
 typedef struct {
-   char snapName[CSS_MAX_FSNAME_LEN];
-   uint32_t snapshotID;
-   uint32_t timepoint;
-   uint8_t  snapUUID[FS_SNAP_UUID_LEN];
+    char snapName[CSS_MAX_FSNAME_LEN];
+    uint32_t snapshotID;
+    uint32_t timepoint;
+    uint8_t  snapUUID[FS_SNAP_UUID_LEN];
 } snapshot_result_info;
 
 typedef struct {
-   uint8_t buf[FS_SNAP_UUID_LEN];
+    uint8_t buf[FS_SNAP_UUID_LEN];
 } SNAP_UUID_S;
 
 // libdbstorClient.so
@@ -151,107 +151,107 @@ typedef int (*create_fs_snap)(char *, uint32_t, snapshot_result_info *);
 typedef int (*delete_fs_snap)(char *, uint32_t, uint32_t, uint32_t, SNAP_UUID_S);
 
 typedef struct st_dbs_interface {
-   void *dbs_handle;
-   // namespace
-   create_namespace_t   create_namespace;
-   open_namespace_t open_namespace;
-   set_term_access_mode_for_ns_t set_term_access_mode_for_ns;
-   dbs_set_ns_term_handle_t dbs_set_ns_term_handle;
-   dbs_ns_io_forbidden_t dbs_ns_io_forbidden;
-   dbs_get_ns_io_forbidden_stat_t dbs_get_ns_io_forbidden_stat;
+    void *dbs_handle;
+    // namespace
+    create_namespace_t   create_namespace;
+    open_namespace_t open_namespace;
+    set_term_access_mode_for_ns_t set_term_access_mode_for_ns;
+    dbs_set_ns_term_handle_t dbs_set_ns_term_handle;
+    dbs_ns_io_forbidden_t dbs_ns_io_forbidden;
+    dbs_get_ns_io_forbidden_stat_t dbs_get_ns_io_forbidden_stat;
 
-   // dbs
-   dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
-   dbs_client_lib_init_t dbs_client_lib_init;
-   dbs_set_init_mode_t dbs_set_init_mode;
-   dbs_client_flush_log_t dbs_client_flush_log;
-   reg_role_info_callback_t reg_role_info_callback;
-   dbs_link_down_event_reg_t dbs_link_down_event_reg;
-   dbs_init_lock_t dbs_init_lock;
-   dbs_inst_lock_t dbs_inst_lock;
-   dbs_inst_unlock_t dbs_inst_unlock;
-   dbs_inst_unlock_force_t dbs_inst_unlock_force;
-   dbs_check_inst_heart_beat_is_normal_t dbs_check_inst_heart_beat_is_normal;
-   dbs_file_open_root_t dbs_file_open_root;
-   dbs_file_open_root_by_vstorid_t dbs_file_open_root_by_vstorid;
-   dbs_file_create_t dbs_file_create;
-   dbs_file_open_t dbs_file_open;
-   dbs_file_write_t dbs_file_write;
-   dbs_file_read_t dbs_file_read;
-   dbs_file_remove_t dbs_file_remove;
-   dbs_clear_cms_name_space_t dbs_clear_cms_name_space;
-   dbs_file_create_by_path_t dbs_file_create_by_path;
-   dbs_file_open_by_path_t dbs_file_open_by_path;
-   dbs_file_rename_t dbs_file_rename;
-   dbs_file_get_num_t dbs_file_get_num;
-   dbs_file_get_list_t dbs_file_get_list;
-   dbs_file_get_list_detail_t dbs_file_get_list_detail;
-   dbs_get_file_size_t dbs_get_file_size;
-   dbs_ulog_archive_t dbs_ulog_archive;
-   dbs_get_ip_pairs_t dbs_get_ip_pairs;
-   dbs_create_link_t dbs_create_link;
-   dbs_check_single_link_t dbs_check_single_link;
-   dbs_query_fs_info_t dbs_query_fs_info;
+    // dbs
+    dbs_client_set_uuid_lsid_t dbs_client_set_uuid_lsid;
+    dbs_client_lib_init_t dbs_client_lib_init;
+    dbs_set_init_mode_t dbs_set_init_mode;
+    dbs_client_flush_log_t dbs_client_flush_log;
+    reg_role_info_callback_t reg_role_info_callback;
+    dbs_link_down_event_reg_t dbs_link_down_event_reg;
+    dbs_init_lock_t dbs_init_lock;
+    dbs_inst_lock_t dbs_inst_lock;
+    dbs_inst_unlock_t dbs_inst_unlock;
+    dbs_inst_unlock_force_t dbs_inst_unlock_force;
+    dbs_check_inst_heart_beat_is_normal_t dbs_check_inst_heart_beat_is_normal;
+    dbs_file_open_root_t dbs_file_open_root;
+    dbs_file_open_root_by_vstorid_t dbs_file_open_root_by_vstorid;
+    dbs_file_create_t dbs_file_create;
+    dbs_file_open_t dbs_file_open;
+    dbs_file_write_t dbs_file_write;
+    dbs_file_read_t dbs_file_read;
+    dbs_file_remove_t dbs_file_remove;
+    dbs_clear_cms_name_space_t dbs_clear_cms_name_space;
+    dbs_file_create_by_path_t dbs_file_create_by_path;
+    dbs_file_open_by_path_t dbs_file_open_by_path;
+    dbs_file_rename_t dbs_file_rename;
+    dbs_file_get_num_t dbs_file_get_num;
+    dbs_file_get_list_t dbs_file_get_list;
+    dbs_file_get_list_detail_t dbs_file_get_list_detail;
+    dbs_get_file_size_t dbs_get_file_size;
+    dbs_ulog_archive_t dbs_ulog_archive;
+    dbs_get_ip_pairs_t dbs_get_ip_pairs;
+    dbs_create_link_t dbs_create_link;
+    dbs_check_single_link_t dbs_check_single_link;
+    dbs_query_fs_info_t dbs_query_fs_info;
 
-   // pagepool
-   create_pagepool_t create_pagepool;
-   destroy_pagepool_t destroy_pagepool;
-   open_pagepool_t open_pagepool;
-   close_pagepool_t close_pagepool;
-   dbs_put_page_async_t dbs_put_page_async;
-   sync_page_by_part_index_t sync_page_by_part_index;
-   dbs_mput_continue_pages_t dbs_mput_continue_pages;
-   dbs_mget_page_t dbs_mget_page;
-   get_pagepool_logic_capacity_t get_pagepool_logic_capacity;
-   expand_pagepool_logic_capacity_t expand_pagepool_logic_capacity;
-   rename_pagepool_t rename_pagepool;
+    // pagepool
+    create_pagepool_t create_pagepool;
+    destroy_pagepool_t destroy_pagepool;
+    open_pagepool_t open_pagepool;
+    close_pagepool_t close_pagepool;
+    dbs_put_page_async_t dbs_put_page_async;
+    sync_page_by_part_index_t sync_page_by_part_index;
+    dbs_mput_continue_pages_t dbs_mput_continue_pages;
+    dbs_mget_page_t dbs_mget_page;
+    get_pagepool_logic_capacity_t get_pagepool_logic_capacity;
+    expand_pagepool_logic_capacity_t expand_pagepool_logic_capacity;
+    rename_pagepool_t rename_pagepool;
 
-   // ulog
-   create_ulog_t create_ulog;
-   destroy_ulog_t destroy_ulog;
-   open_ulog_t open_ulog;
-   append_ulog_record_t append_ulog_record;
-   truncate_ulog_t truncate_ulog;
-   read_ulog_record_list_t read_ulog_record_list;
-   get_ulog_used_cap_t get_ulog_used_cap;
-   get_ulog_init_capacity_t get_ulog_init_capacity;
+    // ulog
+    create_ulog_t create_ulog;
+    destroy_ulog_t destroy_ulog;
+    open_ulog_t open_ulog;
+    append_ulog_record_t append_ulog_record;
+    truncate_ulog_t truncate_ulog;
+    read_ulog_record_list_t read_ulog_record_list;
+    get_ulog_used_cap_t get_ulog_used_cap;
+    get_ulog_init_capacity_t get_ulog_init_capacity;
 
-   // snapshot
-   create_fs_snap create_fs_snap;
-   delete_fs_snap delete_fs_snap;
+    // snapshot
+    create_fs_snap create_fs_snap;
+    delete_fs_snap delete_fs_snap;
 
 } dbs_interface_t;
 
 typedef struct st_dbs_tool_interface {
-   void *dbs_tool_handle;
-   get_curr_log_offset_t get_curr_log_offset;
-   get_correct_page_id_t get_correct_page_id;
+    void *dbs_tool_handle;
+    get_curr_log_offset_t get_curr_log_offset;
+    get_correct_page_id_t get_correct_page_id;
 } dbs_tool_interface_t;
 
 typedef enum {
-   CS_FILE_TYPE_DIR = 0,
-   CS_FILE_TYPE_FILE,
-   CS_FILE_TYPE_BUTT,
+    CS_FILE_TYPE_DIR = 0,
+    CS_FILE_TYPE_FILE,
+    CS_FILE_TYPE_BUTT,
 } cs_file_type;
 
 typedef struct cm_dbstor_file_info {
-   char file_name[CSS_MAX_NAME_LEN];
-   cs_file_type type;
-   object_id_t handle;
+    char file_name[CSS_MAX_NAME_LEN];
+    cs_file_type type;
+    object_id_t handle;
 } dbstor_file_info;
 
 typedef struct cm_dbstor_file_info_detail {
-   char file_name[CSS_MAX_NAME_LEN];
-   cs_file_type type;
-   object_id_t handle;
-   uint32_t file_size;
-   uint32_t mode;
-   uint32_t uid;
-   uint32_t gid;
-   uint64_t mtimeSec;
-   uint64_t mtimeNsec;
-   uint64_t crtimeSec;
-   uint64_t crtimeNsec;
+    char file_name[CSS_MAX_NAME_LEN];
+    cs_file_type type;
+    object_id_t handle;
+    uint32_t file_size;
+    uint32_t mode;
+    uint32_t uid;
+    uint32_t gid;
+    uint64_t mtimeSec;
+    uint64_t mtimeNsec;
+    uint64_t crtimeSec;
+    uint64_t crtimeNsec;
 } dbstor_file_info_detail;
 
 dbs_interface_t *dbs_global_handle(void);
@@ -262,22 +262,22 @@ void dbs_close_lib(void);
 void dbs_tool_close_lib(void);
 
 typedef struct cm_dbstor_fs_info {
-   uint64 actual_size;
-   uint64 total_capacity;
-   uint64 used_size;
-   uint32 fs_id;
-   uint32 cluster_id;
-   uint32 pool_id;
-   uint32 grain_size;
-   uint32 block_size;
-   uint32 work_load_type_id;
-   uint8 fs_mode;
-   uint8 fs_type;
-   uint8 is_gfs;
-   uint8 fs_type_verify_switch;
-   uint8 fs_status;
-   bool is_dedup;
-   bool is_compress;
+    uint64 actual_size;
+    uint64 total_capacity;
+    uint64 used_size;
+    uint32 fs_id;
+    uint32 cluster_id;
+    uint32 pool_id;
+    uint32 grain_size;
+    uint32 block_size;
+    uint32 work_load_type_id;
+    uint8 fs_mode;
+    uint8 fs_type;
+    uint8 is_gfs;
+    uint8 fs_type_verify_switch;
+    uint8 fs_status;
+    bool is_dedup;
+    bool is_compress;
 } dbstor_fs_info;
 
 #ifdef __cplusplus

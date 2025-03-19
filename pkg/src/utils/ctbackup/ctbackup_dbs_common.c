@@ -42,6 +42,7 @@
 #define DBS_COPY_FILE_PRAMA_NUM 5
 #define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
 #define DEV_RW_BUFFER_SIZE (1 * 1024 * 1024)
+#define NUM_ZERO    0
 #define NUM_ONE     1
 #define NUM_TWO     2
 #define NUM_THREE   3
@@ -133,8 +134,8 @@ status_t dbs_get_param_value(char *line, char *value, uint32 length)
 
 status_t dbs_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
 {
-    char file_path[CT_FILE_NAME_BUFFER_SIZE];
-    char line[DBS_CONFIG_MAX_PARAM];
+    char file_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    char line[DBS_CONFIG_MAX_PARAM] = { 0 };
     errno_t ret = sprintf_s(file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s",
                             DBS_TOOL_CONFIG_PATH, cfg_name);
     PRTS_RETURN_IFERR(ret);
@@ -176,8 +177,8 @@ status_t dbs_get_uuid_lsid_from_config(char* cfg_name, uint32* lsid, char* uuid)
 
 status_t dbs_get_fs_info_from_config(char* cfg_name)
 {
-    char file_path[CT_FILE_NAME_BUFFER_SIZE];
-    char line[DBS_CONFIG_MAX_PARAM];
+    char file_path[CT_FILE_NAME_BUFFER_SIZE] = { 0 };
+    char line[DBS_CONFIG_MAX_PARAM] = { 0 };
     errno_t ret = sprintf_s(file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s",
                             DBS_TOOL_CONFIG_PATH, cfg_name);
     PRTS_RETURN_IFERR(ret);
@@ -236,11 +237,11 @@ status_t dbs_get_and_flock_conf_file(char *config_name)
         }
         ret = memset_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, 0, CT_FILE_NAME_BUFFER_SIZE);
         if (ret != EOK) {
-            printf("memset_s dbs_conf_file_path failed!\n");
+            printf("memset_s dbs_conf_file_path failed! ERRNO: %d\n", ret);
             break;
         }
         ret = sprintf_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s", dbs_conf_dir_path, entry->d_name);
-        if (ret == -1) {
+        if (ret != EOK) {
             printf("Failed to assemble the dbstor conf file path by instance home(%s).\n", dbs_conf_dir_path);
             break;
         }
@@ -252,6 +253,7 @@ status_t dbs_get_and_flock_conf_file(char *config_name)
             ret = strcpy_s(config_name, DBS_CONFIG_FILE_NAME_LEN, entry->d_name);
             if (ret != EOK) {
                 printf("strcpy_s config_name failed!\n");
+
                 closedir(dir_ptr);
                 return CT_ERROR;
             }
@@ -308,12 +310,12 @@ status_t dbs_client_init(char* cfg_name)
 status_t dbs_alloc_conf_file_retry(char *config_name)
 {
     uint32_t retry_num = DBS_WAIT_CONFIG_RETRY_NUM;
+    int32_t ret = memset_s(config_name, DBS_CONFIG_FILE_NAME_LEN, 0, DBS_CONFIG_FILE_NAME_LEN);
+    if (ret != EOK) {
+        CT_LOG_RUN_ERR("memset_s config_name failed! ERRNO: %d\n", ret);
+        return CT_ERROR;
+    }
     do {
-        int32_t ret = memset_s(config_name, DBS_CONFIG_FILE_NAME_LEN, 0, DBS_CONFIG_FILE_NAME_LEN);
-        if (ret != EOK) {
-            CT_LOG_RUN_ERR("memset_s config_name failed!");
-            return CT_ERROR;
-        }
         if (dbs_get_and_flock_conf_file(config_name) == CT_SUCCESS) {
             return CT_SUCCESS;
         }
@@ -378,20 +380,20 @@ status_t mode_to_string(uint32_t mode_num, char* mode_str) {
     MEMS_RETURN_IFERR(strncpy_s(mode_str, MODE_STR_LEN, "---------", strlen("---------")));
 
     // 检查用户（owner）权限
-    if (mode_num & 0400) mode_str[0] = 'r';
-    if (mode_num & 0200) mode_str[1] = 'w';
-    if (mode_num & 0100) mode_str[2] = 'x';
+    if (mode_num & 0400) mode_str[NUM_ZERO] = 'r';
+    if (mode_num & 0200) mode_str[NUM_ONE] = 'w';
+    if (mode_num & 0100) mode_str[NUM_TWO] = 'x';
 
     // 检查组（group）权限
-    if (mode_num & 0040) mode_str[3] = 'r';
-    if (mode_num & 0020) mode_str[4] = 'w';
-    if (mode_num & 0010) mode_str[5] = 'x';
+    if (mode_num & 0040) mode_str[NUM_THREE] = 'r';
+    if (mode_num & 0020) mode_str[NUM_FOUR] = 'w';
+    if (mode_num & 0010) mode_str[NUM_FIVE] = 'x';
 
     // 检查其他用户（others）权限
-    if (mode_num & 0004) mode_str[6] = 'r';
-    if (mode_num & 0002) mode_str[7] = 'w';
-    if (mode_num & 0001) mode_str[8] = 'x';
-    mode_str[9] = '\0';
+    if (mode_num & 0004) mode_str[NUM_SIX] = 'r';
+    if (mode_num & 0002) mode_str[NUM_SEVEN] = 'w';
+    if (mode_num & 0001) mode_str[NUM_EIGHT] = 'x';
+    mode_str[NUM_NINE] = '\0';
     return CT_SUCCESS;
 }
 
@@ -408,7 +410,6 @@ bool32 compare_bool_param(char *argv[], params_list_t *params_list, uint32 i, ui
                 return CT_TRUE;
             }
         }
-
     }
     return CT_FALSE;
 }
@@ -535,8 +536,7 @@ int32 dbs_query_fs_file(int32 argc, char *argv[])
     char *results[] = {fs_name, file_path, vstore_id};
     size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_FILE_PATH_LEN, MAX_DBS_VSTORE_ID_LEN};
     params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}};
-    params_list_t params_list = {params, results, result_lens, check_list, DBS_QUERY_FILE_PRAMA_NUM,
-                                  DBS_QUERY_FILE_CHECK_PRAMA_NUM};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_QUERY_FILE_PRAMA_NUM,DBS_QUERY_FILE_CHECK_PRAMA_NUM};
 
     if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
         printf("Invalid command.\nUsage: --query-file --fs-name=xxx [--file-dir=xxx] [--vstore-id=*]\n");
@@ -641,6 +641,7 @@ status_t copy_file_by_name(const char *file_name, dbs_device_info_t *src_info,
         return CT_ERROR;
     }
     if (check_strcat_path(dst_info->path, file_name, dst_file_name) != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("file path cat error, file is %s.", file_name);
         return CT_ERROR;
     }
     if (cm_exist_device(dst_info->type, dst_file_name) == CT_TRUE) {
