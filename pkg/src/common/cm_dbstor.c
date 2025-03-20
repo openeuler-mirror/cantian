@@ -140,6 +140,11 @@ status_t dbs_init_lib(void)
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "ReadUlogRecordList",             (void **)(&intf->read_ulog_record_list)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "GetUlogUsedCap",                 (void **)(&intf->get_ulog_used_cap)));
     CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "GetUlogInitCapacity",            (void **)(&intf->get_ulog_init_capacity)));
+
+    // snapshot
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsCreateFsSnap",                (void **)(&intf->create_fs_snap)));
+    CT_RETURN_IFERR(dbs_load_symbol(intf->dbs_handle, "DbsDeleteFsSnap",                (void **)(&intf->delete_fs_snap)));
+
     CT_LOG_RUN_INF("load libdbstorClient.so done");
 
     return CT_SUCCESS;

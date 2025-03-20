@@ -47,30 +47,31 @@ static void ctbackup_show_usage(void)
 {
     printf("Usage: [ctbackup --backup | ctbackup --prepare | ctbackup --copy-back | ctbackup --archivelog\n");
     printf("     | ctbackup --reconciel-mysql | ctbackup --query-incremental-mode | ctbackup --purge-logs\n");
-    printf("                                                                | ctbackup --help]  [OPTIONS]\n");
+    printf("     | ctbackup --snapshot | ctbackup --snapshot-backup | ctbackup --snapshot-restore | ctbackup --help]  [OPTIONS]\n");
     printf("Options:\n");
     printf("--defaults-file=#        Configuration file path of MySQL, Only read default options "
                                         "from the given file.\n");
     printf("%*s%s", COMMENT_SPACE, "", "for --backup | --copy-back\n");
     printf("--user=#                 This option specifies the MySQL username used when connecting to the server.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql | --snapshot\n");
     printf("--password=#             This option specifies the password to use when connecting to the server.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql | --snapshot\n");
     printf("--host=#                 This option specifies the host to use when connecting to "
                                         "the database server with TCP/IP.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql | --snapshot\n");
     printf("--port=#                 This option specifies the port to use when connecting to "
                                         "the database server with TCP/IP.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --reconciel-mysql | --snapshot\n");
     printf("--target-dir=#           This option specifies the destination directory for the backup.\n");
     printf("%*s%s", COMMENT_SPACE, "", "This option specifies the source directory for "
                                             "prepare, copy-back or query-incremental-mode.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --prepare | --copy-back | --query-incremental-mode.\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --prepare | --copy-back | --query-incremental-mode | --snapshot | "
+                                       "--snapshot-backup | --snapshot-restore\n");
     printf("--socket=#               This option specifies the socket to use when connecting to "
                                         "the local database server.\n");
     printf("%*s%s", COMMENT_SPACE, "", "for --backup\n");
     printf("--datadir=#              This option specifies the datadir for your MySQL server.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --copy-back\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --copy-back | --snapshot\n");
     printf("--incremental            This option tells ctbackup to create an incremental backup.\n");
     printf("%*s%s", COMMENT_SPACE, "", "for --backup\n");
     printf("--cumulative             This option specifies the incremental backup type to cumulative. "
@@ -80,7 +81,7 @@ static void ctbackup_show_usage(void)
     printf("%*s%s", COMMENT_SPACE, "", "for --backup\n");
     printf("--parallel=#             This option specifies the number of threads to use "
                                         "for backup, prepare or copy-back.\n");
-    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --prepare | --copy-back\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --backup | --prepare | --copy-back | --snapshot\n");
 
     printf("--compress=lz4           This option tells ctbackup to compress output data, "
                                     "only can choose lz4 compression algorithm.\n");
@@ -139,6 +140,19 @@ static inline ctbak_topic_t ctbak_parse_topic(char** argv, int32 argc)
     if (cm_str_equal(argv[1], CTBAK_ARG_PURGE_LOGS)) {
         return CTBAK_PURGE_LOGS;
     }
+
+    if (cm_str_equal(argv[1], CTBAK_ARG_SNAPSHOT)) {
+        return CTBAK_SNAPSHOT;
+    }
+
+    if (cm_str_equal(argv[1], CTBAK_ARG_SNAPSHOT_BACKUP)) {
+        return CTBAK_SNAPSHOT_BACKUP;
+    }
+
+    if (cm_str_equal(argv[1], CTBAK_ARG_SNAPSHOT_RESTORE)) {
+        return CTBAK_SNAPSHOT_RESTORE;
+    }
+
     return CTBAK_INVALID;
 }
 
