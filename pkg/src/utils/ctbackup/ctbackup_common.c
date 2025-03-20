@@ -95,7 +95,6 @@ status_t ctbak_do_shell_background(text_t* command, int* child_pid, int exec_mod
     sleep(1);
     int wait = waitpid(child, &status, exec_mode);
     if (wait == child && WIFEXITED((unsigned int)status) && WEXITSTATUS((unsigned int)status) != 0) {
-        printf("[ctbackup]child process exec failed\n");
         return CT_ERROR;
     }
     *child_pid = child;
@@ -659,15 +658,20 @@ status_t start_cantiand_server(void)
     return CT_SUCCESS;
 }
 
-status_t check_cantiand_status(void)
+status_t check_cantiand_status(bool32 expect_running)
 {
     int child_pid;
     text_t check_cantiand_status_cmd;
     cm_str2text(CHECK_CANTAIND_STATUS_CMD, &check_cantiand_status_cmd);
     status_t result = ctbak_do_shell_background(&check_cantiand_status_cmd, &child_pid, 0);
     if (result != CT_SUCCESS) {
-        printf("[ctbackup]cantiand is running, cannot execute restore/recovery/force_archive!\n");
-        return CT_ERROR;
+        if (expect_running) {
+            printf("[ctbackup]cantiand is running, can execute snapshot!\n");
+            return CT_SUCCESS;
+        } else {
+            printf("[ctbackup]cantiand is running, cannot execute restore/recovery/force_archive!\n");
+            return CT_ERROR;
+        }
     }
     printf("[ctbackup]check cantiand status finished!\n");
     return CT_SUCCESS;
@@ -992,8 +996,10 @@ status_t ctbackup_set_metadata_mode(ctbak_param_t *ctbak_param)
 
     if (strcmp(metadata_mode, "TRUE") == 0) {
         ctbak_param->is_mysql_metadata_in_cantian = CT_TRUE;
+        printf("[ctbackup]mysql metadata in cantian!\n");
     } else if (strcmp(metadata_mode, "FALSE") == 0) {
         ctbak_param->is_mysql_metadata_in_cantian = CT_FALSE;
+        printf("[ctbackup]mysql metadata not in cantian!\n");
     } else {
         printf("[ctbackup]invalid mysql_metadata_in_cantian param!\n");
         return CT_ERROR;
