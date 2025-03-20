@@ -34,11 +34,13 @@ extern "C" {
 
 #define DBS_CONFIG_NAME "dbstor_config.ini"
 #define DBS_CONFIG_NAME_WITHOUT_SUFFIX "dbstor_config"
+#define CSS_MAX_FSNAME_LEN 256
 #define CSS_MAX_NAME_LEN 68
 #define DBS_DIR_MAX_FILE_NUM 10240
 #define DBS_DIR_DEFAULT_FILE_NUM 1024
 #define DBS_ADDR_STR_LEN 20
 #define DBS_MAX_LINK_NUMS 32
+#define FS_SNAP_UUID_LEN 16
 
 typedef struct {
     uint64 offset;
@@ -55,6 +57,25 @@ typedef struct {
     char local_ip[DBS_ADDR_STR_LEN];
     char remote_ip[DBS_ADDR_STR_LEN];
 } dbs_ip_pairs;
+
+typedef struct {
+    char *fsName;
+    uint32_t vstorId;
+    char *snapName;
+    char *buffer;
+    char *bufferLen;
+} dbs_get_page_from_sf_snap_param;
+
+typedef struct {
+    char snapName[CSS_MAX_FSNAME_LEN];
+    uint32_t snapshotID;
+    uint32_t timepoint;
+    uint8_t  snapUUID[FS_SNAP_UUID_LEN];
+} snapshot_result_info;
+
+typedef struct {
+    uint8_t buf[FS_SNAP_UUID_LEN];
+} SNAP_UUID_S;
 
 // libdbstorClient.so
 // namespace
@@ -125,6 +146,10 @@ typedef int (*get_ulog_init_capacity_t)(uint64_t *);
 typedef int32_t (*get_curr_log_offset_t)(char*, uint32_t, uint32_t*, uint32_t*, uint64_t*);
 typedef int32_t (*get_correct_page_id_t)(uint32_t, uint32_t, uint32_t, uint64_t);
 
+// snapshot
+typedef int (*create_fs_snap)(char *, uint32_t, snapshot_result_info *);
+typedef int (*delete_fs_snap)(char *, uint32_t, uint32_t, uint32_t, SNAP_UUID_S);
+
 typedef struct st_dbs_interface {
     void *dbs_handle;
     // namespace
@@ -190,6 +215,11 @@ typedef struct st_dbs_interface {
     read_ulog_record_list_t read_ulog_record_list;
     get_ulog_used_cap_t get_ulog_used_cap;
     get_ulog_init_capacity_t get_ulog_init_capacity;
+
+    // snapshot
+    create_fs_snap create_fs_snap;
+    delete_fs_snap delete_fs_snap;
+
 } dbs_interface_t;
 
 typedef struct st_dbs_tool_interface {

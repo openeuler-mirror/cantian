@@ -418,6 +418,8 @@ status_t dtc_register_proc(void)
         "set bak increment unblock ack"));
     knl_securec_check(dtc_register_proc_func(MES_CMD_VERIFY_REMASTER_PARAM, drc_process_remaster_param_verify,
                                              CT_FALSE, "drc verify remaster params"));
+    knl_securec_check(dtc_register_proc_func(MES_CMD_SNAPSHOT_PREVENT_RECYCLE_REDO, log_process_prevent_snapshot_recycle_redo,
+                                             CT_FALSE, "log prevent snapshot recycle redo"));
     for (uint32 i = 0; i < MES_CMD_CEIL; i++) {
         mes_set_msg_enqueue(i, g_processors[i].is_enqueue);
     }

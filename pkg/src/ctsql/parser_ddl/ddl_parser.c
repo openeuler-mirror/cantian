@@ -1095,6 +1095,23 @@ status_t sql_verify_als_create_index_parallelism(void *se, void *lex, void *def)
     return CT_SUCCESS;
 }
 
+status_t sql_verify_als_snapshot_backup_recycle_redo_timeout(void *se, void *lex, void *def)
+{
+    uint32 num;
+    if (sql_verify_uint32(lex, def, &num) != CT_SUCCESS) {
+        return CT_ERROR;
+    }
+    if (num < CT_MIN_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", (int64)CT_MIN_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT);
+        return CT_ERROR;
+    }
+    if (num > CT_MAX_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", (int64)CT_MAX_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT);
+        return CT_ERROR;
+    }
+    return CT_SUCCESS;
+}
+
 status_t sql_verify_als_ctc_inst_num(void *se, void *lex, void *def)
 {
     uint32 num;

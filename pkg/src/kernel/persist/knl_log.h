@@ -79,6 +79,9 @@ extern "C" {
 #define LOG_DDL_NAMESPACE_LENGTH (14)
 #define LOG_INVALIDATE_MAGIC_NUMBER      (uint64)0xfedcba12345689fe
 
+#define LOG_BROADCAST_PREVENT_TIMEOUT (5 * 1000)
+#define LOG_BROADCAST_PREVENT_RETRYTIME 3
+
 typedef struct st_lsn_offset {
     uint64 lsn;
     uint32 offset;
@@ -132,6 +135,13 @@ typedef struct st_log_group {
     uint16 extend : 4; // used for group_size > 64k
     uint16 reserved : 11;
 } log_group_t;
+
+typedef struct st_mes_prevent_snapshot_recycle_redo {
+    mes_message_head_t head;
+    timeval_t cur_time;
+    uint32 timeout;
+    bool32 is_prevent;
+} mes_prevent_snapshot_recycle_redo_t;
 
 #define CT_MAX_LOG_GROUP_SIZE (uint32)((uint32)CT_MAX_UINT16 * (uint32)0xF + (uint32)CT_MAX_UINT16)
 #define LOG_GROUP_ACTUAL_SIZE(group)  \
@@ -460,6 +470,7 @@ log_group_t *log_fetch_group(log_context_t *ctx, log_cursor_t *cursor);
 #define LOG_POINT_LFN_EQUAL(l_pt, r_pt)  ((l_pt)->lfn == (r_pt)->lfn)
 #define LOG_LGWR_BUF_SIZE(session)       ((session)->kernel->attr.lgwr_buf_size)
 #define LFN_IS_CONTINUOUS(l_lfn, r_lfn)  ((l_lfn) == (r_lfn) + 1)
+#define PREVENT_LOG_RECYCLE_WAIT_TIME (100)
 
 status_t log_init(knl_session_t *session);
 status_t log_load(knl_session_t *session);
@@ -545,6 +556,8 @@ EXTER_ATTACK void tx_process_scn_broadcast(void *sess, mes_message_t *msg);
 void new_tx_process_scn_broadcast(void *sess, mes_message_t *msg);
 #endif
 status_t tx_scn_broadcast(knl_session_t *session);
+void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *receive_msg);
+void log_process_open_snapshot_recycle_redo(void *sess, mes_message_t *receive_msg);
 
 static inline bool32 log_is_empty(log_file_head_t *head)
 {

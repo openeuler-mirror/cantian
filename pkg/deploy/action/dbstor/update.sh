@@ -12,14 +12,18 @@ DPU_UUID=""
 LINK_TYPE=""
 LOCAL_IP=""
 REMOTE_IP=""
+NAMESPACE_SHARE_FSNAME=""
+NAMESPACE_ARCHIVE_FSNAME=""
 
 usage() {
   echo "# -n  --NAMESPACE_FSNAME: namespace file system name"
-  echo "# -n  --NAMESPACE_PAGE_FSNAME: namespace file system for page name"
+  echo "# -m  --NAMESPACE_PAGE_FSNAME: namespace file system for page name"
   echo "# -d  --DPU_UUID:         dpu uuid"
   echo "# -t --LINK_TYPE:        link type"
   echo "# -i --LOCAL_IP:         local ip address"
   echo "# -r  --REMOTE_IP:        remote ip"
+  echo "# -j  --NAMESPACE_SHARE_FSNAME: namespace file system for share name"
+  echo "# -k  --NAMESPACE_ARCHIVE_FSNAME: namespace file system for archive name"
   echo "# The account and password are changed by default"
   exit 0
 }
@@ -28,7 +32,7 @@ if [ "$1" = "--help" ]; then
     usage
 fi
 
-while getopts n:m:d:t:i:r: option; do
+while getopts n:m:d:t:i:r:j:k option; do
     case ${option} in
     n)
       NAMESPACE_FSNAME=${OPTARG}
@@ -54,6 +58,14 @@ while getopts n:m:d:t:i:r: option; do
       REMOTE_IP=${OPTARG}
       echo "REMOTE_IP=${OPTARG}"
       ;;
+    j)
+      NAMESPACE_SHARE_FSNAME=${OPTARG}
+      echo "NAMESPACE_SHARE_FSNAME=${OPTARG}"
+      ;;
+    k)
+      NAMESPACE_ARCHIVE_FSNAME=${OPTARG}
+      echo "NAMESPACE_ARCHIVE_FSNAME=${OPTARG}"
+      ;;
     :)
       usage
       ;;
@@ -73,7 +85,7 @@ fi
 
 local_path=$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib/:$LD_LIBRARY_PATH
-python update_dbstor_config.py --NAMESPACE_FSNAME=${NAMESPACE_FSNAME} --NAMESPACE_PAGE_FSNAME=${NAMESPACE_PAGE_FSNAME} --DPU_UUID=${DPU_UUID} --LINK_TYPE=${LINK_TYPE} --LOCAL_IP=${LOCAL_IP} --REMOTE_IP=${REMOTE_IP}
+python update_dbstor_config.py --NAMESPACE_FSNAME=${NAMESPACE_FSNAME} --NAMESPACE_PAGE_FSNAME=${NAMESPACE_PAGE_FSNAME} --DPU_UUID=${DPU_UUID} --LINK_TYPE=${LINK_TYPE} --LOCAL_IP=${LOCAL_IP} --REMOTE_IP=${REMOTE_IP} --NAMESPACE_SHARE_FSNAME=${NAMESPACE_SHARE_FSNAME} --NAMESPACE_ARCHIVE_FSNAME=${NAMESPACE_ARCHIVE_FSNAME}
 ret=$?
 export LD_LIBRARY_PATH=$local_path
 if [ "${ret}" != 0 ]; then

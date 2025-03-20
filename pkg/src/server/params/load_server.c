@@ -1019,6 +1019,13 @@ status_t srv_load_server_params(void)
     CT_RETURN_IFERR(srv_get_param_uint32("RES_RECYCLE_RATIO", &g_instance->kernel.attr.res_recycle_ratio));
     CT_RETURN_IFERR(
         srv_get_param_uint32("CREATE_INDEX_PARALLELISM", &g_instance->kernel.attr.create_index_parallelism));
+
+    CT_RETURN_IFERR(
+        srv_get_param_bool32("PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO", &g_instance->kernel.attr.prevent_snapshot_backup_recycle_redo));
+    CT_RETURN_IFERR(
+        srv_get_param_uint32("PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", &g_instance->kernel.attr.prevent_snapshot_backup_recycle_redo_timeout));
+    CT_RETURN_IFERR(
+        srv_get_param_bool32("PREVENT_CREATE_SNAPSHOT", &g_instance->kernel.attr.prevent_create_snapshot));
     return CT_SUCCESS;
 }
 

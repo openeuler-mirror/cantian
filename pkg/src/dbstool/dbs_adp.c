@@ -386,7 +386,7 @@ status_t copy_arch_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_i
             cm_free_file_list(&file_list);
             return CT_ERROR;
         }
-        printf("%s\n", file_name);
+        printf("copy arch files to target dir %s\n", file_name);
         cm_close_device(src_info->type, &src_info->handle);
         cm_close_device(dst_info->type, &dst_info->handle);
     }

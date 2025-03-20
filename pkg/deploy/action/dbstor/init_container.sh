@@ -12,6 +12,8 @@ function set_dbstor_config() {
     deploy_mode=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "deploy_mode"`
     storage_dbstor_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstor_fs"`
     storage_dbstor_page_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_dbstor_page_fs"`
+    storage_share_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_share_fs"`
+    storage_archive_fs=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "storage_archive_fs"`
     link_type=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "link_type"`
     node_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "node_id"`
     cluster_id=`python3 ${CURRENT_PATH}/../cantian/get_config_info.py "cluster_id"`
@@ -72,6 +74,8 @@ function set_dbstor_config() {
     sed -i -r "s:(CLUSTER_ID = ).*:\1${cluster_id}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(LOG_VSTOR = ).*:\1${log_vstor}:g" ${DBSTOR_CONFIG_PATH}
     sed -i -r "s:(DBS_LOG_PATH = ).*:\1${dbstor_log_path}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(NAMESPACE_SHARE_FSNAME = ).*:\1${storage_share_fs}:g" ${DBSTOR_CONFIG_PATH}
+    sed -i -r "s:(NAMESPACE_ARCHIVE_FSNAME = ).*:\1${storage_archive_fs}:g" ${DBSTOR_CONFIG_PATH}
     python3 ${CURRENT_PATH}/init_unify_config.py
 }
 

@@ -311,6 +311,9 @@ typedef struct st_knl_attr {
     uint32 res_recycle_ratio;
     uint32 create_index_parallelism;
     bool32 enable_dss;
+    bool32 prevent_snapshot_backup_recycle_redo;
+    uint32 prevent_snapshot_backup_recycle_redo_timeout;
+    bool32 prevent_create_snapshot;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name
@@ -436,6 +439,7 @@ typedef struct st_knl_instance {
     uint32        id;   //instance id, id = 0 if under non-clustered mode
     thread_t file_iof_thd;
     bool32 is_sql_server_initializing; // set true if sql server initializing
+    spinlock_t attr_lock;
 } knl_instance_t;
 
 #define KNL_MAX_ROW_SIZE(session)     ((session)->kernel->attr.max_row_size)

@@ -68,7 +68,7 @@ status_t ctbak_parse_archivelog_args(int32 argc, char** argv, ctbak_param_t* ctb
 status_t ctbak_do_force_archive(char *ct_params[], char *ctsql_binary_path)
 {
     status_t status;
-    if (check_cantiand_status() != CT_SUCCESS) {
+    if (check_cantiand_status(CT_FALSE) != CT_SUCCESS) {
         return CT_ERROR;
     }
 
