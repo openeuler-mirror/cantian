@@ -40,4 +40,6 @@ status_t do_snapshot_backup(ctbak_param_t* ctbak_param);
 status_t query_fs_dir_and_create_dir(ctbak_param_t* ctbak_param, snapshot_backup_info_t *snapshot_backup_info);
 status_t create_backup_dir(ctbak_param_t* ctbak_param, char *dbs_query_file_argv[],
                            char *backup_dir, char *file_dir);
+status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list, char *file_name,
+                                    char *dbs_query_file_argv[], char *backup_dir, char *file_dir);
 #endif  // CANTIANDB_CTBACKUP_SNAPSHOT_BACKUP_OPERATOR_H
