@@ -253,7 +253,6 @@ status_t dbs_get_and_flock_conf_file(char *config_name)
             ret = strcpy_s(config_name, DBS_CONFIG_FILE_NAME_LEN, entry->d_name);
             if (ret != EOK) {
                 printf("strcpy_s config_name failed!\n");
-
                 closedir(dir_ptr);
                 return CT_ERROR;
             }
