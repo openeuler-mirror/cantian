@@ -99,7 +99,7 @@ static status_t ctbak_read_snapshot_info_file(ctbak_param_t* ctbak_param, snapsh
     errno_t err;
     err = snprintf_s(ct_snapshot_info_path, CANTIAN_SNAPSHOT_FILE_LENGTH, CANTIAN_SNAPSHOT_FILE_LENGTH - 1,
                      "/%s%s", ctbak_param->share_fs_name.str, SNAPSHOT_INFO_FS_PATH);
-    PRTS_RETURN_IFERR(ret);
+    PRTS_RETURN_IFERR(err);
     object_id_t file_handle;
     status_t ret = ctbak_get_file_handle_from_share_fs(ct_snapshot_info_path, CTBAK_SNAP_INFO_FILE_NAME, &file_handle);
     if (ret != CT_SUCCESS) {
