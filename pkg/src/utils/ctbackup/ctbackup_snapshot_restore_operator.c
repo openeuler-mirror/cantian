@@ -303,7 +303,13 @@ status_t do_snapshot_restore_impl(ctbak_param_t* ctbak_param, char *dir_name, ch
 }
 
 status_t do_snapshot_restore(ctbak_param_t* ctbak_param){
-    status_t ret = dbs_pagepool_clean();
+    status_t ret = dbs_set_ns_io_forbidden(CT_FALSE);
+    if (ret != CT_SUCCESS) {
+        printf("Set ns forbidden failed(%d).\n", ret);
+        return ret;
+    }
+
+    ret = dbs_pagepool_clean();
     if (ret != CT_SUCCESS) {
         printf("Pagepool clean failed.\n");
         return ret;
