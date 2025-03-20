@@ -146,6 +146,8 @@ status_t sql_notify_als_auto_undo_retention(void *se, void *item, char *value);
 status_t sql_notify_als_res_recycle_ratio(void *se, void *item, char *value);
 status_t sql_notify_als_create_index_parallelism(void *se, void *item, char *value);
 status_t sql_verify_als_mes_task_ratio(void *se, void *lex, void *def);
+status_t sql_notify_als_snapshot_backup_recycle_redo_timeout(void *se, void *item, char *value);
+status_t sql_notify_als_prevent_create_snapshot(void *se, void *item, char *value);
 #ifdef __cplusplus
 }
 #endif

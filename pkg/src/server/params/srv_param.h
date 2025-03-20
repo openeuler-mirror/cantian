@@ -51,6 +51,7 @@ status_t sql_verify_als_res_recycle_ratio(void *se, void *lex, void *def);
 status_t sql_verify_als_create_index_parallelism(void *se, void *lex, void *def);
 status_t sql_verify_als_cpu_inf_str(void *se, void *lex, void *def);
 status_t sql_verify_als_ctc_inst_num(void *se, void *lex, void *def);
+status_t sql_verify_als_snapshot_backup_recycle_redo_timeout(void *se, void *lex, void *def);
 
 status_t verify_uds_file_path(const char *path);
 status_t verify_file_path(const char *path);

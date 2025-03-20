@@ -91,6 +91,90 @@ static inline bool32 log_file_not_used(log_context_t *ctx, uint32 file)
     }
 }
 
+static inline void enable_prevent_log_recycle(knl_session_t *session, bool32 enable)
+{
+    CT_LOG_RUN_INF("enable prevent log recycle %d", enable);
+    cm_spin_lock(&session->kernel->attr_lock, NULL);
+    session->kernel->attr.prevent_snapshot_backup_recycle_redo = enable;
+    session->kernel->attr.prevent_create_snapshot = enable;
+    cm_spin_unlock(&session->kernel->attr_lock);
+    if (enable == CT_FALSE) {
+        SYNC_POINT_GLOBAL_START(CTC_BACKUP_START_REDO_RECYCLE_ABORT, NULL, 0);
+        SYNC_POINT_GLOBAL_END;
+    }
+    // 同步更新参数运行时值
+    char value_str[CT_PARAM_BUFFER_SIZE] = {0};
+    if (snprintf_s(value_str, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE-1, "%s", enable ? "TRUE" : "FALSE") == CT_ERROR) {
+        CT_LOG_RUN_ERR("Generate config value failed for enable:%d", enable);
+        return;
+    }
+    status_t ret = cm_alter_config(&g_instance->config, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO", value_str, CONFIG_SCOPE_BOTH, CT_TRUE);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable prevent log recycle, but failed to update config %s.", value_str);
+    }
+    ret = cm_modify_runtimevalue(&g_instance->config, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO", value_str);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable prevent log recycle, but failed to update runtime value %s.", value_str);
+    }
+
+    ret = cm_alter_config(&g_instance->config, "PREVENT_CREATE_SNAPSHOT", value_str, CONFIG_SCOPE_BOTH, CT_TRUE);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable PREVENT_CREATE_SNAPSHOT, but failed to update config %s.", value_str);
+    }
+    ret = cm_modify_runtimevalue(&g_instance->config, "PREVENT_CREATE_SNAPSHOT", value_str);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable PREVENT_CREATE_SNAPSHOT, but failed to update runtime value %s.", value_str);
+    }
+}
+
+static inline bool32 is_prevent_log_recycle(knl_session_t *session)
+{
+    return session->kernel->attr.prevent_snapshot_backup_recycle_redo;
+}
+
+static inline void set_prevent_log_recycle_timeout(knl_session_t *session, uint32 timeout)
+{
+    CT_LOG_RUN_INF("set prevent log recycle timeout %d", timeout);
+    cm_spin_lock(&session->kernel->attr_lock, NULL);
+    session->kernel->attr.prevent_snapshot_backup_recycle_redo_timeout = timeout;
+    cm_spin_unlock(&session->kernel->attr_lock);
+    char value_str[CT_PARAM_BUFFER_SIZE] = {0};
+    int iret_snprintf = snprintf_s(value_str, sizeof(value_str), sizeof(value_str) - 1, "%u", timeout);
+    if (iret_snprintf == CT_ERROR) {
+        CT_LOG_RUN_ERR("snprintf_s failed.");
+        return;
+    }
+    // 同步更新参数运行时值
+    status_t ret = cm_alter_config(&g_instance->config, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", value_str, CONFIG_SCOPE_BOTH, CT_TRUE);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable prevent log recycle, but failed to update config.");
+    }
+    ret = cm_modify_runtimevalue(&g_instance->config, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT", value_str);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_WAR("set enable prevent log recycle, but failed to update runtime value.");
+    }
+}
+
+static inline void prevent_log_recycle(knl_session_t *session)
+{
+    if (is_prevent_log_recycle(session) == CT_FALSE) {
+        return;
+    }
+    CT_LOG_RUN_INF("start prevent log recycle");
+    uint32 prevent_timeout = session->kernel->attr.prevent_snapshot_backup_recycle_redo_timeout;
+    date_t start_time = g_timer()->now;
+    while (is_prevent_log_recycle(session) == CT_TRUE) {
+        if  ((g_timer()->now - start_time) >= prevent_timeout * MICROSECS_PER_SECOND) {
+            enable_prevent_log_recycle(session, CT_FALSE);
+            CT_LOG_RUN_INF("prevent log recycle timeout, enable log recycle.");
+            break;
+        }
+        CT_LOG_DEBUG_INF("log recycle is blocked. Waiting...");
+        cm_sleep(PREVENT_LOG_RECYCLE_WAIT_TIME);
+    }
+    CT_LOG_RUN_INF("prevent log recycle is disabled.");
+}
+
 inline uint64 log_file_freesize(log_file_t *file)
 {
     return (uint64)file->ctrl->size - file->head.write_pos;
@@ -1500,6 +1584,9 @@ void log_recycle_file(knl_session_t *session, log_point_t *point)
         CT_LOG_RUN_INF("no cms log recycle file dont need log recycle file");
         return;
     }
+
+    prevent_log_recycle(session);
+
     log_context_t *ctx = &session->kernel->redo_ctx;
     lrcv_context_t *lrcv = &session->kernel->lrcv_ctx;
     arch_log_id_t last_arch_log;
@@ -2907,4 +2994,33 @@ void log_set_logfile_writepos(knl_session_t *session, log_file_t *file, uint64 o
     cm_latch_x(&file->latch, session->id, NULL);
     file->head.write_pos = offset;
     cm_unlatch(&file->latch, NULL);
+}
+
+void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *msg)
+{
+    CT_LOG_RUN_INF("start process prevent snapshot recycle redo");
+    if (sizeof(mes_prevent_snapshot_recycle_redo_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    mes_prevent_snapshot_recycle_redo_t *rcv_msg = (mes_prevent_snapshot_recycle_redo_t *)msg->buffer;
+    mes_message_head_t ack_head = {0};
+    knl_session_t *session = (knl_session_t *)sess;
+
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
+        mes_release_message_buf(msg->buffer);
+        CT_LOG_RUN_ERR("Do not process prevent snapshot recycle redo, because src_inst is invalid: %u", msg->head->src_inst);
+        return;
+    }
+
+    set_prevent_log_recycle_timeout(session, rcv_msg->timeout);
+    enable_prevent_log_recycle(session, rcv_msg->is_prevent);
+
+    mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    ack_head.status = CT_SUCCESS;
+    drc_mes_send_data_with_retry((const char*)&ack_head, BROADCAST_SCN_WAIT_INTERVEL,
+                                 BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+    CT_LOG_RUN_INF("finish process prevent snapshot recycle redo timeout: %u", rcv_msg->timeout);
+    mes_release_message_buf(msg->buffer);
 }
