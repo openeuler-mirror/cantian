@@ -241,7 +241,7 @@ status_t dbs_get_and_flock_conf_file(char *config_name)
             break;
         }
         ret = sprintf_s(dbs_conf_file_path, CT_FILE_NAME_BUFFER_SIZE, "%s/%s", dbs_conf_dir_path, entry->d_name);
-        if (ret != EOK) {
+        if (ret == CT_ERROR) {
             printf("Failed to assemble the dbstor conf file path by instance home(%s).\n", dbs_conf_dir_path);
             break;
         }
