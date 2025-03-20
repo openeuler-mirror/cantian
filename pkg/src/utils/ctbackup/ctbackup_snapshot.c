@@ -366,7 +366,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     // 创建redo快照
     errno_t err;
     err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
-    if (err!= EOK) {
+    if (err != EOK) {
         printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
         return CT_ERROR;
     }
@@ -391,7 +391,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
 
     // 创建归档快照
     err = memset_s(&snap_info, sizeof(snapshot_result_info), 0, sizeof(snapshot_result_info));
-    if (err!= EOK) {
+    if (err != EOK) {
         printf("[ctbackup]Failed to memset snap_info, ERRNO: %d\n", err);
         return CT_ERROR;
     }
