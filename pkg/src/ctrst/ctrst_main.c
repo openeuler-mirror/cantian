@@ -14,10 +14,7 @@
 #include "ctsql_export.h"
 #include "ctsql_import.h"
 #include <malloc.h>
-#include "wsecv2_itf.h"
-#include "wsecv2_file.h"
 #include "wsecv2_type.h"
-#include "sdpv1_itf.h"
 #include "knl_user.h"
 #include "dtc_database.h"
 #ifndef WIN32
