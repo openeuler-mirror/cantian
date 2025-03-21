@@ -141,9 +141,6 @@ static status_t dtc_buf_finish(knl_session_t *session, buf_read_assist_t *ra, bu
         }
         if (ra->options & ENTER_PAGE_NO_READ) {
             ctrl->load_status = (uint8)BUF_IS_LOADED;
-            if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-                ctrl->gbp_ctrl->page_status = GBP_PAGE_NOREAD;
-            }
         }
     } else {
         if (!buf_check_loaded_page_checksum(session, ctrl, ra->mode, ra->options)) {

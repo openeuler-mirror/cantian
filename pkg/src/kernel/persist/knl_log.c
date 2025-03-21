@@ -928,7 +928,6 @@ status_t log_flush(knl_session_t *session, log_point_t *point, knl_scn_t *scn, u
     }
     ctx->curr_replay_point = ctx->curr_point;
     ckpt_set_trunc_point(session, &ctx->curr_point);
-    gbp_queue_set_trunc_point(session, &ctx->curr_point);
 
     if (point != NULL && log_cmp_point(point, &ctx->curr_point) < 0) {
         *point = ctx->curr_point;
@@ -1818,10 +1817,7 @@ void log_atomic_op_end(knl_session_t *session)
     if (session->dirty_count > 0) {
         ckpt_enque_page(session);
     }
-
-    if (SECUREC_UNLIKELY(session->gbp_dirty_count > 0)) {
-        gbp_enque_pages(session);
-    }
+    
     log_write(session);
 
     if (session->changed_count > 0) {

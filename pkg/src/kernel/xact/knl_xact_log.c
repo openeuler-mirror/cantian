@@ -59,20 +59,6 @@ void rd_undo_change_txn(knl_session_t *session, log_entry_t *log)
     txn->undo_pages = redo->undo_pages;
 }
 
-/*
- * log analysis function for change txn
- */
-void gbp_aly_undo_change_txn(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-    rd_undo_change_txn(session, log);
-}
-
-void gbp_undo_format_txn(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-}
-
 void print_undo_change_txn(log_entry_t *log)
 {
     rd_undo_chg_txn_t *redo = (rd_undo_chg_txn_t *)log->data;
@@ -296,25 +282,12 @@ void rd_tx_begin(knl_session_t *session, log_entry_t *log)
     }
 }
 
-void gbp_aly_tx_begin(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    /* redo tx page when do log analysis */
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-    rd_tx_begin(session, log);
-}
-
 void print_tx_begin(log_entry_t *log)
 {
     xid_t *xid = (xid_t *)log->data;
     printf("xmap %u-%u, xnum %u\n", (uint32)xid->xmap.seg_id, (uint32)xid->xmap.slot, xid->xnum);
 }
 
-/*
- * rd_tx_end will not skip when GBP enable, because log analyze proc will repaly rd_tx_end
- * log analyze proc maintain txn area but do not change scn, scn will changed by lrpl proc
- * Notice:
- *     must judge is_skip when modify txn area and page, and judge SESSION_IS_LOG_ANALYZE when modify scn
- */
 void rd_tx_end(knl_session_t *session, log_entry_t *log)
 {
     rd_tx_end_t *redo = (rd_tx_end_t *)log->data;
@@ -332,8 +305,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (!redo->is_auton && txn->scn > undo->ow_scn && !SESSION_IS_LOG_ANALYZE(session) &&
-        txn->status != (uint8)XACT_PHASE1) {
+    if (!redo->is_auton && txn->scn > undo->ow_scn && txn->status != (uint8)XACT_PHASE1) {
         KNL_SET_SCN(&undo->ow_scn, txn->scn);
     }
 
@@ -343,7 +315,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
     }
 
     // standby cluster update scn after replaying a log_batch
-    if ((!DB_IS_CLUSTER(session) || DB_IS_PRIMARY(&session->kernel->db)) && redo->scn > DB_CURR_SCN(session) && !SESSION_IS_LOG_ANALYZE(session)) {
+    if ((!DB_IS_CLUSTER(session) || DB_IS_PRIMARY(&session->kernel->db)) && redo->scn > DB_CURR_SCN(session)) {
         KNL_SET_SCN(&session->kernel->scn, redo->scn);
     }
 
@@ -368,16 +340,7 @@ void rd_tx_end(knl_session_t *session, log_entry_t *log)
         undo->items[tx_id.item_id].next = CT_INVALID_ID32;
         cm_spin_unlock(&undo->lock);
     }
-    if (!SESSION_IS_LOG_ANALYZE(session)) {
-        session->query_scn = redo->scn;
-    }
-}
-
-void gbp_aly_tx_end(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-    /* redo tx page when do log analysis */
-    rd_tx_end(session, log);
+    session->query_scn = redo->scn;
 }
 
 void print_tx_end(log_entry_t *log)
@@ -388,12 +351,6 @@ void print_tx_end(log_entry_t *log)
         (uint32)redo->is_auton, (uint32)redo->is_commit, redo->scn);
 }
 
-/*
- * rd_xa_phase1 will not skip when GBP enable, because log analyze proc will repaly rd_xa_phase1
- * log analyze proc maintain txn area but do not change scn, scn will changed by lrpl proc
- * Notice:
- *     must judge is_skip when modify txn area and page, and judge SESSION_IS_LOG_ANALYZE when modify scn
- */
 void rd_xa_phase1(knl_session_t *session, log_entry_t *log)
 {
     rd_xa_phase1_t *redo = (rd_xa_phase1_t *)log->data;
@@ -410,7 +367,7 @@ void rd_xa_phase1(knl_session_t *session, log_entry_t *log)
         return;
     }
 
-    if (txn->scn > undo->ow_scn && !SESSION_IS_LOG_ANALYZE(session)) {
+    if (txn->scn > undo->ow_scn) {
         KNL_SET_SCN(&undo->ow_scn, txn->scn);
     }
 
@@ -419,7 +376,7 @@ void rd_xa_phase1(knl_session_t *session, log_entry_t *log)
         txn->status = (uint8)XACT_PHASE1;
     }
 
-    if (redo->scn > DB_CURR_SCN(session) && !SESSION_IS_LOG_ANALYZE(session)) {
+    if (redo->scn > DB_CURR_SCN(session)) {
         KNL_SET_SCN(&session->kernel->scn, redo->scn);
     }
 }
@@ -428,13 +385,6 @@ void print_xa_phase1(log_entry_t *log)
 {
     rd_xa_phase1_t *redo = (rd_xa_phase1_t *)log->data;
     printf("xmap %u-%u, scn %llu\n", (uint32)redo->xmap.seg_id, (uint32)redo->xmap.slot, redo->scn);
-}
-
-void gbp_aly_xa_phase1(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-    /* redo tx page when do log analysis */
-    rd_xa_phase1(session, log);
 }
 
 void rd_xa_rollback_phase2(knl_session_t *session, log_entry_t *log)
@@ -454,13 +404,6 @@ void print_xa_rollback_phase2(log_entry_t *log)
 {
     xmap_t *xmap = (xmap_t *)log->data;
     printf("xmap %u-%u\n", (uint32)xmap->seg_id, (uint32)xmap->slot);
-}
-
-void gbp_aly_xa_rollback_phase2(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    knl_panic(BUF_IS_RESIDENT(session->curr_page_ctrl));
-    /* redo tx page when do log analysis */
-    rd_xa_rollback_phase2(session, log);
 }
 
 void rd_undo_alloc_segment(knl_session_t *session, log_entry_t *log)

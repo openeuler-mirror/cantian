@@ -38,7 +38,6 @@ status_t srv_load_arch_params(void);
 status_t srv_load_lsnr_params(void);
 status_t srv_load_executor_params(void);
 status_t srv_load_file_convert_params(void);
-status_t srv_load_gbp_params(void);
 status_t srv_load_ext_proc_params(void);
 status_t srv_load_optim_params(void);
 status_t srv_load_other_params(void);

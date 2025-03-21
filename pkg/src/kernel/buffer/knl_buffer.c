@@ -32,10 +32,8 @@
 #include "dtc_context.h"
 #include "dtc_recovery.h"
 #include "dtc_database.h"
-#include "knl_gbp.h"
 
 #define BUF_PAGE_COST (DEFAULT_PAGE_SIZE(session) + BUCKET_TIMES * sizeof(buf_bucket_t) + sizeof(buf_ctrl_t))
-#define BUF_PAGE_COST_WITH_GBP (BUF_PAGE_COST + sizeof(buf_gbp_ctrl_t))
 
 static buf_ctrl_t g_init_buf_ctrl = { .bucket_id = CT_INVALID_ID32 };
 uint32 g_cks_level;
@@ -64,18 +62,12 @@ status_t buf_init(knl_session_t *session)
         set->addr = kernel->attr.data_buf + i * kernel->attr.data_buf_part_align_size;
         cm_init_cond(&set->set_cond);
         /* set->size <= 32T, BUF_PAGE_COST >= 8360, set->capacity cannot overflow */
-        set->capacity = (uint32)(set->size / (KNL_GBP_ENABLE(kernel) ? BUF_PAGE_COST_WITH_GBP : BUF_PAGE_COST));
+        set->capacity = (uint32)(set->size / BUF_PAGE_COST);
         set->hwm = 0;
         set->page_buf = set->addr;
         offset = (uint64)DEFAULT_PAGE_SIZE(session) * set->capacity;
         set->ctrls = (buf_ctrl_t *)(set->addr + offset);
         offset += (uint64)set->capacity * sizeof(buf_ctrl_t);
-        if (KNL_GBP_ENABLE(kernel)) {
-            set->gbp_ctrls = (buf_gbp_ctrl_t *)(set->addr + offset);
-            offset += set->capacity * sizeof(buf_gbp_ctrl_t);
-        } else {
-            set->gbp_ctrls = NULL;
-        }
         set->buckets = (buf_bucket_t *)(set->addr + offset);
         set->bucket_num = BUCKET_TIMES * set->capacity;
 
@@ -369,49 +361,12 @@ static inline void buf_lru_shift_ctrl(buf_lru_list_t *list, buf_ctrl_t *ctrl)
     buf_lru_add_ctrl(list, ctrl, BUF_ADD_HOT);
 }
 
-/*
- * page flushed to disk, but it has not flushed to gbp.
- * it can be reclaimed after it has been flushed to disk.
- * in such case, becuause ctrl is reused and a new page enters,
- * the page will not be flushed to gbp,
- * so, we must notice gbp, it maybe has gap.
- */
-static void buf_check_gbp_queue_gap(knl_session_t *session, buf_ctrl_t *item)
-{
-    if (item->gbp_ctrl->is_gbpdirty) {
-        gbp_queue_set_gap(session, item);
-        if (item->bucket_id != CT_INVALID_ID32) {
-            buf_latch_x(session, item, CT_TRUE);
-            /* concurrency with `gbp_knl_write_to_gbp' */
-            item->load_status = BUF_NEED_LOAD;
-            buf_unlatch(session, item, CT_FALSE);
-        }
-    }
-}
-
 static void buf_init_ctrl(knl_session_t *session, buf_set_t *set, buf_ctrl_t *item, bool32 from_hwm, uint32 options)
 {
     page_head_t *page = item->page;
 
-    if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-        buf_ctrl_t init_ctrl_with_gbp = g_init_buf_ctrl;
-
-        init_ctrl_with_gbp.gbp_ctrl = item->gbp_ctrl;
-        if (!from_hwm) {
-            buf_check_gbp_queue_gap(session, item);
-        }
-        cm_spin_lock(&item->gbp_ctrl->init_lock, NULL);
-        *item = init_ctrl_with_gbp;
-        item->page = page;
-        /* do not memset is_gbpdirty, gbp_next and gbp_trunc_point */
-        item->gbp_ctrl->is_from_gbp = CT_FALSE;
-        item->gbp_ctrl->gbp_read_version = 0;
-        item->gbp_ctrl->page_status = GBP_PAGE_NONE;
-        cm_spin_unlock(&item->gbp_ctrl->init_lock);
-    } else {
-        *item = g_init_buf_ctrl;
-        item->page = page;
-    }
+    *item = g_init_buf_ctrl;
+    item->page = page;
 
     /*
      * strategy to add page to different list with different options:
@@ -873,11 +828,6 @@ static buf_ctrl_t *buf_alloc_hwm(knl_session_t *session, buf_set_t *set)
     cm_spin_unlock(&set->lock);
 
     *ctrl = g_init_buf_ctrl;
-    if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-        ctrl->gbp_ctrl = &set->gbp_ctrls[id];
-    } else {
-        ctrl->gbp_ctrl = NULL;
-    }
 
     ctrl->page = (page_head_t *)(set->page_buf + (uint64)DEFAULT_PAGE_SIZE(session) * id);
     return ctrl;
@@ -1549,73 +1499,8 @@ void buf_balance_set_list(buf_set_t *set)
     cm_spin_unlock(&list->lock);
 }
 
-/*
- * Only running when recover or failover with GBP
- * check current page lsn, if curr_lsn is not expect lsn, try pull this page from GBP, and replace as gbp page
- * then update this ctrl's gbp_read_version, make sure same page pull from GBP at most once.
- */
-void buf_check_page_version(knl_session_t *session, buf_ctrl_t *ctrl)
-{
-    knl_instance_t *kernel = session->kernel;
-    log_context_t *redo = &kernel->redo_ctx;
-    page_id_t page_id = ctrl->page_id;
-    gbp_analyse_item_t *item = NULL;
-
-    /* read latest page versioin */
-    if (KNL_RECOVERY_WITH_GBP(kernel) && ctrl->gbp_ctrl->gbp_read_version != KNL_GBP_READ_VER(kernel)) {
-        uint32 lock_id = page_id.page % CT_GBP_RD_LOCK_COUNT;
-
-        cm_spin_lock(&kernel->gbp_context.buf_read_lock[lock_id], NULL);
-        if (!KNL_RECOVERY_WITH_GBP(kernel)) {
-            item = NULL; /* check rcy_with_gbp again, if not recover with gbp, do not read gbp */
-        } else {
-            item = gbp_aly_get_page_item(session, page_id);
-        }
-
-        if (item != NULL) {
-            if (ctrl->page->lsn < item->lsn) {
-                knl_begin_session_wait(session, DB_FILE_GBP_READ, CT_TRUE);
-                ctrl->gbp_ctrl->page_status = knl_read_page_from_gbp(session, ctrl);
-                knl_end_session_wait(session, DB_FILE_GBP_READ);
-            } else {
-                /*
-                 * page lsn >= expect lsn (item->lsn), we must set item->is_verified here, otherwise
-                 * 1. this page is modified by this session and page lsn update to new lsn
-                 * 2. this page is flushed to disk and recycled, not in buffer, this page's disk lsn > expect lsn
-                 * 3. in gbp_process_batch_read_resp, find this page is not loaded to disk, so curr_page_lsn == 0
-                 * 4. in gbp_page_verify, item->is_verified == 0 && gbp_page_lsn == expect_lsn, this page is HIT page
-                 * 5. in gbp_process_batch_read_resp, gbp_page_lsn > curr_page_lsn(0) && is HIT page, will be replace
-                 * 6. but this page's disk lsn > expect lsn == gbp_page_lsn
-                 */
-                item->is_verified = 1;
-            }
-        }
-        ctrl->gbp_ctrl->gbp_read_version = KNL_GBP_READ_VER(kernel);
-        cm_spin_unlock(&kernel->gbp_context.buf_read_lock[lock_id]);
-    }
-
-    /* page should have the latest version */
-    if (redo->last_rcy_with_gbp && DB_IS_PRIMARY(&kernel->db) && DB_IS_OPEN(session) && ctrl->page->lsn > 0) {
-        uint64 expect_lsn = gbp_aly_get_page_lsn(session, page_id);
-        knl_panic_log(ctrl->page->lsn >= expect_lsn, "ctrl page lsn is smaller than expect, panic info: page %u-%u "
-                      "type %u ctrl lsn %llu expect_lsn %llu",
-                      page_id.file, page_id.page, ctrl->page->type, ctrl->page->lsn, expect_lsn);
-    }
-
-    /* after recovery, usable page should be replayed */
-    if (ctrl->gbp_ctrl->page_status == GBP_PAGE_USABLE && DB_IS_PRIMARY(&kernel->db) && DB_IS_OPEN(session)) {
-        knl_panic_log(0, "[GBP] usable page %u-%u is not replayed after recover", page_id.file, page_id.page);
-    }
-}
-
-/*
- * After failover with GBP, some local buffer page is old, when use page through buf_enter_page, we can auto update it
- * as new page from GBP. But resident pages is used as memery when read it, not through buf_enter_page.So we should let
- * resident page use buf_check_page_version at least once, to ensure this page can be updated by GBP.
- */
 bool32 buf_check_resident_page_version(knl_session_t *session, page_id_t page_id)
 {
-    /* GBP can't be used in cluster. */
     if (DB_IS_CLUSTER(session)) {
         buf_bucket_t *bucket = buf_find_bucket(session, page_id);
 
@@ -1642,32 +1527,8 @@ bool32 buf_check_resident_page_version(knl_session_t *session, page_id_t page_id
         return CT_TRUE;
     }
 
-    if (SECUREC_LIKELY(!KNL_RECOVERY_WITH_GBP(session->kernel))) {
-        return CT_FALSE;
-    }
-
-    if (SESSION_IS_LOG_ANALYZE(session) || SESSION_IS_GBP_BG(session)) {
-        return CT_TRUE;
-    }
-
-    uint32 depth = session->page_stack.depth;
-    while (depth > 0) {
-        if (IS_SAME_PAGID(session->page_stack.pages[depth - 1]->page_id, page_id)) {
-            return CT_TRUE;  // resident page has been enter by self
-        }
-        depth--;
-    }
-
-    buf_bucket_t *bucket = buf_find_bucket(session, page_id);
-
-    cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
-    buf_ctrl_t *ctrl = buf_find_from_bucket(bucket, page_id);
-    if (ctrl != NULL) {
-        buf_check_page_version(session, ctrl);
-    }
-    cm_spin_unlock(&bucket->lock);
-
-    return CT_TRUE;
+    // 非集群模式直接返回
+    return CT_FALSE;
 }
 
 bool32 buf_check_resident_page_version_with_ctrl(knl_session_t *session, void *buf_ctrl, page_id_t page_id)
