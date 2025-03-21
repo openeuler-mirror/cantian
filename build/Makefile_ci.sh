@@ -530,23 +530,6 @@ func_test()
 
 }
 
-prepare_bazel_dependency()
-{
-    echo "prepare_bazel_dependency"
-    func_prepare_dependency
-
-    if [[ ! -d "${CANTIANDB_HOME}"/add-ons ]]; then
-        mkdir -p  ${CANTIANDB_HOME}/add-ons
-    fi
-
-    cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${CANTIANDB_HOME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so* ${CANTIANDB_HOME}/add-ons/
-    cp -rf ${CANTIANDB_BIN} ${CANTIANDB_HOME}
-    cp -rf ${CANTIANDB_LIB} ${CANTIANDB_HOME}
-    cp -rf ${CANTIANDB_LIBRARY} ${CANTIANDB_HOME}
-
-}
-
 func_clean()
 {
     echo "make clean"
@@ -1088,9 +1071,6 @@ main()
         ;;
     'package-release')
         func_making_package Release
-        ;;
-    'bazel_dependency')
-        prepare_bazel_dependency
         ;;
     'make_regress_test')
         COMPILE_OPTS="${COMPILE_OPTS} -DUSE_PROTECT_VM=ON -DCMS_UT_TEST=ON"

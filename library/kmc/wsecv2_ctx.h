@@ -9,9 +9,6 @@
 #define KMC_SRC_COMMON_WSECV2_CTX_H
 
 #include "wsecv2_type.h"
-#include "wsecv2_itf.h"
-#include "wsecv2_multitype.h"
-#include "wsecv2_array.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -42,6 +39,97 @@ typedef enum {
     PROCLOCK4KEYSTORE  = 0,
     WSEC_PROC_LOCK_NUM = 1
 } WsecProclockFor;
+
+#pragma pack(1)
+typedef struct TagKmcAlgCnfParam {
+    WsecUint32 symmAlg;
+    WsecUint32 kdfAlg;
+    WsecUint32 hmacAlg;
+    WsecUint32 hashAlg;
+    WsecUint32 workKeyIter;
+    WsecUint32 saltLen;
+    unsigned char reserve[16];
+} KmcAlgCnfParam;
+#pragma pack()
+
+#pragma pack(1)
+typedef struct TagKmcTeeInitParam {
+    WsecUint32 timeLow;
+    WsecUint16 timeMid;
+    WsecUint16 timeHiAndVersion;
+    WsecUint8 clockSeqAndNode[8];
+    unsigned char *taPath;
+} KmcTeeInitParam;
+#pragma pack()
+
+#pragma pack(1)
+typedef struct TagWsecScheduleTime {
+    /* Hour (0-23) */
+    unsigned char kmcHour;
+    /* Minute (0 to 59) */
+    unsigned char kmcMinute;
+    /* Day of a week. The value ranges from 1 to 7,
+     * indicating Monday to Sunday. 1-7: every day
+     */
+    unsigned char kmcWeek;
+    unsigned char kmcPadding;
+    unsigned char reserve[4]; /* 4 bytes are reserved. */
+} WsecScheduleTime;
+#pragma pack()
+
+#pragma pack(1)
+typedef struct TagKmcCfgKeyManagement {
+    /* Number of days in advance users are notified that a key is about to expire */
+    WsecUint32       warningBeforeKeyExpiredDays;
+    /* Grace period for using an expired key.
+     * If the grace period expires, the app is notified.
+     * */
+    int              graceDaysForUseExpiredKey;
+    /* Indicates whether to automatically update the key when the key expires. */
+    /* This parameter is valid for the root key and the MK whose KeyFrom is 0. */
+    WsecBool         keyAutoUpdate;
+    /* Automatic key update time */
+    WsecScheduleTime autoUpdateKeyTime;
+    /* Reserved 8 bytes */
+    unsigned char    reserve[8];
+} KmcCfgKeyManagement; /* Key management parameters */
+#pragma pack()
+#pragma pack(1)
+typedef struct TagWsecCipherConf {
+    WsecUint32 version;
+    WsecUint32 pbkdfAlgId;
+    WsecUint32 deriverKeyLen;
+    WsecUint32 iter;
+    WsecUint32 materialLen;
+    WsecUint32 saltLen;
+    WsecUint32 encAlgId;
+    WsecUint32 ivLen;
+} WsecCipherConf;
+#pragma pack()
+
+typedef struct TagWsecPerConf {
+    WsecUint32 syncTimeLimit;
+    WsecUint32 ioTimeLimit;
+    WsecUint32 hwTimeLimit;
+    WsecUint32 teeTimeLimit;
+    unsigned char resv[36];
+} WsecPerConf;
+#pragma pack()
+
+typedef unsigned long(*CallbackGenCipher)(const WsecSrkPrimitive *primitives, WsecBuff *cpiher);
+typedef unsigned long(*CallbackParseCipher)(WsecBuffConst *cpiher, WsecSrkPrimitive *primitives);
+typedef unsigned long(*CallbackGetCipherConf)(WsecCipherConf *encConf);
+typedef unsigned long(*CallbackGetCipherLen)(unsigned int plaintextLen, unsigned int *ciphertextLen);
+typedef WsecUint64 (*CallbackGetTimeTick)(void);
+
+typedef struct TagWsecAdvanceCallbacks {
+    CallbackGenCipher genCipher;
+    CallbackParseCipher parseCipher;
+    CallbackGetCipherConf getCipherConf;
+    CallbackGetCipherLen getCipherLen;
+    CallbackGetTimeTick getTimeTick;
+    unsigned char* resv[23];
+} WsecAdvanceCallbacks;
 
 /* 4. Other data types and structures */
 typedef struct TagWsecLockRegStatus {
