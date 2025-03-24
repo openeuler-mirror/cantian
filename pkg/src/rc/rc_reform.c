@@ -1316,7 +1316,7 @@ void rc_accept_status_change(void *sess, mes_message_t *receive_msg)
     CT_LOG_RUN_INF("[RC] process broadcast reform status proc, curr=%u, next:%u, notify=%u, ret=%d",
                    cur_status, g_rc_ctx->status, notify->change_status, ret);
 
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
     mes_init_ack_head(receive_msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = ret;

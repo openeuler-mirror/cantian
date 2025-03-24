@@ -844,6 +844,35 @@ status_t sql_notify_als_create_index_parallelism(void *se, void *item, char *val
 
 status_t sql_notify_als_snapshot_backup_recycle_redo_timeout(void *se, void *item, char *value)
 {
+    if (se == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        return CT_ERROR;
+    }
+    knl_session_t *session = (knl_session_t *)se;
+    if (session == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("set prevent recycle redo timeout failed, session is null");
+        return CT_ERROR;
+    }
+    uint32 timeout;
+    if (cm_str2uint32(value, &timeout) != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "timeout");
+        return CT_ERROR;
+    }
+    CT_LOG_RUN_INF("notify prevent timeout, value %u", timeout);
+
+    mes_prevent_snapshot_recycle_redo_timeout_t msg = {.timeout = timeout};
+    mes_init_send_head(&msg.head, MES_CMD_SNAPSHOT_PREVENT_RECYCLE_REDO_TIMEOUT, sizeof(mes_prevent_snapshot_recycle_redo_timeout_t), CT_INVALID_ID32,
+                       session->kernel->id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
+
+    status_t ret = mes_broadcast_data_and_wait_with_retry(session->id, MES_BROADCAST_ALL_INST, &msg, LOG_BROADCAST_PREVENT_TIMEOUT, LOG_BROADCAST_PREVENT_RETRYTIME);
+
+    if (ret != CT_SUCCESS) {
+        CT_THROW_ERROR(ERR_CLT_CLUSTER_INVALID, "message broadcast failed");
+        CT_LOG_RUN_ERR("prevent log recycle timeout failed, ret %d", ret);
+        return CT_ERROR;
+    }
+
     return cm_str2uint32(value, &g_instance->kernel.attr.prevent_snapshot_backup_recycle_redo_timeout);
 }
 

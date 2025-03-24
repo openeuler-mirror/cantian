@@ -3835,7 +3835,7 @@ void drc_process_remaster_param_verify(void *sess, mes_message_t *receive_msg)
     }
 
     status_t ret = CT_SUCCESS;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
 
     mes_init_ack_head(receive_msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = ret;
@@ -5183,7 +5183,7 @@ void drc_accept_target_part(void *sess, mes_message_t *receive_msg)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = &ctx->part_mngr;
     drc_remaster_mngr_t *remaster_mngr = DRC_PART_REMASTER_MNGR;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
     reform_info_t *reform_info = &remaster_mngr->reform_info;
 
@@ -5271,7 +5271,7 @@ void drc_accept_remaster_done(void *sess, mes_message_t *receive_msg)
     drc_update_remaster_local_status(REMASTER_DONE);
 
     status_t ret = CT_SUCCESS;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
     mes_init_ack_head(receive_msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = ret;

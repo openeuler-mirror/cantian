@@ -97,7 +97,7 @@ void dtc_btree_broadcast_root_page(knl_session_t *session, btree_t *btree, btree
 
 void dtc_btree_send_ack(knl_session_t *session, mes_message_t *msg)
 {
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
 
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
 
