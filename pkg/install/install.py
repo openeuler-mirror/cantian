@@ -78,6 +78,7 @@ MYSQL_VERSION = VERSION_DOCKER_META
 CONFIG_FILE = "/opt/cantian/config/deploy_param.json"
 MYSQL_DATA_DIR = "/data/data"
 MYSQL_BIN_DIR = "/usr/local/mysql"
+CTC_LIB_DIR = "/opt/cantian/mysql/server/"
 MYSQL_LOG_FILE = os.path.join(MYSQL_DATA_DIR, "mysql.log")
 
 MYSQL_LIB_OUTPUT_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql/mysql-source/bld_debug/plugin_output_directory")
@@ -156,6 +157,7 @@ def check_directories():
         MYSQL_VERSION = VERSION_DOCKER_META if is_mysql_metadata_in_cantian else VERSION_DOCKER_NOMETA
         MYSQL_DATA_DIR = "/data/data"
         MYSQL_BIN_DIR = "/usr/local/mysql"
+        CTC_LIB_DIR = "/home/regress/cantian-connector-mysql/mysql-source/"
     else:
         MYSQL_CODE_DIR = os.path.join(PKG_DIR, "cantian-connector-mysql")
         CONFIG_FILE = "/opt/cantian/config/deploy_param.json"
@@ -4132,15 +4134,16 @@ class Installer:
     def set_mysql_env(self):
         log("Preparing mysql running env...", True)
         if 'LD_LIBRARY_PATH' in os.environ:
-            os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s:%s" % (
+            os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s:%s:%s" % (
                 os.path.join(MYSQL_BIN_DIR, "lib"),
                 os.path.join(MYSQL_CODE_DIR, "cantian_lib"),
+                os.path.join(CTC_LIB_DIR, "cantian_lib"),
                 os.path.join(MYSQL_BIN_DIR, "lib/private"),
                 os.environ['LD_LIBRARY_PATH']))
         else:
-            os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s" % (
+            os.environ['LD_LIBRARY_PATH'] = ("%s:%s:%s:%s" % (
                 os.path.join(MYSQL_BIN_DIR, "lib"), os.path.join(MYSQL_BIN_DIR, "lib/private"), os.path.join(
-                    MYSQL_CODE_DIR, "cantian_lib")))
+                    MYSQL_CODE_DIR, "cantian_lib"), os.path.join(CTC_LIB_DIR, "cantian_lib")))
         cmd = "ldconfig -N %s %s" % (os.path.join(MYSQL_CODE_DIR, "cantian_lib"), os.path.join(MYSQL_BIN_DIR, "lib"))
         ret_code, _, stderr = _exec_popen(cmd)
         if ret_code:
