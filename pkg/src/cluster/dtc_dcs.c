@@ -2109,7 +2109,7 @@ void dcs_process_invld_req(void *sess, mes_message_t * msg)
         return;
     }
     dtc_page_req_t *req = (dtc_page_req_t *)msg->buffer;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
     page_id_t pagid = req->pagid;
     if (IS_INVALID_PAGID(pagid)) {

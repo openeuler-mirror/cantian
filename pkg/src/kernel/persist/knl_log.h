@@ -139,9 +139,13 @@ typedef struct st_log_group {
 typedef struct st_mes_prevent_snapshot_recycle_redo {
     mes_message_head_t head;
     timeval_t cur_time;
-    uint32 timeout;
     bool32 is_prevent;
 } mes_prevent_snapshot_recycle_redo_t;
+
+typedef struct st_mes_prevent_snapshot_recycle_redo_timeout {
+    mes_message_head_t head;
+    uint32 timeout;
+} mes_prevent_snapshot_recycle_redo_timeout_t;
 
 #define CT_MAX_LOG_GROUP_SIZE (uint32)((uint32)CT_MAX_UINT16 * (uint32)0xF + (uint32)CT_MAX_UINT16)
 #define LOG_GROUP_ACTUAL_SIZE(group)  \
@@ -557,7 +561,7 @@ void new_tx_process_scn_broadcast(void *sess, mes_message_t *msg);
 #endif
 status_t tx_scn_broadcast(knl_session_t *session);
 void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *receive_msg);
-void log_process_open_snapshot_recycle_redo(void *sess, mes_message_t *receive_msg);
+void log_process_prevent_snapshot_recycle_redo_timeout(void *sess, mes_message_t *msg);
 
 static inline bool32 log_is_empty(log_file_head_t *head)
 {
