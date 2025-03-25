@@ -286,6 +286,7 @@ class DBStor:
         self.cantian_in_container = ""
         self.dbstor_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
+        self.dbstor_archive_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
         self.dbstor_log="/opt/cantian/log/dbstor"
 
@@ -334,6 +335,7 @@ class DBStor:
             self.dbstor_config['LINK_TYPE'] = json_data.get('link_type', "").strip()
             self.dbstor_config['LOG_VSTOR'] = json_data.get('dbstor_fs_vstore_id', "0").strip()
             self.dbstor_config['PAGE_VSTOR'] = json_data.get('dbstor_page_fs_vstore_id', "0").strip()
+            self.dbstor_config['ARCHIVE_VSTOR'] = json_data.get('dbstor_archive_fs_vstore_id', "0").strip()
             if json_data.get('link_type', "").strip() != '0':
                 self.dbstor_config['LINK_TYPE'] = '1'
             self.dbstor_config['CLUSTER_ID'] = json_data.get('cluster_id', "").strip()
@@ -608,6 +610,8 @@ class DBStor:
                 self.dbstor_config["LOG_VSTOR"] = self.dbstor_fs_vstore_id
             if "PAGE_VSTOR" not in self.dbstor_config.keys():
                 self.dbstor_config["PAGE_VSTOR"] = self.dbstor_page_fs_vstore_id
+            if "ARCHIVE_VSTOR" not in self.dbstor_config.keys():
+                self.dbstor_config["ARCHIVE_VSTOR"] = self.dbstor_archive_fs_vstore_id
             if "DBS_LOG_PATH" not in self.dbstor_config.keys():
                 self.dbstor_config["DBS_LOG_PATH"] = self.dbstor_log
             logger.info("Generate DBstor Config File.")

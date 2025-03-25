@@ -78,6 +78,7 @@ class ConfigTool:
         self.cantian_in_container = ""
         self.dbstor_fs_vstore_id = "0"
         self.dbstor_page_fs_vstore_id = "0"
+        self.dbstor_archive_fs_vstore_id = "0"
         self.dbstor_home="/opt/cantian/dbstor"
         self.dbstor_log_path="/opt/cantian/log/dbstor"
         self.dbstor_config_tmp = {  # dbstor_config.ini default parameters
