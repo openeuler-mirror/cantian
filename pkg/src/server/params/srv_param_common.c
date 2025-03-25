@@ -127,6 +127,11 @@ status_t sql_notify_als_bool(void *se, void *item, char *value)
 
 status_t sql_notify_prevent_backup_recycle(void *se, void *item, char *value)
 {
+    if (se == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("prevent log recycle failed, session is null");
+        return CT_ERROR;
+    }
     knl_session_t *session = (knl_session_t *)se;
     if (session == NULL) {
         CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
@@ -155,8 +160,7 @@ status_t sql_notify_prevent_backup_recycle(void *se, void *item, char *value)
         return CT_ERROR;
     }
 
-    uint32 prevent_timeout = session->kernel->attr.prevent_snapshot_backup_recycle_redo_timeout;
-    mes_prevent_snapshot_recycle_redo_t msg = {.timeout = prevent_timeout, .is_prevent = is_prevent};
+    mes_prevent_snapshot_recycle_redo_t msg = {.is_prevent = is_prevent};
     mes_init_send_head(&msg.head, MES_CMD_SNAPSHOT_PREVENT_RECYCLE_REDO, sizeof(mes_prevent_snapshot_recycle_redo_t), CT_INVALID_ID32,
                        session->kernel->id, CT_INVALID_ID8, session->id, CT_INVALID_ID16);
 

@@ -485,7 +485,7 @@ void dtc_process_btree_split_status(knl_session_t *session, mes_message_t *req_m
 
 void dtc_broadcast_data_send_status_ack(knl_session_t *session, mes_message_t *msg)
 {
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
 
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
 
@@ -814,7 +814,7 @@ status_t dtc_process_remove_df_watch(knl_session_t* session, char* data)
 
 void dtc_broadcast_data_send_ack(knl_session_t *session, mes_message_t *msg, status_t process_ret)
 {
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
 
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = process_ret;
@@ -956,7 +956,7 @@ void dtc_process_upgrade_ctrl_version(void *sess, mes_message_t * msg)
         }
     }
 
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_UPGRADE_CTRL_VERSION_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = process_ret;
     mes_release_message_buf(msg->buffer);

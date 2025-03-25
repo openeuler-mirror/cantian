@@ -1126,7 +1126,7 @@ void tx_process_scn_broadcast(void *sess, mes_message_t *msg)
     }
     mes_scn_bcast_t *bcast = (mes_scn_bcast_t *)msg->buffer;
     knl_scn_t latest_scn = bcast->scn;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
 
     if (msg->head->src_inst >= CT_MAX_INSTANCES) {
@@ -1150,7 +1150,7 @@ void new_tx_process_scn_broadcast(void *sess, mes_message_t *msg)
         CT_LOG_DEBUG_INF("The SCN receiver is receiving the latest the message from the sender.");
     }
     knl_scn_t latest_scn = new_bcast->scn;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
     knl_session_t *session = (knl_session_t *)sess;
 
     if (msg->head->src_inst >= CT_MAX_INSTANCES) {
@@ -2999,14 +2999,79 @@ void log_set_logfile_writepos(knl_session_t *session, log_file_t *file, uint64 o
 void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *msg)
 {
     CT_LOG_RUN_INF("start process prevent snapshot recycle redo");
+    if (msg == NULL || msg->buffer == NULL) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "message or buffer is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo timeout failed, message or buffer is null");
+        return;
+    }
+
     if (sizeof(mes_prevent_snapshot_recycle_redo_t) != msg->head->size) {
         CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
         mes_release_message_buf(msg->buffer);
         return;
     }
     mes_prevent_snapshot_recycle_redo_t *rcv_msg = (mes_prevent_snapshot_recycle_redo_t *)msg->buffer;
-    mes_message_head_t ack_head = {0};
+    mes_message_head_t ack_head = { 0 };
+
+    if (sess == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo failed, session is null");
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
     knl_session_t *session = (knl_session_t *)sess;
+    if (session == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo failed, session is null");
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+
+    if (msg->head->src_inst >= CT_MAX_INSTANCES) {
+        mes_release_message_buf(msg->buffer);
+        CT_LOG_RUN_ERR("Do not process prevent snapshot recycle redo, because src_inst is invalid: %u", msg->head->src_inst);
+        return;
+    }
+
+    enable_prevent_log_recycle(session, rcv_msg->is_prevent);
+
+    mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
+    ack_head.status = CT_SUCCESS;
+    drc_mes_send_data_with_retry((const char*)&ack_head, BROADCAST_SCN_WAIT_INTERVEL,
+                                 BROADCAST_SCN_SEND_MSG_RETRY_TIMES);
+    mes_release_message_buf(msg->buffer);
+}
+
+void log_process_prevent_snapshot_recycle_redo_timeout(void *sess, mes_message_t *msg)
+{
+    CT_LOG_RUN_INF("start process prevent snapshot recycle redo timeout");
+    if (msg == NULL || msg->buffer == NULL) {
+        CT_THROW_ERROR(ERR_INVALID_PARAMETER, "message or buffer is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo timeout failed, message or buffer is null");
+        return;
+    }
+
+    if (sizeof(mes_prevent_snapshot_recycle_redo_timeout_t) != msg->head->size) {
+        CT_LOG_RUN_ERR("msg is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    mes_prevent_snapshot_recycle_redo_timeout_t *rcv_msg = (mes_prevent_snapshot_recycle_redo_timeout_t *)msg->buffer;
+    mes_message_head_t ack_head = { 0 };
+
+    if (sess == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo failed, session is null");
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
+    knl_session_t *session = (knl_session_t *)sess;
+    if (session == NULL) {
+        CT_THROW_ERROR(ERR_SESSION_CLOSED, "session is null");
+        CT_LOG_RUN_ERR("process prevent snapshot recycle redo failed, session is null");
+        mes_release_message_buf(msg->buffer);
+        return;
+    }
 
     if (msg->head->src_inst >= CT_MAX_INSTANCES) {
         mes_release_message_buf(msg->buffer);
@@ -3015,7 +3080,6 @@ void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *msg)
     }
 
     set_prevent_log_recycle_timeout(session, rcv_msg->timeout);
-    enable_prevent_log_recycle(session, rcv_msg->is_prevent);
 
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = CT_SUCCESS;
