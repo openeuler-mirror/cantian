@@ -77,6 +77,28 @@ typedef void *handle_t;
 #define UINT16_BITS 16
 #define UINT8_BITS 8
 
+#if defined(WIN32) || defined(_PCLINT_)
+typedef char    int8_t;
+typedef short   int16_t;
+typedef int     int32_t;
+typedef __int64 int64_t;
+
+typedef unsigned char    uint8_t;
+typedef unsigned short   uint16_t;
+typedef unsigned int     uint32_t;
+typedef unsigned __int64 uint64_t;
+#endif
+
+#define DPUC_MAX_FILE_NAME_LEN 512
+#define ENTRY_PER_SGL 64
+#define DPUC_URL_LEN  (64)
+#define DP_OK         (0)
+#define DP_ERROR      (~0)
+#define DP_FAIL       (~0)
+
+typedef int     OSP_BOOL;
+typedef int32   OSP_S32;
+
 #endif /* CT_TYPES_DEFINED */
 
 #endif /* __CM_TYPES_H__ */

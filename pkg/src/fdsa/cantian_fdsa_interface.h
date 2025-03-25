@@ -25,7 +25,7 @@
 #ifndef CANTIAN_FDSA_INTERFACE_H
 #define CANTIAN_FDSA_INTERFACE_H
 
-#include "dpax_typedef.h"
+#include "cm_types.h"
 
 #ifdef __cplusplus
 extern "C" {
