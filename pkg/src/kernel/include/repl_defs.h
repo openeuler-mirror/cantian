@@ -60,7 +60,6 @@ typedef enum en_switch_state {
     SWITCH_KILL_SESSIONS,
     SWITCH_WAIT_SESSIONS,
     SWITCH_WAIT_LOG_SYNC,
-    SWITCH_WAIT_LOG_ANALYSIS,
     SWITCH_WAIT_RECOVERY,
     SWITCH_WAIT_CKPT,
 } switch_state_t;

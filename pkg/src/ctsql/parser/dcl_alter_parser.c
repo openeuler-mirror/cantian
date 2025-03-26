@@ -515,22 +515,6 @@ static status_t sql_parse_alsys_kill(sql_stmt_t *stmt, lex_t *lex, knl_alter_sys
     return lex_expected_end(lex);
 }
 
-status_t sql_verify_als_gbp_trans_type(void *se, void *lex, void *def)
-{
-    uint32 match_id;
-    char *match_word[] = { "TCP", "RDMA" };
-    knl_alter_sys_def_t *sys_def = (knl_alter_sys_def_t *)def;
-
-    if (lex_expected_fetch_1of2(lex, "TCP", "RDMA", &match_id) != CT_SUCCESS) {
-        return CT_ERROR;
-    }
-
-    PRTS_RETURN_IFERR(
-        snprintf_s(sys_def->value, CT_PARAM_BUFFER_SIZE, CT_PARAM_BUFFER_SIZE - 1, "%s", match_word[match_id]));
-
-    return CT_SUCCESS;
-}
-
 static status_t sql_parse_alsys_reset(sql_stmt_t *stmt, lex_t *lex, knl_alter_sys_def_t *def)
 {
     def->action = ALTER_SYS_RESET_STATISTIC;

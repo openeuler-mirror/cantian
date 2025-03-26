@@ -225,7 +225,6 @@ typedef struct log_manager {
     const char *name;
     log_replay_proc replay_proc;
     log_desc_proc desc_proc;
-    log_analysis_proc analysis_proc;
     log_verify_page_format_proc verify_page_format_proc;
     log_verify_nolog_insert_proc verify_nolog_insert_proc;
     log_stop_backup_proc stop_backup_proc;
@@ -294,27 +293,6 @@ typedef struct st_replay_stat {
     uint64 replay_elapsed;       /* us */
 } replay_stat_t;
 
-/* log analyze item(page/lsn/lfn) */
-typedef struct st_gbp_analyse_item {
-    page_id_t page_id;
-    volatile uint64 lsn;             // expect lsn after failover done
-    volatile uint64 unused : 8;      // reseved
-    volatile uint64 is_verified : 8; // whether gbp page is verifyed
-    volatile uint64 lfn : 48;        // the lfn of batch contain this page
-    struct st_gbp_analyse_item *next;
-} gbp_analyse_item_t;
-
-typedef struct st_gbp_analyse_bucket {
-    uint32 count;
-    gbp_analyse_item_t *first;
-} gbp_analyse_bucket_t;
-
-typedef struct st_gbp_analyse_result {
-    volatile bool32 gbp_unsafe;
-    log_type_t unsafe_type;
-    uint64 unsafe_max_lsn;
-} gbp_analyse_result_t;
-
 typedef struct st_log_context {
     spinlock_t commit_lock;         // lock for commit
     uint32 lock_align1[15];
@@ -372,19 +350,6 @@ typedef struct st_log_context {
     log_verify_nolog_insert_proc verify_nolog_insert_proc[RD_TYPE_END];
     log_stop_backup_proc stop_backup_proc[RD_TYPE_END];
     log_point_t redo_end_point;
-    aligned_buf_t gbp_aly_mem;
-    gbp_analyse_item_t *gbp_aly_items;
-    gbp_analyse_bucket_t *gbp_aly_buckets;
-    gbp_analyse_bucket_t gbp_aly_free_list;
-    gbp_analyse_result_t gbp_aly_result;
-    volatile uint64 gbp_aly_lsn;
-    volatile bool32 rcy_with_gbp;
-    bool32 last_rcy_with_gbp;
-    log_point_t gbp_skip_point;
-    log_point_t gbp_begin_point;
-    log_point_t gbp_rcy_point;
-    log_point_t gbp_lrp_point;
-    uint64 gbp_rcy_lfn;
 
     date_t promote_begin_time;
     date_t promote_temp_time;

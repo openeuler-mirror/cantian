@@ -43,7 +43,6 @@
 #include "pcr_pool.h"
 #include "knl_rstat.h"
 #include "knl_alck.h"
-#include "knl_gbp.h"
 #include "knl_ctlg.h"
 #ifdef DB_DEBUG_VERSION
 #include "knl_syncpoint.h"
@@ -382,7 +381,6 @@ typedef struct st_knl_instance {
     index_area_t index_ctx;
     lsnd_context_t lsnd_ctx;
     lrpl_context_t lrpl_ctx;
-    gbp_aly_ctx_t gbp_aly_ctx;
     lftc_clt_ctx_t lftc_client_ctx;
     lrcv_context_t lrcv_ctx;
     rcy_context_t rcy_ctx;
@@ -424,8 +422,6 @@ typedef struct st_knl_instance {
     char alarm_log_dir[CT_MAX_PATH_BUFFER_SIZE];
 
     date_t db_startup_time;  // the time db startup
-    gbp_attr_t gbp_attr;        // gbp config params
-    gbp_context_t gbp_context;  // gbp context
     pcb_context_t compress_buf_ctx; // page compress buf context for page compress
 #ifdef DB_DEBUG_VERSION
     syncpoint_t syncpoint;

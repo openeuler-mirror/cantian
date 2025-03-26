@@ -908,7 +908,6 @@ void rd_spc_extend_datafile_internal(knl_session_t *session, rd_extend_datafile_
     }
     datafile_t *df = DATAFILE_GET(session, redo->id);
     int32 *handle = DATAFILE_FD(session, redo->id);
-    bool32 need_lock = KNL_GBP_ENABLE(session->kernel);
 
     if (!df->ctrl->used || !DATAFILE_IS_ONLINE(df)) {
         return;
@@ -919,10 +918,6 @@ void rd_spc_extend_datafile_internal(knl_session_t *session, rd_extend_datafile_
     if (redo->size > df->ctrl->auto_extend_maxsize || redo->size > max_file_size) {
         CT_LOG_RUN_ERR("replay extend datafile %u fail, extend size %llu is invalid", redo->id, redo->size);
         return;
-    }
-
-    if (need_lock) { // concurrency with gbp_aly_spc_extend_datafile in gbp_aly_proc
-        cm_spin_lock(&session->kernel->gbp_aly_ctx.extend_lock, NULL);
     }
 
     if (df->ctrl->size < redo->size) {
@@ -963,25 +958,12 @@ void rd_spc_extend_datafile_internal(knl_session_t *session, rd_extend_datafile_
             }
         }
     }
-
-    if (need_lock) {
-        cm_spin_unlock(&session->kernel->gbp_aly_ctx.extend_lock);
-    }
 }
 
 void rd_spc_extend_datafile(knl_session_t *session, log_entry_t *log)
 {
     rd_extend_datafile_t *redo = (rd_extend_datafile_t *)log->data;
     rd_spc_extend_datafile_internal(session, redo);
-}
-
-void gbp_aly_spc_extend_datafile(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    if (KNL_GBP_SAFE(session->kernel)) {
-        rd_spc_extend_datafile(session, log);
-    } else {
-        gbp_aly_unsafe_entry(session, log, lsn);
-    }
 }
 
 void rd_spc_truncate_datafile_internal(knl_session_t *session, rd_truncate_datafile_t *redo)

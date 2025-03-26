@@ -56,7 +56,7 @@ extern "C" {
 #define cs_close_rdma_socket            cm_rdma_close
 #define RDMA_HOST_PREFIX                "RDMA@"
 #define RDMA_HOST_PREFIX_LEN            5
-/* rscoket ping is very low and gbp start at most 16 rsocket connections, so set buffer size small */
+/* rscoket ping is very low, so set buffer size small */
 #define CT_RSOCKET_DEFAULT_BUFFER_SIZE  SIZE_K(128)
 /* RSOCKET link cannot closed by system when process exit, so set keep idle short and reset peer state early */
 #define CT_RSOCKET_KEEP_IDLE            (uint32)2

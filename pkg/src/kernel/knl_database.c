@@ -427,13 +427,11 @@ void db_close(knl_session_t *session, bool32 need_ckpt)
     log_point_t *lrp_point = &dtc_my_ctrl(session)->lrp_point;
 
     if (!DB_IS_PRIMARY(&session->kernel->db)) {
-        gbp_aly_close(session);
         lrpl_close(session);
         lftc_clt_close(session);
     }
 
     rcy_close(session);
-    gbp_agent_close(session);
     bak_close(session);
     undo_close(session);
     arch_close(session);
@@ -697,11 +695,6 @@ status_t db_mount(knl_session_t *session)
         return CT_ERROR;
     }
 
-    if (KNL_GBP_ENABLE(session->kernel) && (gbp_agent_start(session) != CT_SUCCESS)) {
-        cm_spin_unlock(&kernel->lock);
-        return CT_ERROR;
-    }
-
     if (rcy_init(session) != CT_SUCCESS) {
         cm_spin_unlock(&kernel->lock);
         return CT_ERROR;
@@ -824,11 +817,6 @@ static status_t db_switchover_proc_init(knl_session_t *session)
                 return CT_ERROR;
             }
             return CT_SUCCESS;
-        }
-        if (KNL_GBP_ENABLE(kernel)) {
-            if (gbp_aly_init(session) != CT_SUCCESS) {
-                return CT_ERROR;
-            }
         }
 
         rcy_init_proc(session);

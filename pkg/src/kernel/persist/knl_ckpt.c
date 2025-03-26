@@ -1041,16 +1041,8 @@ bool32 ckpt_try_latch_group(knl_session_t *session, buf_ctrl_t *ctrl)
  
 static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t *to_flush_ctrl)
 {
-    gbp_context_t *gbp_ctx = &session->kernel->gbp_context;
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-    uint32 gbp_lock_id = CT_INVALID_ID32;
     errno_t ret;
-
-    /* concurrent with knl_read_page_from_gbp when buf_enter_page with LATCH_S lock */
-    if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel))) {
-        gbp_lock_id = ctrl->page_id.page % CT_GBP_RD_LOCK_COUNT;
-        cm_spin_lock(&gbp_ctx->buf_read_lock[gbp_lock_id], NULL);
-    }
 
     knl_panic_log(IS_SAME_PAGID(to_flush_ctrl->page_id, AS_PAGID(to_flush_ctrl->page->id)),
         "to_flush_ctrl's page_id and to_flush_ctrl page's id are not same, panic info: page_id %u-%u type %u, "
@@ -1073,11 +1065,6 @@ static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t 
     ret = memcpy_sp(ctx->group.buf + DEFAULT_PAGE_SIZE(session) * ctx->group.count, DEFAULT_PAGE_SIZE(session),
         to_flush_ctrl->page, DEFAULT_PAGE_SIZE(session));
     knl_securec_check(ret);
-
-    if (SECUREC_UNLIKELY(gbp_lock_id != CT_INVALID_ID32)) {
-        cm_spin_unlock(&gbp_ctx->buf_read_lock[gbp_lock_id]);
-        gbp_lock_id = CT_INVALID_ID32;
-    }
 
     if (to_flush_ctrl == ctx->batch_end) {
         ctx->batch_end = to_flush_ctrl->ckpt_prev;
@@ -2268,11 +2255,6 @@ bool32 ckpt_check(knl_session_t *session)
 void ckpt_set_trunc_point(knl_session_t *session, log_point_t *point)
 {
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
-
-    /* do not move forward trunc point if GBP_RECOVERY is not completed */
-    if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
-        return;
-    }
     cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);
     // update curr_node_idx only in standby cluster
     if (!DB_IS_PRIMARY(&session->kernel->db)) {
@@ -2287,11 +2269,6 @@ void ckpt_set_trunc_point_slave_role(knl_session_t *session, log_point_t *point,
     ckpt_context_t *ctx = &session->kernel->ckpt_ctx;
     if (log_cmp_point(&ctx->queue.trunc_point, point) > 0)
     {
-        return;
-    }
- 
-    /* do not move forward trunc point if GBP_RECOVERY is not completed */
-    if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
         return;
     }
     cm_spin_lock(&ctx->queue.lock, &session->stat->spin_stat.stat_ckpt_queue);

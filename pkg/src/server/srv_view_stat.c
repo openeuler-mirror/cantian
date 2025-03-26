@@ -191,12 +191,6 @@ static knl_column_t g_segment_statistics_columns[] = {
     { 7, "VALUE",          0, 0, CT_TYPE_BIGINT,  sizeof(uint64),  0, 0, CT_FALSE, 0, { 0 } },
 };
 
-static knl_column_t g_gbpstat_columns[] = {
-    { 0,  "STATISTIC#", 0, 0, CT_TYPE_INTEGER,  sizeof(uint32),   0, 0, CT_FALSE, 0, { 0 } },
-    { 1,  "NAME",       0, 0, CT_TYPE_VARCHAR,  CT_MAX_NAME_LEN,  0, 0, CT_FALSE, 0, { 0 } },
-    { 2,  "VALUE",      0, 0, CT_TYPE_BIGINT,   sizeof(uint64),   0, 0, CT_FALSE, 0, { 0 } },
-};
-
 static knl_column_t g_memstat_columns[] = {
     { 0, "NAME",            0, 0, CT_TYPE_VARCHAR, 20,             0, 0, CT_FALSE, 0, { 0 } },
     { 1, "TOTAL",           0, 0, CT_TYPE_BIGINT,  sizeof(uint64), 0, 0, CT_FALSE, 0, { 0 } },
@@ -363,7 +357,6 @@ static knl_column_t g_redo_stat_columns[] = {
 #define SEGMENT_STATISTICS_COLS (ELEMENT_COUNT(g_segment_statistics_columns))
 #define CONNPOOL_STAT_COLS (ELEMENT_COUNT(g_connpool_stat_columns))
 #define RSRC_GROUP_COLS (ELEMENT_COUNT(g_rsrc_group_columns))
-#define GBPSTAT_COLS (sizeof(g_gbpstat_columns) / sizeof(knl_column_t))
 
 #define STATS_RECOURCE_COLS (sizeof(g_stats_resource_columns) / sizeof(knl_column_t))
 #define RSRC_MONITOR_COLS (ELEMENT_COUNT(g_rsrc_monitor_columns))
@@ -575,55 +568,6 @@ typedef enum en_sysstat_id {
     SYSTEM_STAT_COUNT, // ceil
 } sysstat_id_t;
 
-static stat_item_t g_gbpstat_items[] = {
-    { 0, "gbp lfn gap" },
-    { 0, "gbp page min_lfn" },
-    { 0, "gbp page write" },
-    { 0, "gbp page write time(us)" },
-    { 0, "gbp write wait" },
-    { 0, "gbp knl read" },
-    { 0, "gbp bg read" },
-    { 0, "gbp bg read time(us)" },
-    { 0, "gbp miss" },
-    { 0, "gbp hit" },
-    { 0, "gbp ahead" },
-    { 0, "gbp usable" },
-    { 0, "gbp old" },
-    { 0, "gbp total read time(ms)" },
-    { 0, "redo analyze time(ms)" },
-    { 0, "redo analyze pages" },
-    { 0, "redo analyze resident pages" },
-    { 0, "redo analyze new pages" },
-    { 0, "redo replay time(ms)" },
-    { 0, "promote total time(ms)" },
-    { 0, "promote lrpl time(ms)" },
-};
-
-typedef enum en_gbpstat_id {
-    GBP_LFN_GAP,
-    GBP_MIN_LFN,
-    GBP_PAGE_WRITE,
-    GBP_PAGE_WRITE_TIME,
-    GBP_WRITE_WAIT,
-    GBP_KNL_READ,
-    GBP_BG_READ,
-    GBP_BG_READ_TIME,
-    GBP_MISS,
-    GBP_HIT,
-    GBP_AHEAD,
-    GBP_USABLE,
-    GBP_OLD,
-    GBP_TOTAL_READ_TIME,
-    GBP_REDO_ALY_TIME,
-    GBP_REDO_ALY_PAGES,
-    GBP_REDO_ALY_RESIDENT_PAGES,
-    GBP_REDO_ALY_NEW_PAGES,
-    GBP_REDO_REPLAY_TIME,
-    GBP_PROMOTE_TOTAL_TIME,
-    GBP_PROMOTE_LRPL_TIME,
-    GBP_STAT_COUNT,
-} gbpstat_id_t;
-
 void vw_sysstat_accumulate(uint64 *stats, sql_stat_t *sql_stat, knl_stat_t *knl_stat)
 {
     stats[EXEC_COUNT] += sql_stat->exec_count;
@@ -790,91 +734,6 @@ status_t vw_sysstat_fetch(knl_handle_t session, knl_cursor_t *cursor)
     CT_RETURN_IFERR(row_put_str(&ra, g_sysstat_items[id].name));
     CT_RETURN_IFERR(row_put_int32(&ra, g_sysstat_items[id].type));
     CT_RETURN_IFERR(row_put_int64(&ra, (int64)stats[id]));
-
-    cursor->rowid.vmid++;
-    return CT_SUCCESS;
-}
-
-status_t vw_gbpstat_open(knl_handle_t se, knl_cursor_t *cursor)
-{
-    uint64 *stats = (uint64 *)cursor->page_buf;
-    session_t *session = (session_t *)se;
-    knl_stat_t knl_stat;
-    log_context_t *redo = &g_instance->kernel.redo_ctx;
-    gbp_context_t *gbp_context = &g_instance->kernel.gbp_context;
-
-    CM_ASSERT(stats != NULL);
-    cursor->rowid.vmid = 0;
-    cursor->rowid.slot = 0;
-    MEMS_RETURN_IFERR(memset_s(stats, sizeof(uint64) * GBP_STAT_COUNT, 0, sizeof(uint64) * GBP_STAT_COUNT));
-
-    for (uint32 i = 0; i <= g_instance->session_pool.hwm; i++) {
-        if (i == g_instance->session_pool.hwm) {
-            knl_stat = g_instance->kernel.stat;
-        } else {
-            session = g_instance->session_pool.sessions[i];
-            uint16 stat_id = session->knl_session.stat_id;
-            CT_CONTINUE_IFTRUE(session->is_free || stat_id == CT_INVALID_ID16);
-            CM_MFENCE;
-            knl_stat = *g_instance->stat_pool.stats[stat_id];
-        }
-
-        /* gbp write */
-        stats[GBP_PAGE_WRITE] += knl_stat.gbp_page_write;
-        stats[GBP_PAGE_WRITE_TIME] += knl_stat.gbp_page_write_time;
-
-        /* gbp read */
-        stats[GBP_BG_READ] += knl_stat.gbp_bg_read;
-        stats[GBP_BG_READ_TIME] += knl_stat.gbp_bg_read_time;
-
-        stats[GBP_KNL_READ] += knl_stat.gbp_knl_read;
-        stats[GBP_MISS] += knl_stat.gbp_miss;
-        stats[GBP_HIT] += knl_stat.gbp_hit;
-        stats[GBP_AHEAD] += knl_stat.gbp_ahead;
-        stats[GBP_USABLE] += knl_stat.gbp_usable;
-        stats[GBP_OLD] += knl_stat.gbp_old;
-    }
-
-    stats[GBP_WRITE_WAIT] = gbp_queue_get_page_count(&session->knl_session);
-    /*  get fresh data */
-    log_point_t tmp_point = gbp_queue_get_trunc_point(&session->knl_session);
-    stats[GBP_MIN_LFN] = tmp_point.lfn;
-
-    stats[GBP_LFN_GAP] = redo->lfn - stats[GBP_MIN_LFN];
-    date_t begin_time = gbp_context->gbp_begin_read_time;
-    date_t end_time = gbp_context->gbp_end_read_time;
-    stats[GBP_TOTAL_READ_TIME] = (end_time == 0) ? 0 : ((end_time - begin_time) / MILLISECS_PER_SECOND);
-
-    stats[GBP_REDO_ALY_TIME] = redo->replay_stat.analyze_elapsed / MILLISECS_PER_SECOND;
-    stats[GBP_REDO_ALY_PAGES] = redo->replay_stat.analyze_pages;
-    stats[GBP_REDO_ALY_RESIDENT_PAGES] = redo->replay_stat.analyze_resident_pages;
-    stats[GBP_REDO_ALY_NEW_PAGES] = redo->replay_stat.analyze_new_pages;
-    stats[GBP_REDO_REPLAY_TIME] = redo->replay_stat.replay_elapsed / MILLISECS_PER_SECOND;
-
-    begin_time = g_instance->kernel.redo_ctx.promote_begin_time;
-    end_time = g_instance->kernel.redo_ctx.promote_end_time;
-    stats[GBP_PROMOTE_TOTAL_TIME] = ((end_time == 0) ? 0 : (end_time - begin_time)) / MILLISECS_PER_SECOND;
-    end_time = g_instance->kernel.lrpl_ctx.end_time;
-    stats[GBP_PROMOTE_LRPL_TIME] = ((end_time == 0) ? 0 : (end_time - begin_time)) / MILLISECS_PER_SECOND;
-
-    return CT_SUCCESS;
-}
-
-status_t vw_gbpstat_fetch(knl_handle_t session, knl_cursor_t *cursor)
-{
-    uint32 id = (uint32)cursor->rowid.vmid;
-    uint64 *stats = (uint64 *)cursor->page_buf;
-    row_assist_t ra;
-
-    if (id >= GBP_STAT_COUNT) {
-        cursor->eof = CT_TRUE;
-        return CT_SUCCESS;
-    }
-
-    row_init(&ra, (char *)cursor->row, CT_MAX_ROW_SIZE, GBPSTAT_COLS);
-    CT_RETURN_IFERR(row_put_int32(&ra, id));
-    CT_RETURN_IFERR(row_put_str(&ra, g_gbpstat_items[id].name));
-    CT_RETURN_IFERR(row_put_int64(&ra, stats[id]));
 
     cursor->rowid.vmid++;
     return CT_SUCCESS;

@@ -207,14 +207,6 @@ status_t db_load_lib(knl_session_t *session)
         return CT_ERROR;
     }
 
-    session->kernel->gbp_aly_ctx.sid = CT_INVALID_ID32;
-    if (KNL_GBP_ENABLE(session->kernel) && cm_str_equal_ins(session->kernel->gbp_attr.trans_type, "rdma")) {
-        if (rdma_init_lib() != CT_SUCCESS) {
-            CT_LOG_RUN_ERR("[DB] failed to init rdma library");
-            return CT_ERROR;
-        }
-    }
-
     if (cm_dbs_is_enable_dbs() == CT_TRUE) {
         if (dbs_init_lib() != CT_SUCCESS) {
             CT_LOG_RUN_ERR("Failed to init lib.");
