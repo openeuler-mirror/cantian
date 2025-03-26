@@ -197,7 +197,6 @@ const wait_event_desc_t g_wait_event_desc[] = {
     { "enq: TX read  wait", "", "Application" },
     { "db file scattered read", "", "User/IO" },
     { "db file sequential read", "", "User/IO" },
-    { "db file gbp read", "", "User/IO" },
     { "mtrl segment sort", "", "User/IO" },
     { "log file switch(checkpoint incomplete)", "", "Configuration" },
     { "log file switch(archiving needed)", "", "Configuration" },

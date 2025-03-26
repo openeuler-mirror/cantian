@@ -460,10 +460,6 @@ void rd_alter_add_logfile(knl_session_t *session, log_entry_t *log)
     (void)lsnd_open_specified_logfile(session, rd->slot);
     (void)cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session),
                          &kernel->lrpl_ctx.log_handle[rd->slot]);
-    if (KNL_GBP_ENABLE(session->kernel)) {
-        (void)cm_open_device(logfile->ctrl->name, logfile->ctrl->type, knl_redo_io_flag(session),
-                             &kernel->gbp_aly_ctx.log_handle[rd->slot]);
-    }
 }
 
 void print_alter_add_logfile(log_entry_t *log)
@@ -529,9 +525,6 @@ void rd_alter_drop_logfile(knl_session_t *session, log_entry_t *log)
     lsnd_close_specified_logfile(session, inx);
     cm_close_device(logfile->ctrl->type, &logfile->handle);
     cm_close_device(logfile->ctrl->type, &kernel->lrpl_ctx.log_handle[inx]);
-    if (KNL_GBP_ENABLE(kernel)) {
-        cm_close_device(logfile->ctrl->type, &kernel->gbp_aly_ctx.log_handle[inx]);
-    }
 
     if (cm_exist_device(logfile->ctrl->type, logfile->ctrl->name)) {
         if (cm_rm_device_watch(logfile->ctrl->type, rmon_ctx->watch_fd, &logfile->wd) != CT_SUCCESS) {

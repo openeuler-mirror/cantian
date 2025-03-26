@@ -87,8 +87,7 @@ static bool32 lrpl_check_gap_exist(knl_session_t *session, log_point_t *point)
 status_t lrpl_prepare_archfile(knl_session_t *session, log_point_t *point, bool32 *reset)
 {
     lrpl_context_t *lrpl_ctx = &session->kernel->lrpl_ctx;
-    gbp_aly_ctx_t *aly_ctx = &session->kernel->gbp_aly_ctx;
-    thread_t *thread = SESSION_IS_LOG_ANALYZE(session) ? &aly_ctx->thread : &lrpl_ctx->thread;
+    thread_t *thread = &lrpl_ctx->thread;
     char arch_name[CT_FILE_NAME_BUFFER_SIZE] = {0};
     lftc_task_handle_t task_handle;
     bool32 fetch_done = CT_FALSE;
@@ -107,9 +106,6 @@ status_t lrpl_prepare_archfile(knl_session_t *session, log_point_t *point, bool3
     if (cm_file_exist(arch_name)) {
         return CT_SUCCESS;
     }
-
-    CT_LOG_RUN_INF("[%s] Archive log %s not found, start to fetch it from primary.",
-        LRPL_OR_GBPALY(session), arch_name);
 
     if (lftc_clt_create_task(session, (uint32)point->rst_id, point->asn, arch_name, &task_handle) != CT_SUCCESS) {
         return CT_ERROR;
@@ -142,9 +138,8 @@ status_t lrpl_prepare_archfile(knl_session_t *session, log_point_t *point, bool3
         // Check whether restlog has changed.
         if (point->rst_id < session->kernel->db.ctrl.core.resetlogs.rst_id &&
             point->asn > session->kernel->db.ctrl.core.resetlogs.last_asn) {
-            CT_LOG_RUN_INF("[%s] point rstid/asn [%u/%u], resetlogs rstid/last_asn [%u/%u], "
+            CT_LOG_RUN_INF("[LRPL] point rstid/asn [%u/%u], resetlogs rstid/last_asn [%u/%u], "
                 "curr_file rstid/asn [%u/%u], current point [%u-%u/%u/%llu]",
-                LRPL_OR_GBPALY(session),
                 point->rst_id, point->asn, session->kernel->db.ctrl.core.resetlogs.rst_id,
                 session->kernel->db.ctrl.core.resetlogs.last_asn,
                 session->kernel->redo_ctx.files[session->kernel->redo_ctx.curr_file].head.rst_id,
@@ -296,7 +291,6 @@ status_t lrpl_do_replay(knl_session_t *session, log_point_t *point, uint32 data_
         rcy_wait_replay_complete(session);
         if (rcy->last_point.asn != CT_INVALID_ASN) {
             ckpt_set_trunc_point(session, &rcy->last_point);
-            gbp_queue_set_trunc_point(session, &rcy->last_point);
         }
     }
 
@@ -621,91 +615,6 @@ status_t lrpl_log_size_btw_2points(knl_session_t *session, log_point_t begin, lo
     return CT_SUCCESS;
 }
 
-/* Only happened when test GBP performance and set _MRP_RES_LOGSIZE > 0 */
-static bool32 lrpl_need_pause_for_gbp(knl_session_t *session)
-{
-    knl_instance_t *kernel = session->kernel;
-    log_context_t *redo_ctx = &kernel->redo_ctx;
-    lrpl_context_t *lrpl = &kernel->lrpl_ctx;
-    lrcv_context_t *lrcv = &kernel->lrcv_ctx;
-    gbp_aly_ctx_t *aly_ctx = &kernel->gbp_aly_ctx;
-    uint64 log_size = CT_INVALID_ID64;
-    log_point_t curr_flushed_point;
-
-    if (!DB_IS_OPEN(session) || kernel->gbp_attr.lrpl_res_logsize <= 0) {
-        return CT_FALSE;
-    }
-
-    /* raft not inited */
-    if (DB_IS_RAFT_ENABLED(kernel) && kernel->raft_ctx.status < RAFT_STATUS_INITED) {
-        return CT_FALSE;
-    }
-
-    if (gbp_promote_triggered(kernel)) {
-        return CT_FALSE;
-    }
-
-    if (lrcv->state == REP_STATE_DEMOTE_REQUEST || lrcv->state == REP_STATE_WAITING_DEMOTE) {
-        return CT_FALSE; // standby switchover triggered
-    }
-
-    /* do not cross rst_id */
-    if (aly_ctx->curr_point.rst_id == lrpl->curr_point.rst_id) {
-        if ((gbp_aly_get_file_end_point(session, &curr_flushed_point, redo_ctx->curr_file) == CT_SUCCESS) &&
-            (lrpl_log_size_btw_2points(session, lrpl->curr_point, curr_flushed_point, &log_size) == CT_SUCCESS) &&
-            (log_size < kernel->gbp_attr.lrpl_res_logsize)) {
-            CT_LOG_DEBUG_INF("log replayer need keep log distance.log_size[%llu], lrpl_res_logsize[%llu]",
-                             log_size, kernel->gbp_attr.lrpl_res_logsize);
-            return CT_TRUE;
-        }
-    }
-
-    return CT_FALSE;
-}
-
-static void lrpl_try_use_gbp(knl_session_t *session)
-{
-    knl_instance_t *kernel = session->kernel;
-    log_context_t *redo = &kernel->redo_ctx;
-    lrpl_context_t *lrpl = &kernel->lrpl_ctx;
-    gbp_aly_ctx_t *aly = &kernel->gbp_aly_ctx;
-    rcy_context_t *rcy = &kernel->rcy_ctx;
-    uint64 lrpl_remain_size = CT_INVALID_ID64;
-    uint64 gbp_remain_size = CT_INVALID_ID64;
-
-    if (KNL_RECOVERY_WITH_GBP(kernel)) {
-        return; // GBP turbo is running
-    }
-
-    if (!gbp_promote_triggered(kernel)) {
-        return;
-    }
-
-    if (KNL_GBP_SAFE(kernel) && aly->is_done && // need wait log analysis finished
-        gbp_replay_in_window(session, lrpl->curr_point)) { // current lrpl point is in GBP window
-        if (rcy->paral_rcy) {
-            rcy_wait_replay_complete(session);
-        }
-
-        if (!KNL_GBP_SAFE(kernel)) {
-            return; // recheck again, because log replayer may set unsafe when rcy_wait_replay_complete
-        }
-
-        (void)lrpl_log_size_btw_2points(session, lrpl->curr_point, aly->curr_point, &lrpl_remain_size);
-        (void)lrpl_log_size_btw_2points(session, redo->gbp_rcy_point, aly->curr_point, &gbp_remain_size);
-        CT_LOG_RUN_INF("[GBP] failover points(asn-block-lfn): "
-                       "curr_point[%u-%u-%llu], gbp_rcy_point[%u-%u-%llu], log_end_point[%u-%u-%llu]",
-                       lrpl->curr_point.asn, lrpl->curr_point.block_id, (uint64)lrpl->curr_point.lfn,
-                       redo->gbp_rcy_point.asn, redo->gbp_rcy_point.block_id, (uint64)redo->gbp_rcy_point.lfn,
-                       aly->curr_point.asn, aly->curr_point.block_id, (uint64)aly->curr_point.lfn);
-
-        CT_LOG_RUN_INF("[GBP] lrpl remain log size: before use gbp [%lluMB], after use gbp [%lluKB]",
-                       lrpl_remain_size / SIZE_M(1), gbp_remain_size / SIZE_K(1));
-
-        gbp_knl_begin_read(session, &lrpl->curr_point);
-    }
-}
-
 static void lrpl_wait_replay_complete(knl_session_t *session)
 {
     rcy_context_t *rcy = &session->kernel->rcy_ctx;
@@ -713,7 +622,6 @@ static void lrpl_wait_replay_complete(knl_session_t *session)
     if (rcy->paral_rcy && rcy->last_point.asn != CT_INVALID_ASN) {
         rcy_wait_replay_complete(session);
         ckpt_set_trunc_point(session, &rcy->last_point);
-        gbp_queue_set_trunc_point(session, &rcy->last_point);
         rcy->last_point.asn = CT_INVALID_ASN;
     }
 }
@@ -747,16 +655,6 @@ static void lrpl_proc_loop(thread_t *thread)
             lrpl->replay_fail_cnt = 0;
             lrpl->load_fail_cnt = 0;
             continue;
-        }
-
-        if (lrpl_need_pause_for_gbp(session)) {
-            sleep_needed = CT_TRUE;
-            continue;
-        }
-
-        /* try to use gbp */
-        if (KNL_GBP_ENABLE(session->kernel)) {
-            lrpl_try_use_gbp(session);
         }
 
         if (session->kernel->lftc_client_ctx.arch_lost || lrpl->load_fail_cnt >= LOAD_FAIL_THRESHOLD) {

@@ -193,19 +193,6 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
      * for page is set soft_damge, we must ensure it been flushed to disk.
      */
     if ((!is_skip || is_soft_damage) && changed) {
-        /* redo between redo->curr_point and gbp->rcy_point should be skipped */
-        if (KNL_RECOVERY_WITH_GBP(session->kernel) && session->kernel->redo_ctx.gbp_rcy_lfn != 0 &&
-            session->kernel->redo_ctx.lfn < session->kernel->redo_ctx.gbp_rcy_lfn) {
-            knl_panic_log((session->page_stack.is_skip[session->page_stack.depth - 1] == CT_TRUE),
-                          "[GBP] redo between redo->curr_point and gbp->rcy_point should be skipped");
-        }
-
-        /* should not replay log on hit page */
-        if (DB_IS_PRIMARY(&session->kernel->db) && KNL_GBP_ENABLE(session->kernel) &&
-            session->curr_page_ctrl->gbp_ctrl->page_status == GBP_PAGE_HIT) {
-            knl_panic_log(0, "[GBP] should not replay log on hit page");
-        }
-
         buf_leave_page(session, CT_TRUE);
     } else {
         buf_leave_page(session, CT_FALSE);
@@ -216,84 +203,4 @@ void print_leave_page(log_entry_t *log)
 {
     bool32 changed = *(bool32 *)log->data;
     (void)printf("changed %u\n", (uint32)changed);
-}
-
-/* gbp analyze proc entry for RD_ENTER_PAGE, when gbp analyze, replay txn page */
-void gbp_aly_enter_page(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    log_context_t *ctx = &session->kernel->redo_ctx;
-    rd_enter_page_t *redo = (rd_enter_page_t *)log->data;
-    page_id_t page_id = MAKE_PAGID(redo->file, redo->page);
-
-    ctx->replay_stat.analyze_pages++;
-    if (redo->options & ENTER_PAGE_RESIDENT) {
-        ctx->replay_stat.analyze_resident_pages++;
-    }
-
-    /* redo txn page when do log analysis */
-    if (log->type == RD_ENTER_TXN_PAGE) {
-        rd_enter_page(session, log);
-    } else {
-        buf_enter_invalid_page(session, LATCH_MODE_X);
-
-        /* must do log analysis for page's redo log, so can not skip */
-        session->page_stack.is_skip[session->page_stack.depth - 1] = CT_FALSE;
-    }
-
-    knl_panic_log(session->page_stack.depth > 0, "page_stack's depth is abnormal, panic info: page %u-%u depth %u",
-                  page_id.file, page_id.page, session->page_stack.depth);
-    session->page_stack.gbp_aly_page_id[session->page_stack.depth - 1] = page_id;
-}
-
-static void gbp_aly_set_page_backend(knl_session_t *session, page_id_t page_id, uint64 lsn, uint64 lfn)
-{
-    gbp_aly_ctx_t *aly = &session->kernel->gbp_aly_ctx;
-    rcy_context_t *rcy = &session->kernel->rcy_ctx;
-    gbp_page_bucket_t *bucket = &aly->page_bucket;
-    uint32 next = (bucket->tail + 1) % bucket->count;
-    gbp_aly_page_t item;
-
-    item.page_id = page_id;
-    item.lsn = lsn;
-    item.lfn = lfn;
-    for (;;) {
-        if (SECUREC_UNLIKELY(next == bucket->head)) {
-            cm_spin_sleep();
-            rcy->wait_stats_view[ADD_BUCKET_TIME]++;
-        } else {
-            break;
-        }
-    }
-
-    cm_spin_lock(&bucket->lock, NULL);
-    bucket->first[bucket->tail] = item;
-    bucket->tail = next;
-    cm_spin_unlock(&bucket->lock);
-}
-
-/* gbp analyze proc entry for RD_LEAVE_PAGE, when gbp analyze, replay txn page, and set page's latest lsn */
-void gbp_aly_leave_page(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    log_context_t *ctx = &session->kernel->redo_ctx;
-    gbp_aly_ctx_t *aly = &session->kernel->gbp_aly_ctx;
-    bool32 changed = *((bool32 *)log->data);
-    page_id_t page_id = session->page_stack.gbp_aly_page_id[session->page_stack.depth - 1];
-
-    if (IS_INVALID_PAGID(page_id)) {
-        knl_panic_log(0, "[GBP] analysis get invalid page id, page [%u:%u]", page_id.file, page_id.page);
-    }
-
-    if (log->type == RD_LEAVE_TXN_PAGE) {
-        rd_leave_page(session, log);
-    } else {
-        buf_pop_page(session);
-    }
-
-    if (changed && !aly->is_closing) {
-        if (SECUREC_LIKELY(SESSION_IS_LOG_ANALYZE(session))) {
-            gbp_aly_set_page_backend(session, page_id, lsn, ctx->analysis_lfn);
-        } else {
-            gbp_aly_set_page_lsn(session, page_id, lsn, ctx->analysis_lfn);
-        }
-    }
 }

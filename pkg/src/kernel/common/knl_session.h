@@ -56,7 +56,6 @@ typedef struct st_page_stack {
     latch_mode_t latch_modes[KNL_MAX_PAGE_STACK_DEPTH];
     bool32 is_skip[KNL_MAX_PAGE_STACK_DEPTH];
     uint32 log_begin[KNL_MAX_ATOMIC_PAGES];
-    page_id_t gbp_aly_page_id[KNL_MAX_PAGE_STACK_DEPTH];
 } page_stack_t;
 
 typedef struct st_temp_page_stack {
@@ -102,7 +101,6 @@ typedef struct st_knl_spin_stat_t {
     spin_statis_t stat_ckpt;
     spin_statis_t stat_pcr_pool;
     spin_statis_t stat_pcr_bucket;
-    spin_statis_t stat_gbp_queue;
     spin_statis_t stat_rcy_buf;
 } knl_spin_stat_t;
 
@@ -161,18 +159,6 @@ typedef struct st_knl_stat {
     uint64 dis_commit_time_multi_shard;
     uint64 dis_rollback_time_multi_shard;
 #endif
-    /* GBP */
-    uint64 gbp_page_write;
-    uint64 gbp_page_write_time;
-    uint64 gbp_write_wait;
-    uint64 gbp_bg_read;
-    uint64 gbp_bg_read_time;  /* us */
-    uint64 gbp_knl_read;
-    uint64 gbp_miss;
-    uint64 gbp_hit;
-    uint64 gbp_ahead;
-    uint64 gbp_usable;
-    uint64 gbp_old;
 
     uint64 table_creates;
     uint64 table_drops;
@@ -412,10 +398,6 @@ typedef struct st_knl_session {
     struct st_buf_ctrl *dirty_pages[KNL_MAX_ATOMIC_PAGES];
     struct st_buf_ctrl *changed_pages[KNL_MAX_ATOMIC_PAGES];  // all dirty pages affected by atomic operation
 
-    uint8 gbp_queue_index; // which gbp queue to push gbp_dirty_pages, only gbp bg session's gbp_queue_index > 0
-    uint32 gbp_dirty_count;
-    struct st_buf_ctrl *gbp_dirty_pages[KNL_MAX_ATOMIC_PAGES];  // dirty pages that not flush to GBP if use gbp
-
     uint32 lock_wait_timeout;  // lock wait timeout(ms)
     uint8 itl_id;   // current itl id
     bool8 compacting;
@@ -541,12 +523,6 @@ static inline uint32 knl_db_node_id(knl_session_t *session)
 
 #define KNL_NOW(session) ((session)->kernel->attr.timer->now)
 #define KNL_IS_AUTON_SE(session) (((session)->rm != NULL) && ((session)->rm->prev != CT_INVALID_ID16))
-#define KNL_GBP_ENABLE(kernel)        ((kernel)->gbp_attr.use_gbp)
-#define KNL_GBP_OFF_TRIGGERED(kernel) ((kernel)->gbp_attr.gbp_off_triggered)
-#define KNL_GBP_FOR_RECOVERY(kernel)  ((kernel)->gbp_attr.gbp_for_recovery)
-#define KNL_GBP_SAFE(kernel)          ((kernel)->gbp_attr.use_gbp && !((kernel)->redo_ctx.gbp_aly_result.gbp_unsafe))
-#define KNL_RECOVERY_WITH_GBP(kernel) ((kernel)->redo_ctx.rcy_with_gbp)
-#define KNL_GBP_READ_VER(kernel)      ((kernel)->gbp_context.gbp_read_version)
 
 #define MY_LOGFILE_SET(session) (&(session)->kernel->db.logfile_sets[(session)->kernel->id])
 #define MY_UNDO_SET(session) (&(session)->kernel->undo_ctx.undo_sets[(session)->kernel->id])

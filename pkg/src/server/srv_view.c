@@ -874,7 +874,6 @@ static knl_column_t g_lrpl_detail_columns[] = {
 #define GLOBAL_TRANSACTION_COLS (ELEMENT_COUNT(g_global_transaction))
 #define RCYWAIT_COLS (ELEMENT_COUNT(g_rcywait_columns))
 #define DC_RANKINGS_COLS (ELEMENT_COUNT(g_dc_rankings))
-#define GBP_ALY_INFO_COLS (ELEMENT_COUNT(g_gbp_aly_info_columns))
 #define TEMPTABLES_COLS (ELEMENT_COUNT(g_temptables_columns))
 #define BUFFER_ACCESS_STATS_COLS (ELEMENT_COUNT(g_buffer_access_stats))
 #define BUFFER_RECYCLE_STATS_COLS (ELEMENT_COUNT(g_buffer_recycle_stats))

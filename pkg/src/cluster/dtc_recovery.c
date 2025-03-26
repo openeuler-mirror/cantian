@@ -379,7 +379,6 @@ void dtc_rcy_push_page_id(bool32 recover_flag, page_id_t page_id)
 {
     if (recover_flag) {
         knl_panic(g_dtc_rcy_page_id_stack.depth < KNL_MAX_PAGE_STACK_DEPTH);
-        g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth] = page_id;
         g_dtc_rcy_page_id_stack.depth++;
     }
 }
@@ -389,7 +388,6 @@ void dtc_rcy_pop_page_id(bool32 recover_flag, page_id_t *page_id)
     if (recover_flag) {
         knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
         g_dtc_rcy_page_id_stack.depth--;
-        *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth];
     }
 }
 
@@ -397,7 +395,6 @@ void dtc_rcy_get_page_id(bool32 recover_flag, page_id_t *page_id)
 {
     if (recover_flag) {
         knl_panic(g_dtc_rcy_page_id_stack.depth > 0);
-        *page_id = g_dtc_rcy_page_id_stack.gbp_aly_page_id[g_dtc_rcy_page_id_stack.depth - 1];
     }
 }
 
@@ -3058,8 +3055,8 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
     rcy_paral_group_t *next_paral_group = NULL;
     log_context_t *ctx = &session->kernel->redo_ctx;
     uint32 group_slot = rcy->curr_group_id;
-    knl_session_t *redo_ssesion = session->kernel->sessions[SESSION_ID_KERNEL];
-    redo_ssesion->dtc_session_type = session->dtc_session_type;
+    knl_session_t *redo_session = session->kernel->sessions[SESSION_ID_KERNEL];
+    redo_session->dtc_session_type = session->dtc_session_type;
 
     rcy->curr_group = (rcy_paral_group_t *)g_replay_paral_mgr.group_list[idx].aligned_buf;
     g_replay_paral_mgr.group_num[idx] = DTC_RCY_GROUP_NUM_BASE;
@@ -3077,9 +3074,7 @@ static void dtc_rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cur
             break;
         }
 
-        // record curr replay lsn in redo_ssesion when paral recovery, it will be used in gbp_page_verify
-        // because redo_curr_lsn must >= page lsn during lrpl, if gbp_page_lsn > redo_curr_lsn, means gbp page can used
-        redo_ssesion->curr_lsn = group->lsn;
+        redo_session->curr_lsn = group->lsn;
         rcy_add_pages(rcy->curr_group, group, group_slot, rcy, &logic, &next_paral_group);
         g_replay_paral_mgr.batch_scn[idx] = MAX(g_replay_paral_mgr.batch_scn[idx], rcy->curr_group->group_scn);
         group_slot++;

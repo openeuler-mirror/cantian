@@ -93,7 +93,6 @@ void print_spc_truncate_datafile_cantian(log_entry_t *log);
 void print_spc_change_autoextend(log_entry_t *log);
 void print_spc_change_autoextend_cantian(log_entry_t *log);
 
-void gbp_aly_spc_extend_datafile(knl_session_t *session, log_entry_t *log, uint64 lsn);
 bool32 format_page_redo_type(uint8 type);
 void punch_page_skip_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);
 void format_page_must_rcy_log(knl_session_t *session, log_entry_t *log, bool32 *need_replay);

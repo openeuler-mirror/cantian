@@ -326,15 +326,10 @@ static void rcy_analysis_entry(knl_session_t *session, log_entry_t *log)
     log_context_t *ctx = &session->kernel->redo_ctx;
 
     knl_panic_log(ctx->analysis_procs[log->type] != NULL, "current analysis_procs is NULL.");
-    /* always analysis it if this log is gbp_unsafe or gbp_safe */
-    if (ctx->analysis_procs[log->type] == gbp_aly_unsafe_entry ||
-        ctx->analysis_procs[log->type] == gbp_aly_safe_entry) {
+
+    /* because we may replay log during log analysis, so we must follow `skip' logical */
+    if (!rcy_is_skip(session, log->type)) {
         ctx->analysis_procs[log->type](session, log, session->curr_lsn);
-    } else {
-        /* because we may replay log during log analysis, so we must follow `skip' logical */
-        if (!rcy_is_skip(session, log->type)) {
-            ctx->analysis_procs[log->type](session, log, session->curr_lsn);
-        }
     }
 }
 
@@ -380,7 +375,6 @@ void rcy_wait_replay_complete(knl_session_t *session)
         rcy->preload_info[i].group_id = 0;
         rcy->preload_info[i].curr = i;
     }
-    gbp_unsafe_redo_check(session);
 }
 
 static void rcy_wait_cond(knl_session_t *session, rcy_bucket_t *bucket, uint32 index, volatile uint32 *curr,
@@ -495,10 +489,6 @@ static void rcy_replay_group_end(knl_session_t *session)
         ckpt_enque_page(session);
     }
 
-    if (SECUREC_UNLIKELY(session->gbp_dirty_count > 0)) {
-        gbp_enque_pages(session);
-    }
-
     if (session->changed_count > 0) {
         log_set_page_lsn(session, session->curr_lsn, session->curr_lfn);
     }
@@ -560,18 +550,12 @@ void rcy_replay_group(knl_session_t *session, log_context_t *ctx, log_group_t *g
     rcy_replay_group_end(se);
 }
 
-/* when GBP enabled, analyze standby redo log group, set page latest lsn to gbp aly item */
 static void rcy_analysis_group(knl_session_t *session, log_context_t *ctx, log_group_t *group)
 {
     uint32 offset;
     log_entry_t *log = NULL;
     knl_session_t *se = session->kernel->sessions[SESSION_ID_KERNEL];
 
-    if (SESSION_IS_LOG_ANALYZE(session)) {
-        se = session;  // use aly session for log analysis
-    }
-
-    ctx->gbp_aly_lsn = group->lsn;
     se->curr_lsn = group->lsn;
     offset = sizeof(log_group_t);
 
@@ -846,17 +830,16 @@ static void rcy_paral_replay_batch(knl_session_t *session, log_cursor_t *cursor,
     bool32 logic = CT_FALSE;
     rcy_paral_group_t *next_paral_group = NULL;
     uint32 group_slot = rcy->curr_group_id;
-    knl_session_t *redo_ssesion = session->kernel->sessions[SESSION_ID_KERNEL];
-    redo_ssesion->dtc_session_type = session->dtc_session_type;
+    knl_session_t *redo_session = session->kernel->sessions[SESSION_ID_KERNEL];
+    redo_session->dtc_session_type = session->dtc_session_type;
 
     for (;;) {
         group = log_fetch_group(ctx, cursor);
         if (SECUREC_UNLIKELY(group == NULL)) {
             break;
         }
-        // record curr replay lsn in redo_ssesion when paral recovery, it will be used in gbp_page_verify
-        // because redo_curr_lsn must >= page lsn during lrpl, if gbp_page_lsn > redo_curr_lsn, means gbp page can used
-        redo_ssesion->curr_lsn = group->lsn;
+        // record curr replay lsn in redo_session when paral recovery, it will be used in gbp_page_verify
+        redo_session->curr_lsn = group->lsn;
         rcy_add_pages(rcy->curr_group, group, group_slot, rcy, &logic, &next_paral_group);
         group_slot++;
         rcy->curr_group_id = group_slot;
@@ -910,16 +893,13 @@ void rcy_replay_batch(knl_session_t *session, log_batch_t *batch)
             group = log_fetch_group(ctx, &cursor);
         }
         DB_SET_LFN(&ctx->lfn, batch->head.point.lfn);
-        gbp_unsafe_redo_check(session);
     }
 }
 
-/* when GBP enabled, analyze standby redo log batch */
 void rcy_analysis_batch(knl_session_t *session, log_batch_t *batch)
 {
     knl_instance_t *kernel = session->kernel;
     log_context_t *ctx = &kernel->redo_ctx;
-    gbp_aly_ctx_t *aly = &kernel->gbp_aly_ctx;
     log_cursor_t cursor;
 
     rcy_init_log_cursor(&cursor, batch);
@@ -930,10 +910,6 @@ void rcy_analysis_batch(knl_session_t *session, log_batch_t *batch)
     log_group_t *group = log_fetch_group(ctx, &cursor);
     while (group != NULL) {
         rcy_analysis_group(session, ctx, group);
-
-        if (aly->is_closing) {
-            return;
-        }
         group = log_fetch_group(ctx, &cursor);
     }
 }
@@ -976,9 +952,7 @@ static inline void rcy_next_file(knl_session_t *session, log_point_t *point, boo
         point->asn++;
         point->block_id = 0;
         *need_more_log = CT_TRUE;
-    } else if (!SESSION_IS_LOG_ANALYZE(session) && session->kernel->rcy_ctx.loading_curr_file) {
-        *need_more_log = CT_TRUE;
-    } else if (SESSION_IS_LOG_ANALYZE(session) && session->kernel->gbp_aly_ctx.loading_curr_file) {
+    } else if (session->kernel->rcy_ctx.loading_curr_file) {
         *need_more_log = CT_TRUE;
     } else {
         point->asn++;
@@ -1035,18 +1009,11 @@ static bool32 rcy_prepare_batch(knl_session_t *session, log_point_t *point, log_
 
     if (!DB_IS_PRIMARY(db) && db->status == DB_STATUS_RECOVERY && !DB_IS_RAFT_ENABLED(session->kernel)) {
         max_lrp_point = dtc_my_ctrl(session)->lrp_point;
-        if (KNL_GBP_SAFE(session->kernel) && log_cmp_point(&max_lrp_point, &ctx->gbp_lrp_point) < 0) {
-            max_lrp_point = ctx->gbp_lrp_point;
-        }
-
-        /* if use gbp, it should at least recover to max{local_lrp_point, gbp_lrp_point} */
         if (!rcy_ctx->is_demoting && log_cmp_point(&max_lrp_point, point) == 0) {
             *need_more_log = CT_FALSE;
-            CT_LOG_RUN_INF("standby recover no need more log.core_lrp_point[%u-%u-%u-%llu],gbp_lrp_point[%u-%u-%u-%llu]",
-                           dtc_my_ctrl(session)->lrp_point.rst_id, dtc_my_ctrl(session)->lrp_point.asn,
-                           dtc_my_ctrl(session)->lrp_point.block_id, (uint64)dtc_my_ctrl(session)->lrp_point.lfn,
-                           ctx->gbp_lrp_point.rst_id, ctx->gbp_lrp_point.asn, ctx->gbp_lrp_point.block_id,
-                           (uint64)ctx->gbp_lrp_point.lfn);
+            CT_LOG_RUN_INF("standby recover no need more log.core_lrp_point[%u-%u-%u-%llu]",
+                dtc_my_ctrl(session)->lrp_point.rst_id, dtc_my_ctrl(session)->lrp_point.asn,
+                dtc_my_ctrl(session)->lrp_point.block_id, (uint64)dtc_my_ctrl(session)->lrp_point.lfn);
             return CT_FALSE;
         } else {
             if (batch->head.magic_num != LOG_MAGIC_NUMBER || !LFN_IS_CONTINUOUS(batch->head.point.lfn, ctx->lfn)) {
@@ -1106,20 +1073,6 @@ status_t rcy_verify_checksum(knl_session_t *session, log_batch_t *batch)
     return CT_SUCCESS;
 }
 
-/* GBP failover triggered, need skip remain redo log batchs */
-static inline bool32 rcy_gbp_triggered(knl_session_t *session, bool32 *need_more_log)
-{
-    gbp_aly_ctx_t *aly_ctx = &session->kernel->gbp_aly_ctx;
-
-    if (!KNL_RECOVERY_WITH_GBP(session->kernel) && knl_failover_triggered(session->kernel) && aly_ctx->is_done &&
-        !aly_ctx->has_return_replay) {
-        aly_ctx->has_return_replay = CT_TRUE;
-        *need_more_log = CT_TRUE;
-        return CT_TRUE;
-    }
-    return CT_FALSE;
-}
-
 static bool32 rcy_pitr_replay_end(rcy_context_t *rcy, log_batch_t *batch, log_point_t *point, bool32 *need_more_log)
 {
     if (batch->scn <= rcy->max_scn) {
@@ -1141,27 +1094,16 @@ static status_t rcy_try_decrypt(knl_session_t *session, log_batch_t *batch, bool
         return CT_SUCCESS;
     }
 
-    if (!is_analysis) {
-        log_context_t *ctx = &session->kernel->redo_ctx;
-        return log_decrypt(session, batch, ctx->logwr_cipher_buf, ctx->logwr_cipher_buf_size);
-    } else {
-        gbp_aly_ctx_t *aly_ctx = &session->kernel->gbp_aly_ctx;
-        return log_decrypt(session, batch, aly_ctx->log_decrypt_buf.aligned_buf,
-                           (uint32)aly_ctx->log_decrypt_buf.buf_size);
-    }
+    log_context_t *ctx = &session->kernel->redo_ctx;
+    return log_decrypt(session, batch, ctx->logwr_cipher_buf, ctx->logwr_cipher_buf_size);
 }
 
 void rcy_set_points(knl_session_t *session, log_point_t *point, bool32 is_analysis, bool32 paral_rcy)
 {
-    if (!is_analysis) {
-        if (!paral_rcy) {
-            ckpt_set_trunc_point(session, point);
-            gbp_queue_set_trunc_point(session, point);
-        }
-        log_reset_point(session, point);
-    } else {
-        log_reset_analysis_point(session, point);
+    if (!paral_rcy) {
+        ckpt_set_trunc_point(session, point);
     }
+    log_reset_point(session, point);
 }
 
 status_t rcy_replay(knl_session_t *session, log_point_t *point, uint32 data_size_input, log_batch_t *batch,
@@ -1194,10 +1136,6 @@ status_t rcy_replay(knl_session_t *session, log_point_t *point, uint32 data_size
                 return CT_SUCCESS;
             }
             *need_more_log = CT_TRUE;
-            return CT_SUCCESS;
-        }
-
-        if (rcy_gbp_triggered(session, need_more_log)) {
             return CT_SUCCESS;
         }
 
@@ -1247,25 +1185,15 @@ status_t rcy_replay(knl_session_t *session, log_point_t *point, uint32 data_size
         rcy->cur_pos += batch->space_size;
         session->kernel->redo_ctx.curr_scn = batch->scn;
         if (!DB_IS_PRIMARY(&session->kernel->db)) {
-            if (!is_analysis) {
-                log_reset_point(session, point);
-            } else {
-                log_reset_analysis_point(session, point);
-            }
+            log_reset_point(session, point);
         }
 
-        if (!is_analysis) {
-            rcy_replay_batch(session, batch);
-            thread_closing = session->kernel->lrpl_ctx.is_closing;
-        } else {
-            rcy_analysis_batch(session, batch);
-            thread_closing = session->kernel->gbp_aly_ctx.is_closing;
-        }
+        rcy_replay_batch(session, batch);
+        thread_closing = session->kernel->lrpl_ctx.is_closing;
 
         if (thread_closing) {
             rcy_wait_replay_complete(session);
             ckpt_set_trunc_point(session, point);
-            gbp_queue_set_trunc_point(session, point);
             return CT_SUCCESS;
         }
         data_size -= batch->space_size;
@@ -1904,11 +1832,9 @@ void rcy_init_callback_proc(log_context_t *ctx)
 {
     for (uint32 i = 0; i < LMGR_COUNT; i++) {
         ctx->replay_procs[g_lmgrs[i].type] = g_lmgrs[i].replay_proc;
-        ctx->analysis_procs[g_lmgrs[i].type] = g_lmgrs[i].analysis_proc;
         ctx->verify_page_format_proc[g_lmgrs[i].type] = g_lmgrs[i].verify_page_format_proc;
         ctx->verify_nolog_insert_proc[g_lmgrs[i].type] = g_lmgrs[i].verify_nolog_insert_proc;
         ctx->stop_backup_proc[g_lmgrs[i].type] = g_lmgrs[i].stop_backup_proc;
-        knl_panic_log(g_lmgrs[i].analysis_proc != NULL, "current analysis_proc is NULL.");
     }
 }
 
@@ -2000,9 +1926,6 @@ void rcy_close_file(knl_session_t *session)
     log_file_t *files = redo_ctx->files;
     uint32 i;
 
-    if (SESSION_IS_LOG_ANALYZE(session)) {
-        return;  // gbp aly session's log file handle is closed in gbp_aly_proc
-    }
     cm_close_device(cm_device_type(rcy_ctx->arch_file.name), &rcy_ctx->arch_file.handle);
     rcy_ctx->arch_file.handle = CT_INVALID_HANDLE;
     rcy_ctx->arch_file.name[0] = '\0';
@@ -2029,55 +1952,6 @@ static status_t rcy_reset_file(knl_session_t *session, log_point_t *point)
     return CT_SUCCESS;
 }
 
-/*
- * if curr_point resides in the window (gbp_begin_point, gbp_rcy_point), we can speed up recovery by
- * moving curr_point forward to gbp_rcy_point.
- */
-static void rcy_try_use_gbp(knl_session_t *session, log_point_t *curr_point)
-{
-    if (KNL_GBP_SAFE(session->kernel) && KNL_GBP_FOR_RECOVERY(session->kernel) &&
-        !KNL_RECOVERY_WITH_GBP(session->kernel) && gbp_replay_in_window(session, *curr_point)) {
-        if (session->kernel->rcy_ctx.paral_rcy) {
-            rcy_wait_replay_complete(session);
-        }
-
-        if (KNL_GBP_SAFE(session->kernel)) {  // recheck again, gbp status may set unsafe when rcy_wait_replay_complete
-            gbp_knl_begin_read(session, curr_point);
-        }
-    }
-}
-
-static status_t rcy_analysis_all_redo(knl_session_t *session, log_point_t *curr_point)
-{
-    rcy_context_t *rcy = &session->kernel->rcy_ctx;
-    log_batch_t *batch = NULL;
-    bool32 need_more_log = CT_FALSE;
-    uint32 data_size = 0;
-    uint32 block_size;
-    rcy->is_first_arch_file = CT_TRUE;
-
-    while (rcy_load(session, curr_point, &data_size, &block_size) == CT_SUCCESS) {
-        batch = (log_batch_t *)rcy->read_buf.aligned_buf;
-        if (log_need_realloc_buf(batch, &rcy->read_buf, "rcy", CT_MAX_BATCH_SIZE)) {
-            continue;
-        }
-
-        if (rcy_analysis(session, curr_point, data_size, batch, block_size, &need_more_log) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-        if (!need_more_log) {
-            break;
-        }
-    }
-
-    return CT_SUCCESS;
-}
-
-/*
- * For _GBP_FOR_RECOVERY == TRUE, analyze redo log when database restart
- * then use GBP at recover stage to accelerate DB open speed
- * Notice: standby redo analysis process is gbp_aly_proc, not use this function
- */
 static status_t rcy_redo_analysis(knl_session_t *session, log_point_t *curr_point)
 {
     knl_instance_t *kernel = session->kernel;
@@ -2085,48 +1959,9 @@ static status_t rcy_redo_analysis(knl_session_t *session, log_point_t *curr_poin
     log_point_t rcy_begin_point = *curr_point;
     errno_t ret;
 
-    redo_ctx->rcy_with_gbp = CT_FALSE;
-    redo_ctx->last_rcy_with_gbp = CT_FALSE;
     ret = memset_sp(&redo_ctx->redo_end_point, sizeof(log_point_t), 0, sizeof(log_point_t));
     knl_securec_check(ret);
 
-    if (!kernel->db.recover_for_restore && KNL_GBP_ENABLE(kernel) && KNL_GBP_FOR_RECOVERY(kernel)) {
-        log_reset_analysis_point(session, curr_point);
-        gbp_reset_unsafe(session);
-        kernel->db.status = DB_STATUS_REDO_ANALYSIS;
-
-        CT_LOG_RUN_INF("[GBP] log analysis: from file:%u,point:%u,lfn:%llu\n", curr_point->asn, curr_point->block_id,
-                       (uint64)curr_point->lfn);
-        (void)cm_gettimeofday(&redo_ctx->replay_stat.analyze_begin);
-
-        if (rcy_analysis_all_redo(session, curr_point) != CT_SUCCESS) {
-            return CT_ERROR;
-        }
-
-        redo_ctx->redo_end_point = *curr_point;
-        (void)cm_gettimeofday(&redo_ctx->replay_stat.analyze_end);
-        redo_ctx->replay_stat.analyze_elapsed = TIMEVAL_DIFF_US(&redo_ctx->replay_stat.analyze_begin,
-                                                                &redo_ctx->replay_stat.analyze_end);
-
-        CT_LOG_RUN_INF("[GBP] log analysis: end with file:%u,point:%u,lfn:%llu\n", curr_point->asn,
-                       curr_point->block_id, (uint64)curr_point->lfn);
-
-        cm_sleep(200);  // wait gbp background process connected
-        if (gbp_pre_check(session, redo_ctx->redo_end_point)) {
-            gbp_knl_check_end_point(session);
-
-            CT_LOG_RUN_INF("[GBP] gbp_rcy_point: rst_id:%u,file:%u,point:%u,lfn:%llu\n",
-                           (uint32)redo_ctx->gbp_rcy_point.rst_id, redo_ctx->gbp_rcy_point.asn,
-                           redo_ctx->gbp_rcy_point.block_id, (uint64)redo_ctx->gbp_rcy_point.lfn);
-            CT_LOG_RUN_INF("[GBP] gbp lfn gap:%llu, gbp_rcy_lfn:%llu\n",
-                           (uint64)(curr_point->lfn - redo_ctx->gbp_rcy_point.lfn),
-                           (uint64)redo_ctx->gbp_rcy_point.lfn);
-        }
-    } else {
-        gbp_set_unsafe(session, RD_TYPE_END);
-    }
-
-    rcy_try_use_gbp(session, &rcy_begin_point);
     *curr_point = rcy_begin_point;
     return CT_SUCCESS;
 }
@@ -2181,7 +2016,6 @@ status_t rcy_recover(knl_session_t *session)
     log_reset_point(session, &lrp_point);
     log_reset_analysis_point(session, &lrp_point);
     ckpt_set_trunc_point(session, &curr_point);
-    gbp_queue_set_trunc_point(session, &curr_point);
     session->kernel->redo_ctx.lfn = curr_point.lfn;
     session->kernel->redo_ctx.analysis_lfn = curr_point.lfn;
     session->kernel->redo_ctx.curr_replay_point = curr_point;
@@ -2233,7 +2067,6 @@ status_t rcy_recover(knl_session_t *session)
             rcy_close_file(session);
             return CT_ERROR;
         }
-        rcy_try_use_gbp(session, &curr_point);
 
         if (!need_more_log) {
             break;
@@ -2281,9 +2114,6 @@ status_t rcy_recover(knl_session_t *session)
     }
 
     log_reset_analysis_point(session, &curr_point);
-    if (KNL_GBP_ENABLE(session->kernel)) {
-        gbp_reset_unsafe(session);
-    }
 
     if (DB_IS_RAFT_ENABLED(session->kernel)) {
         session->kernel->raft_ctx.flush_point = curr_point;
@@ -2342,13 +2172,6 @@ void rcy_preload_proc(thread_t *thread)
 
         page_id.file = page->file;
         page_id.page = page->page;
-
-        /* RTO = 0, disable prefetch when db is recovery from GBP */
-        if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel) || IS_INVALID_PAGID(page_id))) {
-            ctrl = NULL;
-            rcy_update_preload_info(info, rcy, PRELOAD_BUFFER_PAGES);
-            continue;
-        }
 
         if (page_compress(session, page_id)) {
             ctrl = buf_try_alloc_compress(session, page_id, LATCH_MODE_S, ENTER_PAGE_NORMAL, BUF_ADD_HOT);
@@ -2632,27 +2455,6 @@ void print_replay_logic(log_entry_t *log)
             g_logic_lmgrs[id].desc_proc(log);
             return;
         }
-    }
-}
-
-void gbp_aly_gbp_logic(knl_session_t *session, log_entry_t *log, uint64 lsn)
-{
-    logic_op_t *op_type = (logic_op_t *)log->data;
-
-    if (DB_NOT_READY(session) || DB_IS_PRIMARY(&session->kernel->db)) {
-        return;
-    }
-
-    switch (*op_type) {
-        case RD_ADD_LOGFILE:
-            rd_alter_add_logfile(session, log);
-            break;
-        case RD_DROP_LOGFILE:
-            rd_alter_drop_logfile(session, log);
-            break;
-        default:
-            gbp_aly_unsafe_entry(session, log, lsn);
-            break;
     }
 }
 

@@ -86,7 +86,6 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/pkg/src/utils/ctbackup"
         "${PROJECT_SOURCE_DIR}/pkg/src/ctbox"
         "${PROJECT_SOURCE_DIR}/pkg/src/ctrst"
-        "${PROJECT_SOURCE_DIR}/pkg/src/gbp"
         "${PROJECT_SOURCE_DIR}/pkg/src/extproc"
         "${PROJECT_SOURCE_DIR}/pkg/src/ctsql/pl/include"
         "${PROJECT_SOURCE_DIR}/pkg/src/mec"

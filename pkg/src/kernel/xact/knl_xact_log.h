@@ -47,9 +47,6 @@ void print_undo_write(log_entry_t *log);
 void print_undo_clean(log_entry_t *log);
 void print_undo_cipher_reserve(log_entry_t *log);
 
-void gbp_undo_format_txn(knl_session_t *session, log_entry_t *log, uint64 lsn);
-void gbp_aly_undo_change_txn(knl_session_t *session, log_entry_t *log, uint64 lsn);
-
 void rd_tx_begin(knl_session_t *session, log_entry_t *log);
 void rd_tx_end(knl_session_t *session, log_entry_t *log);
 void print_tx_begin(log_entry_t *log);
@@ -59,11 +56,6 @@ void rd_xa_phase1(knl_session_t *session, log_entry_t *log);
 void rd_xa_rollback_phase2(knl_session_t *session, log_entry_t *log);
 void print_xa_rollback_phase2(log_entry_t *log);
 void print_xa_phase1(log_entry_t *log);
-
-void gbp_aly_tx_begin(knl_session_t *session, log_entry_t *log, uint64 lsn);
-void gbp_aly_xa_phase1(knl_session_t *session, log_entry_t *log, uint64 lsn);
-void gbp_aly_xa_rollback_phase2(knl_session_t *session, log_entry_t *log, uint64 lsn);
-void gbp_aly_tx_end(knl_session_t *session, log_entry_t *log, uint64 lsn);
 
 void rd_undo_alloc_segment(knl_session_t *session, log_entry_t *log);
 void rd_undo_create_segment(knl_session_t *session, log_entry_t *log);

@@ -993,67 +993,13 @@ status_t buf_try_prefetch_next_ext(knl_session_t *session, buf_ctrl_t *ctrl)
     return CT_SUCCESS;
 }
 
-/*
- * When DB recover with gbp, buf_load_page will try load page from GBP at first.
- * If page cannot be loaded from GBP, it will be loaded from disk
- */
-static status_t buf_load_page_from_GBP(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id)
-{
-    gbp_context_t *gbp_ctx = &session->kernel->gbp_context;
-    gbp_page_status_e status;
-    uint32 lock_id = page_id.page % CT_GBP_RD_LOCK_COUNT;
-
-    cm_spin_lock(&gbp_ctx->buf_read_lock[lock_id], NULL);
-    if (!KNL_RECOVERY_WITH_GBP(session->kernel)) {
-        cm_spin_unlock(&gbp_ctx->buf_read_lock[lock_id]);
-        return CT_ERROR; /* recheck rcy_with_gbp flag, if CT_FALSE, all GBP pages are pulled to local buffer */
-    }
-
-    knl_begin_session_wait(session, DB_FILE_GBP_READ, CT_TRUE);
-    status = knl_read_page_from_gbp(session, ctrl);
-    ctrl->gbp_ctrl->page_status = status;
-    knl_end_session_wait(session, DB_FILE_GBP_READ);
-    cm_spin_unlock(&gbp_ctx->buf_read_lock[lock_id]);
-
-    if (status == GBP_PAGE_MISS || status == GBP_PAGE_OLD || status == GBP_PAGE_AHEAD) {
-        /* page not exists on gbp */
-        return CT_ERROR;
-    } else {
-        knl_panic_log(CHECK_PAGE_PCN(ctrl->page), "page pcn is abnormal, panic info: ctrl_page %u-%u type %u",
-                      ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type);
-        return CT_SUCCESS;
-    }
-}
-
-/*
- * When DB recover with gbp, current session whether need read page from GBP
- * log analysis session always read page from local disk
- * gbp backround always read page from disk because of it has already pulled page from gbp
- */
-static inline bool32 session_need_read_gbp(knl_session_t *session)
-{
-    if (SESSION_IS_LOG_ANALYZE(session) || SESSION_IS_GBP_BG(session)) {
-        return CT_FALSE;
-    } else {
-        return CT_TRUE;
-    }
-}
-
-/* If failover with GBP, try load page from GBP. If page is not exists on GBP, load page from disk */
 status_t buf_load_page(knl_session_t *session, buf_ctrl_t *ctrl, page_id_t page_id)
 {
     status_t status = CT_ERROR;
 
     knl_panic(!(ctrl->is_edp || ctrl->is_dirty) && (!DB_IS_CLUSTER(session) || DCS_BUF_CTRL_IS_OWNER(session, ctrl)));
 
-    if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel)) && session_need_read_gbp(session)) {
-        ctrl->page->lsn = CT_INVALID_LSN; // reset page lsn to 0 here, because it is not loaded from disk
-        status = buf_load_page_from_GBP(session, ctrl, page_id);
-    }
-
-    if (status != CT_SUCCESS) {
-        status = buf_load_page_from_disk(session, ctrl, page_id);
-    }
+    status = buf_load_page_from_disk(session, ctrl, page_id);
 
     if (status != CT_SUCCESS) {
         ctrl->load_status = (uint8)BUF_LOAD_FAILED;
@@ -1312,16 +1258,6 @@ static void buf_validate_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 c
         return;
     }
 
-    if (KNL_RECOVERY_WITH_GBP(session->kernel) && SESSION_IS_GBP_BG(session)) {
-        return;
-    }
-
-    /* page first load from gbp */
-    if (KNL_RECOVERY_WITH_GBP(session->kernel) && ctrl->gbp_ctrl->is_from_gbp && ctrl->is_dirty &&
-        ctrl->gbp_ctrl->gbp_read_version == KNL_GBP_READ_VER(session->kernel) && !changed) {
-        return;
-    }
-
     depth = session->page_stack.depth - 1;
 
     if (!changed) {
@@ -1378,10 +1314,6 @@ void buf_log_enter_page(knl_session_t *session, buf_ctrl_t *ctrl, latch_mode_t m
         return;
     }
 
-    if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel)) && SESSION_IS_GBP_BG(session)) {
-        return;
-    }
-
     session->page_stack.log_begin[session->page_stack.depth - 1] = ((log_group_t *)session->log_buf)->size;
 #ifdef LOG_DIAG
     errno_t ret;
@@ -1417,10 +1349,6 @@ static void buf_log_leave_page(knl_session_t *session, buf_ctrl_t *ctrl, bool32 
     lrpl_context_t *lrpl = &session->kernel->lrpl_ctx;
 
     if (SECUREC_UNLIKELY(DB_NOT_READY(session) || (DB_IS_READONLY(session) && !lrpl->is_promoting) || CANTIAN_SESSION_IN_RECOVERY(session))) {
-        return;
-    }
-
-    if (SECUREC_UNLIKELY(KNL_RECOVERY_WITH_GBP(session->kernel)) && SESSION_IS_GBP_BG(session)) {
         return;
     }
 
@@ -1503,18 +1431,6 @@ bool32 buf_check_loaded_page_checksum(knl_session_t *session, buf_ctrl_t *ctrl, 
     return buf_verify_checksum(session, ctrl->page, ctrl->page_id);
 }
 
-static inline void buf_try_read_gbp_page(knl_session_t *session, buf_ctrl_t *ctrl)
-{
-    if (ctrl->gbp_ctrl->page_status == GBP_PAGE_NOREAD) {
-        ctrl->page->lsn = CT_INVALID_LSN; // page is not loaded, set lsn to 0
-        ctrl->gbp_ctrl->page_status = GBP_PAGE_NONE;
-    }
-
-    if (session_need_read_gbp(session)) {
-        buf_check_page_version(session, ctrl); // if local page is old, read page from gbp
-    }
-}
-
 static inline void buf_read_compress_update_no_read(knl_session_t *session, buf_ctrl_t *head_ctrl)
 {
     for (int32 i = PAGE_GROUP_COUNT - 1; i >= 0; i--) {
@@ -1522,9 +1438,6 @@ static inline void buf_read_compress_update_no_read(knl_session_t *session, buf_
             // that does't hold x lock, but is set to loaded and not formated.
         CM_MFENCE;
         head_ctrl->compress_group[i]->load_status = BUF_IS_LOADED;
-        if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-            head_ctrl->compress_group[i]->gbp_ctrl->page_status = GBP_PAGE_NOREAD;
-        }
     }
 }
 
@@ -1557,9 +1470,6 @@ static status_t buf_read_normal(knl_session_t *session, buf_ctrl_t *ctrl, page_i
     if (ctrl->load_status == (uint8)BUF_NEED_LOAD) {
         if (options & ENTER_PAGE_NO_READ) {
             ctrl->load_status = (uint8)BUF_IS_LOADED;
-            if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-                ctrl->gbp_ctrl->page_status = GBP_PAGE_NOREAD;
-            }
             return CT_SUCCESS;
         }
 
@@ -1618,10 +1528,6 @@ status_t buf_read_page(knl_session_t *session, page_id_t page_id, latch_mode_t m
     knl_panic_log(IS_SAME_PAGID(page_id, ctrl->page_id),
                   "page_id and ctrl's page_id are not same, panic info: page %u-%u ctrl page %u-%u type %u",
                   page_id.file, page_id.page, ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type);
-
-    if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-        buf_try_read_gbp_page(session, ctrl);
-    }
 
     session->curr_page = (char *)ctrl->page;
     session->curr_page_ctrl = ctrl;
@@ -1692,11 +1598,6 @@ status_t buf_read_prefetch_page(knl_session_t *session, page_id_t page_id, latch
         CT_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
         CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
         return CT_ERROR;
-    }
-
-    /* RTO = 0, disable prefetch when db is recovery from GBP */
-    if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
-        return buf_read_page(session, page_id, mode, options);
     }
 
     if (DB_IS_CLUSTER(session)) {
@@ -1790,11 +1691,6 @@ status_t buf_read_prefetch_page_num(knl_session_t *session, page_id_t page_id, u
         CT_LOG_RUN_ERR("[BUFFER] invalid page_id %u-%u", (uint32)page_id.file, (uint32)page_id.page);
         CT_THROW_ERROR(ERR_INVALID_PAGE_ID, "");
         return CT_ERROR;
-    }
-
-    /* RTO = 0, disable prefetch when db is recovery from GBP */
-    if (KNL_RECOVERY_WITH_GBP(session->kernel)) {
-        return buf_read_page(session, page_id, mode, options);
     }
 
     if (DB_IS_CLUSTER(session)) {
@@ -1901,17 +1797,6 @@ void buf_leave_page(knl_session_t *session, bool32 changed)
             knl_panic_log(session->changed_count <= KNL_MAX_ATOMIC_PAGES, "the changed page count of current session "
                           "is abnormal, panic info: page %u-%u type %u changed_count %u",
                           ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type, session->changed_count);
-        }
-
-        if (SECUREC_UNLIKELY(KNL_GBP_ENABLE(session->kernel))) {
-            ctrl->gbp_ctrl->page_status = GBP_PAGE_NONE;
-            if (!ctrl->gbp_ctrl->is_gbpdirty && DB_IS_PRIMARY(&session->kernel->db)) {
-                ctrl->gbp_ctrl->is_gbpdirty = CT_TRUE;
-                session->gbp_dirty_pages[session->gbp_dirty_count++] = ctrl;
-                knl_panic_log(session->gbp_dirty_count <= KNL_MAX_ATOMIC_PAGES,
-                              "gbp_dirty_count is abnormal, panic info: page %u-%u type %u gbp_dirty_count %u",
-                              ctrl->page_id.file, ctrl->page_id.page, ctrl->page->type, session->gbp_dirty_count);
-            }
         }
 
         if (SECUREC_UNLIKELY(DB_NOT_READY(session))) {

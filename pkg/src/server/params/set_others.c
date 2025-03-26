@@ -1691,7 +1691,6 @@ status_t sql_notify_als_lrpl_res_logsize(void *se, void *item, char *value)
         return CT_ERROR;
     }
 
-    g_instance->kernel.gbp_attr.lrpl_res_logsize = (uint64)val_int64;
     return CT_SUCCESS;
 }
 
