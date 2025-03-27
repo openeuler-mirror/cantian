@@ -33,11 +33,13 @@
 #define CTBAK_PREVENT_RECYCLE_REDO "prevent"
 #define CTBAK_OPEN_RECYCLE_REDO "open"
 #define SNAPSHOT_RUNTIME_VALUE_COLUMN 3
+#define PIPE_FD_COUNT 2
+#define SNAPSHOT_THREAD_CHECK_INTERVAL_US 100000
 
 int32 g_snap_info_handle = 0;
-snapshot_backup_info_t g_snapshot_backup_info = {0};
+snapshot_backup_info_t g_snapshot_backup_info = { 0 };
 static int32 g_snap_timeout = 0;
-static struct timespec g_start_time = {0, 0}, g_current_time = {0, 0};
+static struct timespec g_start_time = { 0 };
 
 typedef struct {
     ctbak_param_t* param;
@@ -318,8 +320,7 @@ status_t fill_params_for_snap_timeout(char *ct_params[])
         printf("[ctbackup]failed to fill params for ctsql login!\n");
         return CT_ERROR;
     }
-    len = strlen(CTSQL_SNAPSHOT_TIMEOUT);
-    len = len + strlen(CTSQL_STATEMENT_END_CHARACTER) + 1;
+    len = strlen(CTSQL_SNAPSHOT_TIMEOUT) + strlen(CTSQL_STATEMENT_END_CHARACTER) + 1;
     char *statement = (char *)malloc(len);
     if (statement == NULL) {
         CM_FREE_PTR(ct_params[CTSQL_LOGININFO_INDEX]);
@@ -340,7 +341,7 @@ status_t fill_params_for_snap_timeout(char *ct_params[])
 status_t ctbak_do_ctsql_snap_timeout(char *path, char *params[])
 {
     errno_t status = 0;
-    int32 pipe_stdout[2] = { 0 };
+    int32 pipe_stdout[PIPE_FD_COUNT] = { 0 };
     if (pipe(pipe_stdout) != EOK) {
         printf("[ctbackup]create stdout pipe failed!\n");
         return CT_ERROR;
@@ -364,17 +365,18 @@ status_t ctbak_do_ctsql_snap_timeout(char *path, char *params[])
     close(pipe_stdout[CHILD_ID]);
     char output[MAX_STATEMENT_LENGTH] = { 0 };
     FILE *fp = fdopen(pipe_stdout[PARENT_ID], "r");
-    while(fgets(output, MAX_STATEMENT_LENGTH, fp) != NULL) {
+    while (fgets(output, MAX_STATEMENT_LENGTH, fp) != NULL) {
         printf("%s", output);
-        if (strstr(output, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT") != NULL) {
-            char *value = strtok(output, " ");
-            for (int i = 0; i < SNAPSHOT_RUNTIME_VALUE_COLUMN; i++) {
-                value = strtok(NULL, " ");
-            }
-            if (value != NULL) {
-                g_snap_timeout = atoi(value);
-                printf("[ctbackup]get snapshot timeout value is %d\n", g_snap_timeout);
-            }
+        if (strstr(output, "PREVENT_SNAPSHOT_BACKUP_RECYCLE_REDO_TIMEOUT") == NULL) {
+            continue;
+        }
+        char *value = strtok(output, " ");
+        for (int i = 0; i < SNAPSHOT_RUNTIME_VALUE_COLUMN; i++) {
+            value = strtok(NULL, " ");
+        }
+        if (value != NULL) {
+            g_snap_timeout = atoi(value);
+            printf("[ctbackup]get snapshot timeout value is %d\n", g_snap_timeout);
         }
     }
     fclose(fp);
@@ -547,6 +549,7 @@ status_t ctbak_create_snapshot_thread(ctbak_param_t* ctbak_param)
 {
     pthread_t snapshot_thread;
     snapshot_thread_arg_t thread_arg = {ctbak_param, CT_ERROR};
+    struct timespec current_time;
 
     // 创建快照线程
     if (pthread_create(&snapshot_thread, NULL, snapshot_thread_func, &thread_arg) != 0) {
@@ -556,10 +559,10 @@ status_t ctbak_create_snapshot_thread(ctbak_param_t* ctbak_param)
 
     // 等待线程完成或超时
     while (1) {
-        usleep(100000); // 每100ms检查一次
-        clock_gettime(CLOCK_MONOTONIC, &g_current_time);
+        usleep(SNAPSHOT_THREAD_CHECK_INTERVAL_US); // 每100ms检查一次
+        clock_gettime(CLOCK_MONOTONIC, &current_time);
 
-        if (g_current_time.tv_sec - g_start_time.tv_sec >= g_snap_timeout) {
+        if (current_time.tv_sec - g_start_time.tv_sec >= g_snap_timeout) {
             printf("[ctbackup]ERROR: Create snapshot timed out after %d seconds\n", g_snap_timeout);
             pthread_cancel(snapshot_thread);
             pthread_join(snapshot_thread, NULL);
@@ -651,7 +654,7 @@ status_t ctbak_do_snapshot(ctbak_param_t* ctbak_param)
             break;
         }
 
-        if (ctbak_get_snap_timeout()!= CT_SUCCESS) {
+        if (ctbak_get_snap_timeout() != CT_SUCCESS) {
             printf("[ctbackup]get snapshot timeout value failed!\n");
             ctback_unlock_mysql_for_backup();
             break;
