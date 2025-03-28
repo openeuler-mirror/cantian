@@ -43,7 +43,6 @@ static void free_multiple_pointers(int count, ...)
 status_t traverse_directory_handle_dir(char *path, char *fs_path, const char *fs_name,
                                        ctbak_param_t* ctbak_param, cm_file_info *file_list, int index)
 {
-    printf("Found directory: %s/%s\n", path, file_list[index].file_name);
     // 构建子目录路径
     char *sub_path = (char*)malloc(MAX_DBS_FS_FILE_PATH_LEN);
     if (sub_path == NULL) {
@@ -156,7 +155,7 @@ status_t traverse_directory_handle_dir(char *path, char *fs_path, const char *fs
 status_t traverse_directory_handle_file(char *path, char *fs_path, const char *fs_name,
                                         ctbak_param_t* ctbak_param, cm_file_info *file_list, int index)
 {
-    printf("Found file: %s/%s", path, file_list[index].file_name);
+    CT_LOG_RUN_INF("Found file: %s/%s", path, file_list[index].file_name);
 
     // "dbstor", "--copy-file", "--import", "--fs-name=", "--source-dir=", "--target-dir="
     char *argv[DBS_COPY_FILE_PRAMA_NUM + 1] = { 0 };
@@ -251,6 +250,7 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
 {
     uint32 file_num = 0;
     cm_file_info *file_list = (cm_file_info *)malloc(sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM);
+    bool32 is_copy_file = CT_FALSE;
     if (file_list == NULL) {
         printf("Failed to allocate memory for file list size:%lu.\n", sizeof(cm_file_info) * DBS_DIR_MAX_FILE_NUM);
         return CT_ERROR;
@@ -276,18 +276,23 @@ status_t traverse_directory(char *path, char *fs_path, const char *fs_name, ctba
                 return CT_ERROR;
             }
         } else {
+            if (is_copy_file == CT_TRUE) {
+                continue;
+            }
             if (traverse_directory_handle_file(path, fs_path, fs_name, ctbak_param, file_list, i) != CT_SUCCESS) {
                 printf("Failed to traverse directory file.\n");
                 CM_FREE_PTR(file_list);
                 return CT_ERROR;
             }
+            is_copy_file = CT_TRUE;
         }
     }
     CM_FREE_PTR(file_list);
     return CT_SUCCESS;
 }
 
-status_t do_snapshot_restore_impl(ctbak_param_t* ctbak_param, char *dir_name, char *fs_name){
+status_t do_snapshot_restore_impl(ctbak_param_t* ctbak_param, char *dir_name, char *fs_name)
+{
     char file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     char backup_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
     PRTS_RETURN_IFERR(snprintf_s(file_dir, MAX_DBS_FS_FILE_PATH_LEN,
@@ -302,32 +307,87 @@ status_t do_snapshot_restore_impl(ctbak_param_t* ctbak_param, char *dir_name, ch
     return CT_SUCCESS;
 }
 
-status_t do_snapshot_restore(ctbak_param_t* ctbak_param){
-    status_t ret = dbs_set_ns_io_forbidden(CT_FALSE);
-    if (ret != CT_SUCCESS) {
-        printf("Set ns forbidden failed(%d).\n", ret);
-        return ret;
+status_t check_fs_empty_impl(const char *fs_name, const char *vstore_id, uint32 *file_num)
+{
+    char dbs_query_file_argv[DBS_QUERY_FILE_PRAMA_NUM + 1][MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
+    char *dbs_query_file_argv_ptr[DBS_QUERY_FILE_PRAMA_NUM + 1] = { 0 };
+
+    for (int j = 0; j < DBS_QUERY_FILE_PRAMA_NUM + 1; j++) {
+        dbs_query_file_argv_ptr[j] = dbs_query_file_argv[j];
+    }
+    void *file_list = NULL;
+    file_info_version_t info_version;
+
+    PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_DBSTOR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                 MAX_DBS_FS_FILE_PATH_LEN - 1, "dbstor"));
+    PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_QUERY_FILE_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                 MAX_DBS_FS_FILE_PATH_LEN - 1, "--query-file"));
+    PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_FS_NAME_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                 MAX_DBS_FS_FILE_PATH_LEN - 1, "--fs-name=%s", fs_name));
+    PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_VSTORE_ID_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                 MAX_DBS_FS_FILE_PATH_LEN - 1, "--vstore_id=%s", vstore_id));
+
+    if (strcmp(fs_name, g_dbs_fs_info.archive_fs_name) == 0) {
+        PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_FILE_DIR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--file-dir=/archive"));
+    } else {
+        PRTS_RETURN_IFERR(snprintf_s(dbs_query_file_argv[DBS_QUERY_FILE_FILE_DIR_PRAMA], MAX_DBS_FS_FILE_PATH_LEN,
+                                     MAX_DBS_FS_FILE_PATH_LEN - 1, "--file-dir=/%s", g_dbs_fs_info.cluster_name));
     }
 
-    ret = dbs_pagepool_clean();
+    status_t ret = dbs_query_file(DBS_QUERY_FILE_PRAMA_NUM + 1, dbs_query_file_argv_ptr, &file_list, file_num, &info_version);
     if (ret != CT_SUCCESS) {
-        printf("Pagepool clean failed.\n");
-        return ret;
+        printf("Failed to query files in fs: %s\n", fs_name);
+    }
+    cm_free_file_list(&file_list);
+    return ret;
+}
+
+status_t check_fs_empty()
+{
+    printf("start check fs empty impl\n");
+    uint32 file_num = 0;
+    const char *fs_names[] = {
+        g_dbs_fs_info.page_fs_name,
+        g_dbs_fs_info.log_fs_name,
+        g_dbs_fs_info.archive_fs_name,
+    };
+    const char *vstore_ids[] = {
+        g_dbs_fs_info.page_fs_vstore_id,
+        g_dbs_fs_info.log_fs_vstore_id,
+        g_dbs_fs_info.archive_fs_vstore_id,
+    };
+    for (int i = 0; i < sizeof(fs_names) / sizeof(fs_names[0]); i++) {
+        file_num = 0;
+        if (strlen(fs_names[i]) == 0) {
+            printf("fs_name is empty %d\n", i);
+            return CT_ERROR;
+        }
+        if (check_fs_empty_impl(fs_names[i], vstore_ids[i], &file_num)!= CT_SUCCESS) {
+            printf("Failed to query files in fs: %s\n", fs_names[i]);
+            return CT_ERROR;
+        }
+
+        if (strcmp(fs_names[i], g_dbs_fs_info.log_fs_name) == 0 && file_num > 1) {
+            printf("log fs not empty, please clean\n");
+            return CT_ERROR;
+        } else if (strcmp(fs_names[i], g_dbs_fs_info.log_fs_name) != 0 && file_num > 0) {
+            printf("page or archive fs not empty, please clean\n");
+            return CT_ERROR;
+        }
+    }
+    return CT_SUCCESS;
+}
+
+status_t do_snapshot_restore(ctbak_param_t* ctbak_param)
+{
+    printf("start do snapshot restore\n");
+    if (check_fs_empty() != CT_SUCCESS) {
+        printf("Failed to check fs empty.\n");
+        return CT_ERROR;
     }
 
-    ret = dbs_ulog_clean();
-    if (ret != CT_SUCCESS) {
-        printf("ulog clean failed.\n");
-        return ret;
-    }
-
-    ret = dbs_arch_clean();
-    if (ret != CT_SUCCESS) {
-        printf("arch clean failed.\n");
-        return ret;
-    }
-
-    ret = dbs_set_ns_io_forbidden(CT_TRUE);
+    status_t ret = dbs_set_ns_io_forbidden(CT_TRUE);
     if (ret != CT_SUCCESS) {
         printf("Set ns forbidden failed(%d).\n", ret);
         return ret;

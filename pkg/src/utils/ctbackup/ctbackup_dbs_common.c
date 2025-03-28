@@ -206,6 +206,8 @@ status_t dbs_get_fs_info_from_config(char* cfg_name)
             result = dbs_get_param_value(line, g_dbs_fs_info.share_fs_name, MAX_DBS_FS_NAME_LEN);
         } else if (strstr(line, "NAMESPACE_ARCHIVE_FSNAME") != NULL) {
             result = dbs_get_param_value(line, g_dbs_fs_info.archive_fs_name, MAX_DBS_FS_NAME_LEN);
+        } else if (strstr(line, "ARCHIVE_VSTOR") != NULL) {
+            result = dbs_get_param_value(line, g_dbs_fs_info.archive_fs_vstore_id, MAX_DBS_VSTORE_ID_LEN);
         }
         if (result != CT_SUCCESS) {
             CT_LOG_RUN_ERR("get param value failed, line %s.", line);
@@ -644,14 +646,14 @@ status_t copy_file_by_name(const char *file_name, dbs_device_info_t *src_info,
         return CT_ERROR;
     }
     if (cm_exist_device(dst_info->type, dst_file_name) == CT_TRUE) {
-        CT_LOG_RUN_INF("file exsit, path is %s.", dst_file_name);
+        CT_LOG_DEBUG_INF("file exsit, path is %s.", dst_file_name);
         if (overwrite) {
             if (cm_remove_device(dst_info->type, dst_file_name) != CT_SUCCESS) {
                 CT_LOG_RUN_ERR("Failed to remove file, path is %s.", dst_file_name);
                 return CT_ERROR;
             }
         } else{
-            printf("File exsit, skip it, path is %s.\n", dst_file_name);
+            CT_LOG_DEBUG_ERR("File exsit, skip it, path is %s.\n", dst_file_name);
             return CT_SUCCESS;
         }
     }
@@ -691,7 +693,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
                            file_name, src_info->handle, dst_info->handle);
             return CT_ERROR;
         }
-        printf("Copying file: %s\n", file_name);
+        CT_LOG_DEBUG_INF("Copying file: %s\n", file_name);
         return CT_SUCCESS;
     }
 
@@ -727,7 +729,7 @@ status_t copy_files_to_target_dir(dbs_device_info_t *src_info, dbs_device_info_t
             cm_free_file_list(&file_list);
             return CT_ERROR;
         }
-        printf("Copying file: %s\n", current_file_name);
+        CT_LOG_DEBUG_INF("Copying file: %s\n", current_file_name);
         cm_close_device(src_info->type, &src_info->handle);
         cm_close_device(dst_info->type, &dst_info->handle);
     }
