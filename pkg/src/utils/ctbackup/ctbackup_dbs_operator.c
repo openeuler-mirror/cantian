@@ -391,13 +391,12 @@ status_t dbs_copy_file(int32 argc, char *argv[])
         printf("Failed to copy files from %s to %s.\n", src_info.path, dst_info.path);
         return CT_ERROR;
     }
-    printf("File(s) copied successfully from %s to %s.\n", src_info.path, dst_info.path);
+    CT_LOG_RUN_INF("[DBSTOR] Copied files from %s to %s.", src_info.path, dst_info.path);
     return CT_SUCCESS;
 }
 
 status_t dbs_query_file(int32 argc, char *argv[], void **file_list, uint32 *file_num, file_info_version_t *info_version)
 {
-    printf("start dbs query file\n");
     char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
     char file_path[MAX_DBS_FILE_PATH_LEN] = {0};
     char vstore_id[MAX_DBS_VSTORE_ID_LEN] = {0};
@@ -441,7 +440,6 @@ status_t dbs_query_file(int32 argc, char *argv[], void **file_list, uint32 *file
         cm_free_file_list(file_list);
         return CT_ERROR;
     }
-    printf("finish dbs query file\n");
     return CT_SUCCESS;
 }
 
@@ -477,7 +475,7 @@ status_t dbs_create_path_or_file(int32 argc, char *argv[])
                                      MAX_DBS_FS_FILE_PATH_LEN - 1, "/%s/%s", fs_name, file_dir));
         MEMS_RETURN_IFERR(strncpy_s(dst_info.path, MAX_DBS_FS_FILE_PATH_LEN, full_path, strlen(full_path)));
         if (cm_dbs_exist_file(full_path, DIR_TYPE) == CT_TRUE) {
-            printf("Target directory is exist, file_path: %s.\n", full_path);
+            CT_LOG_RUN_INF("Target directory is exist, file_path: %s.", full_path);
             return CT_SUCCESS;
         }
         status_t ret = cm_create_device_dir(dst_info.type, dst_info.path);
@@ -485,7 +483,6 @@ status_t dbs_create_path_or_file(int32 argc, char *argv[])
             printf("Failed to create directory: %s\n", dst_info.path);
             return CT_ERROR;
         }
-        printf("Directory created successfully: %s\n", dst_info.path);
     } else {
         if (strlen(file_dir) == 0) {
             PRTS_RETURN_IFERR(snprintf_s(full_path, MAX_DBS_FS_FILE_PATH_LEN,

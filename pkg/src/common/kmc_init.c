@@ -23,7 +23,6 @@
  * -------------------------------------------------------------------------
  */
 #include <sys/wait.h>
-#include "dpax_typedef.h"
 #include "cm_common_module.h"
 #include "cm_utils.h"
 #include "cm_error.h"

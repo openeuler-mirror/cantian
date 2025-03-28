@@ -67,7 +67,7 @@ status_t cm_exec_dss_cmd(const char* arg, uint32 node_id)
     }
 
     if (strstr(cmd_out, "RES_SUCCESS") != NULL) {
-        CT_LOG_RUN_ERR("DSS script exec succeed, cmd=%s", cmd);
+        CT_LOG_RUN_INF("DSS script exec succeed, cmd=%s", cmd);
         return CT_SUCCESS;
     }
 

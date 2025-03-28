@@ -28,7 +28,6 @@
 
 status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list, char *file_name,
                                      char *dbs_query_file_argv[], char *backup_dir, char *file_dir){
-    printf("file dir: %s\n", file_name);
     //创建备份集目录
     // create /xxx/backup_dir/-ctrl1/
     char parent_file_dir[MAX_DBS_FS_FILE_PATH_LEN] = { 0 };
@@ -93,7 +92,6 @@ status_t handle_snapshot_backup_dir(ctbak_param_t* ctbak_param, void **file_list
 
 status_t handle_snapshot_backup_file(void **file_list, char *file_name,
                                      char *dbs_query_file_argv[], char *backup_dir, char *file_dir) {
-    printf("file_name: %s\n", file_name);
     // 将文件系统数据读取上来写入备份集
     // from /.snapshot/snapshot_name/-ctrl1/0/dataObj to /xxx/backup_dir/-ctrl1/0/dataObj
     // "dbstor", "--copy-file", "--export", "--fs-name", "--source-dir","--target-dir", "--file-name"
@@ -209,7 +207,6 @@ status_t create_backup_dir(ctbak_param_t* ctbak_param, char *dbs_query_file_argv
         printf("[ctbackup]create_backup_dir Failed to snprintf_s\n");
         return CT_ERROR;
     }
-    printf("[ctbackup]start to create_backup_dir %s\n", dbs_query_file_argv[DBS_QUERY_FILE_FILE_DIR_PRAMA]);
     ret = dbs_query_file(DBS_QUERY_FILE_PRAMA_NUM + 1, dbs_query_file_argv, &file_list, &file_num, &info_version);
     if (ret != CT_SUCCESS) {
         cm_free_file_list(&file_list);
@@ -258,7 +255,6 @@ status_t create_backup_dir(ctbak_param_t* ctbak_param, char *dbs_query_file_argv
         }
     }
 
-    printf("[ctbackup]finish to create_backup_dir %s\n", dbs_query_file_argv[DBS_QUERY_FILE_FILE_DIR_PRAMA]);
     cm_free_file_list(&file_list);
     return CT_SUCCESS;
 }
@@ -275,15 +271,15 @@ status_t query_fs_dir_and_create_dir_impl(ctbak_param_t* ctbak_param, char *fs_n
     for (int i = 0; i < DBS_QUERY_FILE_PRAMA_NUM + 1; i++) {
         dbs_query_file_argv[i] = (char *)malloc(MAX_DBS_FS_FILE_PATH_LEN);
         if (dbs_query_file_argv[i] == NULL) {
-            while (--i >= 0) {
+            while (i-- >= 0) {
                 CM_FREE_PTR(dbs_query_file_argv[i]);
             }
             printf("[ctbackup]dbs_query_file_argv Failed to malloc\n");
             return CT_ERROR;
         }
         errno_t err = memset_sp(dbs_query_file_argv[i], MAX_DBS_FS_FILE_PATH_LEN, 0, MAX_DBS_FS_FILE_PATH_LEN);
-        if (err  != EOK) {
-            while (--i >= 0) {
+        if (err != EOK) {
+            while (i-- >= 0) {
                 CM_FREE_PTR(dbs_query_file_argv[i]);
             }
             printf("[ctbackup]Failed to memset_sp (%d)\n", err);

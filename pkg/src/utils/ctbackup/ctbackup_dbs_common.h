@@ -77,6 +77,7 @@ typedef struct {
     char page_fs_vstore_id[MAX_DBS_VSTORE_ID_LEN];
     char share_fs_name[MAX_DBS_FS_NAME_LEN];
     char archive_fs_name[MAX_DBS_FS_NAME_LEN];
+    char archive_fs_vstore_id[MAX_DBS_VSTORE_ID_LEN];
 } dbs_fs_info_t;
 
 status_t dbs_init(ctbak_param_t* ctbak_param);
