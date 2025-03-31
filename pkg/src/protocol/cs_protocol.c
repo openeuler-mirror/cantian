@@ -33,6 +33,8 @@ const client_kind_item_t g_module_names[CLIENT_KIND_TAIL] = {
     {{ "CTCONN APPLICATION", 15 }},
     {{ "JDBC", 4 }},
     {{ "CTSQL", 4 }},
+    {{ "CN INNER", 9 }},
+    {{ "MYSQL", 5 }},
 };
 
 status_t cs_protocol_compatible(uint32 version)

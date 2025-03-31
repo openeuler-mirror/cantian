@@ -763,7 +763,15 @@ EXTER_ATTACK int ctc_mq_trx_commit(dsw_message_block_t *message_block)
 {
     struct trx_commit_request *req = message_block->seg_buf[0];
     CT_RETURN_IFERR(ctc_check_cursor_num(req->csize));
-    req->result = ctc_trx_commit(&req->tch, req->cursors, req->csize, &req->is_ddl_commit);
+    req->result = ctc_trx_commit(&req->tch, req->cursors, req->csize, &req->is_ddl_commit, req->sql, req->enable_stat);
+    return req->result;
+}
+
+EXTER_ATTACK int ctc_mq_statistic_commit(dsw_message_block_t *message_block)
+{
+    struct trx_commit_request *req = message_block->seg_buf[0];
+    CT_RETURN_IFERR(ctc_check_cursor_num(req->csize));
+    req->result = ctc_statistic_commit(&req->tch, req->sql, req->enable_stat);
     return req->result;
 }
 
@@ -778,7 +786,14 @@ EXTER_ATTACK int ctc_mq_trx_rollback(dsw_message_block_t *message_block)
 EXTER_ATTACK int ctc_mq_trx_begin(dsw_message_block_t *message_block)
 {
     struct trx_begin_request *req = message_block->seg_buf[0];
-    req->result = ctc_trx_begin(&req->tch, req->trx_context, req->is_mysql_local);
+    req->result = ctc_trx_begin(&req->tch, req->trx_context, req->is_mysql_local, req->begin_time, req->enable_stat);
+    return req->result;
+}
+
+EXTER_ATTACK int ctc_mq_statistic_begin(dsw_message_block_t *message_block)
+{
+    struct trx_begin_request *req = message_block->seg_buf[0];
+    req->result = ctc_statistic_begin(&req->tch, req->begin_time, req->enable_stat);
     return req->result;
 }
 
@@ -1410,6 +1425,13 @@ EXTER_ATTACK int ctc_mq_get_sample_size(dsw_message_block_t *message_block)
     return ctc_get_sample_size(req);
 }
 
+EXTER_ATTACK int ctc_mq_query_sql_statistic_stat(dsw_message_block_t *message_block)
+{
+    struct update_sql_statistic_stat *req = message_block->seg_buf[0];
+    req->result = ctc_query_sql_statistic_stat(&req->enable_stat);
+    return req->result;
+}
+
 struct mq_recv_msg_node {
     enum CTC_FUNC_TYPE func_type;
     int (*deal_msg)(dsw_message_block_t *message_block);
@@ -1432,6 +1454,8 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_TYPE_SCAN_RECORDS,                  ctc_mq_scan_records},
     {CTC_FUNC_TYPE_TRX_COMMIT,                    ctc_mq_trx_commit},
     {CTC_FUNC_TYPE_TRX_ROLLBACK,                  ctc_mq_trx_rollback},
+    {CTC_FUNC_TYPE_STATISTIC_BEGIN,               ctc_mq_statistic_begin},
+    {CTC_FUNC_TYPE_STATISTIC_COMMIT,              ctc_mq_statistic_commit},
     {CTC_FUNC_TYPE_TRX_BEGIN,                     ctc_mq_trx_begin},
     {CTC_FUNC_TYPE_LOCK_TABLE,                    ctc_mq_lock_table},
     {CTC_FUNC_TYPE_UNLOCK_TABLE,                  ctc_mq_unlock_table},
@@ -1483,6 +1507,7 @@ static struct mq_recv_msg_node g_mq_recv_msg[] = {
     {CTC_FUNC_TYPE_GET_INDEX_PARAL_SCHEDULE,      ctc_mq_get_index_paral_schedule},
     {CTC_FUNC_TYPE_PQ_INDEX_READ,                 ctc_mq_pq_index_read},
     {CTC_FUNC_TYPE_PQ_SET_CURSOR_RANGE,           ctc_mq_set_cursor_range},
+    {CTC_FUNC_QUERY_SQL_STATISTIC_STAT,           ctc_mq_query_sql_statistic_stat},
     /* for instance registration, should be the last */
     {CTC_FUNC_TYPE_REGISTER_INSTANCE,             ctc_mq_register_instance},
     {CTC_FUNC_QUERY_SHM_FILE_NUM,                 ctc_mq_query_shm_file_num},

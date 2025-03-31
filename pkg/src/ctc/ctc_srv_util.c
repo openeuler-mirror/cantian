@@ -447,6 +447,16 @@ bool32 ctc_alloc_stmt_context(session_t *session)
     return CT_TRUE;
 }
 
+bool32 ctc_alloc_stmt(session_t *session)
+{
+    if (session->current_stmt == NULL && sql_alloc_stmt(session, &session->current_stmt) != CT_SUCCESS) {
+        int err = ctc_get_and_reset_err();
+        CT_LOG_RUN_ERR("sql_alloc_stmt failed, errno = %d.", err);
+        return CT_FALSE;
+    }
+    return CT_TRUE;
+}
+
 ctc_context_t* ctc_get_ctx_by_addr(uint64_t addr)
 {
     if (addr == INVALID_VALUE64 || !(ctc_context_t*)addr || ((ctc_context_t*)addr)->ctc_magic_num != CTC_MAGIC_NUM) {

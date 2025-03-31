@@ -97,6 +97,8 @@ status_t sql_notify_als_archive_trace(void *se, void *item, char *value);
 status_t sql_notify_als_quorum_any(void *se, void *item, char *value);
 status_t sql_notify_als_stats_level(void *se, void *item, char *value);
 status_t sql_notify_als_sql_stat(void *se, void *item, char *value);
+status_t sql_notify_als_sql_statistic_stat(void *se, void *item, char *value);
+status_t sql_notify_als_sql_statistic_time_limit(void *se, void *item, char *value);
 status_t sql_notify_als_valid_node_checking(void *se, void *item, char *value);
 status_t sql_notify_als_invited_nodes(void *se, void *item, char *value);
 status_t sql_notify_als_excluded_nodes(void *se, void *item, char *value);

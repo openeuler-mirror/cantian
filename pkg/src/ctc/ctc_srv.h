@@ -53,6 +53,8 @@ extern "C" {
 #define ERROR_MESSAGE_LEN 512
 #define MAX_DDL_SQL_LEN_CONTEXT (63488)  //  62kb, 预留2kb
 #define MAX_DDL_SQL_LEN (MAX_DDL_SQL_LEN_CONTEXT + 30)  // ddl sql语句的长度 不能超过64kb, 超过了会报错
+#define MAX_WSR_DML_SQL_LEN_CONTEXT (8192)
+#define MAX_WSR_DML_SQL_LEN (MAX_WSR_DML_SQL_LEN_CONTEXT + 30)  // 用于wsr的dml sql语句的长度 不能超过8000kb, 超过了会报错
 #define DD_BROADCAST_RECORD_LENGTH (3072)
 #define LOCK_TABLE_SQL_FMT_LEN 20
 #define MAX_LOCK_TABLE_NAME (MAX_DDL_SQL_LEN - LOCK_TABLE_SQL_FMT_LEN)
@@ -328,6 +330,8 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_SCAN_RECORDS,
     CTC_FUNC_TYPE_TRX_COMMIT,
     CTC_FUNC_TYPE_TRX_ROLLBACK,
+    CTC_FUNC_TYPE_STATISTIC_BEGIN,
+    CTC_FUNC_TYPE_STATISTIC_COMMIT,
     CTC_FUNC_TYPE_TRX_BEGIN,
     CTC_FUNC_TYPE_LOCK_TABLE,
     CTC_FUNC_TYPE_UNLOCK_TABLE,
@@ -379,6 +383,7 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_GET_INDEX_PARAL_SCHEDULE,
     CTC_FUNC_TYPE_PQ_INDEX_READ,
     CTC_FUNC_TYPE_PQ_SET_CURSOR_RANGE,
+    CTC_FUNC_QUERY_SQL_STATISTIC_STAT,
     /* for instance registration, should be the last but before duplex */
     CTC_FUNC_TYPE_REGISTER_INSTANCE,
     CTC_FUNC_QUERY_SHM_FILE_NUM,
@@ -393,6 +398,7 @@ enum CTC_FUNC_TYPE {
     CTC_FUNC_TYPE_INVALIDATE_OBJECTS,
     CTC_FUNC_TYPE_INVALIDATE_ALL_OBJECTS,
     CTC_FUNC_TYPE_UPDATE_DDCACHE,
+    CTC_FUNC_TYPE_UPDATE_SQL_STATISTIC_STAT,
     /* the number of total funcs */
     CTC_FUNC_TYPE_NUMBER,
 };
@@ -629,6 +635,7 @@ typedef int (*ctc_ddl_execute_lock_tables_t)(ctc_handler_t *tch, char *db_name, 
 typedef int (*ctc_ddl_execute_unlock_tables_t)(ctc_handler_t *tch, uint32_t mysql_inst_id, ctc_lock_table_info *lock_info);
 typedef int (*ctc_invalidate_mysql_dd_cache_t)(ctc_handler_t *tch, ctc_invalidate_broadcast_request *broadcast_req, int *err_code);
 typedef int (*ctc_set_cluster_role_by_cantian_t)(bool is_slave);
+typedef int (*ctc_update_sql_statistic_stat_t)(bool enable_stat);
 
 typedef struct mysql_engine_intf_t {
     ctc_execute_rewrite_open_conn_t ctc_execute_rewrite_open_conn;
@@ -639,6 +646,7 @@ typedef struct mysql_engine_intf_t {
     ctc_ddl_execute_unlock_tables_t ctc_ddl_execute_unlock_tables;
     ctc_invalidate_mysql_dd_cache_t ctc_invalidate_mysql_dd_cache;
     ctc_set_cluster_role_by_cantian_t ctc_set_cluster_role_by_cantian;
+    ctc_update_sql_statistic_stat_t ctc_update_sql_statistic_stat;
 } sql_engine_intf;
 
 /* General Control Interface */
@@ -698,8 +706,11 @@ int ctc_pq_set_cursor_range(ctc_handler_t *tch, ctc_page_id_t l_page, ctc_page_i
     uint64_t ssn);
 
 /* Transaction Related Interface */
-int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context, bool is_mysql_local);
-int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t csize, bool *is_ddl_commit);
+int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context, bool is_mysql_local,
+    struct timeval begin_time, bool enable_stat);
+int ctc_statistic_begin(ctc_handler_t *tch,struct timeval begin_time, bool enable_stat);
+int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t csize, bool *is_ddl_commit, const char *sql_str, bool enable_stat);
+int ctc_statistic_commit(ctc_handler_t *tch, const char *sql_str, bool enable_stat);
 int ctc_trx_rollback(ctc_handler_t *tch, uint64_t *cursors, int32_t csize);
 
 int ctc_srv_set_savepoint(ctc_handler_t *tch, const char *name);
@@ -769,10 +780,13 @@ int ctc_broadcast_mysql_dd_invalidate(ctc_handler_t *tch, ctc_invalidate_broadca
 /* Disaster Recovery Related Interface*/
 int ctc_set_cluster_role_by_cantian_intf(bool is_slave);
 
+int ctc_update_sql_statistic_stat_intf(bool enable_stat);
+
 int ctc_record_sql_for_cantian(ctc_handler_t *tch, ctc_ddl_broadcast_request *broadcast_req, bool allow_fail);
 int ctc_query_cluster_role(bool *is_slave, bool *cantian_cluster_ready);
 int ctc_query_shm_file_num(uint32_t *shm_file_num);
 int ctc_query_shm_usage(uint32_t *shm_usage);
+int ctc_query_sql_statistic_stat(bool *enable_stat);
 #ifdef __cplusplus
 }
 #endif

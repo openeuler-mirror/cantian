@@ -263,7 +263,6 @@ void sql_prepare_context_ctrl(sql_stmt_t *stmt, uint32 hash_value, context_bucke
     stmt->context->ctrl.uid = stmt->session->curr_schema_id;
     stmt->context->ctrl.hash_value = hash_value;
     stmt->context->ctrl.bucket = bucket;
-    sql_init_plan_count(stmt);
 }
 
 static void sql_prepare_plc_desc(sql_stmt_t *stmt, uint32 type, plc_desc_t *desc)
@@ -334,6 +333,137 @@ status_t sql_parse_anonymous_directly(sql_stmt_t *stmt, word_t *leader, sql_text
             (int64)stmt->context->ctrl.memory->pages.count);
         cm_atomic_inc(&g_instance->library_cache_info[stmt->lang_type].reloads);
     }
+    return CT_SUCCESS;
+}
+
+bool32 sql_check_ctx(sql_stmt_t *stmt, sql_context_t *ctx)
+{
+    /* if policy used, always disable soft parse */
+    if (ctx->policy_used) {
+        return CT_FALSE;
+    }
+
+    if (sql_check_tables(stmt, ctx) != CT_SUCCESS) {
+        cm_reset_error();
+        return CT_FALSE;
+    }
+
+    if (!sql_check_procedures(stmt, ctx->dc_lst)) {
+        return CT_FALSE;
+    }
+
+    return CT_TRUE;
+}
+
+bool32 sql_get_context_cache(sql_stmt_t *stmt, text_t *sql, uint32 *sql_id, context_bucket_t **bid,
+    ctx_stat_t *herit_stat)
+{
+    uint32 hash_value;
+    context_bucket_t *bucket = NULL;
+    sql_context_t *context = NULL;
+    hash_value = cm_hash_text(sql, INFINITE_HASH_RANGE);
+    bucket = &sql_pool->buckets[hash_value % CT_SQL_BUCKETS];
+
+    cm_recursive_lock((uint16)KNL_SESSION(stmt)->id, &bucket->parsing_lock, NULL);
+
+    herit_stat->last_load_time = 0;
+    context = (sql_context_t *)ctx_pool_find(sql_pool, sql, hash_value, stmt->session->curr_schema_id,
+        0, 0);
+    sql_context_t *tmp_context = stmt->context;
+    SET_STMT_CONTEXT(stmt, context);
+    if (stmt->context != NULL) {
+        if (sql_check_ctx(stmt, stmt->context) == CT_TRUE || SPM_CONTEXT_FIXED(stmt->context)) {
+            sql_free_context(tmp_context);
+            stmt->context->stat.parse_calls++;
+            stmt->context->module_kind = SESSION_CLIENT_KIND(stmt->session);
+            cm_recursive_unlock(&bucket->parsing_lock);
+            if (stmt->context->ctrl.memory != NULL) {
+                cm_atomic_inc(&g_instance->library_cache_info[stmt->lang_type].gethits);
+                cm_atomic_add(&g_instance->library_cache_info[stmt->lang_type].pinhits,
+                    (int64)stmt->context->ctrl.memory->pages.count);
+            }
+            // LRU algorithm, moving the hit sql to the head of the queue
+            if (stmt->context->in_sql_pool) { //can't move ctrl to head before insert ctrl
+                ctx_pool_lru_move_to_head(sql_pool, &stmt->context->ctrl);
+            }
+            return CT_TRUE;
+        } else {
+            if (stmt->context->ctrl.ref_count == 1) {
+                *herit_stat = stmt->context->stat;
+            }
+            stmt->context->ctrl.valid = CT_FALSE;
+            sql_release_context(stmt);
+        }
+    }
+
+    *sql_id = hash_value;
+    *bid = bucket;
+
+    cm_recursive_unlock(&bucket->parsing_lock);
+    return CT_FALSE;
+}
+
+void sql_enrich_context_for_cached(sql_stmt_t *stmt, timeval_t *tv_begin, ctx_stat_t *herit_stat)
+{
+    timeval_t tv_end;
+    (void)cm_gettimeofday(&tv_end);
+    sql_init_context_stat(&stmt->context->stat);
+    sql_parse_set_context_procinfo(stmt);
+    if (herit_stat->last_load_time != 0) {
+        stmt->context->stat = *herit_stat;
+    }
+    stmt->context->stat.last_load_time = g_timer()->now;
+    stmt->context->stat.parse_time += (uint64)TIMEVAL_DIFF_US(tv_begin, &tv_end);
+    stmt->context->stat.parse_calls = 1;
+    stmt->context->module_kind = SESSION_CLIENT_KIND(stmt->session);
+}
+
+status_t sql_cache_context(sql_stmt_t *stmt, context_bucket_t *bucket, sql_text_t *sql, uint32 hash_value)
+{
+    sql_context_t *cached_ctx = NULL;
+    sql_context_t *parsed_ctx = stmt->context;
+
+    // check if context already been compiled
+    cm_recursive_lock((uint16)KNL_SESSION(stmt)->id, &bucket->parsing_lock, NULL);
+
+    cached_ctx = (sql_context_t *)ctx_pool_find(sql_pool, (text_t *)sql, hash_value, stmt->session->curr_schema_id,
+        0, 0);
+    if (cached_ctx != NULL) {
+        SET_STMT_CONTEXT(stmt, cached_ctx);
+        if (sql_check_ctx(stmt, stmt->context) == CT_TRUE) {
+            // release parsed context
+            sql_free_context(parsed_ctx);
+
+            stmt->context->stat.parse_calls++;
+            stmt->context->module_kind = SESSION_CLIENT_KIND(stmt->session);
+            cm_recursive_unlock(&bucket->parsing_lock);
+            if (stmt->context->ctrl.memory != NULL) {
+                cm_atomic_inc(&g_instance->library_cache_info[stmt->lang_type].gethits);
+                cm_atomic_add(&g_instance->library_cache_info[stmt->lang_type].pinhits,
+                    (int64)stmt->context->ctrl.memory->pages.count);
+            }
+            return CT_SUCCESS;
+        } else {
+            // release cached context
+            stmt->context->ctrl.valid = CT_FALSE;
+            sql_release_context(stmt);
+            SET_STMT_CONTEXT(stmt, parsed_ctx);
+        }
+    }
+
+    stmt->context->ctrl.ref_count = 1;
+    ctx_bucket_insert(bucket, (context_ctrl_t *)stmt->context);
+    cm_recursive_unlock(&bucket->parsing_lock);
+    ctx_insert(sql_pool, (context_ctrl_t *)stmt->context);
+    stmt->context->in_sql_pool = CT_TRUE;
+
+    if (stmt->context->ctrl.memory != NULL) {
+        cm_atomic_add(&g_instance->library_cache_info[stmt->lang_type].pins,
+            (int64)stmt->context->ctrl.memory->pages.count);
+        cm_atomic_inc(&g_instance->library_cache_info[stmt->lang_type].reloads);
+    }
+
+    stmt->session->stat.hard_parses++;
     return CT_SUCCESS;
 }
 

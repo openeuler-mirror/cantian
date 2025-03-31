@@ -81,6 +81,7 @@ typedef enum en_client_kind {
     CLIENT_KIND_JDBC = 2,
     CLIENT_KIND_CTSQL = 3,
     CLIENT_KIND_CN_INNER = 4, // resv for CN private channel
+    CLIENT_KIND_MYSQL = 5,    // Added MySQL module type
     CLIENT_KIND_TAIL, /* DO NOT ADD new type below CLIENT_KIND_TAIL */
 } client_kind_t;
 
