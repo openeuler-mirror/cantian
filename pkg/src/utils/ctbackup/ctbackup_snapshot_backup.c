@@ -119,10 +119,12 @@ status_t ctbak_delete_snapshot(ctbak_param_t* ctbak_param)
 {
     uint32_t page_fs_vstore_id = 0;
     uint32_t log_fs_vstore_id = 0;
+    uint32_t archive_fs_vstore_id = 0;
     cm_text2uint32(&ctbak_param->page_fs_vstore_id, &page_fs_vstore_id);
     cm_text2uint32(&ctbak_param->log_fs_vstore_id, &log_fs_vstore_id);
+    cm_text2uint32(&ctbak_param->archive_fs_vstore_id, &archive_fs_vstore_id);
     snapshot_backup_info_t snapshot_backup_info = { 0 };
-    if (ctbak_read_snapshot_info_file(ctbak_param, &snapshot_backup_info)!= CT_SUCCESS) {
+    if (ctbak_read_snapshot_info_file(ctbak_param, &snapshot_backup_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to read snapshot info file!\n");
         return CT_ERROR;
     }
@@ -130,11 +132,11 @@ status_t ctbak_delete_snapshot(ctbak_param_t* ctbak_param)
         printf("[ctbackup]Failed to delete page fs snapshot!\n");
         return CT_ERROR;
     }
-    if (dbs_delete_fs_snap(ctbak_param->log_fs_name.str, log_fs_vstore_id, &snapshot_backup_info.log_fs_snap_info)!= CT_SUCCESS) {
+    if (dbs_delete_fs_snap(ctbak_param->log_fs_name.str, log_fs_vstore_id, &snapshot_backup_info.log_fs_snap_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to delete log fs snapshot!\n");
         return CT_ERROR;
     }
-    if (dbs_delete_fs_snap(ctbak_param->archive_fs_name.str, log_fs_vstore_id, &snapshot_backup_info.archive_fs_snap_info)!= CT_SUCCESS) {
+    if (dbs_delete_fs_snap(ctbak_param->archive_fs_name.str, archive_fs_vstore_id, &snapshot_backup_info.archive_fs_snap_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to delete archive fs snapshot!\n");
         return CT_ERROR;
     }
@@ -152,7 +154,7 @@ status_t ctbak_do_snapshot_backup(ctbak_param_t* ctbak_param)
         return CT_ERROR;
     }
 
-    if (do_snapshot_backup(ctbak_param)!= CT_SUCCESS) {
+    if (do_snapshot_backup(ctbak_param) != CT_SUCCESS) {
         printf("[ctbackup]snapshot backup failed!\n");
         return CT_ERROR;
     }
@@ -160,7 +162,7 @@ status_t ctbak_do_snapshot_backup(ctbak_param_t* ctbak_param)
     // 删除未标记notdelete的快照
     if (ctbak_param->is_notdelete == CT_FALSE) {
         printf("[ctbackup]Start delete snapshot\n");
-        if (ctbak_delete_snapshot(ctbak_param)!= CT_SUCCESS) {
+        if (ctbak_delete_snapshot(ctbak_param) != CT_SUCCESS) {
             printf("[ctbackup]Delete snapshot failed!\n");
         }
         printf("[ctbackup]Delete snapshot success!\n");

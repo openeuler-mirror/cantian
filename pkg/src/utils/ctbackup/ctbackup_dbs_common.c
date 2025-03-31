@@ -348,6 +348,7 @@ status_t dbs_init(ctbak_param_t* ctbak_param)
     cm_str2text(g_dbs_fs_info.log_fs_name, &ctbak_param->log_fs_name);
     cm_str2text(g_dbs_fs_info.log_fs_vstore_id, &ctbak_param->log_fs_vstore_id);
     cm_str2text(g_dbs_fs_info.archive_fs_name, &ctbak_param->archive_fs_name);
+    cm_str2text(g_dbs_fs_info.archive_fs_vstore_id, &ctbak_param->archive_fs_vstore_id);
     printf("DBstor init success.\n");
     return CT_SUCCESS;
 }
