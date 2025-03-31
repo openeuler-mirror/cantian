@@ -244,6 +244,25 @@ EXTER_ATTACK int ctc_set_cluster_role_by_cantian(bool is_slave)
     return result;
 }
 
+EXTER_ATTACK int ctc_update_sql_statistic_stat(bool enable_stat)
+{
+    void* shm_inst = get_upstream_shm_inst();
+    struct update_sql_statistic_stat_request *req =
+        (struct update_sql_statistic_stat_request *)alloc_share_mem(shm_inst, sizeof(struct update_sql_statistic_stat_request));
+    if (req == NULL) {
+        return ERR_GENERIC_INTERNAL_ERROR;
+    }
+    req->enable_stat = enable_stat;
+    req->result = 0;
+    int result = ERR_GENERIC_INTERNAL_ERROR;
+    int ret = ctc_mq_deal_func(shm_inst, CTC_FUNC_TYPE_UPDATE_SQL_STATISTIC_STAT, req);
+    if (ret == CT_SUCCESS) {
+        result = req->result;
+    }
+    free_share_mem(shm_inst, req);
+    return result;
+}
+
 EXTER_ATTACK int ctc_execute_rewrite_open_conn_intf(uint32_t thd_id, ctc_ddl_broadcast_request *broadcast_req)
 {
 #ifndef WITH_CANTIAN
@@ -324,5 +343,15 @@ EXTER_ATTACK int ctc_set_cluster_role_by_cantian_intf(bool is_slave)
 #else
     CHECK_SQL_INTF(ctc_set_cluster_role_by_cantian, "ctc_set_cluster_role_by_cantian g_sql_intf is %p.");
     return g_sql_intf->ctc_set_cluster_role_by_cantian(is_slave);
+#endif
+}
+
+EXTER_ATTACK int ctc_update_sql_statistic_stat_intf(bool enable_stat)
+{
+#ifndef WITH_CANTIAN    
+    return ctc_update_sql_statistic_stat(enable_stat);
+#else
+    CHECK_SQL_INTF(ctc_update_sql_statistic_stat, "ctc_update_sql_statistic_stat g_sql_intf is %p.");
+    return g_sql_intf->ctc_update_sql_statistic_stat(enable_stat);
 #endif
 }

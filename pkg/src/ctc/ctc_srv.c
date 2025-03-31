@@ -25,6 +25,7 @@
 #include "ctc_inst.h"
 #include "ctc_ddl_list.h"
 #include "cm_log.h"
+#include "dml_parser.h"
 
 #define CTC_MAX_MYSQL_INST_SIZE (128)
 #define CTC_MAX_PREFETCH_NUM (100)
@@ -1905,7 +1906,8 @@ EXTER_ATTACK int ctc_pq_set_cursor_range(ctc_handler_t *tch, ctc_page_id_t l_pag
     return CT_SUCCESS;
 }
 
-EXTER_ATTACK int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context, bool is_mysql_local)
+EXTER_ATTACK int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context, bool is_mysql_local,
+    struct timeval begin_time, bool enable_stat)
 {
     // it's possible calling START TRANSACTION before open_table, thus session can also be added to gmap in this intf
     bool is_new_session = CT_FALSE;
@@ -1913,6 +1915,18 @@ EXTER_ATTACK int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context
     CT_RETURN_IFERR(ctc_get_or_new_session(&session, tch, true, false, &is_new_session));
     ctc_set_no_use_other_sess4thd(session);
     knl_session_t *knl_session = &session->knl_session;
+    if (enable_stat) {
+        if (!ctc_alloc_stmt(session)) {
+            return CT_ERROR;
+        }
+        sql_stmt_t *stmt = session->current_stmt;
+        stmt->param_info.paramset_size = (stmt->param_info.paramset_size == 0) ? 1 : stmt->param_info.paramset_size;
+        sql_start_ctx_stat(stmt);
+        ctx_prev_stat_t *context_pre_stat = &session->ctx_prev_stat;
+        context_pre_stat->tv_start = begin_time;
+    } else {
+        session->ctx_prev_stat.tv_start.tv_sec = CT_INVALID_INT64;
+    }
     // mysql-server侧通过is_ctc_trx_begin标记，保证一个事务只会调用一次ctc_trx_begin，且调进来时参天侧事务未开启
     if (knl_session->rm->txn != NULL) {
         CT_LOG_DEBUG_INF("ctc_trx_begin: knl_session->rm->txn is not NULL, thd_id=%u, session_id=%u, "
@@ -1945,6 +1959,27 @@ EXTER_ATTACK int ctc_trx_begin(ctc_handler_t *tch, ctc_trx_context_t trx_context
                      "current_scn=%llu, rm_query_scn=%llu, lock_wait_timeout=%u, rmid=%u",
                      tch->thd_id, session->knl_session.id, trx_context.isolation_level, knl_session->kernel->scn,
                      knl_session->rm->query_scn, trx_context.lock_wait_timeout, knl_session->rmid);
+    return CT_SUCCESS;
+}
+
+EXTER_ATTACK int ctc_statistic_begin(ctc_handler_t *tch,struct timeval begin_time, bool enable_stat)
+{
+    bool is_new_session = CT_FALSE;
+    session_t *session = NULL;
+    CT_RETURN_IFERR(ctc_get_or_new_session(&session, tch, true, false, &is_new_session));
+    ctc_set_no_use_other_sess4thd(session);
+    if(enable_stat) {
+        if (!ctc_alloc_stmt(session)) {
+            return CT_ERROR;
+        }
+        sql_stmt_t *stmt = session->current_stmt;
+        stmt->param_info.paramset_size = (stmt->param_info.paramset_size == 0) ? 1 : stmt->param_info.paramset_size;
+        sql_start_ctx_stat(stmt);
+        ctx_prev_stat_t *context_pre_stat = &session->ctx_prev_stat;
+        context_pre_stat->tv_start = begin_time;
+    } else {
+        session->ctx_prev_stat.tv_start.tv_sec = CT_INVALID_INT64;
+    }
     return CT_SUCCESS;
 }
 
@@ -2057,7 +2092,50 @@ void ctc_ddl_table_after_commit_list(bilist_t *def_list, ctc_ddl_dc_array_t *dc_
     }
 }
 
-EXTER_ATTACK int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t csize, bool *is_ddl_commit)
+int ctc_statistic_sql(ctc_handler_t *tch, const char *sql_str, bool enable_stat)
+{
+    session_t *session = ctc_get_session_by_addr(tch->sess_addr);
+    CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    ctc_set_no_use_other_sess4thd(session);
+    sql_stmt_t *stmt = session->current_stmt;
+    ctx_prev_stat_t *context_pre_stat = &stmt->session->ctx_prev_stat;
+    if (!enable_stat || sql_str == NULL || sql_str[0] == '\0' || context_pre_stat->tv_start.tv_sec == CT_INVALID_INT64) {
+        return CT_SUCCESS;
+    }
+    timeval_t tv_end;
+    (void)cm_gettimeofday(&tv_end);
+    uint64 passed_time;
+    passed_time = TIMEVAL_DIFF_US(&context_pre_stat->tv_start, &tv_end);
+    if (passed_time >= g_instance->sql.sql_statistic_time_limit) {
+        if (!ctc_alloc_stmt_context(session)) {
+            return CT_ERROR;
+        }
+        stmt->session->lex->text.value.str = sql_str;
+        stmt->session->lex->text.value.len = strlen(sql_str);
+        stmt->session->current_sql = stmt->session->lex->text.value;
+        stmt->session->client_kind = CLIENT_KIND_MYSQL;
+        timeval_t tv_begin;
+        uint32 hash_value;
+        context_bucket_t *bucket = NULL;
+        ctx_stat_t herit_stat; // herit stat from old context
+        sql_context_t *context = stmt->context;
+        bool32 has_context = sql_get_context_cache(stmt, (text_t *)&stmt->session->lex->text, &hash_value, &bucket, &herit_stat);
+        if (!has_context && context != NULL) {
+            SET_STMT_CONTEXT(stmt, context);
+            if (ctx_write_text(&stmt->context->ctrl, &stmt->session->current_sql) != CT_SUCCESS) {
+                return CT_ERROR;
+            }
+            sql_prepare_context_ctrl(stmt, hash_value, bucket);
+            (void)cm_gettimeofday(&tv_begin);
+            sql_enrich_context_for_cached(stmt, &tv_begin, &herit_stat);
+            sql_cache_context(stmt, bucket, &stmt->session->lex->text, hash_value);
+        }
+        sql_end_ctx_stat(stmt);
+    }
+    return CT_SUCCESS;
+}
+
+EXTER_ATTACK int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t csize, bool *is_ddl_commit, const char *sql_str, bool enable_stat)
 {
     bool unlock_tables = CT_TRUE;
     *is_ddl_commit = CT_TRUE;
@@ -2066,8 +2144,11 @@ EXTER_ATTACK int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t c
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
     ctc_free_cursors((tch->pre_sess_addr != 0) ? ((session_t *)tch->pre_sess_addr) : session, cursors, csize);
-
+    if (!ctc_alloc_stmt(session)) {
+        return CT_ERROR;
+    }
     sql_stmt_t *stmt = session->current_stmt;
+    ctc_statistic_sql(tch, sql_str, enable_stat);
     knl_session_t *knl_session = &session->knl_session;
     if (stmt == NULL) {
         *is_ddl_commit = CT_FALSE;
@@ -2109,6 +2190,21 @@ EXTER_ATTACK int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t c
     }
 
     CTC_POP_CURSOR(knl_session);
+    return CT_SUCCESS;
+}
+
+EXTER_ATTACK int ctc_statistic_commit(ctc_handler_t *tch, const char *sql_str, bool enable_stat)
+{
+    
+    session_t *session = ctc_get_session_by_addr(tch->sess_addr);
+    CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
+    ctc_set_no_use_other_sess4thd(session);
+    sql_stmt_t *stmt = session->current_stmt;
+    ctx_prev_stat_t *context_pre_stat = &stmt->session->ctx_prev_stat;
+    if (enable_stat && sql_str != NULL && sql_str[0] != '\0' && context_pre_stat->tv_start.tv_sec != CT_INVALID_INT64) {
+        ctc_statistic_sql(tch, sql_str, enable_stat);
+        ctc_ddl_clear_stmt(stmt);
+    }
     return CT_SUCCESS;
 }
 
@@ -2847,5 +2943,11 @@ void ctc_free_buf(ctc_handler_t *tch, uint8_t *buf)
 int ctc_get_max_sessions_per_node(uint32_t *max_sessions)
 {
     *max_sessions = g_instance->session_pool.max_sessions;
+    return CT_SUCCESS;
+}
+
+EXTER_ATTACK int ctc_query_sql_statistic_stat(bool* enable_stat)
+{
+    *enable_stat = (bool)g_instance->sql.enable_sql_statistic_stat;
     return CT_SUCCESS;
 }

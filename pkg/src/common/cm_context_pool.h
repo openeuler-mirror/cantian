@@ -97,7 +97,7 @@ typedef struct st_context_map {
 
 typedef bool32 (*external_recycle_t)(void);
 
-#define CT_LRU_LIST_CNT 10
+#define CT_LRU_LIST_CNT 1024
 
 typedef struct st_lru_list {
     spinlock_t lock;
