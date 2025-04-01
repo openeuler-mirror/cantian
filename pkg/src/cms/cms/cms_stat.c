@@ -1211,6 +1211,10 @@ status_t cms_res_detect_online(uint32 res_id, cms_res_stat_t *old_stat)
     }
 
     cms_res_stat_t* res_stat = CMS_CUR_RES_STAT(res_id);
+    if (res_stat == NULL) {
+        CMS_LOG_ERR("Here is no space for res_stat.");
+        return CT_ERROR;
+    }
 
     cm_thread_lock(&g_res_session[res_id].lock);
     if (old_stat != NULL && res_stat->cur_stat != old_stat->cur_stat) {
@@ -1223,6 +1227,13 @@ status_t cms_res_detect_online(uint32 res_id, cms_res_stat_t *old_stat)
     res_stat->hb_time = cm_now();
     res_stat->session_id = res_id;
     res_stat->inst_id = g_cms_param->node_id;
+    if (cm_strcmpi(res.type, CMS_RES_TYPE_DSS) == 0) {
+        int result = snprintf_s(res_stat->res_type, CMS_MAX_RES_TYPE_LEN, CMS_MAX_RES_TYPE_LEN - 1, CMS_RES_TYPE_DSS);
+        if (result == CT_ERROR) {
+            CMS_LOG_ERR("Use snprintf_s on res_type failed.");
+            return CT_ERROR;
+        }
+    }
     cms_stat_set(res_stat, CMS_RES_ONLINE, &is_changed);
     if (!(is_changed)) {
         cm_thread_unlock(&g_res_session[res_id].lock);
