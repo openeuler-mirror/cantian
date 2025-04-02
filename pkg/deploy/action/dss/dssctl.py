@@ -29,6 +29,10 @@ BACKUP_NAME = "/opt/cantian/backup/files/dss"
 SCRIPTS_DIR = "/opt/cantian/action/dss"
 DSS_CTRL_SCRIPTS = "%s/dss_contrl.sh" % SCRIPTS_DIR
 RETRY_TIMES = 20
+TIMEOUT = 60
+
+CAP_WIO = "CAP_SYS_RAWIO"
+CAP_ADM = "CAP_SYS_ADMIN"
 
 
 # 日志组件
@@ -123,7 +127,7 @@ class DssCtl(object):
 
     @staticmethod
     def kill_cmd(cmd: str) -> None:
-        return_code, stdout, stderr = exec_popen(cmd, timeout=60)
+        return_code, stdout, stderr = exec_popen(cmd, timeout=TIMEOUT)
         if return_code:
             output = stdout + stderr
             err_msg = "Dssserver is offline: %s" % str(output)
@@ -132,7 +136,7 @@ class DssCtl(object):
             LOG.info("dss server pid is[%s].", stdout)
             for line in re.split(r'\n\s', stdout):
                 kill_cmd = "kill -9 %s" % line.strip()
-                return_code, stdout, stderr = exec_popen(kill_cmd, timeout=60)
+                return_code, stdout, stderr = exec_popen(kill_cmd, timeout=TIMEOUT)
                 if return_code:
                     output = stdout + stderr
                     err_msg = "Exec kill cmd[%s] failed, details: %s" % (cmd, str(output))
@@ -176,7 +180,7 @@ class DssCtl(object):
             LOG.info("Start to exec dsscmd cv.")
             dsscmd = "source ~/.bashrc && dsscmd cv -g %s -v %s"
             for key, value in VG_CONFIG.items():
-                return_code, stdout, stderr = exec_popen(dsscmd % (key, value), timeout=60)
+                return_code, stdout, stderr = exec_popen(dsscmd % (key, value), timeout=TIMEOUT)
                 if return_code:
                     output = stdout + stderr
                     err_msg = "Dsscmd cv cmd[%s] exec failed, details: %s" % (dsscmd % (key, value), str(output))
@@ -194,7 +198,7 @@ class DssCtl(object):
             LOG.info("start to init lun.")
             init_cmd = "dd if=/dev/zero of=%s bs=1M count=1 conv=notrunc"
             for key, value in VG_CONFIG.items():
-                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=60)
+                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=TIMEOUT)
                 if return_code:
                     output = stdout + stderr
                     err_msg = "Init lun cmd[%s] exec failed, details: %s" % (init_cmd % value, str(output))
@@ -247,7 +251,7 @@ class DssCtl(object):
             LOG.info("Start to add dss res.")
             cmd = ("source ~/.bashrc && %s/bin/cms res -add dss -type dss -attr \"script=%s\""
                    % (CMS_HOME, DSS_CTRL_SCRIPTS))
-            return_code, stdout, stderr = exec_popen(cmd, timeout=60)
+            return_code, stdout, stderr = exec_popen(cmd, timeout=TIMEOUT)
             if return_code:
                 output = stdout + stderr
                 err_msg = "Failed to add dss res, details: %s" % (str(output))
@@ -260,15 +264,15 @@ class DssCtl(object):
         config perctl permission for caw write.
         :return:
         """
-        sudo_cmds = ["RAWIO", "ADMIN"]
         LOG.info("Start to config perctrl permission.")
-        for _cmd in sudo_cmds:
-            exec_cmd = "sudo setcap CAP_SYS_%s+ep %s/bin/perctrl" % (_cmd, DSS_HOME)
-            return_code, stdout, stderr = exec_popen(exec_cmd, timeout=60)
-            if return_code:
-                output = stdout + stderr
-                err_msg = "Failed to config perctl permission, details: %s" % (str(output))
-                raise Exception(err_msg)
+        cap_mode = f"{CAP_ADM},{CAP_WIO}"
+        path = f"{DSS_HOME}/bin/perctrl"
+        cmd = f'sudo setcap {cap_mode}+ep {path}'
+        return_code, stdout, stderr = exec_popen(cmd, timeout=TIMEOUT)
+        if return_code:
+            output = stdout + stderr
+            err_msg = "Failed to config perctl permission, details: %s" % (str(output))
+            raise Exception(err_msg)
         LOG.info("Success to config perctrl permission.")
 
     def check_is_reg(self) -> bool:
@@ -277,7 +281,7 @@ class DssCtl(object):
         :return:
         """
         kick_cmd = "source ~/.bashrc && %s/bin/dsscmd inq_reg -i %s -D %s" % (DSS_HOME, self.node_id, DSS_HOME)
-        return_code, stdout, stderr = exec_popen(kick_cmd, timeout=60)
+        return_code, stdout, stderr = exec_popen(kick_cmd, timeout=TIMEOUT)
         if return_code:
             output = stdout + stderr
             err_msg = "Failed to inq_reg disk, details: %s" % (str(output))
@@ -291,7 +295,7 @@ class DssCtl(object):
         """
         LOG.info("Start to kick node.")
         kick_cmd = "source ~/.bashrc && %s/bin/dsscmd unreghl -D %s" % (DSS_HOME, DSS_HOME)
-        return_code, stdout, stderr = exec_popen(kick_cmd, timeout=60)
+        return_code, stdout, stderr = exec_popen(kick_cmd, timeout=TIMEOUT)
         if return_code:
             output = stdout + stderr
             err_msg = "Kick node cmd[%s] exec failed, details:%s" % (kick_cmd, output)
@@ -307,7 +311,7 @@ class DssCtl(object):
         if self.check_is_reg():
             self.kick_node()
         reg_cmd = "source ~/.bashrc && %s/bin/dsscmd reghl -D %s" % (DSS_HOME, DSS_HOME)
-        return_code, stdout, stderr = exec_popen(reg_cmd, timeout=60)
+        return_code, stdout, stderr = exec_popen(reg_cmd, timeout=TIMEOUT)
         if return_code:
             output = stdout + stderr
             err_msg = "Reghl node cmd[%s] exec failed, details:%s" % (reg_cmd, output)
@@ -425,7 +429,7 @@ class DssCtl(object):
     def check_status(self, *args) -> bool:
         LOG.info("Start check status start")
         check_cmd = "ps -ef | grep dssserver | grep -v grep | grep %s" % DSS_HOME
-        _, stdout, stderr = exec_popen(check_cmd, timeout=60)
+        _, stdout, stderr = exec_popen(check_cmd, timeout=TIMEOUT)
         if stdout:
             LOG.info("dssserver is online, status: %s" % stdout)
             return True
