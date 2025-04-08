@@ -127,6 +127,9 @@ function main()
             do_deploy "--action=${ACTION} --mode=${START_MODE}"
             exit $?
             ;;
+        backup)
+            exit 0
+            ;;
         pre_upgrade)
             do_deploy "--action=${ACTION}"
             exit $?
