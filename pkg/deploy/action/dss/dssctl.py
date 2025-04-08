@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import stat
 import time
+import json
 from logging import handlers
 import sys
 from config import INST_CONFIG, VG_CONFIG
@@ -28,6 +29,7 @@ DSS_CFG = "/opt/cantian/dss/cfg"
 BACKUP_NAME = "/opt/cantian/backup/files/dss"
 SCRIPTS_DIR = "/opt/cantian/action/dss"
 DSS_CTRL_SCRIPTS = "%s/dss_contrl.sh" % SCRIPTS_DIR
+INSTALL_FILE = "/opt/cantian/config/deploy_param.json"
 RETRY_TIMES = 20
 TIMEOUT = 60
 
@@ -358,9 +360,18 @@ class DssCtl(object):
         self.prepare_source()
         self.cms_add_dss_res()
         self.config_perctrl_permission()
-        self.prepare_dss_dick()
-        self.reghl_dss_disk()
-        self.dss_cmd_add_vg()
+        
+        with open(INSTALL_FILE, encoding="utf-8") as f:
+            _tmp = f.read()
+            info = json.loads(_tmp)
+            dss_install_type = info.get("install_type", "")
+        
+        LOG.info("dss_install_type is %s", dss_install_type)
+        
+        if dss_install_type != "reserve":
+            self.prepare_dss_dick()
+            self.reghl_dss_disk()
+            self.dss_cmd_add_vg()
 
     def backup(self, *args) -> None:
         LOG.info("Start backup.")
