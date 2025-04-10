@@ -56,7 +56,7 @@ FS_CREAT_TIMEOUT = 300
 TOTAL_CHECK_DURATION = 180    # 创建双活pair检查时间
 ASYNC_TIME_INTERVAL = 15      # 创建异步ulog pair的同步间隔时间
 AUTO_RECOVERY_POLICY = 1      # 故障后自动恢复模式
-SYNC_TYPE_POLICY = 3          # 同步类型：同步完成后定时等待
+SYNC_TYPE_POLICY = 3          # 同步类型：同步开始后定时等待
 ASYNC_DR_TYPE = "2"             # 与dbstor异步容灾类型匹配
 SYNC_DR_TYPE = "1"             # 与dbstor同步容灾类型匹配
 
@@ -653,9 +653,13 @@ class DRDeploy(object):
                 "local_fs_id": page_fs_id,
                 "remote_name_rule": remote_name_rule,
                 "name_suffix": name_suffix,
-                "speed": self.sync_speed
+                "speed": self.sync_speed,
+                "remoteVstoreId": 0,
+                "vstoreId": 0
             }
             if isasync:
+                data_dict["vstoreId"] = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+                data_dict["remoteVstoreId"] = self.dr_deploy_info.get("remote_dbstor_fs_vstore_id")
                 data_dict["synchronizeType"] = SYNC_TYPE_POLICY
                 data_dict["timingval"] = ASYNC_TIME_INTERVAL
                 data_dict["recoveryPolicy"] = AUTO_RECOVERY_POLICY
@@ -1219,6 +1223,8 @@ class DRDeploy(object):
                     raise err
             try:
                 page_ready = self.do_sync_remote_replication_filesystem_pair(self.page_fs_pair_id, "page")
+                if self.dr_type == "async":
+                    ulog_ready = self.do_sync_remote_replication_filesystem_pair(self.ulog_fs_pair_id, "ulog")
             except Exception as err:
                 self.record_deploy_process("sync_rep_page_fs_pair", "failed", code=-1, description=str(err))
                 raise err
@@ -1425,7 +1431,6 @@ class DRDeploy(object):
                     self.create_nfs_share_and_client(metadata_fs_info)
 
                 self.standby_do_install()
-                self.update_dbstor_init_config_file()
                 self.record_deploy_process("standby_install", "success")
                 self.do_install_mysql()
                 is_installed_flag = True
@@ -1439,6 +1444,7 @@ class DRDeploy(object):
             pair_ready = ulog_fs_pair_ready_flag and page_fs_pair_ready_flag and metadata_fs_ready_flag
             if is_installed_flag and pair_ready:
                 self.record_deploy_process("standby_start", "running")
+                self.update_dbstor_init_config_file()
                 try:
                     self.standby_do_start()
                 except Exception as err:

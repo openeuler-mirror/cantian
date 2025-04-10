@@ -288,6 +288,19 @@ class UNDeploy(object):
         except Exception as e:
             LOG.info(f"Exception occurred while executing command '{clean_cmd}': {str(e)}")
 
+    def dr_destroy(self):
+        dbstor_command = (
+            f'su -s /bin/bash - "{self.run_user}" -c \''
+            f'dbstor --dr-destroy --fs-name={self.deploy_params.get("storage_dbstor_fs")} '
+            f'--vstore_id={self.deploy_params.get("dbstor_fs_vstore_id")}\''
+        )
+        LOG.info(f"Executing command: {dbstor_command}")
+        return_code, output, stderr = exec_popen(dbstor_command, timeout=100)
+        if return_code:
+            err_msg = f"Execution of dbstor command failed, output: {output}, stderr: {stderr}"
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+
     def standby_uninstall(self, node_id, uninstall_cantian_flag):
         if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
             self.do_stop()
@@ -306,6 +319,7 @@ class UNDeploy(object):
             dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
             if self.dr_type != "async":
                 self.delete_hyper()
+            self.dr_destroy()
             try:
                 self.delete_filesystem(dbstor_fs_vstore_id, fs_name)
             except Exception as err:

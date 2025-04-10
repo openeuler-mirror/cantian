@@ -272,7 +272,8 @@ class SwitchOver(object):
             self.sync_ulog_rep_pair()
             self.dr_deploy_opt.split_remote_replication_filesystem_pair(self.ulog_fs_pair_id)
             self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(self.ulog_fs_pair_id)
-            self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id)
+            self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id,
+                                                          self.dr_deploy_info.get("dbstor_fs_vstore_id"))
             self.dr_deploy_opt.remote_replication_filesystem_pair_set_secondary_write_lock(self.ulog_fs_pair_id)
             self.sync_ulog_rep_pair()
 
@@ -306,11 +307,13 @@ class SwitchOver(object):
         log_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.ulog_fs_pair_id)
         log_pair_role = log_pair_info.get("ISPRIMARY")
         log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
-        if log_pair_running_status != ReplicationRunningStatus.Normal:
+        if (log_pair_running_status != ReplicationRunningStatus.Normal and
+                log_pair_running_status != ReplicationRunningStatus.Synchronizing):
             err_msg = "Log pair running status is not normal: log pair status[%s]." % log_pair_running_status
             LOG.error(err_msg)
             raise Exception(err_msg)
-        return log_pair_role == "true" and log_pair_running_status == ReplicationRunningStatus.Normal
+        return log_pair_role == "true" and (log_pair_running_status == ReplicationRunningStatus.Normal or
+                                            log_pair_running_status == ReplicationRunningStatus.Synchronizing)
 
     def switch_pre_check(self):
         if self.dr_type != "async":
@@ -569,7 +572,8 @@ class DRRecover(SwitchOver):
                 LOG.info("Fail to recover hyper metro domain, details: %s", str(_er))
         else:
             if ulog_role == "true":
-                self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id)
+                self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id,
+                                                              self.dr_deploy_info.get("dbstor_fs_vstore_id"))
             self._recover_stop_db()
             self.single_write = "1"  # 当前默认都同步
             self.dr_deploy_opt.remote_replication_filesystem_pair_set_secondary_write_lock(self.ulog_fs_pair_id)

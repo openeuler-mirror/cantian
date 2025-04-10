@@ -165,6 +165,19 @@ class DRDeployCommon(object):
         LOG.info("Success to query remote device info")
         return rsp_data
 
+    def query_local_controller_info(self) -> list:
+        """
+        查询控制器信息
+        :return:list
+        """
+        LOG.info("Start to local controller info.")
+        url = Constant.QUERY_LOCAL_CONTROLLER_INFO.format(deviceId=self.device_id)
+        res = self.rest_client.normal_request(url, "get")
+        err_msg = "Failed to local controller info"
+        rsp_data = StorageInf.result_parse(err_msg, res)
+        LOG.info("Success to local controller info")
+        return rsp_data
+
     def query_vstore_filesystem_num(self, vstore_id: str):
         """
         查询租户下文件系统数目
@@ -452,7 +465,7 @@ class DRDeployCommon(object):
                 "speed": speed,
                 "recoveryPolicy": 2,
                 "remoteStoragePoolId": remote_pool_id,
-                "remoteVstoreId": 0,
+                "remoteVstoreId": pair_args.get("remoteVstoreId"),
                 "remoteNameRule": remote_name_rule,
                 "enableCompress": False,
                 "syncPair": True,
@@ -463,7 +476,7 @@ class DRDeployCommon(object):
             "objs": [
                 {
                     "id": local_fs_id,
-                    "vstoreId": 0
+                    "vstoreId": pair_args.get("vstoreId")
                 }
             ]
         }

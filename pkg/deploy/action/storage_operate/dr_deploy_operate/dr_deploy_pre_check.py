@@ -196,6 +196,25 @@ class DRDeployPreCheck(object):
         LOG.info("Check remote device info success.")
         return err_msg
 
+    def check_local_controller_info(self) -> list:
+        """
+        检查本端控制器信息：
+        """
+
+        LOG.info("Check local controller info start.")
+        err_msg = []
+        local_esn = self.local_conf_params.get("esn")
+        controller_info = self.deploy_operate.query_local_controller_info()
+        if not controller_info:
+            err_msg.append("Controller info is null, please check")
+            return err_msg
+        check_esn = controller_info.get("ID")
+        if local_esn != check_esn:
+            err_msg.append("Local esn[%s] is not correct, please check" % local_esn)
+            return err_msg
+        LOG.info("Check local controller info success.")
+        return err_msg
+
     def check_file_system_status(self, fs_name: str, vstore_id: str) -> list:
         """
         检查主端文件系统健康状态，当前如果是备端直接返回
@@ -736,6 +755,7 @@ class DRDeployPreCheck(object):
             check_result.extend(self.check_standby_params())
             check_result.extend(self.check_standby_install())
             check_result.extend(self.check_remote_device_info())
+            check_result.extend(self.check_local_controller_info())
             check_result.extend(self.check_storage_system_info())
             check_result.extend(self.check_license_effectivity())
             check_result.extend(self.check_standby_pool_info())
