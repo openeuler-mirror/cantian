@@ -1091,16 +1091,8 @@ status_t cms_res_check(uint32 res_id, status_t *res_status)
     cms_res_t res;
 
     CT_RETURN_IFERR(cms_get_res_by_id(res_id, &res));
-    cms_res_stat_t* res_stat = CMS_CUR_RES_STAT(res_id);
-
-    if (cm_atomic32_inc(&res_stat->checking) != 1) {
-        cm_atomic32_dec(&res_stat->checking);
-        CMS_LOG_WAR("resource is being checked, res_id=%u, checking=%d", res_id, cm_atomic32_get(&res_stat->checking));
-        return CT_SUCCESS;
-    }
 
     ret = cms_exec_res_script(res.script, "-check", res.check_timeout, res_status);
-    cm_atomic32_dec(&res_stat->checking);
 
     if (ret == CT_SUCCESS) {
         if (*res_status == CT_SUCCESS) {
