@@ -764,8 +764,8 @@ class ParamCheck(object):
                 mysql_shell.start_session()
                 mysql_shell.close_session()
                 break
-            except Exception as err:
-                err = str(err).replace(mysql_pwd, "***")
+            except Exception as error:
+                err = str(error).replace(mysql_pwd, "***")
                 LOG.error("Check mysql login failed, details:%s", err)
                 err_flag = True
         if err_flag:
