@@ -80,6 +80,10 @@ static void log_ddl_securec_check(errno_t ret)
 
 static void log_ddl_append_data(char *buf, char *data, int32 size)
 {
+    if (size <= 0) {
+        CT_LOG_RUN_WAR("size is %d, no need to memcpy_sp", size);
+        return;
+    }
     errno_t ret = memcpy_sp(buf, size, data, size);
     log_ddl_securec_check(ret);
 }
