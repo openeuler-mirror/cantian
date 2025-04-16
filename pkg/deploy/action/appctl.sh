@@ -422,6 +422,10 @@ case "$ACTION" in
         if [[ "$(find ${SUCCESS_FLAG_PATH} -type f -name pre_upgrade_"${INSTALL_TYPE}".success)" ]]; then
             UPGRADE_IP_PORT=$3
             lock_file=${UPGRADE_NAME}
+            deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+            if [[ "${deploy_mode}" == "dss" ]]; then
+                sh /opt/cantian/action/dss/appctl.sh start
+            fi
             create_upgrade_flag
             upgrade_lock
             do_deploy ${UPGRADE_NAME} ${INSTALL_TYPE} ${UPGRADE_IP_PORT}

@@ -835,6 +835,9 @@ function main() {
     get_current_node
     modify_env
     source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
+    fi
     source ${CURRENT_PATH}/env.sh
     user=${cantian_user}
 
