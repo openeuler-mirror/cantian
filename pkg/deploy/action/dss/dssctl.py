@@ -200,7 +200,7 @@ class DssCtl(object):
             LOG.info("start to init lun.")
             init_cmd = "dd if=/dev/zero of=%s bs=1M count=1 conv=notrunc"
             for key, value in VG_CONFIG.items():
-                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=TIMEOUT)
+                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=120)
                 if return_code:
                     output = stdout + stderr
                     err_msg = "Init lun cmd[%s] exec failed, details: %s" % (init_cmd % value, str(output))
@@ -447,13 +447,17 @@ class DssCtl(object):
         else:
             LOG.info("dssserver is offline.")
             return False
+    
+    def upgrade_backup(self, *args) -> None:
+        LOG.info("Start to upgrade_backup dss.")
+        LOG.info("Success to upgrade_backup dss.")
 
 
 def main():
     parse = argparse.ArgumentParser()
     parse.add_argument("--action", type=str,
                        choices=["install", "uninstall", "start", "stop", "pre_install",
-                                "upgrade", "rollback", "pre_upgrade"])
+                                "upgrade", "rollback", "pre_upgrade", "check_status", "upgrade_backup"])
     parse.add_argument("--mode", required=False, dest="mode", default="")
     arg = parse.parse_args()
     act = arg.action

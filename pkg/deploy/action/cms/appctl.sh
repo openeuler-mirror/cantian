@@ -300,7 +300,7 @@ function pre_upgrade()
         return 1
     fi
 
-    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
         if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
             echo "Error: gcc home does not exist!"
@@ -345,7 +345,7 @@ function post_upgrade()
     fi
     ls -l ${cms_scripts}
 
-    if [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}" != x"combined" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]]; then
         echo "check gcc home: /mnt/dbdata/remote/share_${storage_share_fs}"
         if [ ! -d /mnt/dbdata/remote/share_${storage_share_fs}/gcc_home ];then
             echo "Error: gcc home does not exist!"
@@ -445,7 +445,7 @@ function update_cms_service() {
        ${cms_pkg_file}/cfg ${cms_pkg_file}/lib ${cms_pkg_file}/package.xml ${cantian_home}/server
 
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" == x"file" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]] ||  [[ ${deploy_mode} == "dss" ]]; then
         return 0
     fi
 
@@ -481,6 +481,10 @@ function chown_mod_cms_service()
     find ${cantian_home}/server/bin -type f | xargs chmod 500
     find ${cantian_home}/server/lib -type f | xargs chmod 500
     find ${cantian_home}/server/cfg -type f | xargs chmod 400
+
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        sudo setcap CAP_SYS_RAWIO+ep "${cms_home}"/service/bin/cms
+    fi
 
     chmod 400 ${cms_home}/service/package.xml
     chmod 400 ${cantian_home}/server/package.xml

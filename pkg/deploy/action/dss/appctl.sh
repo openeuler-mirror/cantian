@@ -63,7 +63,7 @@ function do_deploy()
 function permission_opt() {
     chmod 500 "${DSS_SOURCE}"/bin/*
     chown -hR "${cantian_user}":"${cantian_group}" "${DSS_SOURCE}"
-    chown "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/*
+    chown -hR "${cantian_user}":"${cantian_group}" "${CURRENT_PATH}"/*
     chown root:root "${CURRENT_PATH}"/appctl.sh
     mkdir -p /opt/cantian/log/dss
     touch /opt/cantian/log/dss/dss_deploy.log

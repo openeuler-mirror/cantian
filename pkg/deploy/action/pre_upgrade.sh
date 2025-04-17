@@ -14,6 +14,10 @@ UPGRADE_MODE_LIS=("offline" "rollup")
 UPDATESYS_FLAG=/opt/cantian/updatesys.true
 upgrade_module_correct=false
 
+deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+if [[ x"${deploy_mode}" == x"dss" ]]; then
+    cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
+fi
 
 source ${CURRENT_PATH}/log4sh.sh
 source ${CURRENT_PATH}/env.sh
@@ -264,8 +268,7 @@ function gen_upgrade_plan() {
 }
 
 function check_dbstor_client_compatibility() {
-    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" == x"file" || "${source_version}" == "2.0.0"* ]]; then
+    if [[ x"${deploy_mode}" == x"file" || x"${deploy_mode}" == x"dss" ]]; then
         return 0
     fi
     logAndEchoInfo "begin to check dbstor client compatibility."

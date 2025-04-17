@@ -50,12 +50,16 @@ if [[ x"${deploy_mode}" == x"file" ]];then
     fi
 fi
 
+if [[ x"${deploy_mode}" == x"dss" ]]; then
+    cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
+fi
+
 source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 source ${CURRENT_PATH}/env.sh
 
 function rpm_check(){
     local count=2
-    if [ x"${deploy_mode}" != x"file" ];then
+    if [ x"${deploy_mode}" != x"file" ] && [ x"${deploy_mode}" != x"dss" ];then
       count=3
     fi
     rpm_pkg_count=$(ls "${CURRENT_PATH}"/../repo | wc -l)
@@ -79,7 +83,7 @@ function input_params_check() {
     fi
 
     # 离线升级需要检查阵列侧ip
-    if [ "${UPGRADE_MODE}" == "offline" ]; then
+    if [[ "${UPGRADE_MODE}" == "offline" ]]; then
         if [ -z "${DORADO_IP}" ]; then
             logAndEchoError "storage array ip must be provided"
             exit 1
@@ -403,7 +407,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" != x"file" ];then
+    if [ x"${deploy_mode}" != x"file" ] && [ x"${deploy_mode}" != x"dss" ];then
         echo  "start replace rpm package"
         install_dbstor
         if [ $? -ne 0 ];then
@@ -873,6 +877,9 @@ function do_rollup_upgrade() {
 
     stop_cantian
     stop_cms
+    if [[ "${deploy_mode}" == "dss" ]]; then
+        sh /opt/cantian/action/dss/appctl.sh start
+    fi
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败
     touch "${storage_metadata_fs_path}/call_ctback_tool.success" && chmod 600 "${storage_metadata_fs_path}/call_ctback_tool.success"
@@ -937,11 +944,16 @@ function post_upgrade_nodes_status() {
     cms_ip=$(python3 ${CURRENT_PATH}/get_config_info.py "cms_ip")
     node_count=$(expr "$(echo "${cms_ip}" | grep -o ";" | wc -l)" + 1)
 
-    cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat")
-
     # step1: 统计节点拉起情况
     start_array=()
-    readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}' | tail -n +$"2")"
+    if [[ "${deploy_mode}" == "dss" ]]; then
+        cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat | grep dss")
+        readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}')"
+    else
+        cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat")
+        readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}' | tail -n +$"2")"
+    fi
+    
     if [ ${#start_array[@]} != "${node_count}" ]; then
         logAndEchoError "only ${#start_array[@]} nodes were detected, totals:${node_count}" && exit 1
     fi
@@ -982,7 +994,7 @@ function get_back_version() {
 function offline_upgrade() {
     cantian_status_check
     do_backup
-    if [[ ${node_id} == '0' ]] && [[ ${deploy_mode} != "file" ]]; then
+    if [[ ${node_id} == '0' ]] && [[ ${deploy_mode} != "file" ]] && [[ ${deploy_mode} != "dss" ]]; then
         creat_snapshot
     fi
     get_back_version
@@ -1069,6 +1081,9 @@ function main() {
     # 升级成功后更新版本信息
     show_cantian_version
     cp -fp ${CURRENT_PATH}/../versions.yml /opt/cantian
+    if [[ ${node_id} != '0' ]]; then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/upgrade_node*
+    fi
     logAndEchoInfo ">>>>> ${UPGRADE_MODE} upgrade performed successfully <<<<<"
     return 0
 }
