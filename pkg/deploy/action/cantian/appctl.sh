@@ -390,6 +390,13 @@ function safety_upgrade_backup()
     cp -arf ${cantian_local}/* ${backup_dir}/cantian/cantian_local
 
     record_cantian_info ${backup_dir}
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ ${deploy_mode} == "dss" ]]; then
+        rm -rf /mnt/dbdata/local/cantian/tmp/data/data
+        mkdir -p /mnt/dbdata/local/cantian/tmp/data/data
+        chmod 750 /mnt/dbdata/local/cantian/tmp/data/data
+        chown ${cantian_user} /mnt/dbdata/local/cantian/tmp/data/data
+    fi
 
     echo "check that all files are backed up to ensure that no data is lost for safety upgrade and rollback"
     check_backup_files ${backup_dir}/cantian/cantian_home_files_list.txt ${backup_dir}/cantian/cantian_home ${cantian_home}
@@ -403,7 +410,7 @@ function safety_upgrade_backup()
 
 function copy_cantian_dbstor_cfg()
 {
-    if [[ x"${deploy_mode}" == x"file" ]]; then
+    if [[ x"${deploy_mode}" == x"file" ]] || [[ ${deploy_mode} == "dss" ]]; then
         return 0
     fi
     echo "update the cantian local config files for dbstor in ${cantian_local}"
@@ -449,8 +456,8 @@ function update_cantian_server()
     rm -rf ${cantian_home}/server/*
     cp -arf ${cantian_pkg_file}/add-ons ${cantian_pkg_file}/admin ${cantian_pkg_file}/bin \
        ${cantian_pkg_file}/cfg ${cantian_pkg_file}/lib ${cantian_pkg_file}/package.xml ${cantian_home}/server
-
-    if [[ x"${deploy_mode}" == x"file" ]]; then
+    rm -rf ${cantian_home}/server/bin/cms
+    if [[ x"${deploy_mode}" == x"file" ]] || [[ x"${deploy_mode}" == x"dss" ]]; then
         return 0
     fi
 
@@ -466,6 +473,7 @@ function update_cantian_server()
         echo "link_type is rdma_1823"
     fi
     cp -arf ${cantian_home}/server/add-ons/kmc_shared/lib* ${cantian_home}/server/add-ons/
+    rm -rf ${cantian_home}/server/bin/cms
     return 0
 }
 
@@ -542,6 +550,7 @@ function safety_rollback()
     fi
     rm -rf ${cantian_local}/*
     cp -arf ${backup_dir}/cantian/cantian_local/* ${cantian_local}
+    rm -rf ${cantian_home}/server/bin/cms
 
     echo "check that all files are rolled back to ensure that no data is lost for safety rollback"
     check_rollback_files ${backup_dir}/cantian/cantian_home_files_list.txt ${backup_dir}/cantian/cantian_home ${cantian_home}

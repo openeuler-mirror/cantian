@@ -69,6 +69,16 @@ function init_cluster_status_flag() {
 
 function node_status_check() {
     logAndEchoInfo "begin to check cluster upgrade status"
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        cms_status_nums=$(python3 ${CURRENT_PATH}/get_config_info.py "cms_ip")
+        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/dss/common/dss_upgrade_commit.py ${cms_status_nums}"
+        if [ $result_python -eq 0 ]; then
+            return 3
+        else
+            exit 1
+        fi
+    fi
 
     # 统计当前节点数目
     node_count=$(expr "$(echo "${cms_ip}" | grep -o ";" | wc -l)" + 1)
@@ -263,7 +273,7 @@ function offline_upgrade_commit() {
     fi
     raise_version_num
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ x"${deploy_mode}" != x"file" ]];then
+    if [[ x"${deploy_mode}" != x"file" ]] && [[ x"${deploy_mode}" != x"dss" ]]; then
         read -p "Please input dorado_ip:" dorado_ip
         echo "dorado_ip is: ${dorado_ip}"
         ping -c 1 "${dorado_ip}" > /dev/null 2>&1

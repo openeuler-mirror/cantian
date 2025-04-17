@@ -1622,8 +1622,8 @@ class K8sDRContainer:
             try:  
                 getattr(self, self.action)
             except AttributeError as _err:
-                err_msg = "The supported types of operations include [delete, switch_over, fail_over, recover,\n"
-                          "unconnected_switch_delete, unconnected_fail_over, unconnected_switch, unconnected_recover,
+                err_msg = "The supported types of operations include [delete, switch_over, fail_over, recover,\n"     \
+                          "unconnected_switch_delete, unconnected_fail_over, unconnected_switch, unconnected_recover,"\
                           "unconnected_check, unconnected_delete]\n"
                 raise Exception(err_msg) from _err
             getattr(self, self.action)()
