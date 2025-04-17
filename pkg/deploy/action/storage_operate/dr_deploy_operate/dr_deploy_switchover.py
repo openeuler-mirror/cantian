@@ -310,6 +310,7 @@ class DRRecover(SwitchOver):
         super(DRRecover, self).__init__()
         self.repl_success_flag = False
         self.single_write = None
+        self.cantian_recover_type = None
 
     def check_cluster_status_for_recover(self, check_time=20):
         """
@@ -358,7 +359,8 @@ class DRRecover(SwitchOver):
 
     def execute_replication_steps(self, running_status, pair_id):
         LOG.info("Execute replication steps. Singel_write: %s" % self.single_write)
-        if self.single_write == "1":
+        if self.single_write == "1" or self.cantian_recover_type == "full_sync":
+            LOG.info("cantian_recover_type is %s", self.cantian_recover_type)
             if running_status != ReplicationRunningStatus.Synchronizing:
                 self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=pair_id,
                                                                         vstore_id="0",
@@ -441,7 +443,7 @@ class DRRecover(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
 
-    def execute(self):
+    def execute(self, cantian_recover_type = None):
         """
         step:
             1、检查当前双活域状态：
@@ -503,6 +505,8 @@ class DRRecover(SwitchOver):
             self.standby_cms_res_stop()
             self.wait_res_stop()
         self.query_sync_status()
+        if cantian_recover_type == "--site=full_sync":
+            self.cantian_recover_type = "full_sync"
         self.rep_pair_recover(self.page_fs_pair_id)
         if not self.metadata_in_cantian:
             self.rep_pair_recover(self.meta_fs_pair_id)

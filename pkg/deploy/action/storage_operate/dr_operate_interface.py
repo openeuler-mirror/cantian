@@ -17,7 +17,7 @@ HELP_MSG = ("example:\n"
             "        sh appctl.sh dr_operate progress_query --action=deploy --display=table/json\n"
             "        sh appctl.sh dr_operate undeploy active/standby\n"
             "        sh appctl.sh dr_operate switch_over\n"
-            "        sh appctl.sh dr_operate recover\n"
+            "        sh appctl.sh dr_operate recover [full_sync]\n"
             "        sh appctl.sh dr_operate fail_over\n"
             "        sh appctl.sh dr_operate update_conf\n")
 
@@ -61,9 +61,13 @@ class DRDeployOperate(object):
 
     @staticmethod
     def recover():
+        recover_type = None
+        if len(sys.argv) > 2:
+            recover_type = sys.argv[2]
+            del sys.argv[2]
         del sys.argv[1]
         dr_recover = DRRecover()
-        dr_recover.execute()
+        dr_recover.execute(recover_type)
 
     @staticmethod
     def fail_over():

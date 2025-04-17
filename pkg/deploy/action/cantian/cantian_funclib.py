@@ -102,6 +102,7 @@ class DefaultConfigValue(object):
         "MES_POOL_SIZE": 16384,
         "TIMED_STATS": "TRUE",
         "SQL_STAT": "TRUE",
+        "SQL_STATISTIC_STAT": "FALSE",
         "MES_ELAPSED_SWITCH": "TRUE",
         "_LOG_LEVEL": 7,
         "CANTIAN_TASK_NUM": 256,
@@ -172,7 +173,8 @@ class DefaultConfigValue(object):
         "MYSQL_METADATA_IN_CANTIAN": "TRUE",
         "SHM_MEMORY_REDUCTION_RATIO": "1",
         "MYSQL_DEPLOY_GROUP_ID": mysql_group_id,
-        "CTC_MAX_INST_PER_NODE": 6
+        "CTC_MAX_INST_PER_NODE": 6,
+        "SQL_STATISTIC_TIME_LIMIT" :1000000
     }
     
     CANTIAND_DBG_CONFIG = {

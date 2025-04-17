@@ -175,7 +175,7 @@ status_t init_ctc_ctx_and_open_dc(session_t *session, ctc_context_t **ctc_contex
 void free_ctc_ctx(ctc_context_t **ctx, bool delete_context);
 ctc_context_t* ctc_get_ctx_by_addr(uint64_t addr);
 bool32 ctc_alloc_stmt_context(session_t *session);
-
+bool32 ctc_alloc_stmt(session_t *session);
 int ctc_get_and_reset_err(void);
 session_t* ctc_get_session_by_addr(uint64_t addr);
 status_t ctc_get_new_session(session_t **session_ptr);

@@ -353,6 +353,7 @@ static inline char *get_sys_stat_name(sys_stat_t item)
 }
 
 void sql_begin_ctx_stat(void *handle);
+void sql_start_ctx_stat(void *handle);
 void sql_end_ctx_stat(void *handle);
 void sql_begin_exec_stat(void *handle);
 void sql_end_exec_stat(void *handle);

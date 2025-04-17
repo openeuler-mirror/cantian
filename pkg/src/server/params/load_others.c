@@ -352,6 +352,10 @@ status_t srv_load_stat_params(void)
 {
     CT_RETURN_IFERR(srv_get_param_bool32("SQL_STAT", &g_instance->sql.enable_stat));
 
+    CT_RETURN_IFERR(srv_get_param_bool32("SQL_STATISTIC_STAT", &g_instance->sql.enable_sql_statistic_stat));
+
+    CT_RETURN_IFERR(srv_get_param_uint32("SQL_STATISTIC_TIME_LIMIT", &g_instance->sql.sql_statistic_time_limit));
+
     CT_RETURN_IFERR(srv_get_param_bool32("TIMED_STATS", &g_instance->kernel.attr.enable_timed_stat));
 
     CT_RETURN_IFERR(srv_get_param_size_uint64("STATISTICS_SAMPLE_SIZE", &g_instance->kernel.attr.stats_sample_size));
