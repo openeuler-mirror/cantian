@@ -1184,6 +1184,11 @@ static inline status_t sql_check_pre_exec(sql_stmt_t *stmt)
         CT_THROW_ERROR(ERR_REQUEST_OUT_OF_SQUENCE, "prepared.");
         return CT_ERROR;
     }
+
+    if (g_instance->kernel.attr.ctsql_read_write) {
+        return CT_SUCCESS;
+    }
+    
 #ifndef CANTIAN_READ_WRITE
     // disable dml, except under procedure; disable create procedure
     if (((stmt->context->type > CTSQL_TYPE_INSERT && stmt->context->type < CTSQL_TYPE_DML_CEIL) ||

@@ -1178,6 +1178,9 @@ config_item_t g_parameters[] = {
       sql_notify_als_snapshot_backup_recycle_redo_timeout, NULL, NULL },
     { "PREVENT_CREATE_SNAPSHOT", CT_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_PREVENT_CREATE_SNAPSHOT, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_prevent_create_snapshot, sql_notify_als_bool, NULL },
+    { "CTSQL_READ_WRITE", CT_TRUE, ATTR_READONLY, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN",
+      NULL, PARAM_CTSQL_READ_WRITE, EFFECT_REBOOT, CFG_DB, sql_verify_als_bool, sql_notify_als_bool,
+      sql_notify_als_bool, NULL },
 };
 
 void srv_get_config_info(config_item_t **params, uint32 *count)
