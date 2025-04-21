@@ -10,11 +10,11 @@ import time
 import json
 from logging import handlers
 import sys
-from config import INST_CONFIG, VG_CONFIG
 from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+from dss.config import INST_CONFIG, VG_CONFIG
 from cantian_common.exec_sql import exec_popen
 from cantian_common.get_config_info import get_value
 
