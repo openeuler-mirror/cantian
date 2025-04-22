@@ -313,6 +313,7 @@ typedef struct st_knl_attr {
     bool32 prevent_snapshot_backup_recycle_redo;
     uint32 prevent_snapshot_backup_recycle_redo_timeout;
     bool32 prevent_create_snapshot;
+    bool32 ctsql_read_write;
 } knl_attr_t;
 
 typedef struct st_sys_name_context {  // for system name
