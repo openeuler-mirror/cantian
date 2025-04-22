@@ -341,12 +341,15 @@ class Logicrep:
         LOG.info("container init logicrep success")
 
     def start(self):
-        LOG.info("begin create logicrep user")
         self.set_cantian_conf()
         if self.mode == "standby":
             return
-        self.create_db_user()
-        LOG.info("create logicrep user success")
+        if self.node_id == "0":
+            LOG.info("begin create logicrep user")
+            self.create_db_user()
+            LOG.info("create logicrep user success")
+        else:
+            LOG.info("Node 1 also triggers start logicrep process")
 
     def set_resource_limit(self):
         LOG.info("try set resource limit")
