@@ -462,8 +462,10 @@ void print_snapshot_info(const char* fs_name, snapshot_result_info snap_info)
 status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     uint32_t page_fs_vstore_id = 0;
     uint32_t log_fs_vstore_id = 0;
+    uint32_t archive_fs_vstore_id = 0;
     cm_text2uint32(&ctbak_param->page_fs_vstore_id, &page_fs_vstore_id);
     cm_text2uint32(&ctbak_param->log_fs_vstore_id, &log_fs_vstore_id);
+    cm_text2uint32(&ctbak_param->archive_fs_vstore_id, &archive_fs_vstore_id);
     snapshot_result_info snap_info = { 0 };
     // 创建page快照
     printf("[ctbackup]start create page_fs snapshot!\n");
@@ -475,7 +477,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
     print_snapshot_info(ctbak_param->page_fs_name.str, snap_info);
     // 记录page快照信息
     if (ctbak_record_snapshot_info(ctbak_param->page_fs_name.str, &snap_info,
-                                   &g_snapshot_backup_info.page_fs_snap_info)!= CT_SUCCESS) {
+                                   &g_snapshot_backup_info.page_fs_snap_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to record page_snap_info\n");
         return CT_ERROR;
     }
@@ -501,7 +503,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
 
     // 记录redo快照信息
     if (ctbak_record_snapshot_info(ctbak_param->log_fs_name.str, &snap_info,
-                                   &g_snapshot_backup_info.log_fs_snap_info)!= CT_SUCCESS) {
+                                   &g_snapshot_backup_info.log_fs_snap_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to record log_snap_info\n");
         return CT_ERROR;
     }
@@ -513,7 +515,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
         return CT_ERROR;
     }
     printf("[ctbackup]start create redo_fs snapshot!\n");
-    if (dbs_create_fs_snap(ctbak_param->archive_fs_name.str, log_fs_vstore_id, &snap_info)!= CT_SUCCESS) {
+    if (dbs_create_fs_snap(ctbak_param->archive_fs_name.str, archive_fs_vstore_id, &snap_info) != CT_SUCCESS) {
         printf("[ctbackup]create archive fs snap failed!\n");
         if (dbs_delete_fs_snap(ctbak_param->page_fs_name.str, page_fs_vstore_id,
                                &g_snapshot_backup_info.page_fs_snap_info) != CT_SUCCESS) {
@@ -530,7 +532,7 @@ status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {
 
     // 记录归档快照信息
     if (ctbak_record_snapshot_info(ctbak_param->archive_fs_name.str, &snap_info,
-                                   &g_snapshot_backup_info.archive_fs_snap_info)!= CT_SUCCESS) {
+                                   &g_snapshot_backup_info.archive_fs_snap_info) != CT_SUCCESS) {
         printf("[ctbackup]Failed to record archive_snap_info\n");
         return CT_ERROR;
     }
@@ -606,7 +608,7 @@ status_t ctbak_create_snapshot_info_file(ctbak_param_t* ctbak_param) {
 
 status_t ctbak_write_snapshot_info_file() {
     if (dbs_write_snapshot_info_file(g_snap_info_handle, 0, &g_snapshot_backup_info,
-                                     sizeof(snapshot_backup_info_t))!= CT_SUCCESS) {
+                                     sizeof(snapshot_backup_info_t)) != CT_SUCCESS) {
         printf("[ctbackup]write page snapshot info file failed!\n");
         return CT_ERROR;
     }

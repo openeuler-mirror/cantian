@@ -1,9 +1,6 @@
 import os
 import re
 from exec_cmd import exec_popen
-from get_config_info import get_value
-
-cantian_user = get_value("deploy_user")
 
 
 def pad_file_to_512(input_file, output_file=None):
@@ -54,7 +51,7 @@ def parse_numeric(val: str) -> int:
 
 
 def get_written_size(vg_file_path: str) -> int:
-    cmd = f'su -s /bin/bash - {cantian_user} -c "dsscmd ls -p {vg_file_path} -w 0"'
+    cmd = f'dsscmd ls -p {vg_file_path} -w 0'
     code, stdout, stderr = exec_popen(cmd)
 
     no_file_result = " ".join(["The path", vg_file_path, "is not exsit."])
@@ -96,7 +93,7 @@ def parse_hex_dump(raw_output: str) -> str:
 
 
 def read_dss_content(vg_file_path: str, size: int) -> str:
-    cmd = f'su -s /bin/bash - {cantian_user} -c "dsscmd examine -p {vg_file_path} -o 0 -f x -s {size}"'
+    cmd = f'dsscmd examine -p {vg_file_path} -o 0 -f x -s {size}'
     code, stdout, stderr = exec_popen(cmd)
 
     if code != 0:

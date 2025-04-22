@@ -1,5 +1,6 @@
 import os
 import sys
+from file_utils import pad_file_to_512
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
 from update_config import _exec_popen
@@ -34,7 +35,7 @@ class DssYaml(object):
                 break
 
     def cp_yaml_file_to_path(self):
-        
+        self.file_exits()
         cmd = f'dsscmd cp -s {self.node_yaml_file_path} -d {self.vg_yaml_file_path}'
         code, _, stderr = _exec_popen(cmd)
         
@@ -45,6 +46,7 @@ class DssYaml(object):
         self.node_yaml_file_name = os.path.basename(input_file)
         self.node_yaml_file_path = input_file
         self.vg_yaml_file_path = os.path.join("+vg1", self.node_yaml_file_name)
+        pad_file_to_512(self.node_yaml_file_path)
         self.cp_yaml_file_to_path()
         return
 
