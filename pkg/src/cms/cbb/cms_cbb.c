@@ -73,7 +73,7 @@ status_t GetDssStat(dss_res_data *dss_res)
         }
         dss_res->node[dss_res->inst_count].is_work_member = is_work_member;
         if (strcmp(status, "UNKNOWN") == 0) {
-            dss_res->node[dss_res->inst_count].status = DSS_UNKNOWN;
+            dss_res->node[dss_res->inst_count].status = DSS_OFFLINE;
         }
         else if (strcmp(status, "ONLINE") == 0) {
             dss_res->node[dss_res->inst_count].status = DSS_ONLINE;

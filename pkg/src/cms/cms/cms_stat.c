@@ -1226,6 +1226,7 @@ status_t cms_res_detect_online(uint32 res_id, cms_res_stat_t *old_stat)
     res_stat->work_stat = 1;
     res_stat->hb_time = cm_now();
     res_stat->session_id = res_id;
+    res_stat->target_stat = CMS_RES_ONLINE;
     res_stat->inst_id = g_cms_param->node_id;
     if (cm_strcmpi(res.type, CMS_RES_TYPE_DSS) == 0) {
         int result = snprintf_s(res_stat->res_type, CMS_MAX_RES_TYPE_LEN, CMS_MAX_RES_TYPE_LEN - 1, CMS_RES_TYPE_DSS);
