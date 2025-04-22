@@ -162,6 +162,7 @@ typedef struct ctbak_param {
     text_t archive_fs_name;
     text_t page_fs_vstore_id;
     text_t log_fs_vstore_id;
+    text_t archive_fs_vstore_id;
     uint8  is_decompress;
     uint8  is_pitr_cancel;
     uint8  is_restore;
