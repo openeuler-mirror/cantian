@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from file_utils import pad_file_to_512
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
@@ -24,11 +25,11 @@ class DssLock(object):
     
     def cp_node_lock_file_to_path(self):
         
-        cmd = f'dsscmd cp -s {self.node_lock_file_path} -d {self.vg_lock_file_path}'
+        cmd = f'dsscmd touch -p {self.vg_lock_file_path}'
         code, _, stderr = _exec_popen(cmd)
         
         if code != 0:
-            raise RuntimeError(f"dsscmd cp lock failed: {stderr}")
+            raise RuntimeError(f"dsscmd lock failed: {stderr}")
 
     def is_locked_new(self):
         cmd = f'dsscmd ls -p +vg1/upgrade'
@@ -47,13 +48,12 @@ class DssLock(object):
             if self.node_lock_file_name in line:
                 self.lock_res = "node lock is existing"
                 return
-            if "upgrade_lock_" in line[5]:
-                raise RuntimeError(f"other lock is using, {line[5]}") 
+            if "upgrade_lock_" in line:
+                raise RuntimeError(f"other lock is using, {line}")
         self.lock_res = "upgrade not lock"       
     
     def upgrade_lock_by_dss(self, input_file=None):
         self.node_lock_file_name = os.path.basename(input_file)
-        self.node_lock_file_path = os.path.join("/mnt/dbdata/remote/metadata_/upgrade", self.node_lock_file_name)
         self.vg_lock_file_path = os.path.join("+vg1/upgrade", self.node_lock_file_name)
 
         self.is_locked_new()
@@ -61,7 +61,6 @@ class DssLock(object):
             self.create_vg_upgrade_path()
         elif self.lock_res == "node lock is existing":
             return
-        pad_file_to_512(self.node_lock_file_path)
         self.cp_node_lock_file_to_path()
         LOG.info(f"{self.node_lock_file_name} success")
 
@@ -74,7 +73,7 @@ def main():
     try:
         dss_lock.upgrade_lock_by_dss(input_file)
     except Exception as e:
-        LOG.error(f"Failed to lock dss when upgrade")
+        LOG.error(f"Failed to lock dss when upgrade: %s", traceback.format_exc(limit=-1))
         sys.exit(1)
 
 
