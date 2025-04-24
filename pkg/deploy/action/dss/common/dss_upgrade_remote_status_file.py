@@ -1,6 +1,5 @@
 import os
 import sys
-from get_config_info import get_value
 from file_utils import pad_file_to_512
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))

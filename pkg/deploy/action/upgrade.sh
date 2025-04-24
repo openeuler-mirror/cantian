@@ -50,10 +50,6 @@ if [[ x"${deploy_mode}" == x"file" ]];then
     fi
 fi
 
-if [[ x"${deploy_mode}" == x"dss" ]]; then
-    cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
-fi
-
 source ${CURRENT_PATH}/docker/dbstor_tool_opt_common.sh
 source ${CURRENT_PATH}/env.sh
 

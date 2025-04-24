@@ -14,11 +14,6 @@ UPGRADE_MODE_LIS=("offline" "rollup")
 UPDATESYS_FLAG=/opt/cantian/updatesys.true
 upgrade_module_correct=false
 
-deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-if [[ x"${deploy_mode}" == x"dss" ]]; then
-    cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
-fi
-
 source ${CURRENT_PATH}/log4sh.sh
 source ${CURRENT_PATH}/env.sh
 
@@ -91,6 +86,10 @@ function prepare_env() {
     cantian_in_container=$(python3 ${CURRENT_PATH}/get_config_info.py "cantian_in_container")
     if [[ ${node_id} == '0' ]]; then
         update_share_config
+    fi
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        cp -arf ${CURRENT_PATH}/cantian_common/env_lun.sh ${CURRENT_PATH}/env.sh
     fi
     # 单进程场景使用deploy_user
     is_single=$(cat "${CURRENT_PATH}"/cantian/options.py | grep -oP 'self\.running_mode = "\K[^"]+')
