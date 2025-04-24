@@ -32,6 +32,7 @@ DSS_CTRL_SCRIPTS = "%s/dss_contrl.sh" % SCRIPTS_DIR
 INSTALL_FILE = "/opt/cantian/config/deploy_param.json"
 RETRY_TIMES = 20
 TIMEOUT = 60
+INIT_DSS_TIMEOUT = 300
 
 CAP_WIO = "CAP_SYS_RAWIO"
 CAP_ADM = "CAP_SYS_ADMIN"
@@ -198,9 +199,9 @@ class DssCtl(object):
         """
         if self.node_id == "0":
             LOG.info("start to init lun.")
-            init_cmd = "dd if=/dev/zero of=%s bs=1M count=1 conv=notrunc"
+            init_cmd = "dd if=/dev/zero of=%s bs=5M count=2048 conv=notrunc"
             for key, value in VG_CONFIG.items():
-                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=120)
+                return_code, stdout, stderr = exec_popen(init_cmd % value, timeout=INIT_DSS_TIMEOUT)
                 if return_code:
                     output = stdout + stderr
                     err_msg = "Init lun cmd[%s] exec failed, details: %s" % (init_cmd % value, str(output))
