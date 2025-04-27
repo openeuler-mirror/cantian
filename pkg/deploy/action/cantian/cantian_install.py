@@ -2409,7 +2409,7 @@ class Installer:
 
             # create data, cfg, log dir, trc
             data_dir = "%s/data" % self.data
-            if not g_opts.use_dbstor:
+            if not g_opts.use_dbstor and not g_opts.use_gss:
                 mount_storage_data = f"/mnt/dbdata/remote/storage_{g_opts.storage_dbstor_fs}/data"
                 cmd = "ln -s %s %s;" % (mount_storage_data, self.data)
                 ret_code, _, stderr = _exec_popen(cmd)

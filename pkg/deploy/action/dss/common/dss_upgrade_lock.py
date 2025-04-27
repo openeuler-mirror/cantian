@@ -1,7 +1,6 @@
 import os
 import sys
 import traceback
-from file_utils import pad_file_to_512
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
 from update_config import _exec_popen
@@ -23,7 +22,7 @@ class DssLock(object):
         if code != 0:
             raise RuntimeError(f"dsscmd mkdir lock failed: {stderr}")
     
-    def cp_node_lock_file_to_path(self):
+    def touch_node_lock_file_to_path(self):
         
         cmd = f'dsscmd touch -p {self.vg_lock_file_path}'
         code, _, stderr = _exec_popen(cmd)
@@ -49,7 +48,7 @@ class DssLock(object):
                 self.lock_res = "node lock is existing"
                 return
             if "upgrade_lock_" in line:
-                raise RuntimeError(f"other lock is using, {line}")
+                raise RuntimeError(f"other lock is using, {line}") 
         self.lock_res = "upgrade not lock"       
     
     def upgrade_lock_by_dss(self, input_file=None):
@@ -61,7 +60,7 @@ class DssLock(object):
             self.create_vg_upgrade_path()
         elif self.lock_res == "node lock is existing":
             return
-        self.cp_node_lock_file_to_path()
+        self.touch_node_lock_file_to_path()
         LOG.info(f"{self.node_lock_file_name} success")
 
 
@@ -73,8 +72,8 @@ def main():
     try:
         dss_lock.upgrade_lock_by_dss(input_file)
     except Exception as e:
-        LOG.error(f"Failed to lock dss when upgrade: %s", traceback.format_exc(limit=-1))
-        sys.exit(1)
+        LOG.error(f"Failed to lock dss when upgrade {traceback.format_exc(limit=-1)}")
+        raise e
 
 
 if __name__ == "__main__":

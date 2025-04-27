@@ -378,6 +378,9 @@ function main() {
     update_local_status_file_path_by_dbstor
     version_check
     check_upgrade_flag
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/cluster_and_node_status
+    fi
     if [ ${UPGRADE_MODE} == "offline" ]; then
         offline_upgrade
     elif [ ${UPGRADE_MODE} == "rollup" ]; then

@@ -18,6 +18,7 @@ UPGRADE_SUCCESS_FLAG=/opt/cantian/pre_upgrade_${UPGRADE_MODE}.success
 EXEC_SQL_FILE="${CURRENT_PATH}/cantian_common/exec_sql.py"
 DV_LRPL_DETAIL="select DATABASE_ROLE from DV_LRPL_DETAIL;"
 UPGRADE_MODE_LIS=("offline" "rollup")
+OFFLINES_MODES=("dbstor" "dss")
 dorado_user=""
 dorado_pwd=""
 node_id=""
@@ -79,7 +80,7 @@ function input_params_check() {
     fi
 
     # 离线升级需要检查阵列侧ip
-    if [[ "${UPGRADE_MODE}" == "offline" ]]; then
+    if [[ "${UPGRADE_MODE}" == "offline" ]] && [[ x"${deploy_mode}" != x"dss" ]]; then
         if [ -z "${DORADO_IP}" ]; then
             logAndEchoError "storage array ip must be provided"
             exit 1
@@ -874,7 +875,14 @@ function do_rollup_upgrade() {
     stop_cantian
     stop_cms
     if [[ "${deploy_mode}" == "dss" ]]; then
-        sh /opt/cantian/action/dss/appctl.sh start
+        if [[ ${node_id} != 0 ]]; then
+            sh /opt/cantian/action/cms/appctl.sh start
+            sh /opt/cantian/action/dss/appctl.sh start
+            sh /opt/cantian/action/cms/appctl.sh stop
+            sleep 10
+        else
+            sh /opt/cantian/action/dss/appctl.sh start
+        fi
     fi
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败
@@ -1009,7 +1017,7 @@ function offline_upgrade() {
     if [ -f ${UPGRADE_SUCCESS_FLAG} ]; then
         rm -f ${UPGRADE_SUCCESS_FLAG}
     fi
-    if [[ "${deploy_mode}" == "dbstor" ]] && [[ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade ]];then
+    if [[ " ${OFFLINES_MODES[*]} " == *" ${deploy_mode} "* ]] && [[ -d /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade ]];then
         rm -rf /mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/*
     fi
 
