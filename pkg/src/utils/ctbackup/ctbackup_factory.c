@@ -28,6 +28,7 @@
 #include "ctbackup_snapshot.h"
 #include "ctbackup_snapshot_backup.h"
 #include "ctbackup_snapshot_restore.h"
+#include "ctbackup_snapshot_delete.h"
 #include "ctbackup_prepare.h"
 #include "ctbackup_copyback.h"
 #include "ctbackup_archivelog.h"
@@ -48,7 +49,8 @@ const char* g_ctbak_cmd_name[] = {
     [CTBAK_PURGE_LOGS] = "purge_logs",
     [CTBAK_SNAPSHOT] = "snapshot",
     [CTBAK_SNAPSHOT_BACKUP] = "snapshot_backup",
-    [CTBAK_SNAPSHOT_RESTORE] = "snapshot_restore"
+    [CTBAK_SNAPSHOT_RESTORE] = "snapshot_restore",
+    [CTBAK_DELETE_SNAPSHOT] = "delete_snapshot"
 };
 
 ctbak_cmd_generate_interface g_ctbak_cmd_generate_set[] = {
@@ -61,7 +63,8 @@ ctbak_cmd_generate_interface g_ctbak_cmd_generate_set[] = {
     [CTBAK_PURGE_LOGS] = (ctbak_cmd_generate_interface) ctbak_generate_purge_logs_cmd,
     [CTBAK_SNAPSHOT] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_cmd,
     [CTBAK_SNAPSHOT_BACKUP] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_backup_cmd,
-    [CTBAK_SNAPSHOT_RESTORE] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_restore_cmd
+    [CTBAK_SNAPSHOT_RESTORE] = (ctbak_cmd_generate_interface) ctbak_generate_snapshot_restore_cmd,
+    [CTBAK_DELETE_SNAPSHOT] = (ctbak_cmd_generate_interface) ctbak_generate_delete_snapshot_cmd
 };
 
 ctbak_cmd_t* ctbak_factory_generate_cmd(ctbak_topic_t ctbak_topic)

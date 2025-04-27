@@ -434,29 +434,14 @@ status_t ctbak_record_snapshot_info(char* fs_name, snapshot_result_info* src_inf
         printf("[ctbackup]Failed to record %s_fs_snap_name, ERRNO: %d\n", fs_name, err);
         return CT_ERROR;
     }
-    err = memcpy_s(dst_info->snapUUID, sizeof(dst_info->snapUUID), src_info->snapUUID,sizeof(src_info->snapUUID));
-    if (err != EOK) {
-        printf("[ctbackup]Failed to record %s_fs_snapUUID, , ERRNO: %d\n", fs_name, err);
-        return CT_ERROR;
-    }
-    dst_info->snapshotID = src_info->snapshotID;
-    dst_info->timepoint = src_info->timepoint;
+    dst_info->snapId = src_info->snapId;
     return CT_SUCCESS;
 }
 
 void print_snapshot_info(const char* fs_name, snapshot_result_info snap_info)
 {
     printf("[ctbackup]%s_snap_name is %s\n", fs_name, snap_info.snapName);
-    printf("[ctbackup]%s_snapUUID is %u\n", fs_name, snap_info.snapshotID);
-    printf("[ctbackup]%s_timepoint is %u\n", fs_name, snap_info.timepoint);
-    printf("[ctbackup]%s_snapUUID is ", fs_name);
-    for(int i = 0; i <= FS_SNAP_UUID_LEN; i++) {
-        if (i == FS_SNAP_UUID_LEN) {
-            printf("\n");
-            break;
-        }
-        printf("%u", snap_info.snapUUID[i]);
-    }
+    printf("[ctbackup]%s_snapId is %lu\n", fs_name, snap_info.snapId);
 }
 
 status_t ctbak_create_snapshot(ctbak_param_t* ctbak_param) {

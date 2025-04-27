@@ -67,10 +67,8 @@ typedef struct {
 } dbs_get_page_from_sf_snap_param;
 
 typedef struct {
+    uint64_t snapId;
     char snapName[CSS_MAX_FSNAME_LEN];
-    uint32_t snapshotID;
-    uint32_t timepoint;
-    uint8_t  snapUUID[FS_SNAP_UUID_LEN];
 } snapshot_result_info;
 
 typedef struct {
@@ -148,7 +146,7 @@ typedef int32_t (*get_correct_page_id_t)(uint32_t, uint32_t, uint32_t, uint64_t)
 
 // snapshot
 typedef int (*create_fs_snap)(char *, uint32_t, snapshot_result_info *);
-typedef int (*delete_fs_snap)(char *, uint32_t, uint32_t, uint32_t, SNAP_UUID_S);
+typedef int (*delete_fs_snap)(char *, uint32_t, char *);
 
 typedef struct st_dbs_interface {
     void *dbs_handle;

@@ -47,7 +47,8 @@ static void ctbackup_show_usage(void)
 {
     printf("Usage: [ctbackup --backup | ctbackup --prepare | ctbackup --copy-back | ctbackup --archivelog\n");
     printf("     | ctbackup --reconciel-mysql | ctbackup --query-incremental-mode | ctbackup --purge-logs\n");
-    printf("     | ctbackup --snapshot | ctbackup --snapshot-backup | ctbackup --snapshot-restore | ctbackup --help]  [OPTIONS]\n");
+    printf("     | ctbackup --snapshot | ctbackup --snapshot-backup | ctbackup --snapshot-restore\n");
+    printf("     | ctbackup --delete-snapshot | ctbackup --help]  [OPTIONS]\n");
     printf("Options:\n");
     printf("--defaults-file=#        Configuration file path of MySQL, Only read default options "
                                         "from the given file.\n");
@@ -96,6 +97,10 @@ static void ctbackup_show_usage(void)
     printf("%*s%s", COMMENT_SPACE, "", "for --backup\n");
     printf("--repair-type            This option tells ctbackup to choose repair-type for badblock in datafiles.\n");
     printf("%*s%s", COMMENT_SPACE, "", "for --restore.\n");
+    printf("--fs-name=#           This option specifies the name of the file system from which the snapshot needs to be deleted.\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --delete-snapshot\n");
+    printf("--snapshot-name=#           This option specifies the name of the snapshot that needs to be deleted.\n");
+    printf("%*s%s", COMMENT_SPACE, "", "for --delete-snapshot\n");
 }
 
 void ctbackup_show_help(void)
@@ -151,6 +156,10 @@ static inline ctbak_topic_t ctbak_parse_topic(char** argv, int32 argc)
 
     if (cm_str_equal(argv[1], CTBAK_ARG_SNAPSHOT_RESTORE)) {
         return CTBAK_SNAPSHOT_RESTORE;
+    }
+
+    if (cm_str_equal(argv[1], CTBAK_ARG_DELETE_SNAPSHOT)) {
+        return CTBAK_DELETE_SNAPSHOT;
     }
 
     return CTBAK_INVALID;
