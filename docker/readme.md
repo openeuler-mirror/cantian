@@ -45,6 +45,13 @@ docker tag quay.io/centos/centos:centos8.2.2004 centos:8.2.2004
 # arm版本
 docker pull hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1
 docker tag hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1 openeuler/openeuler:22.03-lts-sp1
+
+#如果无法pull镜像，使用夸克网盘上的镜像
+#网盘链接：https://pan.quark.cn/s/6980f51a8613
+# x86版本
+docker load -i centos8.tar
+# arm版本
+docker load -i openeuler.tar
 ```
 
 
