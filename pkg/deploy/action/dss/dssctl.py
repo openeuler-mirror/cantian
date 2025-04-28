@@ -225,6 +225,7 @@ class DssCtl(object):
         INST_CONFIG["DSS_NODES_LIST"] = "0:{}:1811,1:{}:1811".format(self.cms_ip.split(";")[0], self.cms_ip.split(";")[1])
         INST_CONFIG["LSNR_PATH"] = DSS_HOME
         INST_CONFIG["LOG_HOME"] = DSS_LOG
+        INST_CONFIG["STORAGE_MODE"] = "SHARE_DISK"
         ComOpt.write_ini(self.dss_inst_cfg, INST_CONFIG)
 
     def prepare_source(self) -> None:
@@ -253,7 +254,7 @@ class DssCtl(object):
         if self.node_id == "0":
             LOG.info("Start to add dss res.")
             cmd = ("source ~/.bashrc && %s/bin/cms res -add dss -type dss -attr \"script=%s\""
-                   % (CMS_HOME, DSS_CTRL_SCRIPTS))
+                   % (CMS_HOME, dss_contrl_path))
             return_code, stdout, stderr = exec_popen(cmd, timeout=TIMEOUT)
             if return_code:
                 output = stdout + stderr
