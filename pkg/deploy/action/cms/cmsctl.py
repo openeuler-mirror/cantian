@@ -1463,11 +1463,18 @@ class CmsCtl(object):
                 gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
                 str_cmd = "rm -rf %s && rm -rf %s && rm -rf %s" % (self.gcc_home, versions_yml, gcc_backup)
                 ret_code, stdout, stderr = _exec_popen("timeout 10 ls %s" % self.gcc_home)
-            if deploy_mode in USE_DBSTOR:
+            if deploy_mode == "dbstor":
                 self.delete_only_start_file()
                 str_cmd = "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml && " \
                           "dbstor --delete-file --fs-name=%s --file-name=gcc_backup" \
                           % (self.storage_share_fs, self.storage_archive_fs)
+                ret_code = 0
+            if deploy_mode == "combined":
+                self.delete_only_start_file()
+                gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
+                str_cmd = "rm -rf %s && " \
+                          "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml" \
+                          % (gcc_backup, self.storage_share_fs)
                 ret_code = 0
             if deploy_mode in USE_DSS:
                 str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=1M count=1024 conv=notrunc"
