@@ -47,7 +47,7 @@ docker pull hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1
 docker tag hub.oepkgs.net/openeuler/openeuler:22.03-lts-sp1 openeuler/openeuler:22.03-lts-sp1
 
 #如果无法pull镜像，使用夸克网盘上的镜像
-#网盘链接：https://pan.quark.cn/s/6980f51a8613
+#网盘链接：https://pan.quark.cn/s/8d232ed79ef3
 # x86版本
 docker load -i centos8.tar
 # arm版本
