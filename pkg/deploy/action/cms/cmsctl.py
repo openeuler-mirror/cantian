@@ -659,6 +659,7 @@ class CmsCtl(object):
         config["_CMS_GCC_BAK"] = self.cms_gcc_bak
         config["_USE_DBSTOR"] = self.use_dbstor
         config["_DBSTOR_NAMESPACE"] = self.cluster_name
+        config["CMS_IN_CONTAINER"] = False
 
         common_parameters = copy.deepcopy(config)
 

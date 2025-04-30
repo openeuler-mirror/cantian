@@ -75,6 +75,7 @@ function set_cms_cfg() {
         sed -i -r "s:(_CMS_MES_PIPE_TYPE = ).*:\1TCP:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
     fi
     sed -i -r "s:(CMS_LOG = ).*:\1${cms_log}:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
+    sed -i -r "s:(CMS_IN_CONTAINER = ).*:\1True:g" ${CONFIG_PATH}/${CMS_CONFIG_NAME}
 }
 
 # 修改cms配置文件
@@ -91,7 +92,6 @@ if [ ${node_id} -eq 0 ] && [[ x"${deploy_mode}" != x"dbstor" && x"${deploy_mode}
     mkdir -m 700 -p "${gcc_home}"
     chown ${cantian_user}:${cantian_group} -R ${gcc_home}
 fi
-
 python3 ${CURRENT_PATH}/cmsctl.py init_container
 if [ $? -ne 0 ]; then
     echo "Execute ${SCRIPT_NAME} cmsctl.py init_container failed"

@@ -34,12 +34,20 @@
 #include "cms_log.h"
 #include "mes_func.h"
 
+#define CMS_K8S_TIMEOUT 4
+
 static vote_ctx_t g_vote_context;
 static vote_ctx_t *g_vote_ctx = &g_vote_context;
+bool8 g_cms_in_container;
 
 vote_result_ctx_t *get_current_vote_result(void)
 {
     return &g_vote_context.vote_result;
+}
+
+void set_is_cms_in_container(bool8 value)
+{
+    g_cms_in_container = value;
 }
 
 static uint64 cms_get_vote_data_offset(uint16 node_id, uint32 slot_id)
@@ -306,10 +314,35 @@ status_t cms_get_vote_result(vote_result_ctx_t *vote_result)
     return CT_SUCCESS;
 }
 
+static uint8 cms_check_k8s_hb(void)
+{
+    struct stat statbuf;
+    errno_t ret = lstat("/opt/cantian/cms/cfg/k8s_hb", &statbuf);
+    if (ret != 0) {
+        CMS_LOG_ERR("Node %u: K8s Heartbeat verification failure, ret %d, self-election prohibited",
+                    g_cms_param->node_id, ret);
+        return NODE_CONNECT_BAD;
+    }
+
+    time_t k8s_kb = statbuf.st_mtime;
+    time_t now_time = time(NULL);
+    time_t diff_time = now_time - k8s_kb;
+    if (diff_time <= CMS_K8S_TIMEOUT) {
+        return NODE_CONNECT_GOOD;
+    }
+    CMS_LOG_ERR("Node %u: K8s Heartbeat loss detected (duration: %ld s), self-election prohibited", 
+                g_cms_param->node_id, diff_time);
+    return NODE_CONNECT_BAD;
+}
+
 static void cms_update_vote_info(void)
 {
     for (uint16 i = 0; i < CMS_MAX_NODE_COUNT; i++) {
         if (i == g_cms_param->node_id) {
+            if (g_cms_in_container) {
+                g_vote_ctx->vote_data.vote_info[i] = cms_check_k8s_hb();
+                continue;
+            }
             g_vote_ctx->vote_data.vote_info[i] = NODE_CONNECT_GOOD;
             continue;
         }
@@ -325,34 +358,9 @@ static void cms_update_vote_info(void)
         } else {
             g_vote_ctx->vote_data.vote_info[i] = NODE_CONNECT_BAD;
             CMS_LOG_ERR("Detected node:%d lost heartbeat %lld times, send:%lld, recv:%lld, last_recv:%lld", i,
-                stat->lost_cnt, stat->send_cnt, stat->recv_cnt, stat->last_recv);
+                        stat->lost_cnt, stat->send_cnt, stat->recv_cnt, stat->last_recv);
         }
     }
-}
-
-void cms_k8s_delete_node0()
-{
-    CMS_LOG_INF("begin cms exec cms_node0_delete script");
-    const char* cmd = "echo 'script begin';timeout 2 python3 /opt/cantian/action/cms/cms_node0_stop.py;"
-                      "echo $?;echo 'script end\n';";
-
-    CMS_LOG_INF("proc cms exec res script. cmd=%s", cmd);
-    FILE* fp = popen(cmd, "r");
-    if (fp == NULL) {
-        CMS_LOG_WAR("popen failed, cmd=%s", cmd);
-        return;
-    }
-    char cmd_out[CMS_CMD_OUT_BUFFER_SIZE];
-    size_t size = 0;
-    size = fread(cmd_out, 1, CMS_MAX_CMD_OUT_LEN, fp);
-    (void)pclose(fp);
-
-    if (size == 0 || size >= sizeof(cmd_out)) {
-        CMS_LOG_ERR("fread failed, cmd=%s, size=%lu", cmd, size);
-        return;
-    }
-    CMS_LOG_INF("script %s, output %s", cmd, cmd_out);
-    CMS_LOG_INF("end cms exec cms_node0_delete script. cmd=%s", cmd);
 }
 
 status_t cms_start_new_voting(void)
@@ -381,10 +389,6 @@ status_t cms_start_new_voting(void)
     CMS_RETRY_IF_ERR(cms_set_vote_data(g_cms_param->node_id, CMS_VOTE_TRIGGER_ROUND,
         (char *)&g_vote_ctx->vote_data.vote_round, sizeof(uint64_t), CT_INVALID_ID64));
     CMS_LOG_INF("cms set new trigger round succeed");
-    if (0 == g_cms_param->node_id) {
-        CMS_LOG_INF("cms detect node 0 k8s status before voting");
-        cms_k8s_delete_node0();
-    }
     g_vote_ctx->vote_data.vote_time = cm_now();
     char vote_time[32];
     cms_date2str(g_vote_ctx->vote_data.vote_time, vote_time, sizeof(vote_time));

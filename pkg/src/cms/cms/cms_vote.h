@@ -142,6 +142,7 @@ bool32 cms_cluster_is_voting(void);
 status_t cms_master_execute_result(vote_result_ctx_t *vote_result);
 status_t cms_get_online_joined_node_set(uint8 *online_node_arr, uint8 *online_joined_node_arr, uint8 max_node_count);
 void cms_get_max_num_index(max_clique_t *clique, uint8 *online_node_set, uint8 *online_joined_node_set);
+void set_is_cms_in_container(bool8 value);
 
 #ifdef __cplusplus
 }
