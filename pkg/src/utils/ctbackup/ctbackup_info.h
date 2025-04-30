@@ -45,11 +45,13 @@ extern "C" {
 #define CTBAK_ARG_SNAPSHOT "--snapshot"
 #define CTBAK_ARG_SNAPSHOT_BACKUP "--snapshot-backup"
 #define CTBAK_ARG_SNAPSHOT_RESTORE "--snapshot-restore"
+#define CTBAK_ARG_DELETE_SNAPSHOT "--delete-snapshot"
 
 #define CTBAK_PARSE_OPTION_COMMON 0
 #define CTBAK_PARSE_OPTION_SNAPSHOT 1
 #define CTBAK_PARSE_OPTION_SNAPSHOT_BACKUP 2
 #define CTBAK_PARSE_OPTION_SNAPSHOT_RESTORE 3
+#define CTBAK_PARSE_OPTION_DELETE_SNAPSHOT 4
 #define CTBAK_PARSE_OPTION_ERR (-1)
 
 // long options for ctbackup
@@ -57,6 +59,9 @@ extern "C" {
 #define CTBAK_LONG_OPTION_SNAPSHOT "snapshot"
 #define CTBAK_LONG_OPTION_SNAPSHOT_BACKUP "snapshot-backup"
 #define CTBAK_LONG_OPTION_SNAPSHOT_RESTORE "snapshot-restore"
+#define CTBAK_LONG_OPTION_DELETE_SNAPSHOT "delete-snapshot"
+#define CTBAK_LONG_OPTION_FS_NAME "fs-name"
+#define CTBAK_LONG_OPTION_SNAPSHOT_NAME "snapshot-name"
 #define CTBAK_LONG_OPTION_NOTDELETE "notdelete"
 #define CTBAK_LONG_OPTION_PREPARE "prepare"
 #define CTBAK_LONG_OPTION_COPYBACK "copy-back"
@@ -122,6 +127,8 @@ extern "C" {
 #define CTBAK_SHORT_OPTION_SKIP_BADBLOCK 'k'
 #define CTBAK_SHORT_OPTION_REPAIR_TYPE 'a'
 #define CTBAK_SHORT_OPTION_NOTDELETE 'n'
+#define CTBAK_SHORT_OPTION_FS_NAME 'N'
+#define CTBAK_SHORT_OPTION_SNAPSHOT_NAME 'M'
 
 typedef enum en_ctbak_topic {
     CTBAK_INVALID,
@@ -137,6 +144,7 @@ typedef enum en_ctbak_topic {
     CTBAK_SNAPSHOT,
     CTBAK_SNAPSHOT_BACKUP,
     CTBAK_SNAPSHOT_RESTORE,
+    CTBAK_DELETE_SNAPSHOT,
 } ctbak_topic_t;
 
 typedef struct ctbak_param {
@@ -163,6 +171,8 @@ typedef struct ctbak_param {
     text_t page_fs_vstore_id;
     text_t log_fs_vstore_id;
     text_t archive_fs_vstore_id;
+    text_t fs_name;
+    text_t snapshot_name;
     uint8  is_decompress;
     uint8  is_pitr_cancel;
     uint8  is_restore;
