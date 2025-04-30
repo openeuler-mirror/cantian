@@ -41,6 +41,7 @@
 #define DBS_TOOL_PARAM_BOOL_LEN 6
 #define DBS_COPY_FILE_PRAMA_NUM 5
 #define DBS_COPY_FILE_CHECK_PRAMA_NUM 3
+#define MAX_ERROR_NUM 12
 #define DEV_RW_BUFFER_SIZE (1 * 1024 * 1024)
 #define NUM_ZERO    0
 #define NUM_ONE     1
@@ -855,8 +856,13 @@ status_t dbs_create_fs_snap(char* fsName, uint32_t vstorId, snapshot_result_info
     int32 ret;
     ret = dbs_global_handle()->create_fs_snap(fsName, vstorId, snap_info);
     if (ret != 0) {
-        printf("Failed to create snapshot from fs %s, %s\n", fsName, ctbak_snap_error[ret]);
-        CT_LOG_RUN_ERR("Failed to create snapshot from fs %s, %s", fsName, ctbak_snap_error[ret]);
+        if (ret > MAX_ERROR_NUM) {
+            printf("Failed to create snapshot from fs %s, errno: %d, unknown error\n", fsName, ret);
+            CT_LOG_RUN_ERR("Failed to create snapshot from fs %s, errno: %d, unknown error", fsName, ret);
+            return CT_ERROR;
+        }
+        printf("Failed to create snapshot from fs %s, errno: %d, %s\n", fsName, ret, ctbak_snap_error[ret]);
+        CT_LOG_RUN_ERR("Failed to create snapshot from fs %s, errno: %d, %s", fsName, ret, ctbak_snap_error[ret]);
         return CT_ERROR;
     }
     return CT_SUCCESS;
@@ -864,15 +870,16 @@ status_t dbs_create_fs_snap(char* fsName, uint32_t vstorId, snapshot_result_info
 
 status_t dbs_delete_fs_snap(char* fsName, uint32_t vstorId, snapshot_result_info* snap_info)
 {
-    SNAP_UUID_S snapUUID = {0};
-    if (memcpy_s(snapUUID.buf, sizeof(snapUUID.buf), snap_info->snapUUID, sizeof(snap_info->snapUUID)) != EOK) {
-        CT_LOG_RUN_ERR("Failed to delete snapshot of fs %s, get snapUUID failed", fsName);
-        return CT_ERROR;
-    }
     int32 ret;
-    ret = dbs_global_handle()->delete_fs_snap(fsName, vstorId, snap_info->snapshotID, snap_info->timepoint, snapUUID);
+    ret = dbs_global_handle()->delete_fs_snap(fsName, vstorId, snap_info->snapName);
     if (ret != 0) {
-        CT_LOG_RUN_ERR("Failed to delete snapshot of fs %s", fsName);
+        if (ret > MAX_ERROR_NUM) {
+            printf("Failed to delete snapshot of fs %s, errno: %d, unknown error\n", fsName, ret);
+            CT_LOG_RUN_ERR("Failed to delete snapshot of fs %s, errno: %d, unknown error", fsName, ret);
+            return CT_ERROR;
+        }
+        printf("Failed to delete snapshot of fs %s, errno: %d, %s\n", fsName, ret, ctbak_snap_error[ret]);
+        CT_LOG_RUN_ERR("Failed to delete snapshot of fs %s, errno: %d, %s", fsName, ret, ctbak_snap_error[ret]);
         return CT_ERROR;
     }
     return CT_SUCCESS;
