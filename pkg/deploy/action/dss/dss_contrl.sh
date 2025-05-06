@@ -183,30 +183,14 @@ function start_dss()
 }
 
 function stop_dss() {
-	res_count=`ps -u ${USER} | grep ${DSS_BIN} |grep -v grep |wc -l`
-	echo "res_count = ${res_count}"
-	if [ "$res_count" -eq "0" ]; then
-		echo "RES_FAILED"
-		exit 1
-	elif [ "$res_count" -eq "1" ]; then
-		ps -u ${USER} | grep ${DSS_BIN}|grep -v grep | awk '{print "kill -9 " $1}' |sh
-		echo "RES_SUCCESS"
-		exit 0
-	else 
-		res_count=`ps -fu ${USER} | grep ${DSS_BIN} | grep ${process_path} | grep -v grep | wc -l`
-		echo "res_count is ${res_count}"
-		if [ "$res_count" -eq "0" ]; then
-			echo "RES_FAILED"
-			exit 1
-		elif [ "$res_count" -eq "1" ]; then
-			ps -fu ${USER} | grep ${DSS_BIN} | grep ${process_path} | grep -v grep | awk '{print "kill -9 " $2}' |sh
-			echo "RES_SUCCESS"
-			exit 0
-		else
-			echo "RES_EAGAIN"
-			exit 3
-		fi
-	fi
+    dsscmd stopdss
+    result=$?
+    if [[ ${result} != 0 ]]; then
+        echo "RES_FAILED"
+        exit 1
+    fi 
+    echo "RES_SUCCESS"
+    exit 0
 }
 
 function stop_dss_by_force() {

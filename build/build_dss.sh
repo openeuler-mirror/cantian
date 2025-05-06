@@ -24,8 +24,8 @@ function download_source() {
         export https_proxy=${http_proxy}
         export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
     fi
-    git clone -b 6.0.0 https://gitee.com/opengauss/CBB.git
-    git clone -b 6.0.0 https://gitee.com/opengauss/DSS.git
+    git clone -b master https://gitee.com/opengauss/CBB.git
+    git clone -b master https://gitee.com/opengauss/DSS.git
     if [[ ${ENV_TYPE} == "aarch64" ]];then
         wget --no-check-certificate https://opengauss.obs.cn-south-1.myhuaweicloud.com/6.0.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz
         tar -zxf openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz

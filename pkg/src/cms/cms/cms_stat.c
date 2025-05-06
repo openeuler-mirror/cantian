@@ -45,6 +45,7 @@
 #include "cms_cmd_upgrade.h"
 #include "cms_stat.h"
 #include "cm_dbstor.h"
+#include "cms_cbb.h"
 
 void cms_date2str(date_t date, char* str, uint32 max_size);
 
@@ -929,7 +930,7 @@ status_t cms_check_res_running(uint32 res_id)
 
 status_t cms_check_dss_stat(cms_res_t res, cms_res_stat_t stat)
 {
-    status_t dss_status;
+    status_t dss_status = CT_SUCCESS;
     status_t ret;
 
     ret = cms_res_check(res.res_id, &dss_status);
@@ -2129,7 +2130,7 @@ status_t cms_elect_res_reformer(uint32 res_id, uint8 reformer, uint8* new_reform
         if (res_stat.cur_stat == CMS_RES_ONLINE && res_stat.work_stat == 1) {
             *new_reformer = node_id;
             CMS_LOG_INF("resource's reformer elect, res_id=%u, new reformer=%u", res_id, (uint32)(*new_reformer));
-            return CT_SUCCESS;
+            break;
         }
 
         // resource is online and joining
@@ -2142,7 +2143,21 @@ status_t cms_elect_res_reformer(uint32 res_id, uint8 reformer, uint8* new_reform
         }
     }
     if (*new_reformer != CT_INVALID_ID8) {
-        CMS_LOG_INF("resource's reformer elect, res_id=%u, new_reformer=%u", res_id, (uint32)(*new_reformer));
+        CMS_LOG_INF("resource's reformer elect success, res_id=%u, new reformer=%u", res_id, (uint32)(*new_reformer));
+        cms_res_t res;
+        if (reformer == CT_INVALID_ID8 || cms_get_res_by_id(res_id, &res) != CT_SUCCESS) {
+            CMS_LOG_ERR("get reformer res failed, res_id=%u", res_id);
+            return CT_SUCCESS;
+        }
+        if (cm_strcmpi(res.type, CMS_RES_TYPE_DSS) == 0) {
+            errno_t ret =  CmInit((uint32)(reformer), "dss", NULL);
+            if (ret != CT_SUCCESS) {
+                CMS_LOG_ERR("init dss lock faild, res_id=%u", res_id);
+                return CT_SUCCESS;
+            }
+            ret = CmResTransLock("dss cm lock", (uint32)(*new_reformer));
+            CMS_LOG_INF("release dss main inst lock, ret = %d", ret);
+        }
     }
     return CT_SUCCESS;
 }
