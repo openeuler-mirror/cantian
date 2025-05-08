@@ -153,11 +153,6 @@ function update_local_status_file_path_by_dbstor() {
         mkdir -p "${METADATA_FS_PATH}"/upgrade/cluster_and_node_status
         chown "${cantian_user}":"${cantian_group}" "${METADATA_FS_PATH}"/upgrade
         chown "${cantian_user}":"${cantian_group}" "${METADATA_FS_PATH}"/upgrade/cluster_and_node_status
-        su -s /bin/bash - "${cantian_user}" -c "python3 -B "${CURRENT_PATH}/dss/common/dss_upgrade_local_status_file.py""
-        if [[ $? -ne 0 ]];then
-            logAndEchoError "file to local failed."
-            exit 1
-        fi
         return 0
     fi
     if [[ "${deploy_mode}" != "dbstor" ]];then

@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
 from update_config import _exec_popen
@@ -28,8 +29,8 @@ class DssDetele(object):
                 return True
         return False
 
-    def delete_file(self, input_file=None):
-        cmd = f'dsscmd rm -p +vg1/{input_file}'
+    def delete_file(self, input_file=None, vg_path_name=None):
+        cmd = f'dsscmd rm -p {vg_path_name}/{input_file}'
         code, _, stderr = _exec_popen(cmd)
 
         if code != 0:
@@ -45,8 +46,14 @@ class DssDetele(object):
         lines = stdout.strip().splitlines()
     
         for line in lines:
-            if file_name in line[5]:
-                self.delete_file(line[5])
+            if file_name != "node":
+                if file_name in line:
+                    values = line.strip().split()
+                    self.delete_file(values[5], vg_path_name)
+            else:
+                if "node" in line and "status.txt" in line:
+                    values = line.strip().split()
+                    self.delete_file(values[5], vg_path_name)
 
     def delete_dir(self, input_file=None):
         cmd = f'dsscmd rmdir -p +vg1/upgrade/{input_file} -r'
@@ -67,7 +74,7 @@ class DssDetele(object):
         else:
             if not self.file_exits(input_file):
                 return
-            self.delete_file(input_file)
+            self.delete_file(input_file, "+vg1/upgrade")
         
 
 def main():
@@ -78,8 +85,8 @@ def main():
     try:
         dss_delete.upgrade_detele_by_dss(input_file)
     except Exception as e:
-        LOG.error(f"Failed to delete dss file when upgrade")
-        sys.exit(1)
+        LOG.error(f"Failed to delete dss file when upgrade {traceback.format_exc(limit=-1)}")
+        raise e
 
 
 if __name__ == "__main__":

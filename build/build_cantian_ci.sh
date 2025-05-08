@@ -16,6 +16,7 @@ CTDB_TARGET_PATH=${CANTIANDB_BIN}/${BUILD_TARGET_NAME}/CantianKernel
 MYSQL_CODE_PATH=${MYSQL_SERVER_PATH}/mysql-source
 MYSQL_BIN_NAME="Mysql_server"
 CONNECT_BIN_NAME="Cantian_connector"
+BUILD_MYSQL_CONNECTOR=${BUILD_MYSQL_CONNECTOR:-"YES"}
 
 mkdir -p ${TMP_PKG_PATH}
 
@@ -99,38 +100,57 @@ function newPackageTarget() {
       sed -i "s/\(Version: .*\)\.[A-Z].*/\1.${B_VERSION_SUFFIX}/" "${CURRENT_PATH}"/versions.yml
   fi
   sed -i 's#ChangeVersionTime: .*#ChangeVersionTime: '"$(date +%Y/%m/%d\ %H:%M)"'#' "${CURRENT_PATH}"/versions.yml
+
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/
   cp -arf "${CANTIANDB_BIN}"/rpm/RPMS/"${ENV_TYPE}"/cantian*.rpm ${pkg_real_path}/repo/
-  cp -arf "${CTDB_CODE_PATH}"/temp/ct_om/rpm/RPMS/"${ENV_TYPE}"/ct_om*.rpm ${pkg_real_path}/repo
+  cp -arf "${CTDB_CODE_PATH}"/temp/ct_om/rpm/RPMS/"${ENV_TYPE}"/ct_om*.rpm ${pkg_real_path}/repo/
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/action/* ${pkg_real_path}/action/
   cp -arf "${CTDB_CODE_PATH}"/pkg/deploy/config/* ${pkg_real_path}/config/
   cp -arf "${CTDB_CODE_PATH}"/common/* ${pkg_real_path}/common/
   if [[ ${BUILD_MODE} == "single" ]]; then
-    cp -rf  "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
+    cp -rf "${CTDB_CODE_PATH}"/pkg/deploy/single_options/* ${pkg_real_path}/action/cantian
   fi
   cp -arf "${CTDB_CODE_PATH}"/dss/* ${pkg_real_path}/dss/
+
   sed -i "s/#MYSQL_PKG_PREFIX_NAME#/${mysql_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
-  sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  if [[ ${BUILD_MYSQL_CONNECTOR} == "YES" ]]; then
+    sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/${connector_pkg_name}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  else
+    sed -i "s/#CONNECTOR_PKG_PREFIX_NAME#/NA/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+  fi
   sed -i "s/## BUILD_TYPE ENV_TYPE ##/${build_type_upper} ${ENV_TYPE}/g" ${CTDB_CODE_PATH}/CI/script/for_mysql_official/patch.sh
+
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official ${pkg_real_path}
   cp -rf ${CTDB_CODE_PATH}/pkg/src/zlogicrep/build/Cantian_PKG/file/* ${pkg_real_path}/zlogicrep/build/Cantian_PKG/file/
+
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_usr_pwd.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/dbstor/check_dbstor_compat.sh
   sed -i "/main \$@/i CSTOOL_TYPE=${BUILD_TYPE}" ${pkg_real_path}/action/inspection/inspection_scripts/kernal/check_link_cnt.sh
 
-  echo "Start pkg ${pkg_dir_name}.tgz..."
+  echo "Start pkg ${pkg_name}..."
   cd ${TMP_PKG_PATH}
   tar -zcf "${pkg_name}" ${pkg_dir_name}
   rm -rf ${TMP_PKG_PATH}/${pkg_dir_name}
-  mkdir -p ${MYSQL_BIN_NAME}
-  cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
-  echo "Start pkg ${mysql_pkg_name}..."
-  tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
-  echo "Start pkg ${connector_pkg_name}..."
-  tar -zcf "${connector_pkg_name}" connector
-  rm -rf ${MYSQL_BIN_NAME}
-  rm -rf ${pkg_dir_name}
-  rm -rf ${TMP_PKG_PATH}/connector
+
+  if [[ ${BUILD_MYSQL_CONNECTOR} == "YES" ]]; then
+    if [ -d /usr/local/mysql ]; then
+      mkdir -p ${MYSQL_BIN_NAME}
+      cp -arf /usr/local/mysql ${MYSQL_BIN_NAME}
+      echo "Start pkg ${mysql_pkg_name}..."
+      tar -zcf "${mysql_pkg_name}" ${MYSQL_BIN_NAME}
+      rm -rf ${MYSQL_BIN_NAME}
+    else
+      echo "Error: /usr/local/mysql not found, but BUILD_MYSQL_CONNECTOR=YES, please check your environment."
+      exit 1
+    fi
+
+    echo "Start pkg ${connector_pkg_name}..."
+    tar -zcf "${connector_pkg_name}" connector
+    rm -rf ${TMP_PKG_PATH}/connector
+  else
+    echo "skip mysql and connector packaging because BUILD_MYSQL_CONNECTOR=NO"
+  fi
+
   echo "Packing ${pkg_name} success"
 }
 
@@ -183,16 +203,19 @@ function buildMysql() {
   fi
 
   cp "${MYSQL_CODE_PATH}"/bld_debug/plugin_output_directory/ha_ctc.so ${TMP_PKG_PATH}/connector/ha_ctc_noshare.so
+
   echo "patching MysqlCode for mysql source"
   patchingMysqlCode
   if [ $? -ne 0 ]; then
     echo "patching MysqlCode fail."
     exit 1
   fi
+
   INFO_SRC_FILE="${MYSQL_CODE_PATH}/bld_debug/Docs/INFO_SRC"
   if [ -f "$INFO_SRC_FILE" ]; then
      rm -rf "$INFO_SRC_FILE"
   fi
+
   cd "${CURRENT_PATH}"
   if [[ ${BUILD_MODE} == "multiple" ]] || [[ -z ${BUILD_MODE} ]]; then
     echo "compile multiple mysql process"
@@ -254,15 +277,25 @@ function prepare() {
     echo "unsupported build mode"
     exit 1
   fi
-  
-  buildMysql
-  if [ ! -d "${CTDB_TARGET_PATH}" ];then
-    mkdir -p "${CTDB_TARGET_PATH}"
-    chmod 700  "${CTDB_TARGET_PATH}"
+
+  if [[ ${BUILD_MYSQL_CONNECTOR} == "YES" ]]; then
+    buildMysql
+  else
+    echo "skip buildMysql"
   fi
-  cp -arf "${CTDB_CODE_PATH}"/Cantian-DATABASE* "${CTDB_TARGET_PATH}"/
+
+  if [ ! -d "${CTDB_TARGET_PATH}" ]; then
+    mkdir -p "${CTDB_TARGET_PATH}"
+    chmod 700 "${CTDB_TARGET_PATH}"
+  fi
+
+  cp -arf "${CTDB_CODE_PATH}"/Cantian-DATABASE* "${CTDB_TARGET_PATH}/"
   cp -arf "${CTDB_CODE_PATH}"/CI/script/for_mysql_official "${CANTIANDB_BIN}"/"${BUILD_TARGET_NAME}"
-  cp -arf "${CANTIANDB_BIN}"/cantian-connector-mysql "${CANTIANDB_BIN}"/"${BUILD_TARGET_NAME}"
+  if [[ ${BUILD_MYSQL_CONNECTOR} == "YES" ]]; then
+    cp -arf "${CANTIANDB_BIN}"/cantian-connector-mysql "${CANTIANDB_BIN}"/"${BUILD_TARGET_NAME}"
+  else
+    echo "skip copy cantian-connector-mysql"
+  fi
 }
 
 BUILD_TYPE=${1,,}

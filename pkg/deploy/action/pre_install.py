@@ -455,6 +455,21 @@ class CheckInstallConfig(CheckBase):
                 return False
         return True
 
+    def check_cms_ip(self, values):
+        cmd = ["ip", "-4", "addr", "show"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if result.returncode != 0:
+            LOG.error('check ip cmd false %s, %s', result.stdout, result.stderr)
+            return False
+        
+        pattern = re.compile(r'inet\s+([\d.]+)\S+\s+.*?scope global')
+        matches = pattern.findall(result.stdout)
+        for ip in matches:
+            if ip in values:
+                return True
+        LOG.error(f'check ip false {matches}')
+        return False
+
     def check_install_config_param(self, key, value):
         if hasattr(self.value_checker, key):
             target_checker = getattr(self.value_checker, key)
@@ -462,6 +477,14 @@ class CheckInstallConfig(CheckBase):
                 return False
 
         if key in ip_check_element:
+            if key == "cms_ip":
+                cms_ip_list = re.split(r"[;]", value)
+                node_id = int(self.node_id)
+                node_ip_value = cms_ip_list[node_id]
+                cms_ip_values = re.split(r"[,]", node_ip_value)
+                if not self.check_cms_ip(cms_ip_values):
+                    LOG.error(f'the cms_ip is not local with {cms_ip_values}')
+                    return False
             ip_list = re.split(r"[;,|]", value)
             for single_ip in ip_list:
                 if not self.check_ipv4(single_ip) and not self.check_ipv6(single_ip):
@@ -612,6 +635,7 @@ class CheckInstallConfig(CheckBase):
         self.install_config_params_init(install_config_params)
 
         self.cluster_name = install_config_params.get("cluster_name")
+        self.node_id = install_config_params.get("node_id")
 
         if install_config_params['deploy_mode'] in use_dbstor:
             self.config_key.remove("storage_logic_ip")

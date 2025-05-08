@@ -59,7 +59,7 @@ function input_params_check() {
         exit 1
     fi
     # 离线升级需要检查阵列侧ip
-    if [ "${ROLLBACK_MODE}" == "offline" ]; then
+    if [ "${ROLLBACK_MODE}" == "offline" ] && [ x"${deploy_mode}" != x"dss" ]; then
         if [ -z "${DORADO_IP}" ]; then
             logAndEchoError "storage array ip must be provided"
             exit 1
@@ -104,6 +104,14 @@ function get_user_input() {
 
 # 防呆功能，在滚动升级或回滚时执行离线回滚会再次询问:滚动升级提交、提交成功，滚动升级修改系统表成功或者失败场景只支持离线回退
 function mode_check(){
+    if [ x"${deploy_mode}" == x"dss" ];then
+        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/dss/common/dss_upgrade_rollback.py"
+        if [ $? -ne 0 ];then
+            logAndEchoError "mode_check is failed"
+            exit 1
+        fi
+        return
+    fi
     local storage_metadata_fs_path="/mnt/dbdata/remote/metadata_${storage_metadata_fs}/upgrade/"
     local modify_sys_tables_success="${storage_metadata_fs_path}/updatesys.success"
     local modify_sys_tables_failed="${storage_metadata_fs_path}/updatesys.failed"
@@ -256,7 +264,7 @@ function install_rpm()
     rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
 
     tar -zxf ${RPM_UNPACK_PATH_FILE}/Cantian-RUN-CENTOS-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
-    if [ x"${deploy_mode}" != x"file" ];then
+    if [ x"${deploy_mode}" != x"file" ] && [ x"${deploy_mode}" != x"dss" ];then
         echo "start rollback rpm package"
         install_dbstor
         if [ $? -ne 0 ];then
@@ -328,7 +336,7 @@ function do_rollback() {
     cp -f ${backup_path}/config/cantian*.timer /etc/systemd/system/
     # 回滚完快照再执行拷贝操作，避免回滚快照使用的是旧脚本
 
-    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "file" ]]; then
+    if [[ ${node_id} == '0' && ! -f ${CHECK_POINT_FLAG} && ${ROLLBACK_MODE} == "offline" && x"${choose}" != x"yes" && ${deploy_mode} != "file" ]] && [[ ${deploy_mode} != "dss" ]]; then
         rollback_snapshot
         clear_mem
     fi
@@ -413,6 +421,13 @@ function start_cantiand_by_cms() {
     sh /opt/cantian/action/cms/appctl.sh start
     if [ $? -ne 0 ]; then
         logAndEchoError "start cms after upgrade failed"
+        exit 1
+    fi
+    if [[ x"${deploy_mode}" == x"dss" ]]; then
+        sh /opt/cantian/action/dss/appctl.sh start
+    fi
+    if [ $? -ne 0 ]; then
+        logAndEchoError "start dss after upgrade failed"
         exit 1
     fi
     logAndEchoInfo "begin to start cantiand"
@@ -696,11 +711,16 @@ function post_rolldown_nodes_status() {
     cms_ip=$(python3 ${CURRENT_PATH}/get_config_info.py "cms_ip")
     node_count=$(expr "$(echo "${cms_ip}" | grep -o ";" | wc -l)" + 1)
 
-    cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat")
-
     # step1: 统计节点拉起情况
     start_array=()
-    readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}' | tail -n +$"2")"
+    if [[ "${deploy_mode}" == "dss" ]]; then
+        cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat | grep dss")
+        readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}')"
+    else
+        cms_res=$(su -s /bin/bash - "${cantian_user}" -c "cms stat")
+        readarray -t start_array <<< "$(echo "${cms_res}" | awk '{print $3}' | tail -n +$"2")"
+    fi
+
     if [ ${#start_array[@]} != "${node_count}" ]; then
         logAndEchoError "only ${#start_array[@]} nodes were detected, instead of ${node_count}" && exit 1
     fi

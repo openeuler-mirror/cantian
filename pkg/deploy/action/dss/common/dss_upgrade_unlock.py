@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
 from update_config import _exec_popen
@@ -49,8 +50,8 @@ def main():
     try:
         dss_unlock.upgrade_unlock_by_dss(input_file)
     except Exception as e:
-        LOG.error(f"Failed to unlock dss when upgrade")
-        sys.exit(1)
+        LOG.error(f"Failed to unlock dss when upgrade {traceback.format_exc(limit=-1)}")
+        raise e
 
 
 if __name__ == "__main__":

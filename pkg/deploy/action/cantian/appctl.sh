@@ -371,6 +371,14 @@ function safety_upgrade_backup()
         echo "Error: ${backup_dir} alreadly exists, check whether data has been backed up"
         return 1
     fi
+    
+    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
+    if [[ ${deploy_mode} == "dss" ]]; then
+        rm -rf /mnt/dbdata/local/cantian/tmp/data/data
+        mkdir -p /mnt/dbdata/local/cantian/tmp/data/data
+        chmod 750 /mnt/dbdata/local/cantian/tmp/data/data
+        chown ${cantian_user} /mnt/dbdata/local/cantian/tmp/data/data
+    fi
 
     echo "create bak dir for cantian : ${backup_dir}/cantian"
     mkdir -m 755 ${backup_dir}/cantian
@@ -390,13 +398,6 @@ function safety_upgrade_backup()
     cp -arf ${cantian_local}/* ${backup_dir}/cantian/cantian_local
 
     record_cantian_info ${backup_dir}
-    deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
-    if [[ ${deploy_mode} == "dss" ]]; then
-        rm -rf /mnt/dbdata/local/cantian/tmp/data/data
-        mkdir -p /mnt/dbdata/local/cantian/tmp/data/data
-        chmod 750 /mnt/dbdata/local/cantian/tmp/data/data
-        chown ${cantian_user} /mnt/dbdata/local/cantian/tmp/data/data
-    fi
 
     echo "check that all files are backed up to ensure that no data is lost for safety upgrade and rollback"
     check_backup_files ${backup_dir}/cantian/cantian_home_files_list.txt ${backup_dir}/cantian/cantian_home ${cantian_home}
