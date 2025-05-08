@@ -72,8 +72,9 @@ function node_status_check() {
     deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
     if [[ x"${deploy_mode}" == x"dss" ]]; then
         cms_status_nums=$(python3 ${CURRENT_PATH}/get_config_info.py "cms_ip")
-        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/dss/common/dss_upgrade_commit.py ${cms_status_nums}"
-        if [ $result_python -eq 0 ]; then
+        IFS=';' read -ra cms_status <<< "$cms_status_nums"
+        su -s /bin/bash - "${cantian_user}" -c "python3 -B ${CURRENT_PATH}/dss/common/dss_upgrade_commit.py ${#cms_status[@]}"
+        if [ $? -eq 0 ]; then
             return 3
         else
             exit 1

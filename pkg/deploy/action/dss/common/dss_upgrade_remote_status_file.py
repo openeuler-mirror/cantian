@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from file_utils import pad_file_to_512
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
@@ -74,8 +75,8 @@ def main():
     try:
         dss_remote_status.upgrade_remote_status_file_by_dss(input_file)
     except Exception as e:
-        LOG.error(f"Failed to input file when upgrade")
-        sys.exit(1)
+        LOG.error(f"Failed to input file when upgrade {traceback.format_exc(limit=-1)}")
+        raise e
 
 
 if __name__ == "__main__":

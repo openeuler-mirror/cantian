@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from file_utils import read_dss_file
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_PATH, "..", ".."))
@@ -9,8 +10,7 @@ from dss.dssctl import LOG
 
 class DssUpgradeCommit(object):
     def __init__(self):
-        self.node_status_num = 0
-        self.node_ip_num = 0     
+        self.node_status_num = 0    
     
     def file_exits(self):
         '''
@@ -30,23 +30,22 @@ class DssUpgradeCommit(object):
             if "status.txt" in line and "cluster" not in line:
                 self.node_status_num += 1
     
-    def check_nodes(self, cms_status="127.0.0.0"):
+    def check_nodes(self, cms_status=1):
         '''
         检查节点状态文件和cms的ip数量是否相同
         '''
-        self.node_ip_num = len(cms_status.split(";"))
-        if self.node_ip_num != self.node_status_num:
-            LOG.error(f"txt num is {self.node_status_num}, ip num is {self.node_ip_num}")  
-            if self.node_ip_num < self.node_status_num:
+        if cms_status != self.node_status_num:
+            LOG.error(f"txt num is {self.node_status_num}, ip num is {cms_status}")  
+            if cms_status > self.node_status_num:
                 raise Exception(f"the txt in cluster_and_node_status is not enough")
             raise Exception(f"the txt in cluster_and_node_status is error")
     
-    def check_status_file(self):
+    def check_status_file(self, cms_status=1):
         '''
         检查节点状态文件内容
         '''
         context = []
-        for i in range(self.node_ip_num):
+        for i in range(cms_status):
             node_status_file = os.path.join("+vg1/upgrade/cluster_and_node_status", f"node{i}_status.txt")
             context.append(read_dss_file(node_status_file))
         for rollup_result in context:
@@ -56,7 +55,7 @@ class DssUpgradeCommit(object):
     def upgrade_commit(self, input_status=None):
         self.file_exits()
         self.check_nodes(input_status)
-        self.check_status_file()
+        self.check_status_file(input_status)
 
 
 def main():
@@ -65,10 +64,10 @@ def main():
         raise Exception("remote not input")
     input_status = sys.argv[1]
     try:
-        dss_commit.upgrade_commit(input_status)
+        dss_commit.upgrade_commit(int(input_status))
     except Exception as e:
-        LOG.error(f"cluster file check error")
-        sys.exit(1)
+        LOG.error(f"cluster file check error {traceback.format_exc(limit=-1)}")
+        raise e
 
 if __name__ == "__main__":
     try:
