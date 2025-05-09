@@ -455,20 +455,31 @@ class CheckInstallConfig(CheckBase):
                 return False
         return True
 
+    def cms_ip_cmd(self, cmd):
+        pobj = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            stdout, stderr = pobj.communicate(timeout=60)
+        except subprocess.TimeoutExpired as err_cmd:
+            pobj.kill()
+            return -1, "Time Out.", str(err_cmd)
+        return pobj.returncode, stdout, stderr
+        
     def check_cms_ip(self, values):
         cmd = ["ip", "-4", "addr", "show"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        if result.returncode != 0:
-            LOG.error('check ip cmd false %s, %s', result.stdout, result.stderr)
+        ret, stdout, stderr = self.cms_ip_cmd(cmd)
+        if ret != 0:
+            LOG.error('check ip cmd false %s, %s', stdout, stderr)
             return False
         
+        stdout_str = stdout.decode('utf -8')
         pattern = re.compile(r'inet\s+([\d.]+)\S+\s+.*?scope global')
-        matches = pattern.findall(result.stdout)
-        for ip in matches:
-            if ip in values:
-                return True
-        LOG.error(f'check ip false {matches}')
-        return False
+        matches = pattern.findall(stdout_str)
+        for ip in values:
+            if ip not in matches:
+                LOG.error(f'check ip {ip} false {matches}')
+                return False
+        return True
 
     def check_install_config_param(self, key, value):
         if hasattr(self.value_checker, key):
