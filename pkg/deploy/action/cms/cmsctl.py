@@ -1477,7 +1477,7 @@ class CmsCtl(object):
                           % (gcc_backup, self.storage_share_fs)
                 ret_code = 0
             if deploy_mode in USE_DSS:
-                str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=1M count=1024 conv=notrunc"
+                str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=5M count=1024 conv=notrunc"
                 ret_code = 0
             if ret_code == 0:
                 LOGGER.info("clean gcc home cmd : %s" % str_cmd)
