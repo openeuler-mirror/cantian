@@ -265,10 +265,52 @@ class Logicrep:
         else:
             raise Exception("Execute sql timeout.")
 
+    def select_reform_status(self, sql):
+        reform_cmd = "source ~/.bashrc && echo -e '%s' | ctsql sys@127.0.0.1:%s -q -c \"%s\"" % (
+            self.passwd,
+            self.lsnr_port,
+            sql)
+        
+        # 如果集群有节点reform，则STATUS不为OPEN
+        # stdout_status：
+        #   SQL>
+        #   NAME                             STATUS               OPEN_STATUS
+        #   -------------------------------- -------------------- --------------------
+        #   dbstor                           OPEN                 READ WRITE
+
+        #   1 rows fetched.
+        return_code, stdout_status, _ = DefaultValue.exec_popen(reform_cmd)
+        if return_code:
+            raise Exception("Failed to %s by sql, output:%s" % (sql, stdout_status))
+
+        db_status = re.split(r"\s+", re.split(r"\n+", stdout_status.strip())[-2].strip())[1].strip()
+        LOG.info("db status is %s", db_status)
+
+        if db_status == "OPEN":
+            return True
+        return False
+
+    def waiting_cantian_reform(self):
+        i = 0
+        attemp = 180  # 尝试查看STATUS状态次数
+        CMD_REFORM = f"SELECT NAME, STATUS, OPEN_STATUS FROM DV_DATABASE"
+
+        LOG.info("start waiting reform")
+        while not self.select_reform_status(CMD_REFORM):
+            LOG.info("still waiting reform")
+            i += 1
+            time.sleep(3)  # 每次循环3秒
+            if attemp == i :
+                raise Exception("Failed to wait reform, timeout")
+        LOG.info("end waiting reform")
+
     def create_db_user(self):
+        self.waiting_cantian_reform()
         self.execute_sql(CMD_CREATE_LREP.replace("LREP", self.logicrep_user)
                          % self.passwd, f"create {self.logicrep_user}")
+        self.waiting_cantian_reform()
         self.execute_sql(CMD_GRANT.replace("LREP", self.logicrep_user), f"create {self.logicrep_user}")
+        self.waiting_cantian_reform()
         self.execute_sql(CMD_CREATE_PROFILE.replace("LREP", self.logicrep_user), f"create {self.logicrep_user}")
 
     def set_resource_limit_true(self):

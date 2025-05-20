@@ -875,14 +875,10 @@ function do_rollup_upgrade() {
     stop_cantian
     stop_cms
     if [[ "${deploy_mode}" == "dss" ]]; then
-        if [[ ${node_id} != 0 ]]; then
-            sh /opt/cantian/action/cms/appctl.sh start
-            sh /opt/cantian/action/dss/appctl.sh start
-            sh /opt/cantian/action/cms/appctl.sh stop
-            sleep 10
-        else
-            sh /opt/cantian/action/dss/appctl.sh start
-        fi
+        sh /opt/cantian/action/cms/appctl.sh start
+        sh /opt/cantian/action/dss/appctl.sh start
+        sh /opt/cantian/action/cms/appctl.sh stop
+        sleep 10
     fi
 
     # 生成调用ct_backup成功的标记文件，避免重入调用时失败

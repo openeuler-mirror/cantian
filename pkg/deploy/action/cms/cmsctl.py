@@ -1471,13 +1471,10 @@ class CmsCtl(object):
                 ret_code = 0
             if deploy_mode == "combined":
                 self.delete_only_start_file()
-                gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
-                str_cmd = "rm -rf %s && " \
-                          "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml" \
-                          % (gcc_backup, self.storage_share_fs)
+                str_cmd = "cms gcc -del && dbstor --delete-file --fs-name=%s --file-name=versions.yml" % (self.storage_share_fs)
                 ret_code = 0
             if deploy_mode in USE_DSS:
-                str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=1M count=1024 conv=notrunc"
+                str_cmd = "dd if=/dev/zero of=/dev/gcc-disk bs=5M count=1024 conv=notrunc"
                 ret_code = 0
             if ret_code == 0:
                 LOGGER.info("clean gcc home cmd : %s" % str_cmd)
@@ -1502,6 +1499,16 @@ class CmsCtl(object):
                 if FORCE_UNINSTALL != "force":
                     raise Exception("can not connect to remote %s"
                          "ret_code : %s, stdout : %s, stderr : %s" % (self.gcc_home, ret_code, stdout, stderr))
+            if deploy_mode == "combined":
+                gcc_backup = os.path.join("/mnt/dbdata/remote/archive_" + self.storage_archive_fs, "gcc_backup")
+                cmd_rm = "rm -rf %s" % (gcc_backup)
+                cmd_dbstor = "dbstor --delete-file --fs-name=%s --file-name=gcc_backup" % (self.storage_archive_fs)
+                ret_code_rm, stdout_rm, stderr_rm = _exec_popen(cmd_rm)
+                if ret_code_rm and self.install_step >= 2:
+                    ret_code_dbstor, stdout_dbstor, stderr_dbstor = _exec_popen(cmd_dbstor)
+                    if ret_code_dbstor:
+                        LOGGER.info("cms install failed, rm:%s, %s, %s, dbstor:%s, %s, %s" 
+                                    % (ret_code_rm, stdout_rm, stderr_rm, ret_code_dbstor, stdout_dbstor, stderr_dbstor) )
 
         self.clean_environment()
         self.clean_install_path()

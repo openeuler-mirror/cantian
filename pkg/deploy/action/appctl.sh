@@ -425,14 +425,10 @@ case "$ACTION" in
             deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
             node_id=$(python3 ${CURRENT_PATH}/get_config_info.py "node_id")
             if [[ "${deploy_mode}" == "dss" ]]; then
-                if [[ ${node_id} != 0 ]]; then
-                    sh /opt/cantian/action/cms/appctl.sh start
-                    sh /opt/cantian/action/dss/appctl.sh start
-                    sh /opt/cantian/action/cms/appctl.sh stop
-                    sleep 10
-                else
-                    sh /opt/cantian/action/dss/appctl.sh start
-                fi
+                sh /opt/cantian/action/cms/appctl.sh start
+                sh /opt/cantian/action/dss/appctl.sh start
+                sh /opt/cantian/action/cms/appctl.sh stop
+                sleep 10
             fi
             create_upgrade_flag
             upgrade_lock
@@ -469,14 +465,10 @@ case "$ACTION" in
         deploy_mode=$(python3 ${CURRENT_PATH}/get_config_info.py "deploy_mode")
         upgrade_init_flag
         if [[ "${deploy_mode}" == "dss" ]]; then
-            if [[ ${node_id} != 0 ]]; then
-                sh /opt/cantian/action/cms/appctl.sh start
-                sh /opt/cantian/action/dss/appctl.sh start
-                sh /opt/cantian/action/cms/appctl.sh stop
-                sleep 10
-            else
-                sh /opt/cantian/action/dss/appctl.sh start
-            fi
+            sh /opt/cantian/action/cms/appctl.sh start
+            sh /opt/cantian/action/dss/appctl.sh start
+            sh /opt/cantian/action/cms/appctl.sh stop
+            sleep 10
         fi
         upgrade_lock
         do_deploy ${ROLLBACK_NAME} ${INSTALL_TYPE} ${UPGRADE_IP_PORT} ${ROLLBACK_VERSION}

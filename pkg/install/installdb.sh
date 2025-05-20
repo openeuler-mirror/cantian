@@ -165,7 +165,7 @@ function prepare_cms_gcc() {
 
   if [ "${NODE_ID}" == 0 ]; then
     log "zeroing ${GCC_HOME} on node ${NODE_ID}"
-    dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
+    dd if=/dev/zero of=${GCC_HOME} bs=5M count=1024
     cms gcc -reset -f
   fi
 }
