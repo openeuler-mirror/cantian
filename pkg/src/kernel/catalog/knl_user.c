@@ -374,7 +374,7 @@ status_t user_create(knl_session_t *session, knl_handle_t stmt, knl_user_def_t *
         return CT_ERROR;
     }
     log_add_lrep_ddl_begin_4database(session, need_lrep);
-    log_add_lrep_ddl_info_4database(session, stmt, LOGIC_OP_TABLESPACE, RD_CREATE_TABLE, NULL, need_lrep);
+    log_add_lrep_ddl_info_4database(session, stmt, LOGIC_OP_TABLESPACE, RD_CREATE_USER, NULL, need_lrep);
     log_add_lrep_ddl_end_4database(session, need_lrep);
 
     CM_RESTORE_STACK(session->stack);
