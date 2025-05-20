@@ -73,7 +73,7 @@ function prepare_cms_gcc() {
       chmod 600 ${GCC_HOME}
     elif [[ ${DEPLOY_MODE} == "dss" ]]; then
       log "zeroing ${GCC_HOME} on node ${NODE_ID}"
-      dd if=/dev/zero of=${GCC_HOME} bs=1M count=1024
+      dd if=/dev/zero of=${GCC_HOME} bs=5M count=1024
       chmod 600 ${GCC_HOME}
     else
       cms gcc -create
