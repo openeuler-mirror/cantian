@@ -5429,7 +5429,7 @@ status_t knl_create_space_internal(knl_handle_t session, knl_handle_t stmt, knl_
         return CT_ERROR;
     }
 
-    log_add_lrep_ddl_info_4database(se, stmt, LOGIC_OP_TABLESPACE, RD_CREATE_TABLE, NULL, (!def->is_for_create_db));
+    log_add_lrep_ddl_info_4database(se, stmt, LOGIC_OP_TABLESPACE, RD_SPC_CREATE_SPACE_CANTIAN, NULL, (!def->is_for_create_db));
     log_add_lrep_ddl_end_4database(se, (!def->is_for_create_db));
 
     if (def->type & SPACE_TYPE_DEFAULT) {
