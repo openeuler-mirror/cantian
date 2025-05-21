@@ -18,7 +18,18 @@ cantiand_pid=$(ps -ef | grep cantiand | grep -v grep | awk 'NR==1 {print $2}')
 mysql_pid=$(ps -ef | grep /opt/cantian/mysql/install/mysql/bin/mysqld | grep -v grep | awk 'NR==1 {print $2}')
 cms_pid=$(ps -ef | grep cms | grep server | grep start | grep -v grep | awk 'NR==1 {print $2}')
 cantian_daemon_pid=$(pgrep -f cantian_daemon)
+request_k8s_pid=$(pgrep -f request_k8s)
 
+if [[ -z "${request_k8s_pid}" ]]; then
+    logInfo "K8S monitor not found. Attempting to start."
+    exec -a request_k8s python3 ${CURRENT_PATH}/request_k8s.py &
+    request_k8s_pid=$(pgrep -f request_k8s)
+    if [[ -z "${request_k8s_pid}" ]]; then
+        logError "Failed to start K8S monitor."
+    else
+        logInfo "K8S monitor started successfully."
+    fi
+fi
 
 # 手动停止cantian场景不触发飘逸和检查/cms未安装完成也不检查
 if [[ -f /opt/cantian/stop.enable ]] || [[ x"${install_step}" != x"3" ]];then
