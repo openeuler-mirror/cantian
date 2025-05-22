@@ -7,6 +7,7 @@ from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from logic.storage_operate import StorageInf
 from om_log import LOGGER as LOG
 from get_config_info import get_env_info
+from update_config import update_dbstor_conf
 
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +15,8 @@ DEPLOY_PARAM_FILE = "/opt/cantian/config/deploy_param.json"
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 RUN_USER = get_env_info("cantian_user")
 USER_GROUP = get_env_info("cantian_group")
+ASYNC_DR_TYPE = "2"             # 与dbstor异步容灾类型匹配
+SYNC_DR_TYPE = "1"             # 与dbstor同步容灾类型匹配
 
 
 class UpdateDRParams(object):
@@ -28,6 +31,19 @@ class UpdateDRParams(object):
         self.mysql_metadata_in_cantian = self.deploy_params.get("mysql_metadata_in_cantian")
         self.dbstor_fs_vstore_id = self.deploy_params.get("dbstor_fs_vstore_id")
         self.deploy_mode = self.deploy_params.get("deploy_mode")
+        self.dr_deploy_params = None
+
+    def update_dbstor_init_config_file(self):
+        dbstor_config_key_dict = {
+            "REMOTE_ULOG_ID": str(self.dr_deploy_params.get("remote_ulog_id")),
+            "LOCAL_REMOTE_DEVICE_ID": str(self.dr_deploy_params.get("remote_device_id")),
+            "DR_TYPE": SYNC_DR_TYPE,
+            "CLUSTER_NAME": self.dr_deploy_params.get("cluster_name")
+        }
+        if self.dr_deploy_params.get("dr_type") == "async":
+            dbstor_config_key_dict["DR_TYPE"] = ASYNC_DR_TYPE
+        for key, value in dbstor_config_key_dict.items():
+            update_dbstor_conf("add", key, value)
 
     @staticmethod
     def restart_cantian_exporter():
@@ -94,11 +110,11 @@ class UpdateDRParams(object):
 
     def execute(self):
         dr_deploy_param_file = self.copy_dr_deploy_param_file()
-        dr_deploy_params = read_json_config(dr_deploy_param_file)
-        dm_ip = dr_deploy_params.get("dm_ip")
-        dm_user = dr_deploy_params.get("dm_user")
-        dr_deploy_params["node_id"] = self.deploy_params.get("node_id")
-        dr_deploy_params["cantian_vlan_ip"] = self.deploy_params.get("cantian_vlan_ip")
+        self.dr_deploy_params = read_json_config(dr_deploy_param_file)
+        dm_ip = self.dr_deploy_params.get("dm_ip")
+        dm_user = self.dr_deploy_params.get("dm_user")
+        self.dr_deploy_params["node_id"] = self.deploy_params.get("node_id")
+        self.dr_deploy_params["cantian_vlan_ip"] = self.deploy_params.get("cantian_vlan_ip")
         dm_passwd = input()
         storage_operate = StorageInf((dm_ip, dm_user, dm_passwd))
         try:
@@ -109,7 +125,7 @@ class UpdateDRParams(object):
             raise Exception(err_msg) from er
 
         try:
-            self.check_dr_infos(dr_deploy_params, storage_operate)
+            self.check_dr_infos(storage_operate)
         finally:
             storage_operate.logout()
 
@@ -122,9 +138,10 @@ class UpdateDRParams(object):
             except Exception as _err:
                 LOG.info(f"copy DEPLOY_PARAM_FILE failed")
         encrypted_pwd = KmcResolve.kmc_resolve_password("encrypted", dm_passwd)
-        dr_deploy_params["dm_pwd"] = encrypted_pwd
-        write_json_config(DR_DEPLOY_CONFIG, dr_deploy_params)
+        self.dr_deploy_params["dm_pwd"] = encrypted_pwd
+        write_json_config(DR_DEPLOY_CONFIG, self.dr_deploy_params)
         os.chmod(os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json"), mode=0o644)
+        self.update_dbstor_init_config_file()
         if not current_real_path.startswith(target_path):
             try:
                 shutil.copy(DR_DEPLOY_CONFIG, "/opt/cantian/config")
@@ -134,18 +151,24 @@ class UpdateDRParams(object):
         self.restart_cantian_exporter()
         LOG.info("Update dr params success.")
 
-    def check_dr_infos(self, dr_deploy_params, storage_operate):
-        """
-        检查容灾pair对信息是否存在
-        :param dr_deploy_params:
-        :param storage_operate:
-        :return:
-        """
-        page_fs_pair_id = dr_deploy_params.get("page_fs_pair_id")
-        meta_fs_pair_id = dr_deploy_params.get("meta_fs_pair_id")
-        hyper_domain_id = dr_deploy_params.get("hyper_domain_id")
-        hyper_metro_vstore_pair_id = dr_deploy_params.get("vstore_pair_id")
-        ulog_fs_pair_id = dr_deploy_params.get("ulog_fs_pair_id")
+    def async_check_dr_infos(self, storage_operate):
+        page_fs_pair_id = self.dr_deploy_params.get("page_fs_pair_id")
+        ulog_fs_pair_id = self.dr_deploy_params.get("ulog_fs_pair_id")
+        dr_deploy_opt = DRDeployCommon(storage_operate)
+        LOG.info(f"begin to check hyper metro filesystem pair[{ulog_fs_pair_id}]")
+        dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(ulog_fs_pair_id)
+        LOG.info(f"begin to check remote replication pair[{page_fs_pair_id}]")
+        dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(page_fs_pair_id)
+        if not self.mysql_metadata_in_cantian:
+            meta_fs_pair_id = self.dr_deploy_params.get("meta_fs_pair_id")
+            LOG.info(f"begin to check remote replication pair[{meta_fs_pair_id}]")
+            dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(meta_fs_pair_id)
+
+    def sync_check_dr_infos(self, storage_operate):
+        page_fs_pair_id = self.dr_deploy_params.get("page_fs_pair_id")
+        hyper_domain_id = self.dr_deploy_params.get("hyper_domain_id")
+        hyper_metro_vstore_pair_id = self.dr_deploy_params.get("vstore_pair_id")
+        ulog_fs_pair_id = self.dr_deploy_params.get("ulog_fs_pair_id")
         dr_deploy_opt = DRDeployCommon(storage_operate)
         LOG.info(f"begin to check hyper metro domain[{hyper_domain_id}]")
         dr_deploy_opt.query_hyper_metro_domain_info(hyper_domain_id)
@@ -156,6 +179,18 @@ class UpdateDRParams(object):
         LOG.info(f"begin to check remote replication pair[{page_fs_pair_id}]")
         dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(page_fs_pair_id)
         if not self.mysql_metadata_in_cantian:
+            meta_fs_pair_id = self.dr_deploy_params.get("meta_fs_pair_id")
             LOG.info(f"begin to check remote replication pair[{meta_fs_pair_id}]")
             dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(meta_fs_pair_id)
 
+    def check_dr_infos(self, storage_operate):
+        """
+        检查容灾pair对信息是否存在
+        :param dr_deploy_params:
+        :param storage_operate:
+        :return:
+        """
+        if self.dr_deploy_params.get("dr_type") == "async":
+            self.async_check_dr_infos(storage_operate)
+        else:
+            self.sync_check_dr_infos(storage_operate)

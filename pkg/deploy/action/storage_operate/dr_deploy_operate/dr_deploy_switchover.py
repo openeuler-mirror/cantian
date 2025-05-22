@@ -10,7 +10,7 @@ from logic.storage_operate import StorageInf
 from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from om_log import LOGGER as LOG
 from utils.config.rest_constant import DomainAccess, MetroDomainRunningStatus, VstorePairRunningStatus, HealthStatus, \
-    ConfigRole, DataIntegrityStatus, ReplicationRunningStatus
+    ConfigRole, DataIntegrityStatus, ReplicationRunningStatus, RemoteDeviceStatus
 from get_config_info import get_env_info
 
 RUN_USER = get_env_info("cantian_user")
@@ -36,6 +36,7 @@ class SwitchOver(object):
         self.dr_deploy_opt = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
         self.deploy_params = read_json_config(DEPLOY_PARAMS_CONFIG)
+        self.dr_type = self.dr_deploy_info.get("dr_type")
         self.hyper_domain_id = self.dr_deploy_info.get("hyper_domain_id")
         self.page_fs_pair_id = self.dr_deploy_info.get("page_fs_pair_id")
         self.meta_fs_pair_id = self.dr_deploy_info.get("meta_fs_pair_id")
@@ -45,6 +46,7 @@ class SwitchOver(object):
         self.cluster_name = self.dr_deploy_info.get("cluster_name")
         self.metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
         self.run_user = RUN_USER
+        self.check_dr_type()
 
     def check_cluster_status(self, target_node=None, log_type="error", check_time=100):
         """
@@ -236,28 +238,46 @@ class SwitchOver(object):
             time.sleep(20)
         LOG.info("Query the replay success.")
 
-    def execute(self):
-        """
-        step:
-            1、检查双活，复制数据是否完整
-            2、检查当前双活域状态：
-                1）、正常
-                    ①、停止参天
-                    ②、分裂文件系统双活域
-                    ③、取消远程复制从资源写保护
-                    ④、主从切换
-                        Ⅰ）、双活域主备切换
-                        Ⅱ）、远程复制主备切换
-                    ⑤、恢复远程复制从资源写保护
-                    ⑥、page远程复制主备切换（元数据非归一，metadata_fs）
-                    ⑦、启动参天
-                2）、分裂
-                2）、故障退出
-        :return:
-        """
-        LOG.info("Active/standby switch start.")
-        self.check_cluster_status(target_node=self.node_id)
-        self.init_storage_opt()
+    def check_dr_type(self):
+        if self.dr_type not in ["async", "sync"]:
+            raise Exception("[ERROR] DrType must be async or sync")
+
+    def sync_ulog_rep_pair(self):
+        ulog_rep_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
+            pair_id=self.ulog_fs_pair_id)
+        rep_pair_health_status = ulog_rep_pair_info.get("HEALTHSTATUS")
+        if rep_pair_health_status == HealthStatus.Normal:
+            self.dr_deploy_opt.sync_remote_replication_filesystem_pair(pair_id=self.ulog_fs_pair_id,
+                                                                       vstore_id=self.dr_deploy_info.get("dbstor_fs_vstore_id"),
+                                                                       is_full_copy=False)
+            time.sleep(5)
+        while True:
+            ulog_rep_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
+                pair_id=self.ulog_fs_pair_id)
+            replication_progress = ulog_rep_pair_info.get("REPLICATIONPROGRESS")
+            if replication_progress == "100":
+                return
+            time.sleep(5)
+
+    def swap_role_ulog_pair(self):
+        if self.dr_type != "async":
+            self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
+            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
+                self.hyper_domain_id, DomainAccess.ReadAndWrite)
+            self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
+            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(self.hyper_domain_id, DomainAccess.ReadOnly)
+            self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
+            self.query_sync_status()
+        else:
+            self.sync_ulog_rep_pair()
+            self.dr_deploy_opt.split_remote_replication_filesystem_pair(self.ulog_fs_pair_id)
+            self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(self.ulog_fs_pair_id)
+            self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id,
+                                                          self.dr_deploy_info.get("dbstor_fs_vstore_id"))
+            self.dr_deploy_opt.remote_replication_filesystem_pair_set_secondary_write_lock(self.ulog_fs_pair_id)
+            self.sync_ulog_rep_pair()
+
+    def _switch_pre_check_sync(self):
         pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(self.ulog_fs_pair_id)
         local_data_status = pair_info.get("LOCALDATASTATE")
         remote_data_status = pair_info.get("REMOTEDATASTATE")
@@ -273,17 +293,73 @@ class SwitchOver(object):
                       get_status(running_status, MetroDomainRunningStatus)
             LOG.error(err_msg)
             raise Exception(err_msg)
-        if config_role == ConfigRole.Primary and running_status == MetroDomainRunningStatus.Normal:
+        return config_role == ConfigRole.Primary and running_status == MetroDomainRunningStatus.Normal
+
+    def _switch_pre_check_async(self):
+        remote_device_info = self.dr_deploy_opt.query_remote_device_info(
+            self.dr_deploy_info.get("remote_device_id"))
+        health_status = remote_device_info.get("HEALTHSTATUS")
+        running_status = remote_device_info.get("RUNNINGSTATUS")
+        if health_status != HealthStatus.Normal or running_status != RemoteDeviceStatus.LinkUp:
+            err_msg = ("Remote device status is not normal: health status[%s], running status[%s]." %
+                       get_status(health_status, HealthStatus), get_status(running_status, RemoteDeviceStatus))
+            raise Exception(err_msg)
+        log_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.ulog_fs_pair_id)
+        log_pair_role = log_pair_info.get("ISPRIMARY")
+        log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
+        if (log_pair_running_status != ReplicationRunningStatus.Normal and
+                log_pair_running_status != ReplicationRunningStatus.Synchronizing):
+            err_msg = "Log pair running status is not normal: log pair status[%s]." % log_pair_running_status
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+        return log_pair_role == "true" and (log_pair_running_status == ReplicationRunningStatus.Normal or
+                                            log_pair_running_status == ReplicationRunningStatus.Synchronizing)
+
+    def switch_pre_check(self):
+        if self.dr_type != "async":
+            return self._switch_pre_check_sync()
+        else:
+            return self._switch_pre_check_async()
+
+    def execute(self):
+        """
+        sync step:
+            1、检查双活，复制数据是否完整
+            2、检查当前双活域状态：
+                1）、正常
+                    ①、停止参天
+                    ②、分裂文件系统双活域
+                    ③、取消远程复制从资源写保护
+                    ④、主从切换
+                        Ⅰ）、双活域主备切换
+                        Ⅱ）、远程复制主备切换
+                    ⑤、恢复远程复制从资源写保护
+                    ⑥、page远程复制主备切换（元数据非归一，metadata_fs）
+                    ⑦、启动参天
+                2）、分裂
+                2）、故障退出
+        async step:
+            1.远端设备检查
+            2.log远程复制pair状态检查
+                1)正常
+                    ①、停止参天
+                    ②、同步log，再分裂log pair
+                    ③、主备切换
+                    ④、同步log pair
+                    ⑤、page远程复制主备切换
+                    ⑥、启动参天
+                2)分裂
+                3)异常断开
+        :return:
+        """
+        LOG.info("Active/standby switch start.")
+        self.check_cluster_status(target_node=self.node_id)
+        self.init_storage_opt()
+        if self.switch_pre_check():
             self.standby_logicrep_stop()
             self.standby_cms_res_stop()
             self.wait_res_stop()
-            self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
-            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
-                self.hyper_domain_id, DomainAccess.ReadAndWrite)
-            self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
-            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(self.hyper_domain_id, DomainAccess.ReadOnly)
-            self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
-            self.query_sync_status()
+            self.swap_role_ulog_pair()
             pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.page_fs_pair_id)
             page_role = pair_info.get("ISPRIMARY")
             if page_role == "true":
@@ -299,7 +375,7 @@ class SwitchOver(object):
                 else:
                     LOG.info("Meta fs rep pair is already standby site.")
             self.standby_cms_res_start()
-            self.check_cluster_status()
+            self.check_cluster_status(target_node=self.node_id)
             LOG.info("Active/standby switchover success.")
         else:
             LOG.info("FS hyper metro domain is already standby site.")
@@ -443,6 +519,66 @@ class DRRecover(SwitchOver):
             LOG.error(err_msg)
             raise Exception(err_msg)
 
+    def _recover_pre_check_sync(self):
+        domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
+        running_status = domain_info.get("RUNNINGSTATUS")
+        config_role = domain_info.get("CONFIGROLE")
+        self.hyper_metro_status_check(running_status, config_role)
+        return config_role, running_status == MetroDomainRunningStatus.Split
+
+    def _recover_pre_check_async(self):
+        log_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.ulog_fs_pair_id)
+        log_pair_role = log_pair_info.get("ISPRIMARY")
+        log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
+        if log_pair_role != "true" or log_pair_running_status != ReplicationRunningStatus.Split:
+            err_msg = "DR recover operation is not allowed in [log_pair_role primary[%s], running_status[%s]]." % \
+                      log_pair_role, get_status(log_pair_running_status, ReplicationRunningStatus)
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+        return log_pair_role, log_pair_running_status == ReplicationRunningStatus.Split
+
+    def recover_pre_check(self):
+        if self.dr_type != "async":
+            return self._recover_pre_check_sync()
+        else:
+            return self._recover_pre_check_async()
+
+    def _recover_stop_db(self):
+        try:
+            self.standby_cms_res_stop()
+            self.wait_res_stop()
+        except Exception as _er:
+            try:
+                self.check_cluster_status(log_type="info", check_time=5)
+            except Exception as _err:
+                LOG.info("The cantian has stopped")
+            else:
+                err_msg = "standby cms res stop cantian error."
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+
+    def do_recover_ulog_and_swap_role(self, ulog_role):
+        if self.dr_type != "async":
+            if ulog_role == ConfigRole.Primary:
+                self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
+                    self.hyper_domain_id, DomainAccess.ReadAndWrite)
+                self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
+            self._recover_stop_db()
+            self.single_write = self.do_dbstor_baseline()
+            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(self.hyper_domain_id, DomainAccess.ReadOnly)
+            try:
+                self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
+            except Exception as _er:
+                LOG.info("Fail to recover hyper metro domain, details: %s", str(_er))
+        else:
+            if ulog_role == "true":
+                self.dr_deploy_opt.swap_role_replication_pair(self.ulog_fs_pair_id,
+                                                              self.dr_deploy_info.get("dbstor_fs_vstore_id"))
+            self._recover_stop_db()
+            self.single_write = "1"  # 当前默认都同步
+            self.dr_deploy_opt.remote_replication_filesystem_pair_set_secondary_write_lock(self.ulog_fs_pair_id)
+            self.sync_ulog_rep_pair()
+
     def execute(self, cantian_recover_type = None):
         """
         step:
@@ -473,38 +609,14 @@ class DRRecover(SwitchOver):
         LOG.info("DR recover start.")
         self.check_cluster_status_for_recover()
         self.init_storage_opt()
-        domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
-        running_status = domain_info.get("RUNNINGSTATUS")
-        config_role = domain_info.get("CONFIGROLE")
-        self.hyper_metro_status_check(running_status, config_role)
-        if running_status == MetroDomainRunningStatus.Split:
-            if config_role == ConfigRole.Primary:
-                self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
-                    self.hyper_domain_id, DomainAccess.ReadAndWrite)
-                self.dr_deploy_opt.swap_role_fs_hyper_metro_domain(self.hyper_domain_id)
-            try:
-                self.standby_cms_res_stop()
-                self.wait_res_stop()
-            except Exception as _er:
-                try:
-                    self.check_cluster_status(log_type="info", check_time=5)
-                except Exception as _err:
-                    LOG.info("The cantian has stopped")
-                else:
-                    err_msg = "standby cms res stop cantian error."
-                    LOG.error(err_msg)
-                    raise Exception(err_msg)
-            self.single_write = self.do_dbstor_baseline()
-            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
-                self.hyper_domain_id, DomainAccess.ReadOnly)
-            try:
-                self.dr_deploy_opt.join_fs_hyper_metro_domain(self.hyper_domain_id)
-            except Exception as _er:
-                LOG.info("Fail to recover hyper metro domain, details: %s", str(_er))
+        ulog_role, check_flag = self.recover_pre_check()
+        if check_flag:
+            self.do_recover_ulog_and_swap_role(ulog_role)
         else:
             self.standby_cms_res_stop()
             self.wait_res_stop()
-        self.query_sync_status()
+        if self.dr_type == "sync":
+            self.query_sync_status()
         if cantian_recover_type == "--site=full_sync":
             self.cantian_recover_type = "full_sync"
         self.rep_pair_recover(self.page_fs_pair_id)
@@ -524,6 +636,37 @@ class FailOver(SwitchOver):
     def __init__(self):
         super(FailOver, self).__init__()
 
+    def fail_over_pre_check(self):
+        if self.dr_type != "async":
+            domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
+            config_role = domain_info.get("CONFIGROLE")
+            if config_role == ConfigRole.Primary:
+                err_msg = "Fail over operation is not allowed in primary node."
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            running_status = domain_info.get("RUNNINGSTATUS")
+            return running_status == MetroDomainRunningStatus.Normal
+        else:
+            log_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.ulog_fs_pair_id)
+            log_pair_role = log_pair_info.get("ISPRIMARY")
+            if log_pair_role == "true":
+                err_msg = "Fail over operation is not allowed in primary node."
+                LOG.error(err_msg)
+                raise Exception(err_msg)
+            log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
+            return log_pair_running_status == ReplicationRunningStatus.Normal
+
+    def do_real_fail_over(self):
+        if self.dr_type != "async":
+            if self.fail_over_pre_check():
+                self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
+            self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(self.hyper_domain_id,
+                                                                          DomainAccess.ReadAndWrite)
+        else:
+            if self.fail_over_pre_check():
+                self.dr_deploy_opt.split_remote_replication_filesystem_pair(self.ulog_fs_pair_id)
+            self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(self.ulog_fs_pair_id)
+
     def execute(self):
         """
         step:
@@ -535,17 +678,7 @@ class FailOver(SwitchOver):
         """
         LOG.info("Cancel secondary resource protection start.")
         self.init_storage_opt()
-        domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
-        config_role = domain_info.get("CONFIGROLE")
-        if config_role == ConfigRole.Primary:
-            err_msg = "Fail over operation is not allowed in primary node."
-            LOG.error(err_msg)
-            raise Exception(err_msg)
-        running_status = domain_info.get("RUNNINGSTATUS")
-        if running_status == MetroDomainRunningStatus.Normal:
-            self.dr_deploy_opt.split_filesystem_hyper_metro_domain(self.hyper_domain_id)
-        self.dr_deploy_opt.change_fs_hyper_metro_domain_second_access(
-            self.hyper_domain_id, DomainAccess.ReadAndWrite)
+        self.do_real_fail_over()
         try:
             self.standby_cms_res_start()
         except Exception as _er:

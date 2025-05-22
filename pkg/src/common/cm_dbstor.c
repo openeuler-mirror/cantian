@@ -96,6 +96,7 @@ status_t dbs_init_lib(void)
     (void)(dbs_load_symbol(intf->dbs_handle, "SetNsTermHandle",                 (void **)(&intf->dbs_set_ns_term_handle)));
     // dbs
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsQueryFsInfo",                          (void **)(&intf->dbs_query_fs_info)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbsDrDestroy",                          (void **)(&intf->dbs_dr_destroy)));
     cm_reset_error();
 
     // dbs

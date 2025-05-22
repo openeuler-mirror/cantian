@@ -17,6 +17,7 @@
   "mes_ssl_switch": true,
   "MAX_ARCH_FILES_SIZE": "300G",
   "dr_deploy": {
+    "dr_type": "sync",
     "active": {
       "dm_ip": "",
       "dm_user": "",
