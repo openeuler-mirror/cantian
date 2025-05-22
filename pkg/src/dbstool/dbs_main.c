@@ -105,6 +105,9 @@ dbs_cmd_def_t g_dbs_cmd_defs[] = {
     {{"--perf-show", "*[PARAM]"}, dbs_perf_show,
         "\tUsage: show dbstor perf.\n"
         "\tparams: [--interval=*] [--times=*]"},
+    {{"--dr-destroy", "*[PARAM]"}, dbs_send_dr_destroy_msg,
+        "\tUsage: dr destroy cmd, the cmd must not be used.\n"
+        "\tparams: --fs-name=* [--vstore_id=*]"},
 };
 
 int32 dbs_cmd_help(int32 argc, char* argv[])

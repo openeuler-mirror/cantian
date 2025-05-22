@@ -20,6 +20,26 @@ DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.j
 DR_STATUS = os.path.join(CURRENT_PATH, "../../../config/dr_status.json")
 
 
+DR_STATUS_DICT = {
+    "async": {
+        "DR_TYPE": "ASYNC-DR",
+        "ulog_fs_pair_status": "Unknown",
+        "page_fs_pair_status": "Unknown",
+        "dr_status_file": "Unknown",
+        "dr_status": "Abnormal"
+    },
+    "sync": {
+        "DR_TYPE": "SYNC-DR",
+        "domain_status": "Unknown",
+        "vstore_pair_status": "Unknown",
+        "ulog_fs_pair_status": "Unknown",
+        "page_fs_pair_status": "Unknown",
+        "dr_status_file": "Unknown",
+        "dr_status": "Abnormal"
+    }
+}
+
+
 class DrDeployQuery(object):
     def __init__(self):
         self.record_file = LOCAL_PROCESS_RECORD_FILE
@@ -84,6 +104,7 @@ class DrStatusCheck(object):
         self.dr_deploy_opt = None
         self.dm_passwd = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.dr_type = None
 
     @staticmethod
     def table_format(statuses: dict) -> str:
@@ -144,22 +165,39 @@ class DrStatusCheck(object):
         except Exception:
             return "Unknown"
 
-    def query_ulog_fs_pair_status(self) -> str:
+    def query_async_ulog_fs_pair_status(self) -> str:
         filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
+        filesystem_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(
+            pair_id=filesystem_pair_id)
+        if filesystem_pair_info:
+            if filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal:
+                return "Normal"
+            else:
+                return "Abnormal"
+        return "Unknown"
+
+    def query_sync_ulog_fs_pair_status(self) -> str:
+        filesystem_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
+        filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
+            pair_id=filesystem_pair_id)
+        if filesystem_pair_info:
+            ulog_fs_running_status = filesystem_pair_info.get("RUNNINGSTATUS")
+            if (ulog_fs_running_status == VstorePairRunningStatus.Normal and
+                    filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal):
+                if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Synchronizing:
+                    return "Runing"
+                if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal:
+                    return "Normal"
+            else:
+                return "Abnormal"
+        return "Unknown"
+
+    def query_ulog_fs_pair_status(self) -> str:
         try:
-            filesystem_pair_info = self.dr_deploy_opt.query_hyper_metro_filesystem_pair_info_by_pair_id(
-                pair_id=filesystem_pair_id)
-            if filesystem_pair_info:
-                ulog_fs_running_status = filesystem_pair_info.get("RUNNINGSTATUS")
-                if (ulog_fs_running_status == VstorePairRunningStatus.Normal and
-                        filesystem_pair_info.get("HEALTHSTATUS") == HealthStatus.Normal):
-                    if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Synchronizing:
-                        return "Runing"
-                    if filesystem_pair_info.get("CONFIGSTATUS") == VstorePairConfigStatus.Normal:
-                        return "Normal"
-                else:
-                    return "Abnormal"
-            return "Unknown"
+            if self.dr_type == "async":
+                return self.query_async_ulog_fs_pair_status()
+            else:
+                return self.query_sync_ulog_fs_pair_status()
         except Exception:
             return "Unknown"
 
@@ -219,25 +257,23 @@ class DrStatusCheck(object):
     def execute(self, display) -> str:
         is_json_display = display != "table"
         self.init_storage_opt()
+        if self.dr_deploy_info.get("dr_type") == "async" and self.dr_deploy_info.get("hyper_domain_id") is None:
+            self.dr_type = "async"
+        else:
+            self.dr_type = "sync"
+        statuses = DR_STATUS_DICT.get(self.dr_type)
 
-        statuses = {
-            "domain_status": "Unknown",
-            "vstore_pair_status": "Unknown",
-            "ulog_fs_pair_status": "Unknown",
-            "page_fs_pair_status": "Unknown",
-            "dr_status_file": "Unknown",
-            "dr_status": "Abnormal"
-        }
+        if self.dr_type == "sync":
+            statuses["domain_status"] = self.query_domain_status()
+            if statuses["domain_status"] in ["Unknown", "Abnormal"]:
+                self.update_dr_status_file(statuses)
+                return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
-        statuses["domain_status"] = self.query_domain_status()
-        if statuses["domain_status"] in ["Unknown", "Abnormal"]:
-            self.update_dr_status_file(statuses)
-            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
-
-        statuses["vstore_pair_status"] = self.query_vstore_pair_status()
-        if statuses["vstore_pair_status"] in ["Unknown", "Abnormal", "Running"]:
-            self.update_dr_status_file(statuses)
-            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+        if self.dr_type == "sync":
+            statuses["vstore_pair_status"] = self.query_vstore_pair_status()
+            if statuses["vstore_pair_status"] in ["Unknown", "Abnormal", "Running"]:
+                self.update_dr_status_file(statuses)
+                return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
         statuses["ulog_fs_pair_status"] = self.query_ulog_fs_pair_status()
         if statuses["ulog_fs_pair_status"] in ["Unknown", "Abnormal", "Running"]:
@@ -254,9 +290,9 @@ class DrStatusCheck(object):
             self.update_dr_status_file(statuses)
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
-        if all(status == "Normal" for status in list(statuses.values())[:-1]):
+        if all(status == "Normal" for status in list(statuses.values())[1:-1]):
             statuses["dr_status"] = "Normal"
-        if any(status == "Running" for status in list(statuses.values())[:-1]):
+        if any(status == "Running" for status in list(statuses.values())[1:-1]):
             statuses["dr_status"] = "Running"
 
         self.update_dr_status_file(statuses)

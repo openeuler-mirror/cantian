@@ -107,3 +107,4 @@ int32 dbs_get_ns_io_forbidden_stat(int32 argc, char *argv[]);
 int32 dbs_get_link_timeout(int32 argc, char *argv[]);
 int32 dbs_query_fs_info(int32 argc, char *argv[]);
 int32 dbs_perf_show(int32 argc, char *argv[]);
+int32_t dbs_dr_uninstall(int32 argc, char *argv[]);

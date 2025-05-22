@@ -29,6 +29,7 @@ class Constant:
     # 容灾查询操作
     QUERY_SYSTEM_INFO = "/deviceManager/rest/{deviceId}/system/"
     QUERY_REMOTE_DEVICE_INFO = "/deviceManager/rest/{deviceId}/remote_device"
+    QUERY_LOCAL_CONTROLLER_INFO = "/deviceManager/rest/{deviceId}/system/"
     QUERY_LICENSE_FEATURE = "/deviceManager/rest/{deviceId}/license/feature"
     QUERY_HYPER_METRO_FILE_SYSTEM_PAIR = "/deviceManager/rest/{deviceId}/HyperMetroPair/associate"
     QUERY_HYPER_METRO_FILE_SYSTEM_COUNT = "/deviceManager/rest/{deviceId}/HyperMetroPair/count"
