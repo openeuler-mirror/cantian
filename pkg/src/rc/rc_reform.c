@@ -1339,6 +1339,9 @@ status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info,
         knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
     }
     g_rc_ctx->status = REFORM_RECOVER_DONE;
+    if (!full_recovery && !DB_IS_PRIMARY(&session->kernel->db)) {
+        CT_RETURN_IFERR(g_rc_callback.ctc_invalid_all_dd_cache(session));
+    }
     return g_rc_callback.rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
 }
 

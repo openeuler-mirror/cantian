@@ -60,6 +60,7 @@ status_t init_dtc_rc(void)
     init_st.callback.rc_reform_cancled = (rc_cb_reform_canceled)rc_reform_cancled;
     init_st.callback.rc_start_lrpl_proc = (rc_cb_start_lrpl_proc)rc_start_lrpl_proc;
     init_st.callback.rc_notify_reform_status = (rc_cb_notify_reform_stat)rc_notify_reform_status;
+    init_st.callback.ctc_invalid_all_dd_cache = (rc_execute_invalid_all_dd)ctc_invalid_all_dd_cache;
 
     return init_cms_rc(&g_dtc->rf_ctx, &init_st);
 }
