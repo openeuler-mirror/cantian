@@ -1643,8 +1643,9 @@ class CmsCtl(object):
         cms_cmd = r"/^\s*export\s*CMS_HOME=\".*\"$/d"
 
         cmds = [path_cmd, lib_cmd, cms_cmd]
+        user_info = pwd.getpwuid(os.getuid())
         if self.user_profile == "":
-            self.user_profile = os.path.join("/home", self.user, ".bashrc")
+            self.user_profile = os.path.realpath(os.path.normpath(os.path.join(user_info.pw_dir, ".bashrc")))
         for cmd in cmds:
             cmd = 'sed -i "%s" "%s"' % (cmd, self.user_profile)
             run_cmd(cmd, "failed to clean environment variables")

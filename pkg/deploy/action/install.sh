@@ -587,9 +587,15 @@ rpm_check
 
 # 获取deploy_user和deploy_group，输入文档中的deploy_user关键字
 deploy_user=`python3 ${CURRENT_PATH}/get_config_info.py "deploy_user"`
-exit_deploy_user_name=`ls /home | grep "^${deploy_user}$"`
-if [[ ${exit_deploy_user_name} = '' ]]; then
+# getent passwd的结果：user:x:6008:6006::/home/user:/bin/bash
+exit_deploy_user_home_path=`getent passwd | grep "${deploy_user}" | cut -d: -f6`
+if [[ x"${exit_deploy_user_home_path}" = x"" ]]; then
     logAndEchoError "deploy_user ${deploy_user} not exist"
+    exit 1
+fi
+
+if [[ ! -d ${exit_deploy_user_home_path} ]]; then
+    logAndEchoError "deploy_user ${deploy_user} home dir ${exit_deploy_user_home_path} not exist"
     exit 1
 fi
 

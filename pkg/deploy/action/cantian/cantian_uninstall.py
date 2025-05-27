@@ -1083,7 +1083,8 @@ class CanTian(object):
     def cantian_uninstall(self):
         check_log_path()
         LOGGER.info("uninstall step 0")
-        user, json_data_deploy = get_deploy_user()
+        get_user_environment_file()
+        _, json_data_deploy = get_deploy_user()
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -1092,13 +1093,8 @@ class CanTian(object):
             json_data = json.load(fp)
 
             g_opts.clean_data_dir_on = json_data.get('CLEAN_DATA_DIR_ON', '')
-            if json_data.get('USER_ENV_PATH', '').strip() == "":
-                g_opts.user_env_path = os.path.join("/home", user, ".bashrc")
-            else:
-                g_opts.user_env_path = json_data.get('USER_ENV_PATH', '').strip()
             g_opts.install_path_l = json_data.get('INSTALL_PATH_L', '').strip()
             stat.S_IRUSR = json_data.get('S_IRUSR', '')
-
         g_opts.gs_data_path = "/mnt/dbdata/local/cantian/tmp/data"
 
         LOGGER.info("uninstall step 1")
