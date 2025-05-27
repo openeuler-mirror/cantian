@@ -654,7 +654,8 @@ class FailOver(SwitchOver):
                 LOG.error(err_msg)
                 raise Exception(err_msg)
             log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
-            return log_pair_running_status == ReplicationRunningStatus.Normal
+            return (log_pair_running_status == ReplicationRunningStatus.Normal or
+                    log_pair_running_status == ReplicationRunningStatus.Synchronizing)
 
     def do_real_fail_over(self):
         if self.dr_type != "async":
@@ -664,6 +665,7 @@ class FailOver(SwitchOver):
                                                                           DomainAccess.ReadAndWrite)
         else:
             if self.fail_over_pre_check():
+                self.sync_ulog_rep_pair()
                 self.dr_deploy_opt.split_remote_replication_filesystem_pair(self.ulog_fs_pair_id)
             self.dr_deploy_opt.remote_replication_filesystem_pair_cancel_secondary_write_lock(self.ulog_fs_pair_id)
 
