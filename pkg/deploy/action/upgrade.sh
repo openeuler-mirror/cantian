@@ -431,13 +431,14 @@ function uninstall_rpm()
 }
 
 function update_user_env() {
-    grep 'export CTDB_DATA="/mnt/dbdata/local/cantian/tmp/data"' /home/"${cantian_user}"/.bashrc
+    exit_cantian_user_home_path=`getent passwd | grep "${cantian_user}" | cut -d: -f6`
+    grep 'export CTDB_DATA="/mnt/dbdata/local/cantian/tmp/data"' "${exit_cantian_user_home_path}"/.bashrc
     if [[ $? -ne 0 ]];then
-        sed -i '$a export CTDB_DATA="/mnt/dbdata/local/cantian/tmp/data"' /home/"${cantian_user}"/.bashrc
+        sed -i '$a export CTDB_DATA="/mnt/dbdata/local/cantian/tmp/data"' "${exit_cantian_user_home_path}"/.bashrc
     fi
-    grep 'export CTDB_HOME="/opt/cantian/cantian/server"' /home/"${cantian_user}"/.bashrc
+    grep 'export CTDB_HOME="/opt/cantian/cantian/server"' "${exit_cantian_user_home_path}"/.bashrc
     if [[ $? -ne 0 ]];then
-        sed -i '$a export CTDB_HOME="/opt/cantian/cantian/server"' /home/"${cantian_user}"/.bashrc
+        sed -i '$a export CTDB_HOME="/opt/cantian/cantian/server"' "${exit_cantian_user_home_path}"/.bashrc
     fi
 }
 

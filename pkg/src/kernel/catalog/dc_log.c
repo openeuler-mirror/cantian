@@ -2415,7 +2415,7 @@ void rd_unlock_table_for_mysql_ddl(knl_session_t *session, log_entry_t *log)
 
 void rd_invalid_dd_for_mysql_ddl(knl_session_t *session, log_entry_t *log)
 {
-    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master()) {
+    if (!DB_IS_PRIMARY(&session->kernel->db) && rc_is_master() && !CANTIAN_PART_RECOVERY(session)) {
         g_knl_callback.cc_execute_replay_invalid_dd(session, (void *)log->data);
     }
 }

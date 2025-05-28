@@ -74,6 +74,7 @@ void rc_save_prcy_nodes_info(reform_rcy_node_t *rcy_node);
 bool32 rc_reform_cancled(void);
 status_t rc_start_lrpl_proc(knl_session_t *session);
 status_t rc_notify_reform_status(knl_session_t *session, reform_info_t *rc_info, uint32 status);
+status_t ctc_invalid_all_dd_cache(knl_session_t *session);
 
 // force arch redo log for offline node
 status_t rc_arch_init_proc_ctx(arch_proc_context_t *proc_ctx, uint32 node_id);
