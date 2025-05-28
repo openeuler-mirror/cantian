@@ -244,6 +244,27 @@ status_t ctc_invalid_dd_in_slave_node(knl_handle_t session, void *buff)
     return CT_SUCCESS;
 }
 
+status_t ctc_invalid_all_dd_cache(knl_session_t *session)
+{
+    ctc_handler_t tch;
+    status_t ret = memset_s(&tch, sizeof(ctc_handler_t), 0, sizeof(ctc_handler_t));
+    knl_securec_check(ret);
+    // Do not use 0 or 0xFFFFFFFF, or mysql will close all the connections.
+    tch.thd_id = CT_INVALID_ID32 - 1;
+    tch.inst_id = CT_INVALID_ID32 - 1;
+    tch.sess_addr = (uint64_t)session;
+
+    ctc_invalidate_broadcast_request broadcast_req = { 0 };
+    broadcast_req.mysql_inst_id = CT_INVALID_ID32 - 1;
+    CT_LOG_DEBUG_INF("[ctc_invalid_all_dd_cache] redo: invalid all dd cache");
+
+    ret = ctc_broadcast_mysql_dd_invalidate_impl(&tch, session, &broadcast_req);
+    if (ret != CT_SUCCESS) {
+        CT_LOG_RUN_ERR("[ctc_invalid_all_dd_cache] ret: %d", ret);
+    }
+    return ret;
+}
+
 status_t ctc_execute_ddl_in_slave_node(knl_handle_t session, char *sql_text, uint32 sql_len)
 {
     ctc_handler_t tch;
