@@ -13940,13 +13940,13 @@ status_t db_analyze_table_part(knl_session_t *session, knl_analyze_tab_def_t *de
 
     if (stats_analyze_single_table_part(session, &dc, def, stats_option, is_dynamic) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        stats_set_analyzed(session, &dc, def->need_analyzed);
+        stats_reset_analyzing(session, &dc, def->need_analyzed);
         dc_close(&dc);
         return CT_ERROR;
     }
 
     stats_commit(session, is_dynamic);
-    stats_set_analyzed(session, &dc, def->need_analyzed);
+    stats_reset_analyzing(session, &dc, def->need_analyzed);
     table_part_t *table_part = (table_part_t*)def->table_part;
     stats_disable_table_part_mon(&dc, table_part, def->need_analyzed);
     stats_set_load_info(&load_info, DC_ENTITY(&dc), CT_TRUE, table_part->desc.part_id);
@@ -14054,12 +14054,12 @@ status_t db_analyze_all_table_partitions(knl_session_t *session, knl_dictionary_
 
     if (stats_analyze_normal_table(session, dc, stats_option, is_dynamic, &analyzed) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        stats_set_analyzed(session, dc, analyzed);
+        stats_reset_analyzing(session, dc, analyzed);
         return CT_ERROR;
     }
 
     stats_commit(session, is_dynamic);
-    stats_set_analyzed(session, dc, analyzed);
+    stats_reset_analyzing(session, dc, analyzed);
     stats_disable_table_mon(session, dc, analyzed);
 
     if (!analyzed) {
@@ -14102,23 +14102,24 @@ status_t db_analyze_normal_table(knl_session_t *session, knl_dictionary_t *dc, s
 
     if (stats_analyze_normal_table(session, dc, stats_option, is_dynamic, &analyzed) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        stats_set_analyzed(session, dc, analyzed);
+        stats_reset_analyzing(session, dc, analyzed);
         unlock_tables_directly(session);
         return CT_ERROR;
     }
 
     stats_commit(session, is_dynamic);
-    stats_set_analyzed(session, dc, analyzed);
     stats_disable_table_mon(session, dc, analyzed);
-
+    // is_analyzing must be reseted after refreshing dc, orthwise another process could use empty cbo in dc 
     if (analyzed) {
         stats_set_load_info(&load_info, DC_ENTITY(dc), CT_TRUE, CT_INVALID_ID32);
         stats_flush_logic_log(session, dc, &load_info);
         if (stats_refresh_dc(session, dc, load_info) != CT_SUCCESS) {
+            stats_reset_analyzing(session, dc, analyzed);
             unlock_tables_directly(session);
             *need_invalidate = CT_TRUE;
             return CT_ERROR;
         }
+        stats_reset_analyzing(session, dc, analyzed);
     }
 
     unlock_tables_directly(session);
@@ -14215,7 +14216,7 @@ status_t db_analyze_index(knl_session_t *session, knl_analyze_index_def_t *def, 
 
     if (stats_analyze_index(session, &dc, def, is_dynamic) != CT_SUCCESS) {
         stats_rollback(session, is_dynamic);
-        stats_set_analyzed(session, &dc, def->need_analyzed);
+        stats_reset_analyzing(session, &dc, def->need_analyzed);
         unlock_tables_directly(session);
         dc_close(&dc);
         return CT_ERROR;
@@ -14223,7 +14224,7 @@ status_t db_analyze_index(knl_session_t *session, knl_analyze_index_def_t *def, 
 
     // dynamic statistics use autonomous transaction to commit modification of system table
     stats_commit(session, is_dynamic);
-    stats_set_analyzed(session, &dc, def->need_analyzed);
+    stats_reset_analyzing(session, &dc, def->need_analyzed);
     stats_disable_table_mon(session, &dc, def->need_analyzed);
     stats_set_load_info(&load_info, DC_ENTITY(&dc), CT_TRUE, CT_INVALID_ID32);
     stats_flush_logic_log(session, &dc, &load_info);

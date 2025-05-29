@@ -1809,7 +1809,7 @@ status_t cbo_refresh_statistics(knl_session_t *session, dc_entity_t *entity, sta
                        user->desc.name, entry->name);
         cm_unlatch(&entity->cbo_latch, NULL);
         CM_RESTORE_STACK(session->stack);
-        return CT_SUCCESS;
+        return CT_ERROR;
     }
 
     if (entity->stat_exists) {
