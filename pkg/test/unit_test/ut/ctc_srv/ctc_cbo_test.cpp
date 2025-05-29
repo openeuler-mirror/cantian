@@ -13,7 +13,7 @@ extern "C" {
 }
 
 extern "C" {
-    status_t fill_part_table_cbo_stats_index(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t *stats);
+    void fill_part_table_cbo_stats_index(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t *stats);
 }
 
 using namespace std;
@@ -85,8 +85,7 @@ TEST_F(TestCtcCbo, Should_return_status_true_when_get_cbo_stats)
     MOCKER(knl_is_part_table).stubs().will(returnValue(CT_TRUE));
     MOCKER(knl_get_cbo_part_table).stubs().will(returnValue(table_stats));
     MOCKER(knl_is_compart_table).stubs().will(returnValue(CT_FALSE));
-    MOCKER(fill_part_table_cbo_stats_index).stubs().will(returnValue(CT_ERROR));
     status_t ret = get_cbo_stats(handle, entity, stats, stats->ctc_cbo_stats_table, 0, 0);
-    EXPECT_EQ(ret, CT_ERROR);
+    EXPECT_EQ(ret, CT_SUCCESS);
     GlobalMockObject::verify();
 }

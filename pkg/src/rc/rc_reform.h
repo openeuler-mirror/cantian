@@ -102,6 +102,7 @@ typedef enum e_reform_status {
     REFORM_FROZEN,        // begin   to reform, frozen and not accessable
     REFORM_MOUNTING,      // mount in full restart
     REFORM_RECOVERING,    // remaster or recover in progress
+    REFORM_RECOVERING_ANALYSIS_DONE, // recover analysis done, but recover still in progress
     REFORM_RECOVER_DONE,  // recover done, page can be caccessed
     REFORM_OPEN,          // can accept read request
     REFORM_DONE,          // reform is done
