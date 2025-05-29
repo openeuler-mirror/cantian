@@ -12,6 +12,7 @@ ENV_FILE=${CURRENT_PATH}/env.sh
 MYSQL_MOUNT_PATH=/opt/cantian/image/cantian_connector/for_mysql_official/mf_connector_mount_dir
 UPDATE_CONFIG_FILE_PATH="${CURRENT_PATH}"/update_config.py
 DBSTOR_CHECK_FILE=${CURRENT_PATH}/dbstor/check_dbstor_compat.sh
+DBSTOR_CHECK_ARCH_FILE_SIZE=${CURRENT_PATH}/dbstor/check_max_archive_file_size.sh
 DEPLOY_MODE_DBSTOR_UNIFY_FLAG=/opt/cantian/log/deploy/.dbstor_unify_flag
 config_install_type="override"
 pass_check='true'
@@ -448,6 +449,17 @@ function check_dbstor_client_compatibility() {
     logAndEchoInfo "dbstor client compatibility check success."
 }
 
+function check_max_arch_files_size() {
+    logAndEchoInfo "Begin to check max_arch_files_size"
+    su -s /bin/bash - "${cantian_user}" -c "sh ${DBSTOR_CHECK_ARCH_FILE_SIZE}"
+    if [[ $? -ne 0 ]];then
+        logAndEchoError "max_arch_files_size check failed."
+        uninstall
+        exit 1
+    fi
+    logAndEchoInfo "Check max_arch_files_size success"
+}
+
 function mount_fs() {
     mkdir -m 750 -p /mnt/dbdata/remote/share_${storage_share_fs}
     chown ${cantian_user}:${cantian_group} /mnt/dbdata/remote/share_${storage_share_fs}
@@ -871,6 +883,8 @@ do
             check_dbstor_usr_passwd
             # 检查dbstor client 与server端是否兼容
             check_dbstor_client_compatibility
+            # 检查max_arch_files_size不大于archive文件系统
+            check_max_arch_files_size
         fi
     else
         sh ${CURRENT_PATH}/${lib_name}/appctl.sh install >> ${OM_DEPLOY_LOG_FILE} 2>&1
