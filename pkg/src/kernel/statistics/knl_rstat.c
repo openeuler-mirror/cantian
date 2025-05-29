@@ -10477,7 +10477,7 @@ status_t stats_delete_part_stats(knl_session_t *session, const uint32 uid, const
     CM_SAVE_STACK(session->stack);
     knl_cursor_t *cursor = knl_push_cursor(session);
     if (stats_delete_histgram_by_part(session, cursor, &dc, part_id) != CT_SUCCESS) {
-        stats_set_analyzed(session, &dc, need_delete);
+        stats_reset_analyzing(session, &dc, need_delete);
         dc_close(&dc);
         CM_RESTORE_STACK(session->stack);
         return CT_ERROR;
@@ -10485,24 +10485,24 @@ status_t stats_delete_part_stats(knl_session_t *session, const uint32 uid, const
     CM_RESTORE_STACK(session->stack);
 
     if (stats_delete_histhead_by_part(session, &dc, part_id) != CT_SUCCESS) {
-        stats_set_analyzed(session, &dc, need_delete);
+        stats_reset_analyzing(session, &dc, need_delete);
         dc_close(&dc);
         return CT_ERROR;
     }
 
     if (stats_reset_sys_indexpart_by_part(session, uid, oid, part_id) != CT_SUCCESS) {
-        stats_set_analyzed(session, &dc, need_delete);
+        stats_reset_analyzing(session, &dc, need_delete);
         dc_close(&dc);
         return CT_ERROR;
     }
 
     if (stats_reset_sys_tablepart(session, uid, oid, part_id) != CT_SUCCESS) {
-        stats_set_analyzed(session, &dc, need_delete);
+        stats_reset_analyzing(session, &dc, need_delete);
         dc_close(&dc);
         return CT_ERROR;
     }
 
-    stats_set_analyzed(session, &dc, need_delete);
+    stats_reset_analyzing(session, &dc, need_delete);
     load_info.parent_part_id = part_id;
     load_info.load_subpart = CT_TRUE;
     if (stats_refresh_dc(session, &dc, load_info) != CT_SUCCESS) {
@@ -10530,22 +10530,22 @@ status_t stats_reset_table_stats(knl_session_t *session, knl_dictionary_t *dc, b
 
     bool32 is_nologging = is_old_nologging ? is_old_nologging : IS_NOLOGGING_BY_TABLE_TYPE(table->desc.type);
     if (stats_drop_hists(session, uid, oid, is_nologging) != CT_SUCCESS) {
-        stats_set_analyzed(session, dc, need_delete);
+        stats_reset_analyzing(session, dc, need_delete);
         return CT_ERROR;
     }
 
     if (stats_reset_sys_column(session, uid, oid) != CT_SUCCESS) {
-        stats_set_analyzed(session, dc, need_delete);
+        stats_reset_analyzing(session, dc, need_delete);
         return CT_ERROR;
     }
 
     if (stats_reset_sys_index(session, uid, oid) != CT_SUCCESS) {
-        stats_set_analyzed(session, dc, need_delete);
+        stats_reset_analyzing(session, dc, need_delete);
         return CT_ERROR;
     }
 
     if (stats_reset_sys_table(session, uid, oid) != CT_SUCCESS) {
-        stats_set_analyzed(session, dc, need_delete);
+        stats_reset_analyzing(session, dc, need_delete);
         return CT_ERROR;
     }
 
@@ -10554,12 +10554,12 @@ status_t stats_reset_table_stats(knl_session_t *session, knl_dictionary_t *dc, b
 
     if (IS_PART_TABLE(table)) {
         if (stats_reset_indexparts_stats(session, dc) != CT_SUCCESS) {
-            stats_set_analyzed(session, dc, need_delete);
+            stats_reset_analyzing(session, dc, need_delete);
             return CT_ERROR;
         }
 
         if (stats_reset_tableparts_stats(session, dc) != CT_SUCCESS) {
-            stats_set_analyzed(session, dc, need_delete);
+            stats_reset_analyzing(session, dc, need_delete);
             return CT_ERROR;
         }
 
@@ -10568,7 +10568,7 @@ status_t stats_reset_table_stats(knl_session_t *session, knl_dictionary_t *dc, b
         }
     }
 
-    stats_set_analyzed(session, dc, need_delete);
+    stats_reset_analyzing(session, dc, need_delete);
     return CT_SUCCESS;
 }
 
@@ -10723,7 +10723,7 @@ void stats_dc_invalidate(knl_session_t *session, knl_dictionary_t *dc)
     unlock_tables_directly(session);
 }
 
-void stats_set_analyzed(knl_session_t *session, knl_dictionary_t *dc, bool32 analyzed)
+void stats_reset_analyzing(knl_session_t *session, knl_dictionary_t *dc, bool32 analyzed)
 {
     if (!analyzed) {
         return;

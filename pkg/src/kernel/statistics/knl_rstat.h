@@ -474,7 +474,7 @@ status_t stats_gather_table_part(knl_session_t *session, knl_dictionary_t *dc, s
                                  table_part_t *table_part, bool32 is_dynamic);
 status_t stats_check_analyzing(knl_session_t *session, knl_dictionary_t *dc, bool32 *need_analyze,
                                bool32 is_dynamic);
-void stats_set_analyzed(knl_session_t *session, knl_dictionary_t *dc, bool32 analyzed);
+void stats_reset_analyzing(knl_session_t *session, knl_dictionary_t *dc, bool32 analyzed);
 void stats_monitor_table_change(knl_cursor_t *cursor);
 status_t stats_delete_histhead_by_part(knl_session_t *session, knl_dictionary_t *dc, uint32 part_id);
 status_t stats_delete_histgram_by_part(knl_session_t *session, knl_cursor_t *cursor, knl_dictionary_t *dc,
