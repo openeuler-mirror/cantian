@@ -646,7 +646,8 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
     { CTC_UNLOCK_MDL_KEY_ABORT, CT_FALSE, "CTC_UNLOCK_MDL_KEY_ABORT", 0, knl_syncpoint_inject_abort, 0 },
     { CTC_BACKUP_STOP_REDO_RECYCLE_ABORT, CT_FALSE, "CTC_BACKUP_STOP_REDO_RECYCLE_ABORT", 0, knl_syncpoint_inject_abort, 0 },
     { CTC_BACKUP_START_REDO_RECYCLE_ABORT, CT_FALSE, "CTC_BACKUP_START_REDO_RECYCLE_ABORT", 0, knl_syncpoint_inject_abort, 0 },
-};
+    { CANTIAN_REFORM_BETWEEN_REMASTER_AND_RECOVERY_DELAY, CT_FALSE, "CANTIAN_REFORM_BETWEEN_REMASTER_AND_RECOVERY_DELAY", 0, knl_syncpoint_inject_delay, 0},
+  };
 
 #define KNL_SYNCPOINT_COUNT (sizeof(g_knl_syncpoint) / sizeof(g_knl_syncpoint[0]))
 

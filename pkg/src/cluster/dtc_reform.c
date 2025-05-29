@@ -959,6 +959,9 @@ status_t rc_master_reform(reform_mode_t mode, reform_detail_t *detail)
             return CT_ERROR;
         }
 
+        SYNC_POINT_GLOBAL_START(CANTIAN_REFORM_BETWEEN_REMASTER_AND_RECOVERY_DELAY, NULL, 10000);
+        SYNC_POINT_GLOBAL_END;
+
         // step 3 roll forward
         if (rc_master_partial_recovery(mode, detail) != CT_SUCCESS) {
             return CT_ERROR;

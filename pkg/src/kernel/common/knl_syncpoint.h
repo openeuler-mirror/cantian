@@ -334,6 +334,8 @@ typedef enum {
     CTC_UNLOCK_MDL_KEY_ABORT,
     CTC_BACKUP_STOP_REDO_RECYCLE_ABORT,
     CTC_BACKUP_START_REDO_RECYCLE_ABORT,
+
+    CANTIAN_REFORM_BETWEEN_REMASTER_AND_RECOVERY_DELAY,
 } knl_syncpoint_id;
 
 typedef void (*syncpoint_callback)(int32 *param, int32 ret);

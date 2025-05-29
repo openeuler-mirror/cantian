@@ -3595,6 +3595,8 @@ static inline void dtc_rcy_next_phase(knl_session_t *session)
     dtc_rcy->is_end_restore_recover = CT_FALSE;
     dtc_rcy->recovery_status = RECOVERY_REPLAY;
 
+    g_rc_ctx->status = REFORM_RECOVERING_ANALYSIS_DONE;
+
     for (uint32 i = 0; i < dtc_rcy->node_count; i++) {
         dtc_rcy->rcy_log_points[i].rcy_point = dtc_rcy->rcy_log_points[i].rcy_point_saved;
         dtc_rcy->rcy_log_points[i].rcy_write_point = dtc_rcy->rcy_log_points[i].rcy_point_saved;
@@ -3660,6 +3662,7 @@ static status_t dtc_rcy_full_recovery(knl_session_t *session)
 
     RC_STEP_BEGIN(rf_detail->recovery_replay_elapsed);
     dtc_rcy->recovery_status = RECOVERY_REPLAY;
+    g_rc_ctx->status = REFORM_RECOVERING_ANALYSIS_DONE;
     if (dtc_rcy_full_recovery_replay(session, stat) != CT_SUCCESS) {
         CT_LOG_RUN_ERR("[DTC RCY] redo replay failed");
         RC_STEP_END(rf_detail->recovery_replay_elapsed, RC_STEP_FAILED);

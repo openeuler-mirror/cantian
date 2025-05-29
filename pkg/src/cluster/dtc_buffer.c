@@ -322,8 +322,7 @@ bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id)
         return readable;
     }
 
-    dtc_rcy_context_t *dtc_rcy = DTC_RCY_CONTEXT;
-    if (dtc_rcy->recovery_status <= RECOVERY_ANALYSIS) {
+    if (g_rc_ctx->status <= REFORM_RECOVERING_ANALYSIS_DONE) {
         return CT_FALSE;
     }
 
