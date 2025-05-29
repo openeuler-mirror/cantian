@@ -91,11 +91,13 @@ static inline bool32 log_file_not_used(log_context_t *ctx, uint32 file)
     }
 }
 
-static inline void enable_prevent_log_recycle(knl_session_t *session, bool32 enable)
+static inline void enable_prevent_log_recycle(knl_session_t *session, bool32 enable, bool32 is_remote)
 {
     CT_LOG_RUN_INF("enable prevent log recycle %d", enable);
     cm_spin_lock(&session->kernel->attr_lock, NULL);
-    session->kernel->attr.prevent_snapshot_backup_recycle_redo = enable;
+    if (is_remote == CT_FALSE) {
+        session->kernel->attr.prevent_snapshot_backup_recycle_redo = enable;
+    }
     session->kernel->attr.prevent_create_snapshot = enable;
     cm_spin_unlock(&session->kernel->attr_lock);
     if (enable == CT_FALSE) {
@@ -165,7 +167,7 @@ static inline void prevent_log_recycle(knl_session_t *session)
     date_t start_time = g_timer()->now;
     while (is_prevent_log_recycle(session) == CT_TRUE) {
         if  ((g_timer()->now - start_time) >= prevent_timeout * MICROSECS_PER_SECOND) {
-            enable_prevent_log_recycle(session, CT_FALSE);
+            enable_prevent_log_recycle(session, CT_FALSE, CT_FALSE);
             CT_LOG_RUN_INF("prevent log recycle timeout, enable log recycle.");
             break;
         }
@@ -3029,7 +3031,7 @@ void log_process_prevent_snapshot_recycle_redo(void *sess, mes_message_t *msg)
         return;
     }
 
-    enable_prevent_log_recycle(session, rcv_msg->is_prevent);
+    enable_prevent_log_recycle(session, rcv_msg->is_prevent, CT_TRUE);
 
     mes_init_ack_head(msg->head, &ack_head, MES_CMD_BROADCAST_ACK, sizeof(mes_message_head_t), session->id);
     ack_head.status = CT_SUCCESS;
