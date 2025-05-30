@@ -478,6 +478,16 @@ function init_start() {
     touch ${READINESS_FILE}
 }
 
+function fetch_k8s_state() {
+    PROCESS_COUNT=$(ps -ef | grep "${CURRENT_PATH}/request_k8s.py" | grep -v grep | wc -l)
+    if [ $PROCESS_COUNT -gt 0 ]; then
+        PROCESS_ID=$(ps -ef | grep "${CURRENT_PATH}/request_k8s.py" | grep -v grep | awk '{print $2}')
+        kill $PROCESS_ID
+        sleep 2
+    fi
+    exec -a request_k8s python3 ${CURRENT_PATH}/request_k8s.py &
+}
+
 function exit_with_log() {
     # 首次初始化失败，清理gcc_file
     if [ ${node_id} -eq 0 ]; then
@@ -519,6 +529,7 @@ function main() {
     prepare_kmc_conf
     prepare_certificate
     mount_fs
+    fetch_k8s_state
     init_start
     process_logs
 }
