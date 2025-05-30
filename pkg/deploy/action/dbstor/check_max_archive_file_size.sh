@@ -31,9 +31,12 @@ function query_dbstor_tocal_capacity_and_check() {
         exit 1
     fi
 
+    # total_capacity为扇区个数，需要乘0.5换成kb单位,且max_arch_files_size不应该超过archive文件系统一半的80%，所以为0.5*0.5*0.8=0.2
+    precent_num=0.2
     finall_arch_files_size=$((capacity_num * capacity_unit_num))
-    arch_files_size=$(($total_capacity / 2))
-    if [[ $finall_arch_files_size > $arch_files_size ]]; then
+    arch_files_size=$(echo "$total_capacity * $precent_num" | bc)
+    result=$(echo "$finall_arch_files_size > $arch_files_size" | bc)
+    if [[ "$result" -eq 1 ]]; then
         echo "finall_arch_files_size ${finall_arch_files_size} is larger than arch_files_size ${arch_files_size}, \
         max_arch_files_size is ${max_arch_files_size}" >> ${LOG_PATH}
         exit 1
