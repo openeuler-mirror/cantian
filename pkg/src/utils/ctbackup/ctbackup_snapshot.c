@@ -652,14 +652,17 @@ status_t ctbak_do_snapshot(ctbak_param_t* ctbak_param)
             printf("[ctbackup]cantian prevent snapshot recycle redo success\n");
             if (ctbak_create_snapshot_thread(ctbak_param) != CT_SUCCESS) {
                 printf("[ctbackup]create_snapshot failed!\n");
+                ctbak_do_recycle_redo(CTBAK_OPEN_RECYCLE_REDO, &retry);
                 return CT_ERROR;
             }
             if (ctbak_create_snapshot_info_file(ctbak_param) != CT_SUCCESS) {
                 printf("[ctbackup]create snapshot info file failed!\n");
+                ctbak_do_recycle_redo(CTBAK_OPEN_RECYCLE_REDO, &retry);
                 return CT_ERROR;
             }
             if (ctbak_write_snapshot_info_file() != CT_SUCCESS) {
                 printf("[ctbackup]write snapshot info file failed!\n");
+                ctbak_do_recycle_redo(CTBAK_OPEN_RECYCLE_REDO, &retry);
                 return CT_ERROR;
             }
             if (ctbak_do_recycle_redo(CTBAK_OPEN_RECYCLE_REDO, &retry) == CT_SUCCESS) {
