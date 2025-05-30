@@ -40,6 +40,7 @@
 #include "cm_encrypt.h"
 #include "cm_file_iofence.h"
 #include "kmc_init.h"
+#include "cms_vote.h"
 
 config_item_t g_cms_params[] = {
     // name (30B)               isdefault readonly  defaultvalue value runtime_value description range        datatype
@@ -87,6 +88,7 @@ config_item_t g_cms_params[] = {
     {"_CMS_MES_SSL_KEY_PWD",       CT_TRUE,  ATTR_NONE, "",         NULL, NULL,       "-",       "-",         "CT_TYPE_STRING", NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     {"KMC_KEY_FILES",           CT_TRUE,  ATTR_READONLY, "",         NULL, NULL,       "-",       "-",    "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
     {"SHARED_PATH",          CT_TRUE,  ATTR_NONE, "",          NULL, NULL,          "-",       "-",        "CT_TYPE_STRING",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
+    {"CMS_IN_CONTAINER",            CT_TRUE,  ATTR_NONE, "FALSE",     NULL, NULL,          "-",       "-",        "CT_TYPE_BOOLEAN",  NULL, 0, EFFECT_REBOOT, CFG_INS, NULL, NULL},
 };
 
 cms_param_t  g_param;
@@ -766,6 +768,10 @@ status_t cms_load_param(int64* time_stamp)
     CT_RETURN_IFERR(cms_get_dbstor_config_value(&cfg));
     for(int idx = 0; idx < MES_TIME_STAMP_NUM; idx++) {
         time_stamp[idx] = g_mes_config_time[idx];
+    }
+    char *in_container_value = cm_get_config_value(&cfg, "CMS_IN_CONTAINER");
+    if (in_container_value != NULL && cm_strcmpi(in_container_value, "TRUE") == 0) {
+        set_is_cms_in_container(CT_TRUE);
     }
     return CT_SUCCESS;
 }
