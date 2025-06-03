@@ -155,8 +155,9 @@ status_t get_cbo_stats(knl_handle_t handle, dc_entity_t *entity, ctc_cbo_stats_t
     if (!knl_is_part_table(entity)) {
         table_stats = knl_get_cbo_table(handle, entity);
         if (table_stats == NULL || !table_stats->is_ready || !STATS_GLOBAL_CBO_STATS_EXIST(entity)) {
-            CT_LOG_RUN_ERR("table statistics in DC is not ready.");
-            return CT_ERROR;
+            CT_LOG_RUN_WAR("table statistics in DC is not ready.");
+            // can't return error here, the first time select without analzye will return.
+            return CT_SUCCESS;
         }
         ctc_cbo_stats_table->estimate_rows = table_stats->rows;
         ctc_cbo_stats_table->avg_row_len = table_stats->avg_row_len;
