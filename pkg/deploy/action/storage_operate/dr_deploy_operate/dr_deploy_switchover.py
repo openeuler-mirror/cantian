@@ -507,15 +507,15 @@ class DRRecover(SwitchOver):
                 LOG.error(err_msg)
                 raise Exception(err_msg)
 
-    def hyper_metro_status_check(self, running_status, config_role):
-        if running_status != MetroDomainRunningStatus.Normal and running_status != MetroDomainRunningStatus.Split:
+    def ulog_status_check(self, status_is_normal, status_is_split, is_primary, running_status):
+        if not status_is_normal and not status_is_split:
             err_msg = "DR recover operation is not allowed in %s status." % \
-                      get_status(running_status, MetroDomainRunningStatus)
+                      running_status
             LOG.error(err_msg)
             raise Exception(err_msg)
-        if running_status == MetroDomainRunningStatus.Normal and config_role == ConfigRole.Primary:
-            err_msg = "DR recover operation is not allowed in %s status." % \
-                      get_status(running_status, MetroDomainRunningStatus)
+        if status_is_normal and is_primary:
+            err_msg = "DR recover operation is not allowed in primary, but running status is %s status." % \
+                      running_status
             LOG.error(err_msg)
             raise Exception(err_msg)
 
@@ -523,18 +523,20 @@ class DRRecover(SwitchOver):
         domain_info = self.dr_deploy_opt.query_hyper_metro_domain_info(self.hyper_domain_id)
         running_status = domain_info.get("RUNNINGSTATUS")
         config_role = domain_info.get("CONFIGROLE")
-        self.hyper_metro_status_check(running_status, config_role)
+        self.ulog_status_check(running_status == MetroDomainRunningStatus.Normal,
+                               running_status == MetroDomainRunningStatus.Split,
+                               config_role == ConfigRole.Primary,
+                               get_status(running_status, MetroDomainRunningStatus))
         return config_role, running_status == MetroDomainRunningStatus.Split
 
     def _recover_pre_check_async(self):
         log_pair_info = self.dr_deploy_opt.query_remote_replication_pair_info_by_pair_id(self.ulog_fs_pair_id)
         log_pair_role = log_pair_info.get("ISPRIMARY")
         log_pair_running_status = log_pair_info.get("RUNNINGSTATUS")
-        if log_pair_role != "true" or log_pair_running_status != ReplicationRunningStatus.Split:
-            err_msg = "DR recover operation is not allowed in [log_pair_role primary[%s], running_status[%s]]." % \
-                      log_pair_role, get_status(log_pair_running_status, ReplicationRunningStatus)
-            LOG.error(err_msg)
-            raise Exception(err_msg)
+        self.ulog_status_check(log_pair_running_status == ReplicationRunningStatus.Normal,
+                               log_pair_running_status == ReplicationRunningStatus.Split,
+                               log_pair_role == "true",
+                               get_status(log_pair_running_status, ReplicationRunningStatus))
         return log_pair_role, log_pair_running_status == ReplicationRunningStatus.Split
 
     def recover_pre_check(self):
