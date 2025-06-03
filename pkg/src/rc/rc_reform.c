@@ -1339,7 +1339,9 @@ status_t rc_set_redo_replay_done(knl_session_t *session, reform_info_t *rc_info,
         knl_panic(g_rc_ctx->status < REFORM_RECOVER_DONE);
     }
     g_rc_ctx->status = REFORM_RECOVER_DONE;
-    if (!full_recovery && !DB_IS_PRIMARY(&session->kernel->db)) {
+    reform_mode_t mode = rc_get_change_mode();
+    // invaliad dd cache only in standby when mode is REFORM_MODE_OUT_OF_PLAN
+    if (!full_recovery && !DB_IS_PRIMARY(&session->kernel->db) && mode == REFORM_MODE_OUT_OF_PLAN) {
         CT_RETURN_IFERR(g_rc_callback.ctc_invalid_all_dd_cache(session));
     }
     return g_rc_callback.rc_notify_reform_status(session, rc_info, REFORM_RECOVER_DONE);
