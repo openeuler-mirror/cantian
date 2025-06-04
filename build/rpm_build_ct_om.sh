@@ -31,7 +31,7 @@ function tar_console_rpm()
             echo "Failed to cd ${ct_om_component_path}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             return 1
         fi
-        tar zcvf ${name}.tar.gz *
+        tar -zcf ${name}.tar.gz *
         if [ $? -ne 0 ]; then
             echo "Failed to make ${name}.tar.gz package. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             return 1
