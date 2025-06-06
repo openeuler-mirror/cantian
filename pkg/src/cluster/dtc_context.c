@@ -450,6 +450,7 @@ void dtc_set_command_group(void)
     mes_set_command_task_group(MES_CMD_TXN_INFO_REQ, MES_TASK_GROUP_THREE);
     mes_set_command_task_group(MES_CMD_CLAIM_OWNER_REQ, MES_TASK_GROUP_THREE);
     mes_set_command_task_group(MES_CMD_CLAIM_OWNER_REQ_BATCH, MES_TASK_GROUP_THREE);
+    mes_set_command_task_group(MES_CMD_INVLDT_REQ, MES_TASK_GROUP_THREE);
 
     // group 4, serialized
     mes_set_command_task_group(MES_CMD_DDL_BROADCAST, MES_TASK_GROUP_FOUR);
