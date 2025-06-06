@@ -1629,7 +1629,12 @@ status_t dtc_smon_request_get_ilock_msg(knl_session_t *session, uint8 *w_marks, 
     knl_end_session_wait(session, DEAD_LOCK_ITL);
     ilock = (dtc_ilock*)(recv_msg.buffer + sizeof(mes_message_head_t));
     //ilock->sid == CT_INVALID_ID16 means no itl
-    if (ilock->sid != CT_INVALID_ID16 && w_marks[dst_inst * CT_MAX_SESSIONS + ilock->sid] == 0) {
+    if (ilock->sid == CT_INVALID_ID16) {
+        mes_release_message_buf(recv_msg.buffer);
+        DTC_DLS_DEBUG_ERR("[SMON] request get itl lock message to instance(%u), xid(%llu) remote does not have itl", dst_inst, xid.value);
+        return CT_ERROR; // no itl lock in remote instance
+    }
+    if (w_marks[dst_inst * CT_MAX_SESSIONS + ilock->sid] == 0) {
         if (dtc_dlock_push_with_check(stack_lock, ilock, sizeof(dtc_ilock))) {
             w_marks[dst_inst * CT_MAX_SESSIONS + ilock->sid] = 1;
         }
