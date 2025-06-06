@@ -3349,14 +3349,17 @@ void dcs_process_arch_set_request(void *sess, mes_message_t *msg)
     item = cm_get_config_item(GET_CONFIG, &name, CT_TRUE);
     if (item == NULL) {
         CT_THROW_ERROR(ERR_INVALID_PARAMETER_NAME, arch_set_param);
+        mes_release_message_buf(msg->buffer);
         return;
     }
     if (req->scope != CONFIG_SCOPE_DISK) {
         if (item->notify && item->notify((knl_handle_t)session, (void *)item, req->value)) {
+            mes_release_message_buf(msg->buffer);
             return;
         }
     } else {
         if (item->notify_pfile && item->notify_pfile((knl_handle_t)session, (void *)item, req->value)) {
+            mes_release_message_buf(msg->buffer);
             return;
         }
     }
@@ -3369,6 +3372,7 @@ void dcs_process_arch_set_request(void *sess, mes_message_t *msg)
 #endif
     }
     if (cm_alter_config(session->kernel->attr.config, arch_set_param, req->value, req->scope, force) != CT_SUCCESS) {
+        mes_release_message_buf(msg->buffer);
         return;
     }
 

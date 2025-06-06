@@ -57,9 +57,9 @@ extern "C" {
 #define MES_MESSAGE_BUFFER_SIZE \
     (uint32)(SIZE_K(32) + MES_MESSAGE_TINY_SIZE) /* biggest: pcr page ack: head + ack + page */
 #define MES_512K_MESSAGE_BUFFER_SIZE (uint32)SIZE_K(512)
-#define MES_LOGGING_INTERVAL (60000)             // ms
-#define MES_CMD_LOGGING_INTERVAL (60000)         // ms
-#define MES_GROUP_LOGGING_INTERVAL (60000)       // ms
+#define MES_LOGGING_INTERVAL (500)             // ms
+#define MES_CMD_LOGGING_INTERVAL (500)         // ms
+#define MES_GROUP_LOGGING_INTERVAL (500)       // ms
 #define MES_WAIT_TIMEOUT (5)                     // ms
 #define MES_WAIT_MAX_TIME (0xFFFFFFFF)           // ms
 #define MES_MSG_RETRY_TIME (100)                 // ms

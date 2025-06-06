@@ -339,7 +339,7 @@ status_t mes_uc_add_buf_list_to_msg(dpuc_msg *mes_uc_msg, mes_message_head_t *he
     page_num = (head->size + (MES_UC_BYTE_PER_PAGE_PI - 1)) / MES_UC_BYTE_PER_PAGE_PI;
     MES_UC_ALLOC_PAGES_SYNC(page_num, &sgl);
     if (sgl == NULL) {
-        MES_LOGGING(MES_LOGGING_SEND, "mes alloc sgl failed, page num %u", page_num);
+        CT_LOG_RUN_ERR("mes alloc sgl failed, page num %u", page_num);
         return CT_ERROR;
     }
 
@@ -357,7 +357,7 @@ status_t mes_uc_add_buf_list_to_msg(dpuc_msg *mes_uc_msg, mes_message_head_t *he
     mes_modify_last_entry_len(sgl, (head->size - (page_num - 1) * MES_UC_BYTE_PER_PAGE_PI));
     // 按圆整后的长度发送
     if (mes_global_handle()->dpuc_sgl_addr_set(mes_uc_msg, sgl, head->size, __FUNCTION__) != DP_OK) {
-        MES_LOGGING(MES_LOGGING_SEND, "mes set sgl to uc failed, page num %u", page_num);
+        CT_LOG_RUN_ERR("mes set sgl to uc failed, page num %u", page_num);
         MES_UC_FREE_PAGES(sgl);
         return CT_ERROR;
     }
@@ -486,6 +486,7 @@ status_t mes_uc_send_data(const void *msg_data)
     if (pContext == NULL) {
         MES_LOGGING(MES_LOGGING_SEND, "mes set uc send context failed, src_eid 0x%lx, dst_eid 0x%lx, cmd %u",
             g_mes_uc_config.eid, g_mes_uc_config.dst_eid[dst_inst], head->cmd);
+        mes_uc_free_mem(pContext, mes_uc_msg);
         return CT_ERROR;
     }
     pContext->cmd = head->cmd;
@@ -565,6 +566,7 @@ status_t mes_uc_send_bufflist(mes_bufflist_t *buff_list)
     if (pContext == NULL) {
         MES_LOGGING(MES_LOGGING_SEND, "mes set uc send context failed, src_eid 0x%lx, dst_eid 0x%lx, cmd %u",
             g_mes_uc_config.eid, g_mes_uc_config.dst_eid[dst_inst], head->cmd);
+        mes_uc_free_mem(pContext, mes_uc_msg);
         return CT_ERROR;
     }
     pContext->cmd = head->cmd;
@@ -593,6 +595,7 @@ status_t mes_uc_get_mes_msg_from_uc_head(dpuc_msg *uc_msg, mes_message_t *mes_ms
     user_data = (char*)mes_global_handle()->dpuc_data_addr_get(uc_msg, __FUNCTION__);
     if (user_data == NULL) {
         MES_LOGGING(MES_LOGGING_SEND, "mes recv uc msg head failed");
+        mes_uc_free_uc_msg_sgl(uc_msg);
         return CT_ERROR;
     }
 
@@ -601,16 +604,19 @@ status_t mes_uc_get_mes_msg_from_uc_head(dpuc_msg *uc_msg, mes_message_t *mes_ms
         CT_THROW_ERROR_EX(ERR_MES_ILEGAL_MESSAGE, "mes message length=%u, cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u, "
             "src_sid=%u, dst_sid=%u, thead id=%d", head->size, head->cmd, head->rsn, head->src_inst, head->dst_inst,
             head->src_sid, head->dst_sid, g_thread_queue_id);
+        mes_uc_free_uc_msg_sgl(uc_msg);
         return CT_ERROR;
     }
 
     mes_get_message_buf(mes_msg, head);
     if ((mes_msg->buffer == NULL) || (mes_msg->head == NULL)) {
         MES_LOGGING(MES_LOGGING_SEND, "mes get msg buf failed");
+        mes_uc_free_uc_msg_sgl(uc_msg);
         return CT_ERROR;
     }
     err = memcpy_s(mes_msg->buffer, head->size, head, head->size);
     MEMS_RETURN_IFERR(err);
+    mes_uc_free_uc_msg_sgl(uc_msg);
     return CT_SUCCESS;
 }
 
@@ -706,6 +712,7 @@ int32_t mes_uc_msg_recv_func(dpuc_msg *uc_msg, dpuc_msg_mem_free_mode_e *freeMod
 
     if (g_mes_uc_channel_status[mes_msg.head->src_inst].is_allow_msg_transfer != CT_TRUE) {
         MES_LOGGING(MES_LOGGING_RECV, "mes not allow msg transfer, src_inst=%u.", mes_msg.head->src_inst);
+        mes_free_buf_item(mes_msg.buffer);
         cm_thread_unlock(&g_mes_uc_recv_thead[g_thread_queue_id].lock);
         return RETURN_ERROR;
     }
@@ -716,6 +723,7 @@ int32_t mes_uc_msg_recv_func(dpuc_msg *uc_msg, dpuc_msg_mem_free_mode_e *freeMod
             cm_thread_unlock(&g_mes_uc_recv_thead[g_thread_queue_id].lock);
             CT_LOG_RUN_ERR("[mes] check cks failed, cmd=%u, rsn=%u, src_inst=%u, dst_inst=%u", mes_msg.head->cmd,
                 mes_msg.head->rsn, mes_msg.head->src_inst, mes_msg.head->dst_inst);
+            mes_free_buf_item(mes_msg.buffer);
             return RETURN_ERROR;
         }
     }

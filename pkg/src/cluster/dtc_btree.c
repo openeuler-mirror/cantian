@@ -120,6 +120,7 @@ void dtc_btree_process_root_page(void *sess, mes_message_t *msg)
 {
     if (sizeof(msg_btree_broadcast_t) + DEFAULT_PAGE_SIZE(sess) != msg->head->size) {
         CT_LOG_RUN_ERR("btree process root page msg size is invalid, msg size %u.", msg->head->size);
+        mes_release_message_buf(msg->buffer);
         return;
     }
     msg_btree_broadcast_t *bcast = (msg_btree_broadcast_t *)msg->buffer;
@@ -134,6 +135,7 @@ void dtc_btree_process_root_page(void *sess, mes_message_t *msg)
             "[DTC] process btree root page[%u-%u], part-subpart[%u-%u], failed to check root page,"
             "table-uid-index[%u-%u-%u]", page_id.file, page_id.page, bcast->part_loc.part_no,
             bcast->part_loc.subpart_no, bcast->table_id, bcast->uid, bcast->index_id);
+            mes_release_message_buf(msg->buffer);
         return;
     }
     if (!DC_IS_READY(session)) {
