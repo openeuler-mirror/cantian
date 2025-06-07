@@ -1045,7 +1045,7 @@ config_item_t g_parameters[] = {
     { "ENABLE_TX_FREE_PAGE_LIST", CT_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
       PARAM_TX_FREE_PAGE_LIST, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
       sql_notify_als_enable_tx_free_page_list, sql_notify_als_bool, NULL},
-    { "CANTIAN_TASK_NUM", CT_TRUE, ATTR_NONE, "16", NULL, NULL, "-", "[1,500]", "CT_TYPE_INTEGER", NULL,
+    { "CANTIAN_TASK_NUM", CT_TRUE, ATTR_NONE, "16", NULL, NULL, "-", "[16,1000]", "CT_TYPE_INTEGER", NULL,
       PARAM_CANTIAN_TASK_NUM, EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
     { "INSTANCE_ID", CT_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0,63]", "CT_TYPE_INTEGER", NULL, PARAM_INSTANCE_ID,
       EFFECT_REBOOT, CFG_INS, sql_verify_als_uint32, NULL, NULL, NULL },
