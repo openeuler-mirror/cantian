@@ -230,15 +230,15 @@ dtc_msgitem_t *mes_get_task_msg(mes_task_group_t *group)
     dtc_msgqueue_t *group_queue = &group->queue;
     dtc_msgitem_t *msgitem;
 
+    if (group->queue.count > 100) {
+        MES_LOGGING(MES_LOGGING_GET_QUEUE, "[mes]: group %u queue length num %u.", group->group_id, group->queue.count);
+    }
+
     if (group_queue->count != 0) {
         msgitem = get_msgitem(group_queue);
         if (msgitem != NULL) {
             return msgitem;
         }
-    }
-
-    if (group->queue.count > 100) {
-        MES_LOGGING(MES_LOGGING_GET_QUEUE, "[mes]: group %u queue length num %u.", group->group_id, group->queue.count);
     }
 
     return NULL;
