@@ -1101,13 +1101,13 @@ status_t mes_send_data3(mes_message_head_t *head, uint32 head_size, const void *
     return CT_SUCCESS;
 }
 
-static inline void mes_protect_when_timeout(mes_waiting_room_t *room)
+static inline void mes_protect_when_recv_abnormal(mes_waiting_room_t *room)
 {
     cm_spin_lock(&room->lock, NULL);
     (void)cm_atomic32_inc((atomic32_t *)(&room->rsn));
     if (pthread_mutex_trylock(&room->mutex) == 0) {  // trylock to avoid mutex has been unlocked.
         mes_release_message_buf(room->msg_buf);
-        DTC_MES_LOG_INF("[mes]%s: mutex has unlock, rsn=%u, room rsn=%u.", (char *)__func__,
+        CT_LOG_RUN_WAR("[mes]mes protect when recv abnormal, rsn=%u, room rsn=%u.",
                         ((mes_message_head_t *)room->msg_buf)->rsn, room->rsn);
     }
     cm_spin_unlock(&room->lock);
@@ -1141,7 +1141,8 @@ status_t mes_recv_impl(uint32 sid, mes_message_t *msg, bool32 check_rsn, uint32 
 
     for (;;) {
         if (mes_check_connect_ready() != CT_SUCCESS) {
-            MES_LOGGING_WAR(MES_LOGGING_UNMATCH_MSG, "[mes]%s:Network connection interrupted.", (char *)__func__);
+            CT_LOG_RUN_ERR("[mes]Network connection interrupted.");
+            mes_protect_when_recv_abnormal(room);
             return CT_ERROR;
         }
 
@@ -1149,7 +1150,7 @@ status_t mes_recv_impl(uint32 sid, mes_message_t *msg, bool32 check_rsn, uint32 
             timeout_time = (uint32)cm_atomic_get(&room->timeout);
             if ((timeout_time == 0) || ((quick_stop_check == CT_TRUE) && (mes_message_need_timeout()))) {
                 // when timeout the ack msg may reach, so need do some check and protect.
-                mes_protect_when_timeout(room);
+                mes_protect_when_recv_abnormal(room);
                 CT_THROW_ERROR_EX(ERR_TCP_TIMEOUT, "sid(%u) recv timeout, rsn=%u, expect_rsn=%u, timeou=%u.",
                     sid, room->rsn, expect_rsn, timeout);
                 return CT_ERROR;

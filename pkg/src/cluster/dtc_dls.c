@@ -1952,6 +1952,7 @@ void dls_process_txn_wait(knl_session_t *session, mes_message_t * receive_msg)
     send_msg = (uint8*)cm_push(session->stack, mes_size);
     if (send_msg == NULL) {
         CT_LOG_RUN_ERR("msg failed to malloc memory");
+        mes_release_message_buf(receive_msg->buffer);
         return;
     }
     head = (mes_message_head_t*)send_msg;
@@ -2000,6 +2001,7 @@ void dls_process_txn_msg(void *sess, mes_message_t * receive_msg)
         dls_process_txn_awake(session, receive_msg);
     } else {
         CT_LOG_RUN_ERR("[DLS] invalid cmd %u, not process", receive_msg->head->cmd);
+        mes_release_message_buf(receive_msg->buffer);
     }
     return;
 }
