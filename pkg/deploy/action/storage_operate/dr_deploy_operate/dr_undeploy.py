@@ -314,12 +314,11 @@ class UNDeploy(object):
             self.delete_filesystem(vstore_id="0", fs_name=rep_fs_name)
             if not mysql_metadata_in_cantian:
                 self.delete_filesystem(vstore_id="0", fs_name=metadata_fs)
-
+            self.dr_destroy()
             fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
             dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
             if self.dr_type != "async":
                 self.delete_hyper()
-            self.dr_destroy()
             try:
                 self.delete_filesystem(dbstor_fs_vstore_id, fs_name)
             except Exception as err:
