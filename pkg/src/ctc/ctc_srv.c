@@ -1968,7 +1968,7 @@ EXTER_ATTACK int ctc_statistic_begin(ctc_handler_t *tch,struct timeval begin_tim
     session_t *session = NULL;
     CT_RETURN_IFERR(ctc_get_or_new_session(&session, tch, true, false, &is_new_session));
     ctc_set_no_use_other_sess4thd(session);
-    if(enable_stat) {
+    if (enable_stat) {
         if (!ctc_alloc_stmt(session)) {
             return CT_ERROR;
         }
@@ -2094,12 +2094,18 @@ void ctc_ddl_table_after_commit_list(bilist_t *def_list, ctc_ddl_dc_array_t *dc_
 
 int ctc_statistic_sql(ctc_handler_t *tch, const char *sql_str, bool enable_stat)
 {
+    if (!enable_stat) {
+        return CT_SUCCESS;
+    }
     session_t *session = ctc_get_session_by_addr(tch->sess_addr);
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
     sql_stmt_t *stmt = session->current_stmt;
+    if (stmt == NULL) {
+        return CT_SUCCESS;
+    }
     ctx_prev_stat_t *context_pre_stat = &stmt->session->ctx_prev_stat;
-    if (!enable_stat || sql_str == NULL || sql_str[0] == '\0' || context_pre_stat->tv_start.tv_sec == CT_INVALID_INT64) {
+    if (sql_str == NULL || sql_str[0] == '\0' || context_pre_stat->tv_start.tv_sec == CT_INVALID_INT64) {
         return CT_SUCCESS;
     }
     timeval_t tv_end;
@@ -2144,17 +2150,14 @@ EXTER_ATTACK int ctc_trx_commit(ctc_handler_t *tch, uint64_t *cursors, int32_t c
     CTC_LOG_RET_VAL_IF_NUL(session, ERR_INVALID_SESSION_ID, "session lookup failed");
     ctc_set_no_use_other_sess4thd(session);
     ctc_free_cursors((tch->pre_sess_addr != 0) ? ((session_t *)tch->pre_sess_addr) : session, cursors, csize);
-    if (!ctc_alloc_stmt(session)) {
-        return CT_ERROR;
-    }
     sql_stmt_t *stmt = session->current_stmt;
-    ctc_statistic_sql(tch, sql_str, enable_stat);
     knl_session_t *knl_session = &session->knl_session;
     if (stmt == NULL) {
         *is_ddl_commit = CT_FALSE;
         knl_commit(knl_session);
         return CT_SUCCESS;
     }
+    ctc_statistic_sql(tch, sql_str, enable_stat);
     bilist_t *def_list = &stmt->ddl_def_list;
     if (stmt->ddl_def_list.head == NULL || ctc_is_def_list_empty(def_list)) {
         *is_ddl_commit = CT_FALSE;
