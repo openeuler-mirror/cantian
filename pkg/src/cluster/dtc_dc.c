@@ -852,6 +852,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case BTREE_SPLITTING:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_btree_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] btree splitting, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             ret = dtc_process_btree_splitting(session, (char*)bcast + sizeof(msg_broadcast_data_t),
@@ -860,6 +861,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case BTREE_SPLIT_STATUS:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_btree_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] btree split status, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             dtc_process_btree_split_status(session, msg, (char*)bcast + sizeof(msg_broadcast_data_t));
@@ -867,6 +869,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case HEAP_EXTEND:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_heap_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] heap extend, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             ret = dtc_process_heap_extend(session, (char*)bcast + sizeof(msg_broadcast_data_t), bcast->head.src_inst);
@@ -874,6 +877,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case HEAP_EXTEND_STATUS:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_heap_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] heap extend status, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             dtc_process_heap_extend_status(session, msg, (char*)bcast + sizeof(msg_broadcast_data_t));
@@ -881,6 +885,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case USER_STATUS:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_user_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] user status, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             dtc_process_user_status(session, (char*)bcast + sizeof(msg_broadcast_data_t));
@@ -888,6 +893,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case INVALIDATE_DC:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_invalidate_dc_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] invalidate dc, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             dtc_process_invalidate_dc(session, (char*)bcast + sizeof(msg_broadcast_data_t));
@@ -895,6 +901,7 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case USER_LOCK_STATUS:
             if (sizeof(msg_broadcast_data_t) + sizeof(msg_broadcast_user_data_t) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] btree splitting, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             dtc_process_get_user_lock_status(session, msg, (char*)bcast + sizeof(msg_broadcast_data_t));
@@ -902,12 +909,14 @@ void dtc_process_broadcast_data(void *sess, mes_message_t * msg)
         case REMOVE_DF_WATCH:
             if (sizeof(msg_broadcast_data_t) + sizeof(uint32) != msg->head->size) {
                 CT_LOG_RUN_ERR("[DTC] remove datafile device watch, msg size is invalid, size=%u", msg->head->size);
+                mes_release_message_buf(msg->buffer);
                 return;
             }
             ret = dtc_process_remove_df_watch(session, (char*)bcast + sizeof(msg_broadcast_data_t));
             break;
         default:
             CT_LOG_RUN_ERR("[DTC] process broadcast data, type is invalid, type=%d", bcast->type);
+            mes_release_message_buf(msg->buffer);
             return;
     }
 
