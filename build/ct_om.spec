@@ -1,5 +1,5 @@
 Name:ct_om
-Version:25.06
+Version:25.12
 Release:00
 License:#None
 Group:Applications/Productivity
