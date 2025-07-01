@@ -1178,6 +1178,31 @@ void sql_unlock_lnk_tabs(sql_stmt_t *stmt)
     }
 }
 
+#ifndef CANTIAN_READ_WRITE
+static bool32 check_if_cmd_promot_4_sql_engine(sql_type_t type)
+{
+    switch (type) {
+        case CTSQL_TYPE_UPDATE:
+        case CTSQL_TYPE_INSERT:
+        case CTSQL_TYPE_DELETE:
+        case CTSQL_TYPE_MERGE:
+        case CTSQL_TYPE_REPLACE:
+        case CTSQL_TYPE_DROP_SEQUENCE:
+        case CTSQL_TYPE_DROP_TABLE:
+        case CTSQL_TYPE_DROP_INDEX:
+        case CTSQL_TYPE_DROP_TABLESPACE:
+        case CTSQL_TYPE_DROP_VIEW:
+        case CTSQL_TYPE_ALTER_TABLE:
+        case CTSQL_TYPE_ALTER_INDEX:
+        case CTSQL_TYPE_LOCK_TABLE:
+        case CTSQL_TYPE_DROP_DIRECTORY:
+            return CT_FALSE;
+        default:
+            return CT_TRUE;
+    }
+}
+#endif
+
 static inline status_t sql_check_pre_exec(sql_stmt_t *stmt)
 {
     if (stmt->is_verifying != CT_TRUE && (stmt->status < STMT_STATUS_PREPARED || stmt->context == NULL)) {
@@ -1191,10 +1216,7 @@ static inline status_t sql_check_pre_exec(sql_stmt_t *stmt)
     
 #ifndef CANTIAN_READ_WRITE
     // disable dml, except under procedure; disable create procedure
-    if (((stmt->context->type > CTSQL_TYPE_INSERT && stmt->context->type < CTSQL_TYPE_DML_CEIL) ||
-        (stmt->context->type > CTSQL_TYPE_ROLLBACK_TO && stmt->context->type < CTSQL_TYPE_BACKUP) ||
-        (stmt->context->type == CTSQL_TYPE_LOCK_TABLE) || (stmt->context->type == CTSQL_TYPE_CREATE_PROC)) &&
-        (!IS_PL_SQL(stmt)) && DB_IS_OPEN(KNL_SESSION(stmt))) {
+    if (!check_if_cmd_promot_4_sql_engine(stmt->context->type) && (!IS_PL_SQL(stmt)) && DB_IS_OPEN(KNL_SESSION(stmt))) {
         CT_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "DML or create_proc on cantian node");
         return CT_ERROR;
     }

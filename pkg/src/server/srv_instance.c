@@ -2092,7 +2092,7 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
         CT_LOG_RUN_ERR("failed to initialize SIGUSR1 func");
         return CT_ERROR;
     }
-
+#ifndef CANTIAN_READ_WRITE
     if (init_mysql_inst() != CT_SUCCESS) {
         srv_instance_destroy();
         CT_LOG_RUN_ERR("failed to initialize mysql instance resorces");
@@ -2110,6 +2110,7 @@ status_t srv_instance_startup(db_startup_phase_t phase, bool32 is_coordinator, b
 #endif
 
     set_is_single_run_mode();
+#endif
     if (init_job_manager() != CT_SUCCESS) {
         srv_instance_destroy();
         CT_LOG_RUN_ERR("failed to initialize job manager");

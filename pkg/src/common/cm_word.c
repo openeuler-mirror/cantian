@@ -64,7 +64,6 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_BODY, CT_TRUE, { (char *)"body" } },
     { (uint32)KEY_WORD_BOTH, CT_TRUE, { (char *)"both" } }, /* for TRIM expression only */
     { (uint32)KEY_WORD_BUFFER, CT_TRUE, { (char *)"buffer" } },
-    { (uint32)KEY_WORD_BUILD, CT_TRUE, { (char *)"build" } },
     { (uint32)KEY_WORD_BULK, CT_TRUE, { (char *)"bulk" } },
     { (uint32)KEY_WORD_BY, CT_FALSE, { (char *)"by" } },
     { (uint32)KEY_WORD_CACHE, CT_TRUE, { (char *)"cache" } },
@@ -209,7 +208,6 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_LEFT, CT_TRUE, { (char *)"left" } },
     { (uint32)KEY_WORD_LESS, CT_TRUE, { (char *)"less" } },
     { (uint32)KEY_WORD_LEVEL, CT_FALSE, { (char *)"level" } },
-    { (uint32)KEY_WORD_LIBRARY, CT_FALSE, { (char *)"library" } },
     { (uint32)KEY_WORD_LIKE, CT_FALSE, { (char *)"like" } },
     { (uint32)KEY_WORD_LIMIT, CT_TRUE, { (char *)"limit" } },
     { (uint32)KEY_WORD_LIST, CT_TRUE, { (char *)"list" } },
@@ -294,7 +292,6 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_PROTECTION, CT_TRUE, { (char *)"protection" } },
     { (uint32)KEY_WORD_PUBLIC, CT_FALSE, { (char *)"public" } },
     { (uint32)KEY_WORD_PUNCH, CT_TRUE, { (char *)"punch" } },
-    { (uint32)KEY_WORD_PURGE, CT_TRUE, { (char *)"purge" } },
     { (uint32)KEY_WORD_QUERY, CT_TRUE, { (char *)"query" } },
     { (uint32)KEY_WORD_RAISE, CT_TRUE, { (char *)"raise" } },
     { (uint32)KEY_WORD_RANGE, CT_TRUE, { (char *)"range" } },
