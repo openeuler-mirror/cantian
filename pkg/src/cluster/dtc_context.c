@@ -517,7 +517,8 @@ status_t dtc_set_mes_profile_attr(mes_profile_t *profile)
     profile->channel_version = CT_INVALID_ID64;
     profile->upgrade_time_ms = g_dtc->profile.upgrade_time_ms;
     profile->degrade_time_ms = g_dtc->profile.degrade_time_ms;
-    profile->set_cpu_affinity = CT_TRUE;
+    profile->set_cpu_affinity = g_dtc->profile.set_cpu_affinity;
+    profile->cpu_affinity_cpu_id = g_dtc->profile.cpu_affinity_cpu_id;
     return (profile->inst_count >= CT_MAX_INSTANCES ? CT_ERROR : CT_SUCCESS);
 }
 

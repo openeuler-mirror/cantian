@@ -51,6 +51,7 @@ typedef struct st_dtc_profile {
     uint32 inst_id;
     uint32 channel_num;
     uint32 reactor_thread_num;
+    uint32 cpu_affinity_cpu_id[CT_MES_MAX_REACTOR_THREAD_NUM];
     uint32 task_num;
     cs_pipe_type_t pipe_type;
     bool32 conn_by_profile;
@@ -63,6 +64,7 @@ typedef struct st_dtc_profile {
     double ckpt_notify_task_ratio;
     double clean_edp_task_ratio;
     double txn_info_task_ratio;
+    bool8 set_cpu_affinity;
 } dtc_profile_t;
 
 typedef struct st_dtc_instance {
