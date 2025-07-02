@@ -43,7 +43,7 @@ function make_cantian_pkg(){
             error "The parameter is error!"
         fi
     else 
-        sh Makefile.sh make_regress_test lcov=1 >> ${GTEST_RUN_LOG} 2>&1
+        sh Makefile.sh make_regress_test CANTIAN_READ_WRITE=1 no_shm=1 lcov=1 ut=1 >> ${GTEST_BUILD_LOG} 2>&1
     fi
 }
 

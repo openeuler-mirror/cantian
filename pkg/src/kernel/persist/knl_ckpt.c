@@ -739,7 +739,7 @@ void ckpt_proc(thread_t *thread)
     cm_set_thread_name("ckpt");
     CT_LOG_RUN_INF("ckpt thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-#ifdef WITH_CANTIAN
+#if defined(WITH_CANTIAN) || defined(CANTIAN_READ_WRITE)
     knl_attach_cpu_core();
 #endif
     while (!thread->closed) {
@@ -2519,7 +2519,7 @@ void dbwr_proc(thread_t *thread)
     cm_set_thread_name("dbwr");
     CT_LOG_RUN_INF("dbwr thread started");
     KNL_SESSION_SET_CURR_THREADID(session, cm_get_current_thread_id());
-#ifdef WITH_CANTIAN
+#if defined(WITH_CANTIAN) || defined(CANTIAN_READ_WRITE)
     knl_attach_cpu_core();
 #endif
     while (!thread->closed) {
