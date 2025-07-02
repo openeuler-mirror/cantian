@@ -530,7 +530,7 @@ status_t ctc_get_new_session(session_t **session_ptr)
     ctc_new_session_init(session);
     *session_ptr = session;
     CT_LOG_DEBUG_INF("[CTC_ALLOC_SESS]:ctc_get_new_sess session_id:%u", session->knl_session.id);
-#ifdef WITH_CANTIAN
+#if defined(WITH_CANTIAN) || defined(CANTIAN_READ_WRITE)
     knl_attach_cpu_core();
 #endif
     return CT_SUCCESS;
