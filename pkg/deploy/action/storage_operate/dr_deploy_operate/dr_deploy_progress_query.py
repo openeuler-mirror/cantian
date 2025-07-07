@@ -10,19 +10,27 @@ from storage_operate.dr_deploy_operate.dr_deploy_common import DRDeployCommon
 from logic.common_func import read_json_config
 from logic.common_func import exec_popen
 from logic.storage_operate import StorageInf
+from get_config_info import get_env_info
 from utils.config.rest_constant import HealthStatus, VstorePairConfigStatus, VstorePairRunningStatus, \
     MetroDomainRunningStatus, ReplicationRunningStatus
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
+RUN_USER = get_env_info("cantian_user")
 LOCAL_PROCESS_RECORD_FILE = os.path.join(CURRENT_PATH, "../../../config/dr_process_record.json")
 FULL_SYNC_PROGRESS = os.path.join(CURRENT_PATH, "../../../config/full_sync_progress.json")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DR_STATUS = os.path.join(CURRENT_PATH, "../../../config/dr_status.json")
+EXEC_SQL = os.path.join(CURRENT_PATH, "../../cantian_common/exec_sql.py")
+CANTIAN_DISASTER_RECOVERY_STATUS_CHECK = 'echo -e "select DATABASE_ROLE from DV_LRPL_DETAIL;" | '\
+                                         'su -s /bin/bash - %s -c \'source ~/.bashrc && '\
+                                         'export LD_LIBRARY_PATH=/opt/cantian/dbstor/lib:${LD_LIBRARY_PATH} && '\
+                                         'python3 -B %s\'' % (RUN_USER, EXEC_SQL)
 
 
 DR_STATUS_DICT = {
     "async": {
         "DR_TYPE": "ASYNC-DR",
+        "DR_ROLE": "Unknown",
         "ulog_fs_pair_status": "Unknown",
         "page_fs_pair_status": "Unknown",
         "dr_status_file": "Unknown",
@@ -30,6 +38,7 @@ DR_STATUS_DICT = {
     },
     "sync": {
         "DR_TYPE": "SYNC-DR",
+        "DR_ROLE": "Unknown",
         "domain_status": "Unknown",
         "vstore_pair_status": "Unknown",
         "ulog_fs_pair_status": "Unknown",
@@ -105,6 +114,19 @@ class DrStatusCheck(object):
         self.dm_passwd = None
         self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
         self.dr_type = None
+
+    @staticmethod
+    def query_local_dr_role():
+        try:
+            code, output, err = exec_popen(CANTIAN_DISASTER_RECOVERY_STATUS_CHECK, timeout=20)
+            if code:
+                return "Unknown"
+            if "PRIMARY" in output:
+                return "PRIMARY"
+            else:
+                return "PHYSICAL_STANDBY"
+        except Exception as ignor:
+            return "Unknown"
 
     @staticmethod
     def table_format(statuses: dict) -> str:
@@ -263,6 +285,11 @@ class DrStatusCheck(object):
             self.dr_type = "sync"
         statuses = DR_STATUS_DICT.get(self.dr_type)
 
+        statuses["DR_ROLE"] = self.query_local_dr_role()
+        if statuses["DR_ROLE"] in ["Unknown"]:
+            self.update_dr_status_file(statuses)
+            return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
+
         if self.dr_type == "sync":
             statuses["domain_status"] = self.query_domain_status()
             if statuses["domain_status"] in ["Unknown", "Abnormal"]:
@@ -290,9 +317,9 @@ class DrStatusCheck(object):
             self.update_dr_status_file(statuses)
             return json.dumps(statuses, indent=4) if is_json_display else self.table_format(statuses)
 
-        if all(status == "Normal" for status in list(statuses.values())[1:-1]):
+        if all(status == "Normal" for status in list(statuses.values())[2:-1]):
             statuses["dr_status"] = "Normal"
-        if any(status == "Running" for status in list(statuses.values())[1:-1]):
+        if any(status == "Running" for status in list(statuses.values())[2:-1]):
             statuses["dr_status"] = "Running"
 
         self.update_dr_status_file(statuses)
