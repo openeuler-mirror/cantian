@@ -247,6 +247,11 @@ status_t cms_uds_cli_request(cms_packet_head_t *req, cms_packet_head_t *res, uin
 {
     status_t ret = CT_SUCCESS;
     cm_thread_lock(&g_cli_req_map_lock);
+    if (g_cli_req_map.num == 0) {
+        CT_LOG_RUN_ERR("g_cli_req_map has not been initialized, cannot send request.");
+        cm_thread_unlock(&g_cli_req_map_lock);
+        return CT_ERROR;
+    }
     CT_LOG_DEBUG_INF("begin cms cli uds request, msg type %u, msg seq %llu", req->msg_type, req->msg_seq);
     ret = cms_uds_cli_save_req(req);
     if (ret != CT_SUCCESS) {
