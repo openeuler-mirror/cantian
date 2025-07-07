@@ -1075,6 +1075,85 @@ static status_t srv_get_dbs_cfg(void)
         value, partition_num, enable_batch_flush, deploy_mode);
 }
 
+void check_set_cpu_affinity(void)
+{
+    if (g_dtc->profile.set_cpu_affinity != CT_TRUE) {
+        CT_LOG_RUN_INF("No need to set CPU affinity.");
+        return;
+    }
+
+#if !defined(__arm__) && !defined(__aarch64__)
+    g_dtc->profile.set_cpu_affinity = CT_FALSE;
+    CT_LOG_RUN_INF("No need to set CPU affinity in non-ARM environments");
+    return;
+#endif
+
+    if (g_dtc->profile.pipe_type != CS_TYPE_UC_RDMA) {
+        CT_LOG_RUN_INF("No core binding if the link type is not RDMA");
+        g_dtc->profile.set_cpu_affinity = CT_FALSE;
+        return;
+    }
+
+    char *mes_cpu_info = get_g_mes_cpu_info();
+    if (mes_cpu_info[0] == '\0') {
+        g_dtc->profile.set_cpu_affinity = CT_FALSE;
+        CT_LOG_RUN_INF("Due to the lack of CPU info, MES will not set CPU affinity");
+        return;
+    }
+    CT_LOG_RUN_INF("CPU affinity can be configured");
+}
+
+status_t process_cpu_range(int start, int end, uint32 *cpu_amount, uint32 *cpu_id)
+{
+    for (int32_t cpu_i = start; cpu_i <= end; cpu_i++) {
+        if (*cpu_amount >= CT_MES_MAX_REACTOR_THREAD_NUM) {
+            CT_LOG_RUN_ERR("CPU Core Limit Exceeded. MES_CPU_INFO can contain a maximum of %u cores",
+                CT_MES_MAX_REACTOR_THREAD_NUM);
+            return CT_ERROR;
+        }
+
+        cpu_id[*cpu_amount] = cpu_i;
+        (*cpu_amount)++;
+    }
+    return CT_SUCCESS;
+}
+
+status_t get_cpu_id(uint32_t *cpu_id, uint32 *cpu_amount)
+{
+    int start = 0;
+    int end = 0;
+    char *cpu_info = get_g_mes_cpu_info();
+    char cpu_info_copy[CT_MES_MAX_CPU_STR] = {0};
+    char* next_token = NULL;
+    *cpu_amount = 0;
+    
+    errno_t ret = memcpy_s(cpu_info_copy, CT_MES_MAX_CPU_STR, cpu_info, CT_MES_MAX_CPU_STR);
+    PRTS_RETURN_IFERR(ret);
+    char* token = strtok_s(cpu_info_copy, ",", &next_token);
+
+    while (token != NULL) {
+        if (sscanf_s(token, "%d-%d", &start, &end) == 2) {
+            // if the token is a range and start and end values are both successfully parsed
+            CT_RETURN_IFERR(process_cpu_range(start, end, cpu_amount, cpu_id));
+        } else if (sscanf_s(token, "%d", &start) == 1) {
+            if (*cpu_amount >= CT_MES_MAX_REACTOR_THREAD_NUM) {
+                    CT_LOG_RUN_ERR("CPU Core Limit Exceeded. MES_CPU_INFO can contain a maximum of %u cores",
+                        CT_MES_MAX_REACTOR_THREAD_NUM);
+                    return CT_ERROR;
+                }
+
+            cpu_id[*cpu_amount] = start;
+            (*cpu_amount)++;
+        } else {
+            CT_LOG_RUN_ERR("MES_CPU_INFO contains unresolvable content: %s, MES_CPU_INFO:%s", token, cpu_info_copy);
+            return CT_ERROR;
+        }
+
+        token = strtok_s(NULL, ",", &next_token);
+    }
+    return CT_SUCCESS;
+}
+
 status_t srv_load_cluster_params(void)
 {
     knl_attr_t *attr = &g_instance->kernel.attr;
@@ -1123,6 +1202,17 @@ status_t srv_load_cluster_params(void)
                        "MES_CPU_INFO", CT_MES_MAX_CPU_STR - 1);
     } else {
         cpu_info_param = NULL;
+    }
+
+    check_set_cpu_affinity();
+
+    if (g_dtc->profile.set_cpu_affinity) {
+        CT_LOG_RUN_INF("CPU core binding is enabled. Updating channel num");
+        if (get_cpu_id(g_dtc->profile.cpu_affinity_cpu_id, &g_dtc->profile.channel_num) != CT_SUCCESS) {
+            CT_LOG_RUN_ERR("MES failed to parse CPU core binding information. cpu_amount: %u; threadNum %u.",
+                g_dtc->profile.channel_num, g_dtc->profile.reactor_thread_num);
+            return CT_ERROR;
+        }
     }
 
     CT_RETURN_IFERR(srv_get_param_uint32("CANTIAN_TASK_NUM", &g_dtc->profile.task_num));
