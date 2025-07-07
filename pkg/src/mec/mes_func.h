@@ -415,6 +415,7 @@ typedef struct st_mes_profile {
     bool8 need_mq_thread;     // to compile extproc
     bool8 use_ssl;
     bool8 set_cpu_affinity;
+    uint32 *cpu_affinity_cpu_id;
     uint8 unused;          // reserved 3 bytes
 } mes_profile_t;
 

@@ -268,6 +268,13 @@ status_t sql_notify_als_normal_emerge_sess_factor(void *se, void *item, char *va
     return cm_str2real(value, &g_instance->kernel.attr.normal_emerge_sess_factor);
 }
 
+static inline uint32 sql_get_min_session_num()
+{
+    return g_instance->kernel.reserved_sessions + g_instance->sql_emerg_pool.max_sessions +
+        g_dtc->profile.task_num + g_dtc->profile.channel_num + UNDO_INIT_THREAD_NUMS +
+        g_dtc->dtc_rcy_ctx.replay_thread_num + 4; // 4 for 2 dtc_sql sessions, a dmon session and a dtc_rc session.
+}
+
 status_t sql_verify_als_sessions(void *se, void *lex, void *def)
 {
     uint32 num;
@@ -277,9 +284,9 @@ status_t sql_verify_als_sessions(void *se, void *lex, void *def)
         return CT_ERROR;
     }
 
-    if (num <= g_instance->kernel.reserved_sessions + g_instance->sql_emerg_pool.max_sessions) {
-        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "SESSIONS",
-            (int64)(g_instance->kernel.reserved_sessions + g_instance->sql_emerg_pool.max_sessions + 1));
+    uint32 min_session_num = sql_get_min_session_num();
+    if (num <= min_session_num) {
+        CT_THROW_ERROR(ERR_PARAMETER_TOO_SMALL, "SESSIONS", (int64)(min_session_num + 1));
         return CT_ERROR;
     }
 

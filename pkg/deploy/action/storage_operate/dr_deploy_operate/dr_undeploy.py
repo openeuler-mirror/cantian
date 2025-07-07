@@ -16,6 +16,7 @@ from om_log import LOGGER as LOG
 from get_config_info import get_env_info
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
+CANTIAN_INSTALL_CONFIG_FILE = "/opt/cantian/config/deploy_param.json"
 CANTIAN_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/deploy_param.json")
 DR_DEPLOY_CONFIG = os.path.join(CURRENT_PATH, "../../../config/dr_deploy_param.json")
 DR_DEPLOY_REMOTE_CONFIG = os.path.join(CURRENT_PATH, "../../../config/remote/dr_deploy_param.json")
@@ -29,18 +30,25 @@ class UNDeploy(object):
         self.storage_opt = None
         self.site = None
         self.dr_type = None
-        self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
-        self.deploy_params = read_json_config(CANTIAN_DEPLOY_CONFIG)
+        self.dr_deploy_info = None
+        self.deploy_params = None
         self.run_user = get_env_info("cantian_user")
+        self.dm_passwd = None
+        self.uninstall_cantian_flag = False
+        self.node_id = None
+        self.cantian_exist = False
         
     def init_storage_opt(self):
         dm_ip = self.dr_deploy_info.get("dm_ip")
         dm_user = self.dr_deploy_info.get("dm_user")
-        dm_passwd = input()
-        self.storage_opt = StorageInf((dm_ip, dm_user, dm_passwd))
-        self.storage_opt.login()
-        self.dr_deploy_opt = DRDeployCommon(self.storage_opt)
-        self.dr_deploy = DRDeploy()
+        try:
+            self.storage_opt = StorageInf((dm_ip, dm_user, self.dm_passwd))
+            self.storage_opt.login()
+            self.dr_deploy_opt = DRDeployCommon(self.storage_opt)
+            self.dr_deploy = DRDeploy()
+        except Exception as e:
+            LOG.error("Init storage opt failed.")
+            raise e
 
     def delete_replication_filesystem_pair(self, page_id):
         try:
@@ -62,8 +70,7 @@ class UNDeploy(object):
         if self.site == "active":
             return
         else:
-            fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(fs_name,
-                                                                                   vstore_id)
+            fs_info = self.dr_deploy_opt.storage_opt.query_filesystem_info(fs_name, vstore_id)
             if not fs_info:
                 LOG.info("Filesystem[%s] is not exist.", fs_name)
                 return
@@ -174,11 +181,6 @@ class UNDeploy(object):
         LOG.info("Delete hyper metro domain[id:%s] success", hyper_domain_id)
 
     def delete_replication(self):
-        action_parse = argparse.ArgumentParser()
-        action_parse.add_argument("--site", dest="site", choices=["standby", "active"], required=True)
-        args = action_parse.parse_args()
-        self.site = args.site
-        self.dr_type = self.dr_deploy_info.get("dr_type")
         if self.dr_type == "async":
             ulog_fs_pair_id = self.dr_deploy_info.get("ulog_fs_pair_id")
             if ulog_fs_pair_id:
@@ -188,7 +190,7 @@ class UNDeploy(object):
         page_fs_pair_id = self.dr_deploy_info.get("page_fs_pair_id")
         if page_fs_pair_id:
             self.delete_replication_filesystem_pair(page_fs_pair_id)
-            LOG.info("Successfully delete metadata pair id %s.", page_fs_pair_id)
+            LOG.info("Successfully delete page pair id %s.", page_fs_pair_id)
         meta_fs_pair_id = self.dr_deploy_info.get("meta_fs_pair_id")
         metadata_in_cantian = self.dr_deploy_info.get("metadata_in_cantian")
         if meta_fs_pair_id and not metadata_in_cantian:
@@ -196,10 +198,6 @@ class UNDeploy(object):
             LOG.info("Successfully delete metadata pair id %s.", meta_fs_pair_id)
 
     def delete_hyper(self):
-        action_parse = argparse.ArgumentParser()
-        action_parse.add_argument("--site", dest="site", choices=["standby", "active"], required=True)
-        args = action_parse.parse_args()
-        self.site = args.site
         # 删除双活文件系统pair id
         self.delete_hyper_metro_filesystem()
         # 删除双活文件系统租户pair id
@@ -211,7 +209,7 @@ class UNDeploy(object):
         stop_flag_file = CANTIAN_STOP_SUCCESS_FLAG
         if not os.path.exists(stop_flag_file):
             node_id = self.deploy_params.get("node_id")
-            share_fs_name = self.dr_deploy_info.get("storage_share_fs")
+            share_fs_name = self.deploy_params.get("storage_share_fs")
             install_record_file = f"/mnt/dbdata/remote/share_{share_fs_name}/node{node_id}_install_record.json"
             ctl_file_path = os.path.join(CURRENT_PATH, "../../")
             cmd = "sh %s/stop.sh;last_cmd=$?" % ctl_file_path
@@ -301,31 +299,38 @@ class UNDeploy(object):
             LOG.error(err_msg)
             raise Exception(err_msg)
 
-    def standby_uninstall(self, node_id, uninstall_cantian_flag):
-        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
-            self.do_stop()
-            LOG.info("Stop Cantian engine success.")
-        if node_id == "0":
-            LOG.info("Start to delete dr deploy!")
-            rep_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
-            mysql_metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
+    def dr_delete_file_system(self):
+        if self.uninstall_cantian_flag:
+            page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
             metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
-            self.delete_replication()
-            self.delete_filesystem(vstore_id="0", fs_name=rep_fs_name)
+            log_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
+            log_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
+            mysql_metadata_in_cantian = self.dr_deploy_info.get("mysql_metadata_in_cantian")
+            self.delete_filesystem(vstore_id="0", fs_name=page_fs_name)
             if not mysql_metadata_in_cantian:
                 self.delete_filesystem(vstore_id="0", fs_name=metadata_fs)
+            self.delete_filesystem(log_fs_vstore_id, log_fs_name)
+
+    def dr_uninstall(self):
+        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and self.uninstall_cantian_flag:
+            LOG.info("Stop Cantian engine begin.")
+            self.do_stop()
+            LOG.info("Stop Cantian engine success.")
+        if self.node_id == "0":
+            LOG.info("Start to delete dr deploy!")
+            self.dr_type = self.dr_deploy_info.get("dr_type")
+            self.delete_replication()
             self.dr_destroy()
-            fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
-            dbstor_fs_vstore_id = self.dr_deploy_info.get("dbstor_fs_vstore_id")
             if self.dr_type != "async":
                 self.delete_hyper()
             try:
-                self.delete_filesystem(dbstor_fs_vstore_id, fs_name)
+                self.dr_delete_file_system()
             except Exception as err:
-                LOG.info("Standby site delete hyper system failed: %s", str(err))
+                LOG.info("Standby site delete file system failed: %s", str(err))
         self.clean_dr_config_file()
-        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and uninstall_cantian_flag:
-            if node_id == "0":
+        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and self.uninstall_cantian_flag:
+            LOG.info("Uninstall Cantian engine begin.")
+            if self.node_id == "0":
                 self.wait_remote_node_exec("1", UNINSTALL_TIMEOUT)
             self.do_uninstall()
             # stop cantian, uninstall cantian 备集群需要卸载cantian， 主集群不需要卸载，不需要停
@@ -333,28 +338,77 @@ class UNDeploy(object):
 
         LOG.info("Successfully uninstalled!")
 
-    def execute(self):
+    def stop_and_uninstall_cantian(self):
+        if self.site == "standby" and self.uninstall_cantian_flag:
+            self.do_stop()
+            LOG.info("Stop Cantian engine success.")
+            LOG.info("Uninstall Cantian engine begin.")
+            if self.node_id == "0":
+                self.wait_remote_node_exec("1", UNINSTALL_TIMEOUT)
+            self.do_uninstall()
+            # stop cantian, uninstall cantian 备集群需要卸载cantian， 主集群不需要卸载，不需要停
+            LOG.info("Uninstall Cantian engine success.")
+
+    def only_check_dr_uninstall(self):
         if not os.path.exists(DR_DEPLOY_CONFIG):
             LOG.info("No dr deploy set up.")
             return
+        self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+        self.init_storage_opt()
+        try:
+            LOG.info("Start to delete dr deploy!")
+            self.dr_type = self.dr_deploy_info.get("dr_type")
+            self.delete_replication()
+            if self.dr_type != "async":
+                self.delete_hyper()
+            try:
+                self.dr_delete_file_system()
+            except Exception as err:
+                LOG.info("Standby site delete file system failed: %s", str(err))
+            LOG.info("Successfully uninstalled!")
+        except Exception as err:
+            LOG.error("Standby site dr uninstall failed: %s", str(err))
+        finally:
+            self.dr_deploy_opt.storage_opt.logout()
+
+    def execute(self):
         if self.check_process():
             LOG.info("Deploy process exist.")
             return
-        self.init_storage_opt()
-        node_id = self.deploy_params.get("node_id")
+
         action_parse = argparse.ArgumentParser()
         action_parse.add_argument("--site", dest="site", choices=["standby", "active"], required=True)
         args = action_parse.parse_args()
         self.site = args.site
-        # 告警提示，是否确认卸载；是否卸载Cantian
-        uninstall_cantian_flag = False
+        self.dm_passwd = input()
         confirmation = input()
+        # 告警提示，是否确认卸载；是否卸载Cantian
         if self.site == "standby":
             cantian_confirmation = input()
             if cantian_confirmation == "yes":
-                uninstall_cantian_flag = True
+                self.uninstall_cantian_flag = True
+
+        if not os.path.exists(CANTIAN_INSTALL_CONFIG_FILE):
+            if confirmation == "yes":
+                # 备端搭建时，安装参天失败后，用户执行容灾拆除命令走此处退出
+                self.only_check_dr_uninstall()
+            return
+        else:
+            self.deploy_params = read_json_config(CANTIAN_DEPLOY_CONFIG)
+            self.node_id = self.deploy_params.get("node_id")
+
+        if not os.path.exists(DR_DEPLOY_CONFIG):
+            LOG.info("No dr deploy set up.")
+            # 若用户上次执行卸载容灾时，在卸载参天时报错退出，再次重入时，走到此处退出
+            self.stop_and_uninstall_cantian()
+            return
+        else:
+            self.dr_deploy_info = read_json_config(DR_DEPLOY_CONFIG)
+
         if confirmation == "yes":
             try:
-                self.standby_uninstall(node_id, uninstall_cantian_flag)
+                self.init_storage_opt()
+                self.dr_uninstall()
             finally:
-                self.dr_deploy_opt.storage_opt.logout()
+                if self.dr_deploy_opt:
+                    self.dr_deploy_opt.storage_opt.logout()
