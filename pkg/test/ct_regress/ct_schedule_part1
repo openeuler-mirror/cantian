@@ -9,3 +9,4 @@ test: ct_json_3 ct_json_4 ct_json_5
 test: ct_jsonb_1 ct_jsonb_2 ct_jsonb_table
 test: ct_having
 test: ct_union_all ct_union ct_datatype
+test: ct_sys_table

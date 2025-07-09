@@ -1,0 +1,1 @@
+truncate table DV_LONG_SQL;
