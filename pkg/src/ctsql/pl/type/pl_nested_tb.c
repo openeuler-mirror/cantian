@@ -1424,6 +1424,14 @@ static status_t udt_nested_table_delete(sql_stmt_t *stmt, variant_t *var, expr_t
         end = collection_head->ctrl.hwm;
     }
 
+    if (start > collection_head->ctrl.hwm) {
+        CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
+        return CT_SUCCESS;
+    }
+    if (end > collection_head->ctrl.hwm) {
+        end = collection_head->ctrl.hwm;
+    }
+
     status = udt_nested_table_delete_elements(stmt, &var->v_collection, collection_head, (uint32)(start - 1), (uint32)end);
     // when delete method doesn't have argument, collection_head->hwm should be 0.
     if (status == CT_SUCCESS && args == NULL) {
