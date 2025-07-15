@@ -516,7 +516,31 @@ static inline int wsr_prepare(wsr_options_t *wsr_opts, const char *node_name)
     return CTCONN_SUCCESS;
 }
 
-static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char *node_name)
+static int wsr_build_report_sql_first_letters_info(wsr_options_t *wsr_opts, wsr_info_t *wsr_info)
+{
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_6),
+        "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_6);
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_10),
+        "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_10);
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15),
+        "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_20),
+        "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_20);
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30),
+        "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
+    return CTCONN_SUCCESS;
+}
+
+static int wsr_build_report_long_sql_first_letters_info(wsr_options_t *wsr_opts, wsr_info_t *wsr_info)
+{
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15),
+        "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30),
+        "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
+    return CTCONN_SUCCESS;
+}
+
+static int wsr_build_report_core(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char *node_name)
 {
     CTSQL_PRINT_AND_RETURN_IFERR(wsr_prepare(wsr_opts, node_name), "wsr_prepare failed\n");
     CTSQL_PRINT_AND_RETURN_IFERR(wsr_get_dbinfo(wsr_opts, wsr_info), "wsr_get_dbinfo failed\n");
@@ -543,11 +567,14 @@ static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char 
     }
 
     CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_sql(wsr_opts, wsr_info), "wsr_build_top_session_sql failed\n");
-    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_trans(wsr_opts, wsr_info), "wsr_bild_top_session_trans failed\n");
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_trans(wsr_opts, wsr_info),
+        "wsr_bild_top_session_trans failed\n");
 
     if (wsr_opts->input_snap_id) {
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_start(wsr_opts, wsr_info), "wsr_build_top_session_cursors_start failed\n");
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_end(wsr_opts, wsr_info), "wsr_build_top_session_cursors_end failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_start(wsr_opts, wsr_info),
+            "wsr_build_top_session_cursors_start failed\n");
+        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_top_session_cursors_end(wsr_opts, wsr_info),
+            "wsr_build_top_session_cursors_end failed\n");
     }
 
     if (wsr_opts->input_snap_id) {
@@ -559,20 +586,8 @@ static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char 
         CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_reads(wsr_opts, wsr_info), "wsr_build_sql_reads failed\n");
         CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_executions(wsr_opts, wsr_info), "wsr_build_sql_executions failed\n");
         CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_parses(wsr_opts, wsr_info), "wsr_build_sql_parses failed\n");
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_6), 
-            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_6);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_10), 
-            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_10);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15), 
-            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_20), 
-            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_20);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30), 
-            "wsr_build_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_15),
-            "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_15);
-        CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_long_sql_first_letters(wsr_opts, wsr_info, CT_WSR_SQL_PREFIX_30),
-            "wsr_build_long_sql_first_letters failed, prefix num: %d\n", CT_WSR_SQL_PREFIX_30);
+        CT_RETURN_IFERR(wsr_build_report_sql_first_letters_info(wsr_opts, wsr_info));
+        CT_RETURN_IFERR(wsr_build_report_long_sql_first_letters_info(wsr_opts, wsr_info));
     }
     CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_sql_content(wsr_opts, wsr_info), "wsr_build_sql_content failed\n");
 
@@ -582,6 +597,50 @@ static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char 
         CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_parameter(wsr_opts, wsr_info), "wsr_build_parameter failed\n");
     }
     return CTCONN_SUCCESS;
+}
+
+static status_t wsr_get_shared_lock(wsr_options_t *wsr_opts)
+{
+    char cmd_buf[MAX_CMD_LEN + 1] = "SELECT GET_SHARED_LOCK('WSR_SESSION')";
+    CT_RETURN_IFERR(ctconn_prepare(wsr_opts->curr_stmt, (const char *)cmd_buf));
+    CT_RETURN_IFERR(ctconn_execute(wsr_opts->curr_stmt));
+
+    return CT_SUCCESS;
+}
+
+static status_t wsr_release_shared_lock(wsr_options_t *wsr_opts)
+{
+    char cmd_buf[MAX_CMD_LEN + 1] = "SELECT RELEASE_SHARED_LOCK('WSR_SESSION')";
+    CT_RETURN_IFERR(ctconn_prepare(wsr_opts->curr_stmt, (const char *)cmd_buf));
+    CT_RETURN_IFERR(ctconn_execute(wsr_opts->curr_stmt));
+
+    return CT_SUCCESS;
+}
+
+static int wsr_build_report(wsr_options_t *wsr_opts, wsr_info_t *wsr_info, char *node_name)
+{
+    // Get a shared lock of wsr transaction -
+    // To avoid conflict with certain wsr procedures (eg. dropping outdated snapshots);
+    status_t wsr_get_shared_lock_status = wsr_get_shared_lock(wsr_opts);
+
+    // Build the report only if the shared lock was successfully acquired.
+    // After the report is built, release the shared lock.
+    status_t wsr_build_report_status = CT_ERROR;
+    status_t wsr_release_shared_lock_status = CT_ERROR;
+    if (wsr_get_shared_lock_status == CT_SUCCESS) {
+        wsr_build_report_status = wsr_build_report_core(wsr_opts, wsr_info, node_name);
+        wsr_release_shared_lock_status = wsr_release_shared_lock(wsr_opts);
+    }
+
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_get_shared_lock_status,
+        "Failed to acquire shared lock for WSR report creation.\n");
+
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_build_report_status,
+        "WSR report genaration core process failed.\n");
+
+    CTSQL_PRINT_AND_RETURN_IFERR(wsr_release_shared_lock_status,
+        "Failed to release shared lock for WSR report creation.\n");
+    return CT_SUCCESS;
 }
 
 status_t wsr_check_parameter(wsr_options_t *wsr_opts)
