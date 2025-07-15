@@ -206,7 +206,7 @@ class DssCtl(object):
                     output = stdout + stderr
                     err_msg = "Init lun cmd[%s] exec failed, details: %s" % (init_cmd % value, str(output))
                     raise Exception(err_msg)
-                LOG.info("Init lun cmd[%s] exec success.", init_cmd % value)
+                LOG.info(f"Init lun cmd[{init_cmd % value}] exec success.")
             LOG.info("Success to init lun.")
         else:
             LOG.info("No need to init lun for node[%s].", self.node_id)
