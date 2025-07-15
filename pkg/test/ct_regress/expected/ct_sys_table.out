@@ -1,0 +1,7 @@
+
+
+SQL> truncate table DV_LONG_SQL;
+CT-00130, Operation truncate table is not supported on view or system table
+
+
+

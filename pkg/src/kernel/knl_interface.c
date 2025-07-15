@@ -8212,10 +8212,6 @@ static status_t knl_truncate_table_precheck(knl_handle_t session, knl_trunc_def_
                                             bool32 *no_segment)
 {
     knl_session_t *se = (knl_session_t *)session;
-    if (knl_check_truncate_table(se, def, *dc) != CT_SUCCESS) {
-        CT_LOG_RUN_ERR("[TRUNCATE TABLE] Failed to check table %s", T2S_EX(&def->name));
-        return CT_ERROR;
-    }
     table_t *table = DC_TABLE(dc);
     if (db_table_is_referenced(se, table, CT_TRUE)) {
         if (!(DB_ATTR_COMPATIBLE_MYSQL(se) && def->no_need_check_fk)) {
@@ -8328,6 +8324,12 @@ status_t knl_truncate_table(knl_handle_t session, knl_handle_t stmt, knl_trunc_d
         return CT_ERROR;
     }
 
+    if (CT_SUCCESS != knl_check_truncate_table(se, def, dc)) {
+        dc_close(&dc);
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
+        return CT_ERROR;
+    }
+
     uint32 timeout = se->kernel->attr.ddl_lock_timeout;
     if (CT_SUCCESS != lock_table_directly(se, &dc, timeout)) {
         dc_close(&dc);
@@ -8378,6 +8380,10 @@ status_t knl_truncate_table4mysql(knl_handle_t session, knl_handle_t stmt, knl_t
     bool32 no_segment = CT_FALSE;
 
     SYNC_POINT_GLOBAL_START(CANTIAN_DDL_TRUNCATE_TABLE_PRECHECK_FAIL, &status, CT_ERROR);
+    if (CT_SUCCESS != knl_check_truncate_table(se, def, *dc)) {
+        cantian_record_io_stat_end(IO_RECORD_EVENT_KNL_TRUNCATE_TABLE, &tv_begin);
+        return CT_ERROR;
+    }
     status = knl_truncate_table_precheck(session, def, dc, &no_segment);
     SYNC_POINT_GLOBAL_END;
     if (status != CT_SUCCESS || no_segment) {

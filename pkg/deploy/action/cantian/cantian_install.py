@@ -3448,6 +3448,11 @@ class CanTian(object):
 
     def cantian_start(self):
         try:
+            mysql_cmd = "pidof mysqld"
+            ret_mysql_code, _, stderr = _exec_popen(mysql_cmd)
+            if not ret_mysql_code:
+                LOGGER.error("mysqld is already running, command: %s, err: %s" % (mysql_cmd, stderr))
+                raise Exception("mysqld is already running, command: %s, err: %s" % (mysql_cmd, stderr))
             flags = os.O_RDWR | os.O_CREAT
             modes = stat.S_IWUSR | stat.S_IRUSR
             with os.fdopen(os.open(CANTIAN_START_STATUS_FILE, flags, modes), 'w+') as load_fp:
