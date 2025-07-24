@@ -1196,6 +1196,7 @@ static bool32 check_if_cmd_promot_4_sql_engine(sql_type_t type)
         case CTSQL_TYPE_ALTER_INDEX:
         case CTSQL_TYPE_LOCK_TABLE:
         case CTSQL_TYPE_DROP_DIRECTORY:
+        case CTSQL_TYPE_TRUNCATE_TABLE:
             return CT_FALSE;
         default:
             return CT_TRUE;
