@@ -29,6 +29,7 @@
 #include <sys/file.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
@@ -152,6 +153,25 @@ typedef struct {
     uint32 params_num;
     uint32 check_num;
 } params_list_t;
+
+status_t str_convert_uint32_t(char *uint32_str, uint32_t *uint32_num)
+{
+    char *end_ptr = NULL;
+    long num = strtol(uint32_str, $end_ptr, 10);
+    if (uint32_str == end_ptr) {
+        printf("Invalid str(%s) please check.", uint32_str);
+        return CT_ERROR;
+    } else if (errno == ERANGE) {
+        printf("Invalid str(%s) out of range, please check.", uint32_str);
+        return CT_ERROR;
+    } else if (num > MAX_VALUE_UINT32 || num < 0) {
+        printf("The num(%ld) out of range, please check.", num);
+        return CT_ERROR;
+    } else {
+        *uint32_num = (uint32_t) num;
+        return CT_SUCCESS;
+    }
+}
 
 status_t get_cantiand_ini_file_name(char *cantiand_ini_file_path)
 {
@@ -2496,3 +2516,41 @@ int32_t dbs_send_dr_destroy_msg(int32 argc, char *argv[])
     return ret;
 }
 
+// dbstor --dr-register --fs-name=xxx [--vstore-id=*]
+int32_t dbs_send_dr_info_msg_to_master(int32 argc, char *argv[])
+{
+    if (dbs_global_handle()->dbs_dr_reg_info_to_master == NULL) {
+        printf("DBstor version not supported.\n");
+        return CT_ERROR;
+    }
+    char fs_name[MAX_DBS_FS_NAME_LEN] = {0};
+    char vstore_id[MAX_DBS_VSTORE_ID_LEN] = {0};
+    const char *params[] = {DBS_TOOL_PARAM_FS_NAME, DBS_TOOL_PARAM_VSTORE_ID};
+    char *results[] = {fs_name, vstore_id};
+    size_t result_lens[] = {MAX_DBS_FS_NAME_LEN, MAX_DBS_VSTORE_ID_LEN};
+    params_check_list_t check_list[] = {{DBS_TOOL_PARAM_FS_NAME, fs_name}};
+    params_list_t params_list = {params, results, result_lens, check_list, DBS_DR_DESTROY_PRAMA_NUM,
+                                 DBS_DR_DESTROY_CHECK_PRAMA_NUM};
+    if (parse_params_list(argc, argv, &params_list) != CT_SUCCESS) {
+        printf("Invalid command.\nUsage: --dr-register --fs-name=xxx [--vstore-id=*]\n");
+        return CT_ERROR;
+    }
+    uint32 vstore_id_uint = 0;
+    if (strlen(vstore_id) > 0) {
+        if (str_convert_uint32_t(vstore_id, &vstore_id_uint) != CT_SUCCESS) {
+            return CT_ERROR;
+        };
+    }
+    object_id_t root_obj_id = { 0 };
+    int32 ret = dbs_global_handle()->dbs_file_open_root_by_vstorid(fs_name, vstore_id_uint, &root_obj_id);
+    if (ret != 0) {
+        CT_LOG_RUN_ERR("[CM_DEVICE] open fs root failed, ret %d, fs name %s", ret, fs_name);
+        return ret;
+    }
+
+    ret = dbs_global_handle()->dbs_dr_reg_info_to_master(&root_obj_id);
+    if (ret != CT_SUCCESS) {
+        printf("Dr register failed(%d).\n", ret);
+    }
+    return ret;
+}

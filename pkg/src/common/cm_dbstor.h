@@ -117,6 +117,7 @@ typedef int (*dbs_create_link_t)(char *, char *);
 typedef int (*dbs_check_single_link_t)(char *, char *, uint32_t *);
 typedef int (*dbs_query_fs_info_t)(char *, uint32_t, void *);
 typedef int (*dbs_dr_destroy_t)(object_id_t *);
+typedef int (*dbs_dr_reg_info_to_master_t)(object_id_t *);
 
 //pagepool
 typedef int (*create_pagepool_t)(char *, PagePoolAttr *, PagePoolId *);
@@ -192,6 +193,7 @@ typedef struct st_dbs_interface {
     dbs_check_single_link_t dbs_check_single_link;
     dbs_query_fs_info_t dbs_query_fs_info;
     dbs_dr_destroy_t dbs_dr_destroy;
+    dbs_dr_reg_info_to_master_t dbs_dr_reg_info_to_master;
 
     // pagepool
     create_pagepool_t create_pagepool;

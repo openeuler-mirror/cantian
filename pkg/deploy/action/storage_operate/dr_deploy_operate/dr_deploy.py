@@ -1392,6 +1392,19 @@ class DRDeploy(object):
         self.do_unlock_instance_for_backup()
         self.record_deploy_process("dr_deploy", "success")
 
+    def dr_register(self):
+        dbstor_command = (
+            f'su -s /bin/bash - "{self.run_user}" -c \''
+            f'dbstor --dr-register --fs-name={self.deploy_params.get("storage_dbstor_fs")} '
+            f'--vstore_id={self.deploy_params.get("dbstor_fs_vstore_id")}\''
+        )
+        LOG.info(f"Executing command: {dbstor_command}")
+        return_code, output, stderr = exec_popen(dbstor_command, timeout=100)
+        if return_code:
+            err_msg = f"Execution of dbstor command failed, output: {output}, stderr: {stderr}"
+            LOG.error(err_msg)
+            raise Exception(err_msg)
+
     def standby_execute(self):
         """
         备端灾备搭建
@@ -1443,8 +1456,10 @@ class DRDeploy(object):
                 LOG.info("Waiting until the DR is successfully set up, waited [%s]s", wait_time)
             pair_ready = ulog_fs_pair_ready_flag and page_fs_pair_ready_flag and metadata_fs_ready_flag
             if is_installed_flag and pair_ready:
+                self.run_user = get_env_info("cantian_user")
                 self.record_deploy_process("standby_start", "running")
                 self.update_dbstor_init_config_file()
+                self.dr_register()
                 try:
                     self.standby_do_start()
                 except Exception as err:

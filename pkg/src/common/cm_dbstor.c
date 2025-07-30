@@ -97,6 +97,7 @@ status_t dbs_init_lib(void)
     // dbs
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsQueryFsInfo",                          (void **)(&intf->dbs_query_fs_info)));
     (void)(dbs_load_symbol(intf->dbs_handle, "DbsDrDestroy",                          (void **)(&intf->dbs_dr_destroy)));
+    (void)(dbs_load_symbol(intf->dbs_handle, "DbstorRegisterDrInfoToMaster",          (void **)(&intf->dbs_dr_reg_info_to_master)));
     cm_reset_error();
 
     // dbs
