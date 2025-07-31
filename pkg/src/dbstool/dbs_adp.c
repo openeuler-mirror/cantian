@@ -72,6 +72,7 @@
 #define DBS_PERF_SHOW_TIMES "--times="
 #define DBS_TOOL_PARAM_OVERWRITE "--overwrite"
 #define MAX_VALUE_UINT32 "4294967295"
+#define MAX_UINT32_NUM 4294967295
 #define DBS_LINK_CHECK_CNT "LINK_CHECK_CNT"
 #define BOOL_FALSE "false"
 #define BOOL_FALSE_LEN 5
@@ -157,14 +158,14 @@ typedef struct {
 status_t str_convert_uint32_t(char *uint32_str, uint32_t *uint32_num)
 {
     char *end_ptr = NULL;
-    long num = strtol(uint32_str, $end_ptr, 10);
+    long num = strtol(uint32_str, &end_ptr, 10);
     if (uint32_str == end_ptr) {
         printf("Invalid str(%s) please check.", uint32_str);
         return CT_ERROR;
     } else if (errno == ERANGE) {
         printf("Invalid str(%s) out of range, please check.", uint32_str);
         return CT_ERROR;
-    } else if (num > MAX_VALUE_UINT32 || num < 0) {
+    } else if (num >= MAX_UINT32_NUM || num < 0) {
         printf("The num(%ld) out of range, please check.", num);
         return CT_ERROR;
     } else {
