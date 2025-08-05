@@ -300,7 +300,7 @@ class UNDeploy(object):
             raise Exception(err_msg)
 
     def dr_delete_file_system(self):
-        if self.uninstall_cantian_flag:
+        if self.uninstall_cantian_flag or self.dr_type == "sync":
             page_fs_name = self.dr_deploy_info.get("storage_dbstor_page_fs")
             metadata_fs = self.dr_deploy_info.get("storage_metadata_fs")
             log_fs_name = self.dr_deploy_info.get("storage_dbstor_fs")
@@ -312,13 +312,15 @@ class UNDeploy(object):
             self.delete_filesystem(log_fs_vstore_id, log_fs_name)
 
     def dr_uninstall(self):
-        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and self.uninstall_cantian_flag:
+        self.dr_type = self.dr_deploy_info.get("dr_type")
+        # 同步容灾备端，需要删除停cantian，删除文件系统和卸载参天
+        if (self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and
+                (self.uninstall_cantian_flag or self.dr_type == "sync")):
             LOG.info("Stop Cantian engine begin.")
             self.do_stop()
             LOG.info("Stop Cantian engine success.")
         if self.node_id == "0":
             LOG.info("Start to delete dr deploy!")
-            self.dr_type = self.dr_deploy_info.get("dr_type")
             self.delete_replication()
             self.dr_destroy()
             if self.dr_type != "async":
@@ -328,7 +330,8 @@ class UNDeploy(object):
             except Exception as err:
                 LOG.info("Standby site delete file system failed: %s", str(err))
         self.clean_dr_config_file()
-        if self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and self.uninstall_cantian_flag:
+        if (self.site == "standby" and os.path.exists(CANTIAN_DEPLOY_CONFIG) and
+                (self.uninstall_cantian_flag or self.dr_type == "sync")):
             LOG.info("Uninstall Cantian engine begin.")
             if self.node_id == "0":
                 self.wait_remote_node_exec("1", UNINSTALL_TIMEOUT)
