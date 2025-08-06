@@ -93,7 +93,7 @@ function start_cantian() {
 				exit 1
 			fi
 		else
-			sudo  -E -i -u ${dbuser} sh -c "nohup cantiand -D \${CTDB_DATA}  1>/dev/null 2>&1 &"
+			sudo  -E -i -u ${dbuser} sh -c "nohup cantiand -D \${CTDB_DATA} >> ${CTDB_DATA}/log/cantianstatus.log 2>&1 &"
 			if [ $? -ne 0 ]; then 
 				echo "RES_FAILED"
 				exit 1
@@ -113,7 +113,7 @@ function start_cantian() {
 				exit 1
 			fi
 		else
-			nohup cantiand -D ${CTDB_DATA}  1>/dev/null 2>&1 &
+			nohup cantiand -D ${CTDB_DATA} >> ${CTDB_DATA}/log/cantianstatus.log 2>&1 &
 			if [ $? -ne 0 ]; then 
 				echo "RES_FAILED"
 				exit 1
